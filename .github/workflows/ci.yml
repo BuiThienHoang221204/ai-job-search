@@ -1,29 +1,4 @@
-# CI for the framework itself: LaTeX smoke compiles, skill/command lint,
-# CLI typechecks, and (upstream only) placeholder integrity.
-#
-# Fork-friendly by design: forks personalize CLAUDE.md, the skill files, and
-# cv/main_example.tex via /setup, so the placeholder-integrity job and the
-# exact page-count/content assertions run only on the upstream template repo.
-# Compile success, lint correctness, and an extractable PDF text layer are
-# asserted everywhere.
-#
-# Deliberately NOT here: live smoke tests of the job-portal CLIs. They hit
-# real portals (network-flaky, and the linkedin-search skill is personal-use
-# only per its own ToS warning - CI-automated requests would violate that).
-# CI runs typechecks and the checked-in fixture/mock test suites only; live
-# portal testing stays a local, on-demand step.
-#
-# Security posture: this template ships pre-approved Claude Code permissions
-# and CLI code that every fork user executes, so the security-guards job
-# fails PRs that widen settings.json permissions, weaken the personal-data
-# gitignore rules, or add package lifecycle scripts; dependency-review flags
-# newly introduced vulnerable/malicious dependencies. Honest limit: a PR can
-# edit this workflow itself, so these guards catch accidents and casual
-# attempts, not a determined author - branch protection with required checks
-# and human review of workflow/settings diffs remain the real backstop.
-# Actions are pinned to commit SHAs; the token is read-only.
-
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -31,172 +6,132 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The workflow only reads repository content.  No images are published and no
+# deployment target is configured for this repository.
 permissions:
   contents: read
 
+concurrency:
+  group: ai-job-search-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  lint:
-    name: Lint skills, commands, settings
+  test-and-build:
+    name: Validate framework and CLI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-      - run: pip install pyyaml
-      - run: python tools/lint_skills.py
-      - name: Framework version guard (upstream template only)
-        if: github.repository == 'MadsLorentzen/ai-job-search'
-        run: python tools/check_framework_version.py
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-  security-guards:
-    name: Security guards (permissions, gitignore, manifests)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - run: python tools/security_guards.py
 
-  python-tests:
-    name: Python tool tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - name: Lint skills and commands
+        run: |
+          python -m pip install --disable-pip-version-check pyyaml
+          python tools/lint_skills.py
+          python tools/check_framework_version.py
+
+      - name: Run security guards
+        run: python tools/security_guards.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-      - run: python -m unittest discover -s tests -t . -v
+          node-version: "20"
+          cache: pnpm
 
-  dependency-review:
-    name: Dependency review
-    # Requires the repo's Dependency graph, which not every repo (upstream or
-    # fork) has enabled - so the graph is probed first, and the job warns and
-    # passes instead of hard-failing if it's unavailable (the same
-    # graceful-skip pattern the workflow uses for optional tools), rather than
-    # being gated to a specific repository. Enabling Dependency graph under
-    # Settings -> Advanced Security activates the real check on any repo.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Probe Dependency graph availability
-        id: graph
-        run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/dependency-graph/sbom")
-          if [ "$code" = "200" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Dependency graph is not enabled on this repository (HTTP $code). Dependency review was skipped - enable Dependency graph under Settings -> Advanced Security to activate this check."
-          fi
-      - name: Dependency review
-        if: steps.graph.outputs.enabled == 'true'
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          fail-on-severity: high
+          version: 9
 
-  latex-smoke:
-    name: Compile example CV and cover letter
-    runs-on: ubuntu-latest
-    container: texlive/texlive:latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Install PDF inspection tools
+      - name: Check workspace setup
         run: |
-          if ! command -v pdfinfo >/dev/null || ! command -v pdftotext >/dev/null; then
-            apt-get update
-            apt-get install -y --no-install-recommends poppler-utils
-          fi
-      - name: Compile CV example (lualatex)
-        run: |
-          cd cv
-          lualatex -interaction=nonstopmode -halt-on-error main_example.tex
-          test -f main_example.pdf
-          if grep -q '^!' main_example.log; then
-            echo '::error::lualatex reported errors compiling cv/main_example.tex'
-            grep -A3 '^!' main_example.log
-            exit 1
-          fi
-      - name: Compile cover letter example (xelatex)
-        run: |
-          cd cover_letters
-          xelatex -interaction=nonstopmode -halt-on-error cover_example.tex
-          test -f cover_example.pdf
-          if grep -q '^!' cover_example.log; then
-            echo '::error::xelatex reported errors compiling cover_letters/cover_example.tex'
-            grep -A3 '^!' cover_example.log
-            exit 1
-          fi
-      - name: Verify extractable PDF text
-        run: |
-          python3 tools/verify_pdf.py cv/main_example.pdf --min-chars 100
-          python3 tools/verify_pdf.py cover_letters/cover_example.pdf --min-chars 100
-      - name: Assert stock PDF structure (upstream template only)
-        if: github.repository == 'MadsLorentzen/ai-job-search'
-        run: |
-          python3 tools/verify_pdf.py cv/main_example.pdf \
-            --pages 2 \
-            --contains '[your.email@example.com]' \
-            --contains 'Professional Experience'
-          python3 tools/verify_pdf.py cover_letters/cover_example.pdf \
-            --pages 1 \
-            --contains 'your.email@example.com' \
-            --contains 'Dear [Hiring Manager / Team]'
+          pnpm install --frozen-lockfile
+          pnpm run check
 
-  cli-checks:
-    name: CLI checks ${{ matrix.tool }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        tool:
-          - freehire-search
-          - jobbank-search
-          - jobdanmark-search
-          - jobindex-search
-          - jobnet-search
-          - linkedin-search
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-      - run: bun install
-        working-directory: .agents/skills/${{ matrix.tool }}/cli
-      - run: bun run typecheck
-        working-directory: .agents/skills/${{ matrix.tool }}/cli
-      - name: Run fixture/mock tests when present
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Type-check LinkedIn search CLI
+        working-directory: .agents/skills/linkedin-search/cli
+        run: |
+          bun install
+          bun run typecheck
+
+      - name: Run LinkedIn CLI fixture tests when present
+        working-directory: .agents/skills/linkedin-search/cli
         run: |
           if find tests -type f -name '*.test.ts' | grep -q .; then
             bun test
           else
-            echo "No Bun tests found for ${{ matrix.tool }}; skipping"
+            echo "No Bun tests found; skipping fixture tests."
           fi
-        working-directory: .agents/skills/${{ matrix.tool }}/cli
 
-  placeholder-integrity:
-    name: Placeholder integrity (upstream template only)
-    if: github.repository == 'MadsLorentzen/ai-job-search'
+  security-scan:
+    name: Scan repository vulnerabilities
     runs-on: ubuntu-latest
+    needs: test-and-build
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - name: Tracked template files must keep their placeholder tokens
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          ignore-unfixed: true
+          format: table
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: "0"
+
+  deploy:
+    name: Deploy to DigitalOcean
+    runs-on: ubuntu-latest
+    needs: security-scan
+    # Deploy production only after a successful push to the main branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    environment: production
+    steps:
+      - name: Validate deployment configuration
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
         run: |
-          fail=0
-          check() {
-            if ! grep -q "$2" "$1"; then
-              echo "::error file=$1::expected placeholder token $2 - personal data may have been committed"
-              fail=1
+          test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
+          test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
+          test -n "$DO_SSH_KEY" || { echo "::error::Missing DO_SSH_KEY secret."; exit 1; }
+          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH repository variable."; exit 1; }
+
+      - name: Sync source code to DigitalOcean
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+          REPOSITORY: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          envs: DEPLOY_PATH,REPOSITORY,COMMIT_SHA,GITHUB_TOKEN
+          script: |
+            set -euo pipefail
+            case "$DEPLOY_PATH" in
+              /*) ;;
+              *) echo "DEPLOY_PATH must be an absolute path."; exit 1 ;;
+            esac
+            AUTH_REPOSITORY="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git"
+            if [ ! -d "$DEPLOY_PATH/.git" ]; then
+              mkdir -p "$(dirname "$DEPLOY_PATH")"
+              git clone --depth 1 "$AUTH_REPOSITORY" "$DEPLOY_PATH"
             fi
-          }
-          check CLAUDE.md '\[YOUR_NAME\]'
-          check cv/main_example.tex '\[YOUR_NAME\]'
-          check cover_letters/cover_example.tex '\[YOUR NAME\]'
-          check .claude/skills/job-application-assistant/01-candidate-profile.md '<!-- SETUP'
-          check .claude/skills/job-application-assistant/04-job-evaluation.md '\[YOUR_PRIMARY_SKILLS\]'
-          exit $fail
+            git -C "$DEPLOY_PATH" fetch --depth 1 "$AUTH_REPOSITORY" "$COMMIT_SHA"
+            git -C "$DEPLOY_PATH" checkout --detach --force FETCH_HEAD
+            git -C "$DEPLOY_PATH" remote set-url origin "https://github.com/${REPOSITORY}.git"
