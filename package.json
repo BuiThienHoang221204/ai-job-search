@@ -1,0 +1,22 @@
+{
+  "name": "ai-job-search",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered job search workspace: job scraping, CV/cover letter generation, interview prep",
+  "scripts": {
+    "check": "node scripts/setup.mjs check",
+    "setup": "node scripts/setup.mjs setup",
+    "install:env": "node scripts/setup.mjs install",
+    "install:tools": "node scripts/setup.mjs install-tools",
+    "install:python": "node scripts/setup.mjs install-python",
+    "install:bun": "node scripts/setup.mjs install-bun",
+    "install:claude": "node scripts/setup.mjs install-claude",
+    "install:latex": "node scripts/setup.mjs install-latex",
+    "install:poppler": "node scripts/setup.mjs install-poppler",
+    "test": "node scripts/setup.mjs test",
+    "smoke": "node scripts/setup.mjs smoke"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
