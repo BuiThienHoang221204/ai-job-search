@@ -2,6 +2,22 @@
 node_modules/
 bun.lock
 
+# Backend (server/)
+server/dist/
+server/src/generated/
+server/.env
+# Prisma 7 tự cài agent skill của nó vào server/ khi chạy `prisma init`.
+# Đây là symlink vào node_modules, không phải skill nghiệp vụ - đừng nhầm lẫn
+# với .claude/skills/ ở gốc repo, vốn là nguồn sự thật duy nhất của workflow.
+server/.claude/
+server/.agents/
+server/.windsurf/
+server/skills-lock.json
+
+# Workspace dữ liệu người dùng (CV, cover letter, tracker...).
+# Sẽ chuyển lên S3/R2 sau; đường dẫn đã mang userId nên chỉ cần đổi driver.
+workspaces/
+
 # Python
 __pycache__/
 *.pyc

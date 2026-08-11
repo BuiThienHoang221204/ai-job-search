@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    // Chỉ CLI của Prisma đọc file này. Để nó trong build sẽ kéo rootDir lên gốc
+    // server/ và làm output thành dist/src/main.js thay vì dist/main.js.
+    "prisma.config.ts"
+  ]
+}

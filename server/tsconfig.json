@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strictBindCallApply": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  // Khai báo tường minh thay vì để TypeScript tự quét cả thư mục. Bộ file của
+  // chương trình phải giống hệt nhau dù ai dựng nó - CLI hay project service
+  // của typescript-eslint trong IDE. Đặc biệt src/generated/** phải nằm trong
+  // đây: thiếu nó thì PrismaClient không phân giải được và mọi lời gọi
+  // this.prisma.<model> bị báo là thao tác trên type lỗi.
+  // Không ảnh hưởng output build: nest build dùng tsconfig.build.json, và
+  // "include" của file con ghi đè file cha.
+  "include": ["src/**/*", "test/**/*"]
+}

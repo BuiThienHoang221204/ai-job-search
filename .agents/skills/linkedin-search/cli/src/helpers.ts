@@ -54,6 +54,13 @@ export interface JobCard {
   title: string
   company: string | null
   companyUrl: string | null
+  /**
+   * Company logo URL.
+   *
+   * NOTE: this field is a local addition on top of the upstream skill. LinkedIn
+   * lazy-loads the logo, so the URL lives in `data-delayed-url`, not `src`.
+   */
+  companyLogo: string | null
   location: string | null
   date: string | null
   url: string
@@ -173,6 +180,12 @@ export function parseJobCards(html: string): JobCard[] {
       company = clean(sub[1]) || null
     }
 
+    // Company logo. Read `data-delayed-url` rather than `src`: LinkedIn ships a
+    // 1x1 placeholder in `src` and swaps it in on scroll, so `src` is useless
+    // server-side. `data-ghost-url` is the grey placeholder - skip it.
+    const logo = chunk.match(/<img[^>]*data-delayed-url="([^"]+)"/i)
+    const companyLogo = logo ? decodeHtmlEntities(logo[1]) : null
+
     // Location + date.
     const loc = chunk.match(/class="job-search-card__location"[^>]*>([\s\S]*?)<\/span>/i)
     const location = loc ? clean(loc[1]) || null : null
@@ -184,6 +197,7 @@ export function parseJobCards(html: string): JobCard[] {
       title,
       company,
       companyUrl,
+      companyLogo,
       location,
       date,
       url: url || `https://www.linkedin.com/jobs/view/${id}`,
@@ -233,11 +247,20 @@ export function parseJobDetail(html: string, id: string): JobDetail {
   const applyMatch = html.match(/class="topcard__link[^"]*"[^>]*href="([^"]+)"/i)
   const applyUrl = applyMatch ? decodeHtmlEntities(applyMatch[1]).split("?")[0] : null
 
+  // Local addition, same reasoning as in parseJobCards: the detail page also
+  // lazy-loads the org logo. Accept either attribute since the two page
+  // templates differ.
+  const logoMatch = html.match(
+    /<img[^>]*(?:data-delayed-url|data-ghost-url|src)="(https:\/\/media\.licdn\.com\/[^"]*company-logo[^"]*)"/i,
+  )
+  const companyLogo = logoMatch ? decodeHtmlEntities(logoMatch[1]) : null
+
   return {
     id,
     title: title ? clean(title) : "(untitled)",
     company,
     companyUrl,
+    companyLogo,
     location,
     date: null,
     url: `https://www.linkedin.com/jobs/view/${id}`,

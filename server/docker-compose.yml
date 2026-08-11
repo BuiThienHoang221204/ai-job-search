@@ -1,0 +1,27 @@
+# Ghim tên project. Mặc định Docker Compose lấy tên thư mục chứa file làm tên
+# project, nên chuyển file này từ gốc repo vào server/ sẽ đổi project từ
+# "ai-job-search" thành "server" - và Compose sẽ tạo volume MỚI, rỗng,
+# bỏ lại toàn bộ dữ liệu trong ai-job-search_postgres_data.
+name: ai-job-search
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: aijob-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aijob
+      POSTGRES_PASSWORD: aijob_dev_password
+      POSTGRES_DB: aijob
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aijob -d aijob"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
