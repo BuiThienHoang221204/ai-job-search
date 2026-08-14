@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -15,6 +16,24 @@ import type { AuthUser } from '../../common/types/auth-user.js';
 import { AssistedApplyService } from './assisted-apply.service.js';
 
 export class LatestAttemptQuery {
+  @IsString()
+  jobId!: string;
+}
+
+/**
+ * `jobId` đi trong THÂN, không trong query string.
+ *
+ * Đã trả giá để biết: bản đầu nhận `jobId` qua query nên phía giao diện gọi
+ * `api.post(url, null, { params })`. Axios gửi thân là chuỗi `null` kèm
+ * `Content-Type: application/json`, và `express.json()` mặc định `strict: true` nên
+ * nó TỪ CHỐI mọi thân không phải object/array — người dùng nhận HTTP 400 với câu
+ * `Unexpected token 'n', "null" is not valid JSON` hiện thẳng lên màn hình.
+ *
+ * Test e2e không thể bắt được lỗi đó vì supertest gọi bằng `.query()` mà không gửi
+ * thân, tức là nó drive API khác cách client thật drive. Bài học nằm ở đó chứ không
+ * ở `strict`.
+ */
+export class StartAttemptDto {
   @IsString()
   jobId!: string;
 }
@@ -39,14 +58,30 @@ export class AssistedApplyController {
    * không cho bấm khi lượt trước còn chạy.
    */
   @Post()
-  start(@CurrentUser() user: AuthUser, @Query() query: LatestAttemptQuery) {
-    return this.assisted.start(user.id, query.jobId);
+  start(@CurrentUser() user: AuthUser, @Body() dto: StartAttemptDto) {
+    return this.assisted.start(user.id, dto.jobId);
   }
 
-  /// Lượt gần nhất của một tin, để giao diện mở lại đúng trạng thái sau khi tải trang.
+  /**
+   * Lượt gần nhất của một tin, để giao diện mở lại đúng trạng thái sau khi tải trang.
+   *
+   * Trả về **một object bọc ngoài** `{ attempt }` chứ không trả thẳng `null`, và đó
+   * là bài học trả giá bằng một lượt chạy thật: Nest gửi `null` thành **thân rỗng**
+   * kèm HTTP 200 và không có `Content-Type`, nên axios ở phía giao diện đổ
+   * `Unexpected token 'n', "null" is not valid JSON` — một thông báo chẳng liên quan
+   * gì tới nguyên nhân, hiện thẳng lên màn hình người dùng.
+   *
+   * Cách khác là trả 404 khi chưa có lượt nào, nhưng đó chính là vết đã có ở
+   * `GET /api/upskill`: giao diện không phân biệt được "chưa có" với "route đã bị đổi
+   * tên", và console đầy 404 hợp lệ. Một object luôn parse được thì không có chỗ nào
+   * để nhầm.
+   */
   @Get('latest')
-  latest(@CurrentUser() user: AuthUser, @Query() query: LatestAttemptQuery) {
-    return this.assisted.latest(user.id, query.jobId);
+  async latest(
+    @CurrentUser() user: AuthUser,
+    @Query() query: LatestAttemptQuery,
+  ) {
+    return { attempt: await this.assisted.latest(user.id, query.jobId) };
   }
 
   @Get(':id')

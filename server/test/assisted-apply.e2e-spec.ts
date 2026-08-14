@@ -74,10 +74,20 @@ describe('Assisted Apply', () => {
   const attemptIdOf = (response: { body: unknown }): string =>
     (response.body as { attemptId: string }).attemptId;
 
+  /*
+   * Gửi `jobId` trong THÂN, đúng như giao diện thật gọi.
+   *
+   * Bản đầu của spec này dùng `.query({ jobId })` mà không gửi thân, và vì thế nó
+   * KHÔNG bắt được một lỗi 400 thật: khi đó controller nhận `jobId` qua query nên
+   * giao diện gọi `api.post(url, null, { params })`, axios gửi chuỗi `null` làm thân,
+   * và `express.json()` (`strict: true`) từ chối. Test xanh, người dùng thấy lỗi.
+   *
+   * Bài học: test phải drive API theo đúng cách client thật drive nó.
+   */
   const start = (as: TestUser = user) =>
     request(harness.server)
       .post('/api/apply-attempts')
-      .query({ jobId })
+      .send({ jobId })
       .set('Authorization', `Bearer ${as.token}`);
 
   describe('đường GHI', () => {
@@ -127,7 +137,7 @@ describe('Assisted Apply', () => {
 
       await request(harness.server)
         .post('/api/apply-attempts')
-        .query({ jobId: noUrl.id })
+        .send({ jobId: noUrl.id })
         .set('Authorization', `Bearer ${user.token}`)
         .expect(400);
 
@@ -137,20 +147,45 @@ describe('Assisted Apply', () => {
     test('thiếu jobId thì 400', async () => {
       await request(harness.server)
         .post('/api/apply-attempts')
+        .send({})
         .set('Authorization', `Bearer ${user.token}`)
         .expect(400);
     });
 
-    test('KHÔNG có route nào nộp hồ sơ', async () => {
+    test('thân là `null` bị TỪ CHỐI, không âm thầm nhận', async () => {
       /*
-       * Ghim bằng một phép thử thật thay vì bằng một lời hứa trong tài liệu: máy
-       * không được bấm nút nộp, nên không được có đường HTTP nào làm việc đó.
+       * Đây là lỗi đã hiện lên màn hình người dùng thật, và nó đáng ghi lại đầy đủ.
+       *
+       * Giao diện từng gọi `api.post(url, null, { params })`. Axios gửi chuỗi `null`
+       * làm thân kèm `Content-Type: application/json`, còn `express.json()` mặc định
+       * `strict: true` nên nó từ chối — người dùng nhận 400 với câu của body-parser:
+       * `Unexpected token 'n', "null" is not valid JSON`. Câu đó nói về JSON, trong
+       * khi người dùng chỉ bấm một cái nút.
+       *
+       * ĐÃ SỬA TẬN GỐC: `jobId` chuyển vào thân (`StartAttemptDto`), nên giao diện
+       * không còn gửi thân `null` nữa.
+       *
+       * CÒN NỢ: câu chữ của body-parser vẫn rò ra cho MỌI route khi thân JSON hỏng.
+       * Đã thử hai cách và **cả hai đều không chặn được** — đừng thử lại:
+       *   1. `ExceptionFilter` với `@Catch()`: không bao giờ được gọi. body-parser ném
+       *      lỗi ở tầng middleware, Express xử lý trước tầng exception của Nest.
+       *   2. Middleware xử lý lỗi 4 tham số đăng ký trong `configureApp`: cũng không
+       *      được gọi.
+       * Cách còn lại chưa thử: `NestFactory.create(AppModule, { bodyParser: false })`
+       * rồi tự `app.use(json({ strict: false }))` — nhưng phải làm ở CẢ hai chỗ dựng
+       * app (main.ts và bộ khung test), và `strict: false` thì nhận cả thân là chuỗi.
+       *
+       * Test này ghim phần đã chắc: thân `null` phải bị TỪ CHỐI, không được âm thầm
+       * đi qua rồi tạo một bản ghi thiếu dữ liệu.
        */
-      const created = await start().expect(201);
       await request(harness.server)
-        .post(`/api/apply-attempts/${attemptIdOf(created)}/submit`)
+        .post('/api/apply-attempts')
+        .set('Content-Type', 'application/json')
         .set('Authorization', `Bearer ${user.token}`)
-        .expect(404);
+        .send('null')
+        .expect(400);
+
+      expect(harness.queue.sentTo(QUEUE.APPLY_ASSIST)).toHaveLength(0);
     });
   });
 
@@ -323,7 +358,29 @@ describe('Assisted Apply', () => {
         .set('Authorization', `Bearer ${user.token}`)
         .expect(200);
 
-      expect((response.body as { id: string }).id).toBe(id);
+      const body = response.body as { attempt: { id: string } | null };
+      expect(body.attempt?.id).toBe(id);
+    });
+
+    test('chưa có lượt nào thì trả THÂN PARSE ĐƯỢC, không phải thân rỗng', async () => {
+      /*
+       * Nhánh này thiếu trong bản đầu, và nó là nhánh đã hỏng thật.
+       *
+       * Trả thẳng `null` từ controller thì Nest gửi HTTP 200 với `Content-Length: 0`
+       * và KHÔNG có `Content-Type`. Axios ở giao diện đổ `Unexpected token 'n',
+       * "null" is not valid JSON` — một thông báo chẳng liên quan tới nguyên nhân,
+       * hiện thẳng lên màn hình người dùng. Chỉ chạy thật trên trình duyệt mới thấy:
+       * bản e2e đầu chỉ kiểm trường hợp ĐÃ có lượt.
+       */
+      const response = await request(harness.server)
+        .get('/api/apply-attempts/latest')
+        .query({ jobId })
+        .set('Authorization', `Bearer ${user.token}`)
+        .expect(200);
+
+      expect(response.headers['content-type']).toContain('application/json');
+      expect(Number(response.headers['content-length'])).toBeGreaterThan(0);
+      expect(response.body as unknown).toEqual({ attempt: null });
     });
 
     test('người khác KHÔNG đọc được lượt, ảnh, và không xác nhận được', async () => {

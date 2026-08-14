@@ -40,6 +40,15 @@ const JSON_BOUNDS = { maxBytes: 64 * 1024, maxItems: 100 } as const;
 export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(SHORT) headline?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) location?: string;
+  /**
+   * Số điện thoại. Trần 40 ký tự, KHÔNG dùng `SHORT` (200) như các trường khác.
+   *
+   * Trường này không đi vào prompt mà đi vào **form ứng tuyển của nhà tuyển dụng**
+   * (Assisted Apply điền nó). Một chuỗi 200 ký tự trong ô số điện thoại là dữ liệu
+   * rác gửi tới người khác, nên trần ở đây phản ánh hình dạng thật của dữ liệu chứ
+   * không phải giới hạn chi phí model.
+   */
+  @IsOptional() @IsString() @MaxLength(40) phone?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) country?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) employmentStatus?: string;
   @IsOptional() @IsString() @MaxLength(SUMMARY) summary?: string;
