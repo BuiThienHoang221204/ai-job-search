@@ -91,6 +91,20 @@ Muốn dựng lại `cover.cls` (ví dụ sau khi đổi font của nó sang fon
 
 Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `\today`: `\today` theo ngôn ngữ document class, và moderncv mặc định tiếng Anh — đã thấy dòng "August 13, 2026" trong một thư tiếng Việt.
 
+## Assisted Apply (Pha 5) — bốn điều đã đo, không đoán
+
+**Máy KHÔNG bấm nút nộp.** Đây là quyết định thiết kế, không phải việc còn thiếu — lý do đầy đủ trong docblock của `BrowserApplyService`. Đừng "làm cho xong" bằng cách thêm một lần `click()`.
+
+**Form ứng tuyển của cả 4 portal Việt nằm sau tường đăng nhập.** Đo bằng chính HTML của TopCV: nút "Ứng tuyển ngay" là `href="javascript:showLoginPopup('...?apply-form=1', ...)"`. VietnamWorks không có form nào trên trang công khai. Nên `LOGIN_WALL` là một **kết luận hợp lệ**, không phải lỗi cần sửa; nơi luồng tự động chạy thật là form công khai kiểu Greenhouse/Lever/Ashby.
+
+**Chính sách ở TypeScript, cơ chế ở trong trang.** `field-plan.ts` sinh bảng luật và phân loại kết quả (có test đơn vị); `apply-script.ts` chỉ dò chuỗi và gán giá trị. Đừng chuyển quyết định nào vào script: nó là một template string, không được eslint/tsc kiểm.
+
+**Khớp trên MỌI thuộc tính nhận dạng, không chỉ một nhãn.** Đo trên form Greenhouse: hai ô file có `id="resume"` và `id="cover_letter"`, còn nhãn của cả hai — và của cả 5 tầng ancestor — đều là "Attach", vì form ẩn `input[type=file]` thật rồi vẽ một nút riêng. Chỉ khớp theo nhãn thì **CV bị đính vào cả ô thư xin việc**, và đó là lỗi người đọc hồ sơ thấy ngay. Cũng vì thế luật file KHÔNG có nhánh dự phòng lỏng (`attach|upload|file`): ô không đọc được thì để `unmatched` cho người dùng tự đính — thà thiếu còn hơn đính sai tài liệu.
+
+**`--network` mặc định là `none`**, chỉ Assisted Apply khai `'egress'`. Có test bảo mật riêng ở `test/unit/modules/sandbox/docker-args.spec.ts`, gồm cả nhánh "một giá trị lạ KHÔNG mở được mạng" — spec có thể đến từ JSON trong hàng đợi, nên so sánh phải là danh sách trắng. Vì lượt chạy này vừa có hồ sơ vừa có Internet, nó chỉ nhận `ApplyIdentity` (4 trường), không nhận nội dung do model sinh.
+
+Ảnh `aijob-browser:1.62.1` phải build trước (`browser-service/Dockerfile`) — 3,54GB. Ảnh chính thức của Playwright chỉ có trình duyệt, KHÔNG có package npm `playwright`.
+
 ## Hàng đợi
 
 - Khoá chặn trùng được **suy ra từ payload** trong `queue-key.ts`, không do người gọi truyền vào. Thêm hàng đợi mới thì phải thêm một nhánh khoá — có test đối chiếu `QUEUE` với danh sách khoá nên quên là đỏ ngay.

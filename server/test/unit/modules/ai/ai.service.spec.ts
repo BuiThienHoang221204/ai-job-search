@@ -392,7 +392,20 @@ describe('AiService.generateObject - nhật ký', () => {
         message: 'No object generated',
         text: '{"diem": "chín"}',
         response: { id: 'r1', timestamp: new Date(0), modelId: 'a-free' },
-        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        // `LanguageModelUsage` của ai@7 đòi cả hai trường `*TokenDetails`. Bỏ
+        // chúng thì `jest` vẫn xanh (ts-jest không bật diagnostics) nhưng `tsc`
+        // đỏ — nên đừng "gọn hoá" lại.
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          inputTokenDetails: {
+            noCacheTokens: 10,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+          },
+          outputTokenDetails: { textTokens: 5, reasoningTokens: 0 },
+        },
         finishReason: 'stop',
       }),
     );

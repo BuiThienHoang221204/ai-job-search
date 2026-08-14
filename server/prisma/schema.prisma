@@ -64,6 +64,15 @@ model Profile {
   // Danh tính
   headline         String?
   location         String?
+
+  /// So dien thoai. Gan nhu MOI form ung tuyen doi truong nay, va template CV da
+  /// ho tro macro `\phone` tu truoc - truoc do `documents.service.ts` luon truyen
+  /// `phone: null` vi khong co cho nao luu.
+  ///
+  /// Model KHONG duoc de xuat truong nay tu CV: doc sai mot chu so thi ho so gui di
+  /// mang mot so dien thoai khong lien lac duoc, va nguoi dung khong co cach nao
+  /// biet. Nguoi dung tu dien.
+  phone            String?
   country          String?
   languages        String[] @default([])
   employmentStatus String?

@@ -28,6 +28,60 @@ type Spawned = {
   timedOut: boolean;
 };
 
+/**
+ * Tham số của `docker run`.
+ *
+ * Hàm thuần ở tầng module, KHÔNG phải method của class: đây là chỗ duy nhất quyết
+ * định một lượt chạy có mạng hay không, nên nó phải kiểm được mà không cần Docker.
+ * Xem `test/unit/modules/sandbox/docker-args.spec.ts`.
+ *
+ * Bốn thứ ở đây là **bảo mật**, không phải tối ưu:
+ *
+ * - `--network`: **mặc định `none`**. Đây là lớp chặn cuối nếu một ngày nào đó
+ *   `escapeLatex` bị lọt — không có mạng thì không thể gửi dữ liệu hồ sơ ra ngoài.
+ *   Chỉ mở khi `spec.network === 'egress'`, và chỉ Assisted Apply cần (trình duyệt
+ *   phải tải được trang tuyển dụng). Mặc định nằm ở đây chứ không ở caller: quên
+ *   khai thì được cấu hình ĐÓNG.
+ * - `--memory`, `--cpus`: một tài liệu độc hại có thể bơm bộ nhớ hoặc quay vô hạn.
+ *   Không có trần thì nó lấy hết máy chủ.
+ * - `--rm`: xoá container khi xong. Xem ghi chú về `name` trong `run()` cho trường
+ *   hợp hết giờ.
+ * - `--pull never`: KHÔNG tự tải ảnh. Ảnh TeX Live nặng 8,92GB và ảnh Playwright
+ *   ~2GB; tải chúng ngay giữa một request của người dùng là treo vài phút rồi hết
+ *   giờ. Thiếu ảnh phải là một lỗi nói rõ ràng, và là việc của người vận hành.
+ */
+export function dockerArgs(
+  name: string,
+  work: string,
+  spec: SandboxSpec,
+): string[] {
+  const memory = spec.limits?.memoryMb ?? DEFAULT_MEMORY_MB;
+  const cpus = spec.limits?.cpus ?? DEFAULT_CPUS;
+
+  return [
+    'run',
+    '--rm',
+    '--name',
+    name,
+    '--network',
+    // `bridge` là mạng mặc định của Docker; đặt tường minh để đọc log thấy rõ lượt
+    // nào có mạng.
+    spec.network === 'egress' ? 'bridge' : 'none',
+    '--memory',
+    `${memory}m`,
+    '--cpus',
+    String(cpus),
+    '--pull',
+    'never',
+    '-v',
+    `${work}:/work`,
+    '-w',
+    '/work',
+    spec.image,
+    ...spec.command,
+  ];
+}
+
 @Injectable()
 export class DockerSandbox implements SandboxRunner {
   private readonly logger = new Logger(DockerSandbox.name);
@@ -65,7 +119,7 @@ export class DockerSandbox implements SandboxRunner {
       }
 
       const result = await this.spawn(
-        this.dockerArgs(name, work, spec),
+        dockerArgs(name, work, spec),
         spec.timeoutMs,
       );
 
@@ -94,48 +148,6 @@ export class DockerSandbox implements SandboxRunner {
           this.logger.warn(`Không dọn được ${work}: ${messageOf(error)}`),
       );
     }
-  }
-
-  /**
-   * Tham số của `docker run`.
-   *
-   * Bốn thứ ở đây là **bảo mật**, không phải tối ưu:
-   *
-   * - `--network none`: LaTeX và trình duyệt trong sandbox không được ra mạng. Đây
-   *   là lớp chặn cuối nếu một ngày nào đó `escapeLatex` bị lọt — không có mạng thì
-   *   không thể gửi dữ liệu hồ sơ ra ngoài.
-   * - `--memory`, `--cpus`: một tài liệu độc hại có thể bơm bộ nhớ hoặc quay vô hạn
-   *   (`\def\x{\x\x}\x`). Không có trần thì nó lấy hết máy chủ.
-   * - `--rm`: xoá container khi xong. Xem ghi chú về `name` ở trên cho trường hợp
-   *   hết giờ.
-   * - `--pull never`: KHÔNG tự tải ảnh. Ảnh TeX Live nặng 8,92GB; tải nó ngay giữa
-   *   một request của người dùng là treo vài phút rồi hết giờ. Thiếu ảnh phải là
-   *   một lỗi nói rõ ràng, và là việc của người vận hành.
-   */
-  private dockerArgs(name: string, work: string, spec: SandboxSpec): string[] {
-    const memory = spec.limits?.memoryMb ?? DEFAULT_MEMORY_MB;
-    const cpus = spec.limits?.cpus ?? DEFAULT_CPUS;
-
-    return [
-      'run',
-      '--rm',
-      '--name',
-      name,
-      '--network',
-      'none',
-      '--memory',
-      `${memory}m`,
-      '--cpus',
-      String(cpus),
-      '--pull',
-      'never',
-      '-v',
-      `${work}:/work`,
-      '-w',
-      '/work',
-      spec.image,
-      ...spec.command,
-    ];
   }
 
   private async collect(

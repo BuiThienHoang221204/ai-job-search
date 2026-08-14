@@ -26,6 +26,21 @@ export type SandboxSpec = {
   /// thì file đó vắng trong kết quả, không phải lỗi — caller quyết định.
   artifacts: string[];
 
+  /**
+   * Có cho lượt chạy ra mạng hay không. **Mặc định là KHÔNG.**
+   *
+   * Mặc định đóng là có chủ đích: compile LaTeX chạy trên nội dung do model sinh
+   * ra từ mô tả công việc của người lạ, và không có mạng thì một lệnh lọt qua
+   * `escapeLatex` cũng không gửi được dữ liệu hồ sơ ra ngoài. Ai cần mạng thì phải
+   * khai tường minh, và chỗ khai đó là chỗ người đọc dừng lại hỏi "vì sao".
+   *
+   * `'egress'` dành cho Assisted Apply: trình duyệt buộc phải tải được trang tuyển
+   * dụng. Đánh đổi phải nói rõ — lượt chạy đó vừa có hồ sơ của người dùng vừa có
+   * đường ra Internet, nên nó KHÔNG được nhận nội dung do model sinh, chỉ nhận
+   * đúng những trường đã chọn từ `Profile`.
+   */
+  network?: 'none' | 'egress';
+
   limits?: {
     memoryMb?: number;
     cpus?: number;
