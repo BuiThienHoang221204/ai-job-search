@@ -8,12 +8,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
-import { CurrentUser } from '../auth/current-user.decorator.js';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-import type { AuthUser } from '../auth/jwt.strategy.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { AuthUser } from '../../common/types/auth-user.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { PortalCliService } from './portal-cli.service.js';
 import { ScraperService } from './scraper.service.js';
+import { ThrottleScrape } from '../../common/throttle.js';
 
 /// Cố ý KHÔNG dùng @IsIn với danh sách cứng: danh sách portal được quét lúc
 /// khởi động nên decorator (chạy lúc nạp class) không thể biết trước. Kiểm tra
@@ -23,7 +25,6 @@ export class StartScrapeDto {
 }
 
 @Controller('scrape')
-@UseGuards(JwtAuthGuard)
 export class ScraperController {
   constructor(
     private readonly scraper: ScraperService,
@@ -39,7 +40,14 @@ export class ScraperController {
 
   /// Quét lại thư mục portal mà không phải khởi động lại máy chủ. Dùng sau khi
   /// thêm một thư mục portal mới hoặc đổi cờ `enabled:` trong SKILL.md.
+  ///
+  /// ADMIN: đây là việc vận hành máy chủ (đọc lại đĩa), không phải việc của một
+  /// ứng viên. Route quét bên dưới thì vẫn để user thường vì quét việc làm theo
+  /// hồ sơ của chính mình là tính năng - chỗ đó chặn bằng rate limit, không phải
+  /// bằng vai trò.
   @Post('portals/reload')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   async reloadPortals() {
     const portals = await this.portals.reload();
     return { portals };
@@ -57,6 +65,7 @@ export class ScraperController {
 
   /// Đường GHI. Tạo bản ghi PENDING rồi đẩy vào hàng đợi; một lần quét mất
   /// vài phút vì phải tôn trọng nhịp request tới portal.
+  @ThrottleScrape()
   @Post()
   async start(@CurrentUser() user: AuthUser, @Body() dto: StartScrapeDto) {
     const available = this.portals.listPortals();

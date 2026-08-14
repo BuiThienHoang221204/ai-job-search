@@ -1,21 +1,12 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { CurrentUser } from '../auth/current-user.decorator.js';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-import type { AuthUser } from '../auth/jwt.strategy.js';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { EvaluateJobDto, ListMatchesQueryDto } from './dto/matching.dto.js';
 import { MatchingService } from './matching.service.js';
+import { ThrottleAi } from '../../common/throttle.js';
 
 @Controller('matches')
-@UseGuards(JwtAuthGuard)
 export class MatchingController {
   constructor(
     private readonly matching: MatchingService,
@@ -40,6 +31,7 @@ export class MatchingController {
 
   /// Đường GHI, không đồng bộ. Trả về ngay, worker chấm điểm ở nền; giao diện
   /// hiện trạng thái PENDING rồi cập nhật sau.
+  @ThrottleAi()
   @Post('evaluate')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
     const id = await this.queue.send(QUEUE.EVALUATE_MATCH, {
@@ -52,6 +44,7 @@ export class MatchingController {
 
   /// Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model.
   /// Không dùng cho giao diện: một lần gọi mất vài giây.
+  @ThrottleAi()
   @Post('evaluate-sync')
   evaluateNow(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
     return this.matching.evaluate(user.id, dto.jobId, dto.force ?? false);

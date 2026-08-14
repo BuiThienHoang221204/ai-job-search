@@ -1,18 +1,8 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { ApplicationStatus } from '../../generated/prisma/enums.js';
-import { CurrentUser } from '../auth/current-user.decorator.js';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-import type { AuthUser } from '../auth/jwt.strategy.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { AuthUser } from '../../common/types/auth-user.js';
 import { ApplicationsService } from './applications.service.js';
 import {
   FINAL_STATUSES,
@@ -45,7 +35,6 @@ export class UpdateStatusDto {
 }
 
 @Controller('applications')
-@UseGuards(JwtAuthGuard)
 export class ApplicationsController {
   constructor(private readonly applications: ApplicationsService) {}
 
@@ -68,7 +57,7 @@ export class ApplicationsController {
 
   /// Đổi trạng thái. Luôn là 'user' vì đường vào duy nhất là người dùng bấm
   /// nút; hệ thống không có route nào tự đổi trạng thái hộ.
-  @Patch(':id/status')
+  @Put(':id/status')
   updateStatus(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,

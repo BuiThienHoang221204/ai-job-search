@@ -8,6 +8,7 @@ import type {
 } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
+import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { PromptBuilderService } from '../skills/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/skill-registry.service.js';
 import {
@@ -173,14 +174,15 @@ export class InterviewService {
     });
     if (!prep)
       throw new NotFoundException('Chưa soạn câu hỏi cho công việc này');
-    return prep;
+    return withFailureKind(prep);
   }
 
-  list(userId: string) {
-    return this.prisma.interviewPrep.findMany({
+  async list(userId: string) {
+    const preps = await this.prisma.interviewPrep.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       include: { job: { select: { id: true, title: true, company: true } } },
     });
+    return withFailureKinds(preps);
   }
 }

@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
-import { CurrentUser } from '../auth/current-user.decorator.js';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-import type { AuthUser } from '../auth/jwt.strategy.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { InterviewService } from './interview.service.js';
+import { ThrottleAi } from '../../common/throttle.js';
 
 export class PrepDto {
   @IsString() jobId!: string;
@@ -12,7 +12,6 @@ export class PrepDto {
 }
 
 @Controller('interview')
-@UseGuards(JwtAuthGuard)
 export class InterviewController {
   constructor(
     private readonly interview: InterviewService,
@@ -30,6 +29,7 @@ export class InterviewController {
   }
 
   /// Đường GHI, không đồng bộ.
+  @ThrottleAi()
   @Post('prep')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
     const id = await this.queue.send(QUEUE.INTERVIEW_PREP, {
@@ -41,6 +41,7 @@ export class InterviewController {
   }
 
   /// Chạy ngay, dùng để thử nghiệm và đo chất lượng model.
+  @ThrottleAi()
   @Post('prep-sync')
   prepNow(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
     return this.interview.generate(user.id, dto.jobId, dto.force ?? false);

@@ -213,11 +213,11 @@ export class ScraperService {
       // người thì dựa trên hồ sơ người đó.
       const { plan, modelId } = run.userId
         ? await this.planQueries(
-          await this.prisma.profile.findUnique({
-            where: { userId: run.userId },
-          }),
-          run.userId,
-        )
+            await this.prisma.profile.findUnique({
+              where: { userId: run.userId },
+            }),
+            run.userId,
+          )
         : { plan: await this.systemQueries(), modelId: null };
 
       await this.prisma.scrapeRun.update({
@@ -362,7 +362,8 @@ export class ScraperService {
         } catch (error) {
           skipped += 1;
           this.logger.warn(
-            `Bỏ qua ${card.slug}: ${error instanceof Error ? error.message : String(error)
+            `Bỏ qua ${card.slug}: ${
+              error instanceof Error ? error.message : String(error)
             }`,
           );
         }
@@ -428,7 +429,8 @@ export class ScraperService {
         updated += 1;
       } catch (error) {
         this.logger.warn(
-          `Không làm mới được ${card.id}: ${error instanceof Error ? error.message : String(error)
+          `Không làm mới được ${card.id}: ${
+            error instanceof Error ? error.message : String(error)
           }`,
         );
       }
@@ -449,10 +451,10 @@ export class ScraperService {
     if (!jobIds.length) return 0;
 
     if (userId) {
-      for (const jobId of jobIds) {
-        await this.queue.send(QUEUE.EVALUATE_MATCH, { userId, jobId });
-      }
-      return jobIds.length;
+      return this.queue.sendMany(
+        QUEUE.EVALUATE_MATCH,
+        jobIds.map((jobId) => ({ userId, jobId })),
+      );
     }
 
     const [users, scored] = await Promise.all([
@@ -475,20 +477,26 @@ export class ScraperService {
       alreadyScored: scored.map((row) => pairKey(row.userId, row.jobId)),
     });
 
-    for (const target of plan.targets) {
-      await this.queue.send(QUEUE.EVALUATE_MATCH, target);
-    }
+    // Một lệnh cho cả lô thay vì một lệnh mỗi cặp: trần fan-out là 500 nên vòng
+    // lặp cũ là tới 500 lần INSERT tuần tự.
+    const queued = await this.queue.sendMany(
+      QUEUE.EVALUATE_MATCH,
+      plan.targets,
+    );
 
     // Báo ra những gì đã cắt. Im lặng cắt bớt thì nhìn jobsQueued sẽ tưởng
     // quét được ít tin, chứ không biết là đã chạm trần.
+    //
+    // `queued` có thể nhỏ hơn `plan.targets.length` khi một cặp (user, job) đã
+    // có việc đang chờ từ lượt trước - báo cả hai số để không ai phải đoán.
     this.logger.log(
-      `Xếp hàng ${plan.targets.length} lượt chấm cho ${users.length} hồ sơ` +
-      (plan.dropped ? `; CẮT ${plan.dropped} lượt vì chạm trần` : '') +
-      (plan.skippedThinProfiles
-        ? `; bỏ qua ${plan.skippedThinProfiles} hồ sơ quá sơ sài`
-        : ''),
+      `Xếp hàng ${queued}/${plan.targets.length} lượt chấm cho ${users.length} hồ sơ` +
+        (plan.dropped ? `; CẮT ${plan.dropped} lượt vì chạm trần` : '') +
+        (plan.skippedThinProfiles
+          ? `; bỏ qua ${plan.skippedThinProfiles} hồ sơ quá sơ sài`
+          : ''),
     );
-    return plan.targets.length;
+    return queued;
   }
 
   /// Kèm cả lần quét của hệ thống: chính chúng mới là nguồn tin cho người dùng,

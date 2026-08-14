@@ -7,6 +7,7 @@ import {
 import type { Profile, UpskillReport } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
+import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { PromptBuilderService } from '../skills/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/skill-registry.service.js';
 import { upskillSchema, type UpskillResult } from './upskill.schema.js';
@@ -16,6 +17,23 @@ const SKILL_NAME = 'upskill';
 /// Số công việc tối thiểu để báo cáo tổng hợp có ý nghĩa. Dưới ngưỡng này,
 /// cái gọi là "xu hướng thị trường" chỉ là đặc điểm của vài tin tuyển dụng lẻ.
 const MIN_JOBS_FOR_AGGREGATE = 3;
+
+/// Lời gọi model nặng nhất trong hệ thống, nên nó có timeout riêng.
+///
+/// ĐO ĐƯỢC, không phỏng đoán: với mức 90 giây mặc định của `AiService`, chế độ
+/// AGGREGATE thất bại đúng ở mốc 90 giây với "The operation was aborted due to
+/// timeout" và `jobsAnalysed = 0` — nghĩa là màn Lộ trình học KHÔNG BAO GIỜ tạo
+/// nổi một báo cáo tổng hợp trên gateway free. Nó nhồi tới 30 công việc (mỗi
+/// công việc kèm 600 ký tự mô tả) rồi yêu cầu sinh ra hardGaps, synthesisedGaps,
+/// learningPlan và summary trong một object; so với `match.evaluate` (p50 33s,
+/// p95 82s cho MỘT công việc) thì mức 90 giây không bao giờ đủ.
+///
+/// Vì sao 4 phút là an toàn — ba mốc bao quanh nó, cả ba đều rộng hơn:
+///   - reconcile coi việc là bị bỏ rơi sau `STUCK_AFTER_MS` = 10 phút,
+///   - `server.setTimeout` trong `main.ts` là 5 phút, nên `generate-sync` vẫn kịp,
+///   - cửa sổ giành quyền 5 phút của matching là đường khác và vẫn giữ 90 giây.
+/// Nâng con số này lên quá 5 phút sẽ phá cả ba, đừng làm mà không sửa chúng.
+const AGGREGATE_TIMEOUT_MS = 240_000;
 
 @Injectable()
 export class UpskillService {
@@ -90,6 +108,10 @@ export class UpskillService {
         context: { purpose: 'upskill.report', userId: report.userId },
         system,
         prompt,
+        // Chế độ TARGETED chỉ có một công việc nên vừa mức mặc định; chỉ
+        // AGGREGATE mới cần nới.
+        timeoutMs:
+          report.mode === 'AGGREGATE' ? AGGREGATE_TIMEOUT_MS : undefined,
       });
 
       return await this.prisma.upskillReport.update({
@@ -203,11 +225,11 @@ export class UpskillService {
       orderBy: { createdAt: 'desc' },
     });
     if (!report) throw new NotFoundException('Chưa có báo cáo upskill nào');
-    return report;
+    return withFailureKind(report);
   }
 
-  history(userId: string) {
-    return this.prisma.upskillReport.findMany({
+  async history(userId: string) {
+    const reports = await this.prisma.upskillReport.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -222,6 +244,7 @@ export class UpskillService {
         error: true,
       },
     });
+    return withFailureKinds(reports);
   }
 
   async get(userId: string, id: string) {
@@ -229,6 +252,6 @@ export class UpskillService {
       where: { id, userId },
     });
     if (!report) throw new NotFoundException(`Không tìm thấy báo cáo: ${id}`);
-    return report;
+    return withFailureKind(report);
   }
 }

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { ApplicationStatus } from '../../generated/prisma/enums.js';
+import { isUniqueViolation } from '../../prisma/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
@@ -58,27 +59,33 @@ export class ApplicationsService {
       );
     }
 
-    const existing = await this.prisma.application.findUnique({
-      where: { userId_jobId: { userId, jobId } },
-    });
-    if (existing) {
-      throw new ConflictException('Bạn đã có đơn ứng tuyển cho công việc này');
-    }
-
-    const application = await this.prisma.application.create({
-      data: {
-        userId,
-        jobId,
-        status: 'RANKED',
-        events: {
-          create: {
-            toStatus: 'RANKED',
-            note: `Tạo đơn từ kết quả chấm điểm ${match.overallScore ?? 0}/100 (${match.verdict ?? 'chưa có kết luận'})`,
+    // Chống trùng đơn bằng ràng buộc @@unique([userId, jobId]), KHÔNG bằng một
+    // lần đọc trước đó: hai request đồng thời đều đọc thấy "chưa có đơn" rồi
+    // cùng ghi, và chỉ DB mới phân xử được ai thắng. Đọc trước rồi ghi sau thì
+    // kẻ thua nhận 500 thay vì 409.
+    const application = await this.prisma.application
+      .create({
+        data: {
+          userId,
+          jobId,
+          status: 'RANKED',
+          events: {
+            create: {
+              toStatus: 'RANKED',
+              note: `Tạo đơn từ kết quả chấm điểm ${match.overallScore ?? 0}/100 (${match.verdict ?? 'chưa có kết luận'})`,
+            },
           },
         },
-      },
-      include: { job: true },
-    });
+        include: { job: true },
+      })
+      .catch((error: unknown) => {
+        if (isUniqueViolation(error)) {
+          throw new ConflictException(
+            'Bạn đã có đơn ứng tuyển cho công việc này',
+          );
+        }
+        throw error;
+      });
 
     await this.prepareDocuments(
       userId,

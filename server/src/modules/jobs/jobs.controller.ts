@@ -7,17 +7,14 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
-import { CurrentUser } from '../auth/current-user.decorator.js';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-import type { AuthUser } from '../auth/jwt.strategy.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { CreateJobDto, ListJobsQueryDto } from './dto/job.dto.js';
 import { JobsService } from './jobs.service.js';
 
 @Controller('jobs')
-@UseGuards(JwtAuthGuard)
 export class JobsController {
   constructor(
     private readonly jobs: JobsService,

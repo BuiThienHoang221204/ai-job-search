@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { Job, JobMatch, Profile } from '../../generated/prisma/client.js';
+import { isUniqueViolation } from '../../prisma/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { PromptBuilderService } from '../skills/prompt-builder.service.js';
@@ -14,6 +15,16 @@ import {
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
+
+/// Sau bao lâu thì một hàng còn ở trạng thái RUNNING được coi là bị bỏ rơi.
+///
+/// `AiService` cắt mỗi lời gọi ở 90 giây, nên một hàng vẫn RUNNING sau 5 phút gần
+/// như chắc chắn là do tiến trình chấm nó đã chết giữa đường, không phải đang làm.
+///
+/// Mốc này BẮT BUỘC phải có. Không có nó, phép giành quyền ở `claim()` sẽ chặn
+/// vĩnh viễn: hàng mắc ở RUNNING và không lần chấm nào sau đó giành được quyền,
+/// tức là hỏng nặng hơn hẳn cái mà `claim()` được viết ra để sửa.
+export const STALE_RUNNING_MS = 5 * 60_000;
 
 @Injectable()
 export class MatchingService {
@@ -124,11 +135,16 @@ export class MatchingService {
       return existing;
     }
 
-    await this.prisma.jobMatch.upsert({
-      where: { userId_jobId: { userId, jobId } },
-      create: { userId, jobId, status: 'RUNNING' },
-      update: { status: 'RUNNING', error: null },
-    });
+    if (!(await this.claim(userId, jobId))) {
+      this.logger.debug(
+        `Bỏ qua ${jobId}: một tiến trình khác đang chấm cặp này`,
+      );
+      // Giành quyền thất bại nghĩa là hàng CHẮC CHẮN tồn tại và đang RUNNING -
+      // trả về nguyên trạng đó để giao diện hiện "đang chấm" thay vì báo lỗi.
+      return this.prisma.jobMatch.findUniqueOrThrow({
+        where: { userId_jobId: { userId, jobId } },
+      });
+    }
 
     try {
       const { object, modelId } = await this.ai.generateObject<Evaluation>({
@@ -181,6 +197,51 @@ export class MatchingService {
         where: { userId_jobId: { userId, jobId } },
         data: { status: 'FAILED', error: message },
       });
+    }
+  }
+
+  /// Giành quyền chấm một cặp (user, job).
+  ///
+  /// Trả `false` khi một tiến trình khác đang chấm cặp này. Lúc đó TUYỆT ĐỐI
+  /// không được gọi model: hai lượt song song trên cùng một cặp vừa tốn tiền hai
+  /// lần, vừa cùng ghi vào một hàng nên ai xong sau thắng - kết quả cuối là ngẫu
+  /// nhiên.
+  ///
+  /// Dùng compare-and-swap thay vì đọc-rồi-ghi. Mẫu cũ (`upsert` đặt RUNNING vô
+  /// điều kiện) không hề chặn gì: giữa lúc đọc trạng thái và lúc ghi luôn có khe
+  /// cho tiến trình khác lọt vào. Ở đây điều kiện nằm ngay trong câu `UPDATE`,
+  /// nên chính Postgres phân xử và chỉ một bên thắng.
+  ///
+  /// Hàng đợi đã chặn trùng từ lúc xếp việc, nhưng lớp này vẫn cần: route
+  /// `/matches/evaluate-sync` gọi thẳng vào service, không đi qua hàng đợi.
+  private async claim(userId: string, jobId: string): Promise<boolean> {
+    const staleBefore = new Date(Date.now() - STALE_RUNNING_MS);
+
+    const claimed = await this.prisma.jobMatch.updateMany({
+      where: {
+        userId,
+        jobId,
+        OR: [
+          { status: { not: 'RUNNING' } },
+          // Cửa thoát cho hàng bị bỏ rơi vì tiến trình chấm nó đã chết.
+          { updatedAt: { lt: staleBefore } },
+        ],
+      },
+      data: { status: 'RUNNING', error: null },
+    });
+    if (claimed.count > 0) return true;
+
+    // `count === 0` có hai nguyên nhân khác hẳn nhau: hàng chưa tồn tại, hoặc
+    // hàng đang RUNNING và còn mới. Chỉ trường hợp đầu được phép đi tiếp, và
+    // ràng buộc unique là thứ phân biệt hai trường hợp đó mà không cần đọc thêm.
+    try {
+      await this.prisma.jobMatch.create({
+        data: { userId, jobId, status: 'RUNNING' },
+      });
+      return true;
+    } catch (error) {
+      if (isUniqueViolation(error)) return false;
+      throw error;
     }
   }
 
