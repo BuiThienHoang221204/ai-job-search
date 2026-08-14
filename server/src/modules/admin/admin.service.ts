@@ -37,7 +37,19 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: {
+        /// `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
+        /// trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
+        /// nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
+        /// nhật trở nên sai), còn cột model hiện "· gpt-…" vì `provider` là
+        /// undefined ngay trước dấu chấm giữa.
+        ///
+        /// Không thứ nào bị TypeScript bắt: giao diện parse JSON `unknown` nên
+        /// một trường khai trong interface mà API không trả vẫn hợp kiểu. Chỉ
+        /// chạy thật với dữ liệu thật mới lộ ra — bảng này chỉ có hàng khi ĐÃ có
+        /// lần gọi model hỏng.
+        id: true,
         purpose: true,
+        provider: true,
         modelId: true,
         failureKind: true,
         errorMessage: true,

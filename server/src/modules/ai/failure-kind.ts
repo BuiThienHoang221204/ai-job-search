@@ -1,9 +1,16 @@
 export type FailureKind = 'SCHEMA' | 'TIMEOUT' | 'UPSTREAM' | 'OTHER';
 
 /// Các lớp lỗi của AI SDK đều đặt `name` thành chuỗi ổn định có tiền tố "AI_".
-/// Nhận dạng qua tên thay vì gọi `isInstance` là có chủ đích: file này không
-/// phải import package `ai`, mà `ai` v7 là ESM thuần nên jest (chạy CommonJS)
-/// không nạp được. Một hàm phân loại thuần cũng không nên phụ thuộc SDK.
+///
+/// Nhận dạng qua tên thay vì gọi `isInstance` là có chủ đích: một hàm phân loại
+/// thuần không nên phụ thuộc SDK, và nó còn phải phân loại được lỗi đã đi qua
+/// hàng đợi hoặc đã được ghi xuống DB rồi đọc lại — lúc đó không còn instance
+/// nào để hỏi, chỉ còn `name`.
+///
+/// (Trước đây chỗ này ghi lý do là "jest không nạp được `ai`". Không còn đúng:
+/// bộ test đơn vị chạy với `--experimental-vm-modules` trên Node 24 nạp được
+/// package thật — `test/unit/modules/ai/ai.service.spec.ts` dùng chính lớp lỗi
+/// thật của SDK.)
 const AI_ERROR_NAMES = {
   noObjectGenerated: 'AI_NoObjectGeneratedError',
   apiCall: 'AI_APICallError',
@@ -67,6 +74,15 @@ export function classifyFailure(input: unknown): FailureKind {
   }
 
   if (name === AI_ERROR_NAMES.apiCall) return 'UPSTREAM';
+
+  // Hết hạn mức là UPSTREAM, và phải hỏi `isRateLimited` chứ không dò lại chuỗi
+  // ở đây: hai hàm cùng đọc một lỗi thì không được kết luận khác nhau về việc
+  // "đây có phải hạn mức không". Cụ thể, `isRateLimited` nhận cả mã 429 nằm ở
+  // `statusCode` — một lỗi như vậy mà không mang tên `AI_APICallError` sẽ rơi
+  // xuống OTHER, tức là người dùng nhận câu "hãy thử lại; nếu vẫn lỗi thì báo
+  // lại" thay cho câu đúng là "đã đạt giới hạn lượt gọi, thử lại sau vài phút".
+  if (isRateLimited(input)) return 'UPSTREAM';
+
   if (
     /upstream request failed|rate limit|429|50\d\s|service unavailable/i.test(
       message,
@@ -76,6 +92,32 @@ export function classifyFailure(input: unknown): FailureKind {
   }
 
   return 'OTHER';
+}
+
+/**
+ * Gateway từ chối vì HẾT HẠN MỨC, chứ không phải vì lỗi.
+ *
+ * Tách riêng khỏi `UPSTREAM` vì nó dẫn tới một hành động khác hẳn: hết hạn mức thì
+ * **đổi sang model khác** rồi thử lại, còn gateway lỗi thật thì thử lại cùng model.
+ *
+ * ĐÃ ĐO: hạn mức của gateway free tính **theo từng model**, không theo API key. Cùng
+ * một thời điểm, `deepseek-v4-flash-free` và `mimo-v2.5-free` trả 429
+ * `FreeUsageLimitError` trong khi `hy3-free` và `nemotron-3.5-lightning-free` vẫn
+ * chạy. Đó là lý do chuỗi dự phòng theo model có tác dụng thật.
+ *
+ * Nhận theo `type` mà gateway trả (`FreeUsageLimitError`) và theo mã 429, không chỉ
+ * theo chữ "rate limit" — mỗi nhà cung cấp viết câu đó một kiểu.
+ */
+export function isRateLimited(input: unknown): boolean {
+  const error = unwrap(input);
+  const message = messageOf(error);
+  const status = (error as { statusCode?: unknown; status?: unknown })
+    ?.statusCode;
+
+  if (status === 429) return true;
+  return /FreeUsageLimitError|rate limit exceeded|too many requests|429/i.test(
+    message,
+  );
 }
 
 /// Gateway có chấp nhận `response_format` kèm JSON schema hay không.

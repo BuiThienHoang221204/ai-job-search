@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { ConfigService } from '@nestjs/config';
 import {
   classifyFailure,
+  isRateLimited,
   isResponseFormatUnsupported,
   truncateError,
   type FailureKind,
@@ -50,9 +51,23 @@ export type StreamTextOptions = {
   modelId?: string;
 };
 
+/// Mặt tiếp xúc mà các module khác dùng để gọi model.
+///
+/// Suy ra từ chính `AiService` bằng `Pick` chứ KHÔNG khai lại tham số, để hai
+/// bên không thể lệch nhau: đổi chữ ký `generateObject` là bản giả trong test
+/// hỏng build ngay, thay vì âm thầm khớp một hình dạng đã cũ rồi để test xanh
+/// trong khi production đỏ.
+///
+/// `streamText` cố ý không nằm trong mặt tiếp xúc này: chưa module nào dùng, và
+/// đưa vào đây sẽ buộc mọi bản giả phải hiện thực một thứ không ai gọi.
+export type Ai = Pick<AiService, 'generateObject'>;
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
+
+  /// Các model thử tiếp khi model đang dùng HẾT HẠN MỨC. Xem `configuration.ts`.
+  private readonly fallbackModelIds: string[];
 
   constructor(
     private readonly catalog: ModelCatalogService,
@@ -63,6 +78,22 @@ export class AiService {
     // generateObject sẽ tự đổi nếu gateway từ chối.
     this.structuredOutputs =
       config.get<boolean>('ai.structuredOutputs') ?? false;
+    this.fallbackModelIds = config.get<string[]>('ai.fallbackModelIds') ?? [];
+  }
+
+  /**
+   * Thứ tự model sẽ thử cho MỘT lời gọi.
+   *
+   * Model được yêu cầu (hoặc model mặc định) đứng đầu, rồi tới danh sách dự phòng đã
+   * bỏ trùng. Bỏ trùng là cần: model mặc định thường cũng nằm trong danh sách dự
+   * phòng, và thử lại đúng model vừa hết hạn mức chỉ tốn thêm một round-trip.
+   */
+  private modelChain(requested?: string): Array<string | undefined> {
+    const chain: Array<string | undefined> = [requested];
+    for (const id of this.fallbackModelIds) {
+      if (id !== requested) chain.push(id);
+    }
+    return chain;
   }
 
   /// Ghi lại một lần gọi. KHÔNG bao giờ được làm hỏng lần gọi thật.
@@ -138,6 +169,44 @@ export class AiService {
   /// streamText bằng tay: model free thường bao quanh JSON bằng văn xuôi hoặc
   /// rào ```json, còn generateObject sẽ tự ép định dạng và thử lại.
   async generateObject<T>(
+    options: GenerateObjectOptions<T>,
+  ): Promise<{ object: T; modelId: string }> {
+    /*
+     * Hết hạn mức thì ĐỔI MODEL, không phải thử lại cùng model.
+     *
+     * Hạn mức của gateway free tính theo TỪNG MODEL — đã đo: cùng một thời điểm,
+     * `deepseek-v4-flash-free` trả 429 `FreeUsageLimitError` trong khi `hy3-free` vẫn
+     * chạy. Nên thử lại cùng model chỉ đốt thêm thời gian, còn đổi model thì đi được.
+     *
+     * Chỉ đổi khi ĐÚNG là hết hạn mức. Mọi lỗi khác — schema sai, hết giờ, gateway
+     * hỏng — đều ném ra ngay: đổi model vì một lỗi schema là che mất tín hiệu "model
+     * này quá yếu cho tác vụ", và sẽ lặng lẽ chuyển cả hệ thống sang một model khác
+     * mà không ai quyết định.
+     */
+    const chain = this.modelChain(options.modelId);
+    let lastRateLimit: unknown;
+
+    for (const [index, modelId] of chain.entries()) {
+      try {
+        return await this.withFormatFallback({ ...options, modelId });
+      } catch (error) {
+        if (!isRateLimited(error)) throw error;
+
+        lastRateLimit = error;
+        const next = chain[index + 1];
+        this.logger.warn(
+          next
+            ? `Model ${modelId ?? '(mặc định)'} hết hạn mức, thử ${next}`
+            : `Model ${modelId ?? '(mặc định)'} hết hạn mức và không còn model dự phòng`,
+        );
+      }
+    }
+
+    throw lastRateLimit;
+  }
+
+  /// Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng.
+  private async withFormatFallback<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
     try {

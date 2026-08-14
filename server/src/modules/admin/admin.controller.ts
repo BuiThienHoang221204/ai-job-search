@@ -8,8 +8,9 @@ import {
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
-import { Roles, RolesGuard } from '../auth/roles.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { ReconcileService } from '../reconcile/reconcile.service.js';
 import { ScrapeCronService } from '../scraper/scrape-cron.service.js';
 import { AdminService } from './admin.service.js';
 
@@ -31,15 +32,17 @@ export class FailuresQueryDto {
   limit?: number;
 }
 
-/// Thứ tự guard quan trọng: JwtAuthGuard gắn `request.user`, RolesGuard đọc
-/// nó. Đảo lại thì RolesGuard luôn thấy user rỗng và chặn tất cả.
+/// Chỉ khai RolesGuard ở đây. `JwtAuthGuard` là APP_GUARD toàn cục và guard
+/// toàn cục luôn chạy TRƯỚC guard của controller, nên `request.user` chắc chắn
+/// đã có khi RolesGuard đọc tới.
 @Controller('admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Roles('ADMIN')
 export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly cron: ScrapeCronService,
+    private readonly reconcile: ReconcileService,
   ) {}
 
   /// Tỷ lệ hỏng, độ trễ p50/p95 và phân loại nguyên nhân, tách theo tác vụ và
@@ -72,6 +75,26 @@ export class AdminController {
       note: started.length
         ? 'Đang quét ở nền. Theo dõi bằng GET /api/scrape/runs.'
         : 'Không có portal nào được đăng ký, hoặc lượt quét trước còn đang chạy.',
+    };
+  }
+
+  /// Nhặt NGAY những việc nền đã rơi, không đợi lượt cron 10 phút.
+  ///
+  /// Gọi đúng hàm mà cron gọi, cùng lý do như route quét ở trên: một đường riêng
+  /// dựng để bấm tay có thể xanh trong khi đường tự động vẫn hỏng.
+  ///
+  /// An toàn khi bấm nhiều lần: hàng đợi chặn trùng theo khoá, nên việc đã xếp
+  /// không bị xếp lại lần nữa.
+  @Post('reconcile/run-now')
+  @HttpCode(202)
+  async reconcileNow() {
+    const result = await this.reconcile.run();
+    return {
+      ...result,
+      note:
+        result.documents || result.matches
+          ? 'Đã xếp lại vào hàng đợi. Worker sẽ xử lý ở nền.'
+          : 'Không tìm thấy việc nào bị rơi.',
     };
   }
 }
