@@ -48,6 +48,7 @@ model User {
   scrapeRuns     ScrapeRun[]
   aiCalls        AiCall[]
   applications   Application[]
+  profileDrafts  ProfileDraft[]
 
   @@map("users")
 }
@@ -288,6 +289,56 @@ model InterviewPrep {
 // ---------------------------------------------------------------------------
 // Báo cáo thiếu hụt kỹ năng - do skill upskill sinh ra
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Đọc hồ sơ từ nguồn ngoài (Agent 1) — SEAM 3 ProfileSource
+// ---------------------------------------------------------------------------
+
+/// Một lượt đọc hồ sơ từ CV hoặc nguồn ngoài, **chờ người dùng xác nhận**.
+///
+/// Vì sao là bảng riêng chứ không ghi thẳng vào `Profile`: đây là chỗ quy tắc lớn
+/// nhất của Agent 1 trở thành cấu trúc dữ liệu chứ không chỉ là ý định trong tài
+/// liệu — **AI đề xuất, người dùng chốt**. Model đọc CV rồi ghi đè hồ sơ là cách
+/// chắc chắn nhất để một lần đọc sai xoá mất dữ liệu người dùng đã gõ tay, mà lại
+/// không có đường lùi.
+///
+/// Vòng đời: PENDING → RUNNING → DONE (đợi xác nhận) → đã áp dụng, hoặc FAILED.
+/// `appliedAt` khác `generatedAt`: bản nháp có thể DONE hàng tuần mà chưa ai áp.
+model ProfileDraft {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status MatchStatus @default(PENDING)
+
+  /// Các mẩu bằng chứng đã thu, dạng `Evidence[]` (xem `profile-sources/evidence.ts`).
+  ///
+  /// Lưu lại chứ không bỏ đi sau khi tổng hợp: màn xác nhận phải trả lời được câu
+  /// "vì sao AI nghĩ tôi biết Kubernetes", và không giữ bằng chứng thì không truy
+  /// được về nguồn.
+  evidence Json?
+
+  /// Hồ sơ do model đề xuất, cùng hình dạng các trường của `Profile`.
+  /// KHÔNG phải hồ sơ thật cho tới khi người dùng áp dụng.
+  proposal Json?
+
+  /// Đường dẫn file gốc trong Storage, để người dùng tải lại đúng file đã nộp.
+  storageKey String?
+  /// Tên file lúc nộp, hiện ở màn xác nhận.
+  filename String?
+
+  modelId     String?
+  generatedAt DateTime?
+  /// Thời điểm người dùng ĐÃ áp dụng bản nháp này vào hồ sơ. null nghĩa là chưa.
+  appliedAt DateTime?
+  error     String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("profile_drafts")
+}
 
 enum UpskillMode {
   /// Tổng hợp trên toàn bộ công việc đã chấm điểm của người dùng.
