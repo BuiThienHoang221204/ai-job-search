@@ -14,6 +14,13 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    // Test nằm ở test/unit/** phản chiếu cây src/**, nên import tương đối sẽ
+    // thành chuỗi "../../../src/...". Alias này giữ đường dẫn trong spec giống
+    // hệt đường dẫn thật của module. Chỉ test dùng; mã trong src/ vẫn import
+    // tương đối để không phụ thuộc vào alias khi build.
+    "paths": {
+      "src/*": ["src/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,

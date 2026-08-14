@@ -3,25 +3,22 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
-  SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import type { UserRole } from '../../generated/prisma/enums.js';
-import type { AuthUser } from './jwt.strategy.js';
+import { ROLES_KEY } from '../decorators/roles.decorator.js';
+import type { AuthUser } from '../types/auth-user.js';
 
-export const ROLES_KEY = 'roles';
-
-export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
-
-/// Chặn route theo vai trò.
+/// Chặn route theo vai trò. Đi cặp với decorator `@Roles()`.
 ///
 /// Vai trò đến từ `AuthUser`, mà `JwtStrategy.validate()` đọc tươi từ DB mỗi
 /// request - KHÔNG đọc claim trong token. Nếu ghi vai trò vào token, một tài
 /// khoản bị hạ quyền vẫn giữ nguyên quyền cũ cho đến khi token hết hạn.
 ///
-/// Phải đặt SAU JwtAuthGuard trong @UseGuards: guard này đọc `request.user`
-/// mà guard kia gán vào.
+/// Không cần khai `JwtAuthGuard` kèm theo: nó là APP_GUARD toàn cục, mà guard
+/// toàn cục luôn chạy trước guard của controller, nên `request.user` chắc chắn
+/// đã được gắn khi tới đây.
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}

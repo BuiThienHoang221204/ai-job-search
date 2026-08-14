@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import cookieParser from 'cookie-parser';
 import type { Server } from 'node:http';
 import { AppModule } from './app.module.js';
+import { configureApp } from './bootstrap.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -18,11 +18,9 @@ async function bootstrap(): Promise<void> {
     throw new Error('JWT_SECRET chưa được đặt. Sinh khóa thật trước khi chạy.');
   }
 
-  app.setGlobalPrefix('api');
-
-  // Phải chạy TRƯỚC mọi guard: JwtStrategy đọc token từ request.cookies, mà
-  // thuộc tính đó do chính middleware này gắn vào.
-  app.use(cookieParser());
+  // Prefix, cookieParser và ValidationPipe nằm ở bootstrap.ts vì bộ khung test
+  // dùng đúng cấu hình đó - xem test/support/app-harness.ts.
+  configureApp(app);
 
   // `credentials: true` là bắt buộc để trình duyệt chịu gửi cookie kèm request
   // sang đây. Đi cùng nó, `origin` KHÔNG được để '*' - trình duyệt từ chối
@@ -31,13 +29,6 @@ async function bootstrap(): Promise<void> {
     origin: config.get<string>('corsOrigin'),
     credentials: true,
   });
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
   app.enableShutdownHooks();
 
   const port = config.get<number>('port')!;

@@ -3,22 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import type { AuthUser } from '../../common/types/auth-user.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AUTH_COOKIE } from './auth.cookie.js';
 
-import type { UserRole } from '../../generated/prisma/enums.js';
-
 export type JwtPayload = { sub: string; email: string };
-
-/// `role` CÓ TÍNH toán từ DB mỗi request, không lấy từ claim trong token.
-/// Ghi vai trò vào token nghĩa là một tài khoản bị hạ quyền vẫn giữ quyền cũ
-/// cho đến khi token hết hạn.
-export type AuthUser = {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-};
 
 /// Lấy token từ cookie httpOnly. Cần `cookieParser()` đã chạy ở main.ts,
 /// không thì `request.cookies` là undefined và mọi request đều 401.
