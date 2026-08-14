@@ -105,6 +105,27 @@ Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `
 
 Ảnh `aijob-browser:1.62.1` phải build trước (`browser-service/Dockerfile`) — 3,54GB. Ảnh chính thức của Playwright chỉ có trình duyệt, KHÔNG có package npm `playwright`.
 
+## Nguồn tin: SEAM 5, hai adapter
+
+`ScraperService` KHÔNG biết một nguồn là CLI hay HTTP — nó hỏi `JobSourceRouter`. Hai adapter:
+
+- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bốn portal Việt nằm ở đây.
+- `AtsSourceService` — gọi **API job board công khai** của Greenhouse/Lever/Ashby, khai bằng `ATS_BOARDS=greenhouse:gitlab,ashby:ramp`.
+
+**Vì sao có nguồn ATS, và lý do KHÔNG phải "thêm tin": form ứng tuyển của chúng công khai.** Bốn portal Việt đặt form sau tường đăng nhập nên Assisted Apply với chúng chỉ trả `LOGIN_WALL`. Đã đo trên board GitLab: 201 tin có mô tả → 42 khớp "DevOps" → 12 lưu, rồi Assisted Apply điền được 6 trường thật trên một tin trong số đó.
+
+Ba điều dễ làm sai ở adapter ATS:
+
+1. **Lever trả MẢNG ở tầng ngoài**, Greenhouse và Ashby bọc trong `{ jobs: [...] }`. Đọc sai chỗ này thì luôn ra 0 tin và lượt quét vẫn được ghi là "thành công".
+2. **Greenhouse cần `?content=true`**, thiếu nó thì `content` vắng và phải gọi thêm một request cho từng tin. Cả ba đều trả mô tả sẵn, nên `AtsSourceService.detail()` cố ý **ném lỗi** — nó không bao giờ được gọi tới.
+3. **Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ.
+
+## Assisted Apply: ô nào là CÂU HỎI thì không tự điền
+
+Đã điền sai thật trên form GitLab: ô **"Are you Hispanic/Latino?"** nhận giá trị **"Hồ Chí Minh"**, vì luật địa điểm khớp trên `haystack` (nhãn + id + name) và id nội bộ của ô đó chứa từ khớp. Một câu trả lời nhân khẩu học sai đi vào hồ sơ gửi nhà tuyển dụng không phải chuyện nhỏ.
+
+Quy tắc: **nhãn có dấu hỏi thì bỏ qua** (`QUESTION_MARKS`, gồm cả `？` toàn rộng). Nó làm mất vài ô lẽ ra điền được — "What's the name you'd prefer us to use?" cũng bị bỏ — và đó là đánh đổi có chủ đích: với hồ sơ xin việc, **thiếu tốt hơn sai**, và ô bị bỏ vẫn hiện trong danh sách "bạn cần tự điền".
+
 ## Hàng đợi
 
 - Khoá chặn trùng được **suy ra từ payload** trong `queue-key.ts`, không do người gọi truyền vào. Thêm hàng đợi mới thì phải thêm một nhánh khoá — có test đối chiếu `QUEUE` với danh sách khoá nên quên là đỏ ngay.

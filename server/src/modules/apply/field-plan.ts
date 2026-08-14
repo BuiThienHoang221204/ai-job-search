@@ -137,6 +137,22 @@ export function buildFillRules(
   return rules;
 }
 
+/**
+ * Ô nào là CÂU HỎI thì không tự điền — dấu hiệu là nhãn có dấu hỏi.
+ *
+ * ĐÃ ĐIỀN SAI THẬT, trên một form GitLab: ô "Are you Hispanic/Latino?" nhận giá trị
+ * "Hồ Chí Minh". Nguyên nhân là luật địa điểm khớp trên `haystack` (nhãn + id + name),
+ * và id nội bộ của ô nhân khẩu học đó có chứa từ khớp. Hậu quả thì không phải chuyện
+ * nhỏ: một câu trả lời nhân khẩu học sai đi vào hồ sơ gửi nhà tuyển dụng.
+ *
+ * Quy tắc này làm mất vài ô lẽ ra điền được — "What's the name you'd prefer us to use?"
+ * cũng bị bỏ. Đổi lại là không bao giờ trả lời sai một câu hỏi, và ô bị bỏ vẫn hiện
+ * trong danh sách "bạn cần tự điền". Với hồ sơ xin việc, thiếu tốt hơn sai.
+ *
+ * Gồm cả dấu hỏi toàn rộng `？`: form tiếng Nhật/Trung dùng nó.
+ */
+export const QUESTION_MARKS = ['?', '？'] as const;
+
 /// Dấu hiệu trang đòi đăng nhập, để script dò trong văn bản trang.
 ///
 /// Chỉ những cụm CHẮC CHẮN nói về đăng nhập. Không dùng "account" hay "tài khoản":

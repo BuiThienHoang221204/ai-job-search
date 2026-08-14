@@ -7,6 +7,7 @@ import {
   CV_FILENAME,
   LOGIN_MARKERS,
   outcomeMessage,
+  QUESTION_MARKS,
   type ApplyIdentity,
 } from './field-plan.js';
 import type { ApplyResult, PageReport } from './apply.types.js';
@@ -92,6 +93,7 @@ export class BrowserApplyService {
         url: request.url,
         rules,
         loginMarkers: LOGIN_MARKERS,
+        questionMarks: QUESTION_MARKS,
         cookieButtons: COOKIE_BUTTONS,
         navigationTimeoutMs: NAVIGATION_TIMEOUT_MS,
       }),

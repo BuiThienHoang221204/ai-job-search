@@ -140,6 +140,14 @@ try {
   report.hasFileInput = fields.some((f) => f.type === "file");
 
   for (const field of fields) {
+    // O nao la CAU HOI thi khong tu dien - xem QUESTION_MARKS o field-plan.ts.
+    // Kiem tren NHAN, khong tren haystack: id noi bo cua form khong chua dau hoi,
+    // con nhan nguoi dung doc thi co.
+    if (input.questionMarks.some((mark) => field.label.includes(mark))) {
+      report.unmatched.push(field.label);
+      continue;
+    }
+
     // Luật KHỚP ĐẦU TIÊN thắng; thứ tự do field-plan.ts quyết định.
     const rule = input.rules.find(
       (r) =>

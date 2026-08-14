@@ -3,6 +3,7 @@ import {
   classifyOutcome,
   CV_PATH_IN_SANDBOX,
   outcomeMessage,
+  QUESTION_MARKS,
   type ApplyIdentity,
 } from 'src/modules/apply/field-plan.js';
 import type { PageReport } from 'src/modules/apply/apply.types.js';
@@ -205,5 +206,45 @@ describe('outcomeMessage', () => {
         /docker|sandbox|playwright|selector|regex/i,
       );
     }
+  });
+});
+
+describe('QUESTION_MARKS - o la cau hoi thi khong tu dien', () => {
+  /*
+   * Da dien sai THAT tren mot form GitLab: o "Are you Hispanic/Latino?" nhan gia tri
+   * "Hồ Chí Minh", vi luat dia diem khop tren haystack (nhan + id + name) va id noi bo
+   * cua o nhan khau hoc do co chua tu khop.
+   *
+   * Mot cau tra loi nhan khau hoc sai di vao ho so gui nha tuyen dung khong phai
+   * chuyen nho, nen quy tac la: nhan co dau hoi thi BO QUA.
+   */
+  const laCauHoi = (label: string): boolean =>
+    QUESTION_MARKS.some((mark) => label.includes(mark));
+
+  test('nhan dang cau hoi bang dau hoi, ke ca dau hoi toan rong', () => {
+    expect(laCauHoi('Are you Hispanic/Latino?')).toBe(true);
+    expect(laCauHoi('Bạn có cần bảo lãnh visa không?')).toBe(true);
+    // Form tieng Nhat/Trung dung dau hoi toan rong.
+    expect(laCauHoi('学歴は？')).toBe(true);
+  });
+
+  test('truong ho so binh thuong KHONG bi coi la cau hoi', () => {
+    for (const label of [
+      'First Name*',
+      'Email*',
+      'Phone',
+      'Location (City)*',
+      'Resume/CV',
+      'Họ và tên',
+    ]) {
+      expect(laCauHoi(label)).toBe(false);
+    }
+  });
+
+  test('CHAP NHAN mat mot vai o dien duoc, de khong tra loi sai', () => {
+    // "What's the name you'd prefer us to use?" le ra dien duoc, nhung no cung bi bo.
+    // Voi ho so xin viec, thieu tot hon sai - va o bi bo van hien trong danh sach
+    // "ban can tu dien".
+    expect(laCauHoi("What's the name you'd prefer us to use?")).toBe(true);
   });
 });

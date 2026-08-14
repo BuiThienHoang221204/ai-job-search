@@ -5,7 +5,8 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/ai.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { PromptBuilderService } from '../skills/prompt-builder.service.js';
-import { PortalCliService, type PortalJobCard } from './portal-cli.service.js';
+import { JobSourceRouter } from './job-source.router.js';
+import { type PortalJobCard } from './portal-cli.service.js';
 import { MIN_COMPLETION_TO_SCORE, pairKey, planFanOut } from './fan-out.js';
 import { parsePostedAt } from './normalize.js';
 import { searchPlanSchema, type SearchPlan } from './scraper.schema.js';
@@ -34,7 +35,7 @@ export class ScraperService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly prompts: PromptBuilderService,
-    private readonly portals: PortalCliService,
+    private readonly portals: JobSourceRouter,
     private readonly queue: QueueService,
     config: ConfigService,
   ) {

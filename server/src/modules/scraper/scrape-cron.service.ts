@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { PortalCliService } from './portal-cli.service.js';
+import { JobSourceRouter } from './job-source.router.js';
 import { ScraperService } from './scraper.service.js';
 
 const JOB_NAME = 'scrape.nightly';
@@ -22,7 +22,7 @@ export class ScrapeCronService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly registry: SchedulerRegistry,
     private readonly scraper: ScraperService,
-    private readonly portals: PortalCliService,
+    private readonly portals: JobSourceRouter,
     private readonly queue: QueueService,
   ) {}
 

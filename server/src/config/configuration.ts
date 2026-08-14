@@ -87,6 +87,19 @@ const configuration = () => ({
     // không chỉ mất một lần quét.
     portalDelayMs: parseInt(process.env.SCRAPER_PORTAL_DELAY_MS ?? '3000', 10),
 
+    /*
+     * Các job board ATS công khai cần đọc, dạng `greenhouse:acme,lever:beta`.
+     *
+     * Vì sao có nguồn này, và lý do KHÔNG phải là "thêm tin": form ứng tuyển của
+     * Greenhouse/Lever/Ashby là công khai, nên Assisted Apply chạy thật được. Bốn
+     * portal Việt đặt form sau tường đăng nhập nên chúng chỉ trả `LOGIN_WALL`.
+     *
+     * Rỗng theo mặc định: danh sách công ty là quyết định nghiệp vụ, không phải mặc
+     * định kỹ thuật. Cắm sẵn vài công ty vào code sẽ thành "vì sao hệ thống tự lấy
+     * tin của công ty này".
+     */
+    atsBoards: process.env.ATS_BOARDS ?? '',
+
     // Địa điểm mặc định khi hồ sơ người dùng chưa khai. LinkedIn BẮT BUỘC có
     // --location, khác với ITviec.
     defaultLocation: process.env.SCRAPER_DEFAULT_LOCATION ?? 'Vietnam',

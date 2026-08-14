@@ -13,7 +13,7 @@ import type { AuthUser } from '../../common/types/auth-user.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { PortalCliService } from './portal-cli.service.js';
+import { JobSourceRouter } from './job-source.router.js';
 import { ScraperService } from './scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
 
@@ -28,7 +28,7 @@ export class StartScrapeDto {
 export class ScraperController {
   constructor(
     private readonly scraper: ScraperService,
-    private readonly portals: PortalCliService,
+    private readonly portals: JobSourceRouter,
     private readonly queue: QueueService,
   ) {}
 
