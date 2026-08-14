@@ -40,6 +40,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   profile        Profile?
+  applyAttempts  ApplyAttempt[]
   matches        JobMatch[]
   savedJobs      SavedJob[]
   interviewPreps InterviewPrep[]
@@ -149,6 +150,7 @@ model Job {
   scrapedAt DateTime  @default(now())
 
   matches        JobMatch[]
+  applyAttempts  ApplyAttempt[]
   saves          SavedJob[]
   interviewPreps InterviewPrep[]
   documents      Document[]
@@ -586,6 +588,64 @@ model Application {
   @@unique([userId, jobId])
   @@index([userId, status, updatedAt(sort: Desc)])
   @@map("applications")
+}
+
+/// Ket luan cua mot luot Assisted Apply. Khop `ApplyOutcome` o
+/// `src/modules/apply/apply.types.ts`.
+///
+/// KHONG co gia tri nao nghia la "da nop": may khong bam nut nop. Viec nguoi dung tu
+/// nop duoc ghi bang `ApplyAttempt.confirmedAt`, va do la khang dinh cua chinh ho.
+enum ApplyOutcome {
+  /// Tim thay form, da dien duoc it nhat mot truong.
+  FILLED
+  /// Trang doi dang nhap. Ket luan HAY GAP NHAT voi 4 portal Viet - khong phai loi.
+  LOGIN_WALL
+  /// Tai duoc trang nhung khong thay form ung tuyen nao.
+  NO_FORM
+  /// Khong tai duoc trang: link chet, het gio, site chan.
+  UNREACHABLE
+}
+
+/// Mot luot Assisted Apply: mo link, dien form, chup anh, DUNG.
+///
+/// Bang rieng chu khong nhoi vao `Application`, vi mot don co the co NHIEU luot -
+/// nguoi dung sua ho so roi thu lai, hoac trang doi HTML. Giu tung luot lam bang
+/// chung doi chieu duoc, va do cung la du lieu demo tot khi bao ve.
+model ApplyAttempt {
+  id     String @id @default(cuid())
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status  MatchStatus   @default(PENDING)
+  outcome ApplyOutcome?
+
+  /// Cau da hien cho nguoi dung. Luu lai chu khong dung lai tu `outcome`: cau chu co
+  /// the doi theo phien ban, con man hinh lich su phai hien dung cai nguoi dung da doc.
+  message String? @db.Text
+
+  /// `FilledField[]` - nhan va gia tri da dien, de nguoi dung doi chieu voi anh chup.
+  filled Json?
+  /// Nhan cua nhung o khong luat nao khop. Cho biet can bo sung luat gi.
+  unmatched String[] @default([])
+
+  /// Anh chup trang sau khi dien, trong Storage.
+  screenshotKey String?
+
+  /// Thoi diem NGUOI DUNG khang dinh da tu nop tren trang tuyen dung. null = chua.
+  /// He thong khong the tu biet dieu nay - no khong bam nut nop.
+  confirmedAt DateTime?
+
+  error String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, jobId, createdAt(sort: Desc)])
+  @@map("apply_attempts")
 }
 
 /// Nhật ký chuyển trạng thái của một đơn.

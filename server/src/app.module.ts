@@ -10,6 +10,7 @@ import { AiModule } from './modules/ai/ai.module.js';
 import { ApplicationsModule } from './modules/applications/applications.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { ApplyModule } from './modules/apply/apply.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { InterviewModule } from './modules/interview/interview.module.js';
@@ -70,6 +71,7 @@ import { StorageModule } from './modules/storage/storage.module.js';
     MatchingModule,
     InterviewModule,
     UpskillModule,
+    ApplyModule,
     DocumentsModule,
     ApplicationsModule,
     DashboardModule,

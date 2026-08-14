@@ -8,6 +8,8 @@ import { AiService } from 'src/modules/ai/ai.service.js';
 import { AUTH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
+import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
+import { FakeSandbox } from 'src/testing/fake-sandbox.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 import { FakeQueue } from './fake-queue.js';
 import { truncateAll } from './test-database.js';
@@ -36,6 +38,9 @@ export type TestApp = {
   prisma: PrismaService;
   ai: FakeAi;
   queue: FakeQueue;
+  /// SEAM 2. Thay để KHÔNG test nào chạm Docker: một lượt `docker run` mất 5-10
+  /// giây, cần ảnh nhiều GB, và cần mạng ở đường Assisted Apply.
+  sandbox: FakeSandbox;
   /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
   ///
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
@@ -59,6 +64,9 @@ export type TestApp = {
 /// - `QueueService` -> `FakeQueue`: bản thật khởi động pg-boss và đăng ký worker
 ///   ngay lúc module init. `FakeQueue.drain()` thay thời gian chờ bằng một lời
 ///   gọi xác định.
+/// - `SANDBOX` -> `FakeSandbox`: bản thật gọi `docker run`. Riêng đường Assisted
+///   Apply còn cần MẠNG và một trang web thật, nên để bản thật ở đây thì bộ e2e
+///   phụ thuộc vào việc trang của người khác có sống hay không.
 /// - Cron quét portal: tắt bằng biến môi trường trong `e2e-env.ts`.
 ///
 /// Những thứ KHÔNG thay: Postgres (thật, database riêng), toàn bộ guard, filter,
@@ -82,6 +90,7 @@ export async function createTestApp(
 ): Promise<TestApp> {
   const ai = new FakeAi();
   const queue = new FakeQueue();
+  const sandbox = new FakeSandbox();
 
   // Đặt TRƯỚC khi compile: `ConfigModule` đọc biến môi trường lúc dựng module,
   // nên đổi sau đó thì không có tác dụng. Không dùng `overrideGuard` được -
@@ -93,6 +102,8 @@ export async function createTestApp(
     .useValue(ai)
     .overrideProvider(QueueService)
     .useValue(queue)
+    .overrideProvider(SANDBOX)
+    .useValue(sandbox)
     .compile();
 
   const app = moduleRef.createNestApplication();
@@ -165,6 +176,7 @@ export async function createTestApp(
     prisma,
     ai,
     queue,
+    sandbox,
     signUp,
     promoteToAdmin: async (userId: string): Promise<void> => {
       await prisma.user.update({
@@ -176,6 +188,7 @@ export async function createTestApp(
       await truncateAll(prisma);
       ai.reset();
       queue.reset();
+      sandbox.reset();
     },
     close: async (): Promise<void> => {
       await app.close();
