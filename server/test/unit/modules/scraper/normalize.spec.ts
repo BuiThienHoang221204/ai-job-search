@@ -4,7 +4,7 @@ import {
   normalizeDetail,
   parsePostedAt,
   unwrapList,
-} from './normalize.js';
+} from 'src/modules/scraper/normalize.js';
 
 /// Hình dạng thật của itviec / topcv / vietnamworks: mảng trần.
 const arrayShape = [

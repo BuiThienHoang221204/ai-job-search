@@ -2,8 +2,8 @@ import type { ConfigService } from '@nestjs/config';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LocalStorage } from './local.storage.js';
-import { userKey } from './storage.interface.js';
+import { LocalStorage } from 'src/modules/storage/local.storage.js';
+import { userKey } from 'src/modules/storage/storage.interface.js';
 
 let root: string;
 let storage: LocalStorage;

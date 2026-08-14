@@ -1,4 +1,4 @@
-import type { ApplicationStatus } from '../../generated/prisma/enums.js';
+import type { ApplicationStatus } from 'src/generated/prisma/enums.js';
 import {
   FINAL_STATUSES,
   OPEN_STATUSES,
@@ -7,7 +7,7 @@ import {
   isFinal,
   timestampsFor,
   type TransitionRequest,
-} from './transitions.js';
+} from 'src/modules/applications/transitions.js';
 
 const move = (
   overrides: Partial<TransitionRequest> &

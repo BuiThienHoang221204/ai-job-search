@@ -1,4 +1,7 @@
-import { buildSuggestions, type SuggestionInput } from './suggestions.js';
+import {
+  buildSuggestions,
+  type SuggestionInput,
+} from 'src/modules/dashboard/suggestions.js';
 
 const input = (overrides: Partial<SuggestionInput> = {}): SuggestionInput => ({
   profileCompletion: 100,

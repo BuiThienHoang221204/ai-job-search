@@ -1,4 +1,7 @@
-import { normaliseSkill, recurringGaps } from './skill-gaps.js';
+import {
+  normaliseSkill,
+  recurringGaps,
+} from 'src/modules/dashboard/skill-gaps.js';
 
 const job = (...tags: string[]) => ({ job: { tags } });
 

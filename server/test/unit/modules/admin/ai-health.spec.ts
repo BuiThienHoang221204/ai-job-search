@@ -1,4 +1,8 @@
-import { buildAiHealth, percentile, type AiCallRow } from './ai-health.js';
+import {
+  buildAiHealth,
+  percentile,
+  type AiCallRow,
+} from 'src/modules/admin/ai-health.js';
 
 const call = (
   overrides: Partial<AiCallRow> & Pick<AiCallRow, 'ok' | 'durationMs'>,

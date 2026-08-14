@@ -3,7 +3,7 @@ import {
   MIN_COMPLETION_TO_SCORE,
   pairKey,
   planFanOut,
-} from './fan-out.js';
+} from 'src/modules/scraper/fan-out.js';
 
 const users = (...completions: number[]) =>
   completions.map((completion, index) => ({

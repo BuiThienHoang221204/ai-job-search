@@ -1,4 +1,7 @@
-import { evaluateCandidate, portalKeyFrom } from './portal-registry.js';
+import {
+  evaluateCandidate,
+  portalKeyFrom,
+} from 'src/modules/scraper/portal-registry.js';
 
 describe('portalKeyFrom', () => {
   test('bỏ hậu tố -search', () => {

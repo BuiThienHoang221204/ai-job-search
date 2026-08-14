@@ -1,9 +1,9 @@
-import type { Profile } from '../../generated/prisma/client.js';
+import type { Profile } from 'src/generated/prisma/client.js';
 import {
   SCORED_FIELDS,
   completionPercent,
   missingFields,
-} from './completion.js';
+} from 'src/modules/profile/completion.js';
 
 /// Hồ sơ trống hoàn toàn: mọi trường tính điểm đều chưa điền.
 const emptyProfile = (): Profile =>

@@ -4,6 +4,17 @@
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
-  }
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.e2e.json" }]
+  },
+  "moduleNameMapper": {
+    "^ai$": "<rootDir>/support/stubs/ai-sdk.ts",
+    "^@ai-sdk/openai-compatible$": "<rootDir>/support/stubs/ai-sdk.ts",
+    "^src/(.*)\\.js$": "<rootDir>/../src/$1",
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^(\\.{1,2}/.*)\\.js$": "$1"
+  },
+  "globalSetup": "<rootDir>/support/global-setup.ts",
+  "setupFiles": ["<rootDir>/support/e2e-env.ts"],
+  "testTimeout": 30000,
+  "maxWorkers": 1
 }
