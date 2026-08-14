@@ -27,6 +27,38 @@ Hai đường tách biệt, đây là quyết định thiết kế quan trọng 
 
 Màn hình danh sách không được gọi AI lúc render: 24 công việc sẽ thành 24 lần gọi model, và điểm số sẽ nhảy mỗi lần tải lại trang. `promptHash` trên `job_matches` quyết định khi nào cần chấm lại - hash gồm nội dung skill, hồ sơ và mô tả công việc.
 
+### Cấu trúc thư mục
+
+```
+src/
+├─ common/        thứ cắt ngang mọi module - KHÔNG import gì từ modules/
+│  ├─ guards/       JwtAuthGuard (toàn cục), RolesGuard
+│  ├─ decorators/   @CurrentUser, @Roles, @Public
+│  ├─ filters/      PrismaExceptionFilter
+│  ├─ middleware/   RequestLogMiddleware
+│  ├─ types/        AuthUser
+│  └─ common.module.ts
+├─ config/        đọc .env, đổi đường dẫn tương đối thành tuyệt đối
+├─ prisma/        PrismaService và tiện ích quanh lỗi Prisma
+├─ modules/       mỗi tính năng một thư mục: controller, service, dto, logic thuần
+└─ generated/     Prisma sinh ra, không sửa tay
+```
+
+Quy tắc giữ cho cấu trúc này không rối: **`common/` không được import gì từ
+`modules/`**. Nó là tầng đáy - mọi module dựa vào nó, còn nó không biết module
+nào tồn tại. Kiểm nhanh bằng `grep -rn "from '.*modules/" src/common` (phải
+không ra kết quả nào).
+
+Đó cũng là lý do `AuthUser` nằm ở `common/types/` chứ không nằm trong
+`jwt.strategy.ts`: type này là **hợp đồng** giữa nơi tạo ra nó (`JwtStrategy`
+trong `modules/auth/`, biết về Prisma và cookie) và nơi tiêu thụ (guard,
+`@CurrentUser`, và 10 controller). Để nó ở phía tạo thì phía tiêu thụ phải với
+ngược vào ruột của AuthModule chỉ để lấy một cái type.
+
+Phần *cài đặt* của xác thực vẫn ở `modules/auth/`: `JwtStrategy` là provider do
+AuthModule đăng ký, `auth.cookie.ts` biết tên và cờ của cookie. `common/` chỉ
+giữ phần giao diện chung.
+
 ## Skill nào đang được dùng ở đâu
 
 | Route | File skill được nạp |
@@ -38,6 +70,7 @@ Màn hình danh sách không được gọi AI lúc render: 24 công việc sẽ
 | `POST /api/documents/cover-letter` | `06-cover-letter-templates.md` + `03-writing-style.md` |
 | `POST /api/documents/form-answer` | `08-application-forms.md` |
 | `POST /api/scrape` | CLI trong `.agents/skills/*/cli/` (không dùng `job-scraper/SKILL.md`) |
+| `POST /api/profile-drafts/cv` | không nạp skill nào — xem mục "Đọc CV" bên dưới |
 
 `POST /api/scrape` không nạp `job-scraper/SKILL.md`. File đó là kịch bản cho agent
 chat (kiểm tra sức khoẻ portal, trình bày kết quả, hỏi lại người dùng); năng lực
@@ -48,6 +81,59 @@ có CLI không cần đến nó.
 Upskill không đọc `job_search_tracker.csv` như skill gốc. Bảng `job_matches`
 đóng vai trò đó, và cột `overallScore` chính là `fit_rating`; công thức trọng số
 `(100 - fit) / 100` giữ nguyên từ Step 3 của SKILL.md.
+
+## Đọc CV thành hồ sơ (Agent 1)
+
+`modules/profile-sources/`. Người dùng nộp CV PDF, model đọc thành **đề xuất**, người
+dùng chọn nhận từng trường.
+
+Không nạp file skill nào: `.claude/skills/` không có khung nào cho việc đọc CV — chúng
+là khung để *viết* CV. Prompt nằm ngay trong `profile-synthesizer.service.ts`.
+
+### Ranh giới quan trọng nhất: AI đề xuất, người dùng chốt
+
+Model ghi vào `ProfileDraft.proposal`. **Không gì chạm vào bảng `Profile` cho tới khi
+người dùng bấm áp dụng**, và khi áp dụng thì chỉ chép đúng những trường họ đã tích.
+
+Đó là lý do có bảng riêng thay vì ghi thẳng: một lần đọc sai sẽ xoá mất dữ liệu người
+dùng đã gõ tay, mà lại không có đường lùi. Bảng `ProfileDraft` biến quy tắc đó thành
+cấu trúc dữ liệu chứ không để nó là ý định trong tài liệu.
+
+`APPLICABLE_FIELDS` là **danh sách trắng**. `fields` đến từ HTTP request, nên danh
+sách đen sẽ tự động cho qua mọi trường thêm vào sau này.
+
+### Những trường model bị CẤM đề xuất
+
+Đây là quyết định thiết kế, không phải thiếu sót — lý do đầy đủ trong docblock của
+`profile-proposal.schema.ts`:
+
+| Trường | Vì sao không được đoán |
+|---|---|
+| `careerGoals`, `energizingTasks`, `drainingTasks`, `targetSectors`, `dealBreakers` | **Sở thích.** CV không nói việc gì làm bạn kiệt sức. Suy từ chức danh cũ là bịa, và bịa vào đúng chiều chiếm 30% điểm phù hợp |
+| `citizenship`, `workPermit`, `workPermitNote` | **Tình trạng pháp lý.** Đoán sai làm sai Eligibility Gate — bộ lọc CỨNG, loại thẳng ứng viên khỏi việc họ đủ điều kiện làm. "Sinh ở Hà Nội" không chứng minh được quốc tịch |
+| `commuteConstraint`, `willingToRelocate`, `remotePreference` | Sở thích. `willingToRelocate` là boolean nên mặc định sai sẽ im lặng hoàn toàn |
+| `lackingSkills` | Suy ra từ ĐỐI CHIẾU hồ sơ với tin tuyển dụng (việc của `upskill`), không đọc từ CV |
+
+Đổi lại, schema có trường **`missing` bắt buộc**: model phải liệt kê những gì nó không
+tìm thấy. Không có nó, một CV thiếu học vấn chỉ cho ra `educations: []` — trông y như
+một lỗi đọc.
+
+### Lớp text trước, vision sau
+
+Đa số CV đều có lớp text (mọi bản xuất từ Word, LaTeX, Canva, hay in từ trình duyệt),
+nên đường này xử lý phần lớn trường hợp **không tốn một lượt gọi model nào** — quan
+trọng hơn bình thường vì hạn mức gateway free cạn trong một buổi.
+
+`hasTextLayer` tính theo **ký tự trên mỗi trang** (ngưỡng 120), không theo tổng: một CV
+3 trang scan kèm một trang bìa có text sẽ vượt mọi ngưỡng tính theo tổng rồi đi tiếp
+với 1/3 nội dung mà không ai biết.
+
+PDF scan ném `ScannedPdfError` và bị từ chối **ngay tại request** kèm câu hướng dẫn cụ
+thể, chứ không tạo ra một bản nháp FAILED mà người dùng phải mở màn khác mới hiểu.
+
+**Đường vision cho PDF scan CHƯA LÀM.** Đã đo là gateway có 5 model free nhận ảnh, nên
+việc này khả thi; nó là adapter riêng (`CV_PDF_VISION`) chứ không phải một nhánh `if`
+trong `CvPdfSource` — hai đường có chi phí, độ trễ và cách hỏng khác nhau hoàn toàn.
 
 ## Quét tin tuyển dụng
 
@@ -216,11 +302,33 @@ nhanh. Trung bình ở đây nói dối một cách có hệ thống.
 Ghi nhật ký không bao giờ được làm hỏng lần gọi thật: nếu ghi thất bại thì chỉ log
 cảnh báo rồi đi tiếp.
 
+## Xác thực: mặc định là ĐÓNG
+
+`JwtAuthGuard` đăng ký toàn cục bằng `APP_GUARD` trong `CommonModule`, nên **mọi
+route đều đòi token trừ khi có `@Public()`**. Controller mới không cần gắn guard,
+và quan trọng hơn: quên nghĩ tới xác thực thì route đó đóng chứ không mở.
+
+Chiều lỗi này mới là điều đáng giá. Quên bảo vệ một route thì không ai báo cho
+biết - nó cứ chạy đúng cho tới ngày có người tìm ra. Quên mở một route thì người
+dùng nhận 401 và báo trong vòng một phút.
+
+Toàn bộ bề mặt công khai của máy chủ là ba route, tìm bằng `grep -rn "@Public()" src`:
+
+| Route | Vì sao công khai |
+|---|---|
+| `POST /api/auth/register` | chưa có tài khoản |
+| `POST /api/auth/login` | chưa có token |
+| `POST /api/auth/logout` | phải xoá được cookie kể cả khi token đã hết hạn, nếu không người dùng mắc kẹt với cookie chết |
+
+Đã kiểm trên máy chủ chạy thật: 12 route của 12 controller đều trả 401 khi không
+có token, ba route trên vẫn đi qua.
+
 ## Phân quyền
 
-`User.role` là `USER` hoặc `ADMIN`. Route quản trị dùng `@UseGuards(JwtAuthGuard,
-RolesGuard)` kèm `@Roles('ADMIN')` - **đúng thứ tự này**, vì `RolesGuard` đọc
-`request.user` mà `JwtAuthGuard` gắn vào.
+`User.role` là `USER` hoặc `ADMIN`. Route quản trị chỉ cần khai
+`@UseGuards(RolesGuard)` kèm `@Roles('ADMIN')` - không khai lại `JwtAuthGuard`,
+vì guard toàn cục luôn chạy TRƯỚC guard của controller nên `request.user` chắc
+chắn đã có khi `RolesGuard` đọc tới.
 
 Vai trò được đọc từ DB mỗi request qua `JwtStrategy.validate()`, **không** nằm trong
 claim của token. Ghi vai trò vào token nghĩa là một tài khoản bị hạ quyền vẫn giữ
@@ -233,28 +341,97 @@ Nâng quyền cho một tài khoản:
 update users set role = 'ADMIN' where email = 'ban@example.com';
 ```
 
+## Log request và lỗi Prisma
+
+`RequestLogMiddleware` ghi một dòng cho mỗi request: `GET /api/jobs 401 5ms`.
+2xx là `log`, 4xx là `warn`, 5xx là `error`, quá 1 giây thì kèm `(chậm)`.
+
+Nó là **middleware chứ không phải interceptor**, và đây là lý do: guard chạy
+trước interceptor, nên một interceptor không bao giờ nhìn thấy request bị
+`JwtAuthGuard` chặn. Đã đo trực tiếp - bản dùng interceptor trả 401 cho
+`GET /api/jobs` mà không để lại dòng log nào, trong khi 401 hàng loạt lại đúng
+là thứ đầu tiên cần thấy khi có người dò mật khẩu. Middleware nằm ngoài cùng nên
+bắt được cả 401 của guard lẫn 404 của đường dẫn không tồn tại.
+
+Một lưu ý đã đo: `setGlobalPrefix('api')` áp lên cả middleware, nên đường dẫn
+ngoài `/api` (ví dụ máy quét dò `/wp-admin`) KHÔNG được ghi. Mọi thứ chạm tới
+API đều được ghi.
+
+Log cố ý không chứa body, header hay query string: body có mật khẩu lúc đăng
+nhập, header có cookie mang token, query string là nơi token hay bị nhét vào ở
+các luồng thêm sau.
+
+`PrismaExceptionFilter` là lưới an toàn cho lỗi Prisma lọt tới tầng HTTP:
+
+| Mã Prisma | HTTP | Nghĩa |
+|---|---|---|
+| P2025 | 404 | update/delete trên bản ghi không còn ở đó |
+| P2002 | 409 | vi phạm ràng buộc unique |
+| P2003 | 400 | khoá ngoại trỏ tới bản ghi không tồn tại |
+| còn lại | 500 | |
+
+Nơi nào biết lỗi đó nghĩa là gì trong nghiệp vụ thì vẫn bắt tại chỗ với thông
+báo cụ thể (`auth.service.ts` cho email trùng, `applications.service.ts` cho đơn
+trùng). Filter chỉ lo phần còn lại. Thông báo trả ra cố tình chung chung vì
+`error.meta` của Prisma chứa tên bảng và tên cột - chi tiết đó chỉ vào log.
+
 ## Test
 
 ```bash
-pnpm test          # 153 test, ~1.6 giây, không cần mạng hay database
+pnpm test          # 293 test, ~12 giây, không cần mạng hay database
 pnpm test:watch
 ```
 
-Toàn bộ test đều nhắm vào **hàm thuần** - không gọi AI, không chạm Postgres, không
-ra mạng. Đó là cố ý: chúng phải chạy đủ nhanh để bạn gõ xong là chạy ngay, và phải
-xanh/đỏ vì logic chứ không vì gateway free hôm nay có rảnh hay không.
+Test đơn vị **không gọi AI, không chạm Postgres, không ra mạng**. Đó là cố ý: chúng
+phải chạy đủ nhanh để bạn gõ xong là chạy ngay, và phải xanh/đỏ vì logic chứ không
+vì gateway free hôm nay có rảnh hay không.
 
-| File | Bảo vệ điều gì |
+Gần như tất cả nhắm vào **hàm thuần**. Ngoại lệ duy nhất là `profile-sources`: nó
+đọc **PDF thật** từ `test/fixtures/`. Ở đó một bản giả sẽ vô nghĩa — điều duy nhất
+đáng kiểm là dấu tiếng Việt có sống qua vòng trích xuất hay không, mà bản giả thì
+trả lại đúng chuỗi ta tự nhập vào.
+
+Vì cùng lý do đó, `pnpm test` gọi **`node test/run-unit.mjs`** chứ không gọi `jest`
+trực tiếp: `pdf-parse` nạp worker pdfjs bằng `import()` động nên jest cần cờ
+`--experimental-vm-modules`. Docblock của file đó ghi lại những cách đã thử mà
+không tránh được cờ này — đừng thử lại.
+
+### Test nằm ở đâu
+
+Unit test **không** nằm cạnh module mà ở `test/unit/**`, phản chiếu đúng cây
+`src/**`: `src/modules/scraper/normalize.ts` được kiểm bởi
+`test/unit/modules/scraper/normalize.spec.ts`. Nhờ vậy `src/` chỉ còn mã chạy
+thật, và `tsconfig.build.json` không phải lọc file test ra khỏi bản build.
+
+Jest chỉ quét `test/unit` (`roots` trong `package.json`), nên một file `.spec.ts`
+đặt lạc vào `src/` sẽ **không được chạy** - đặt đúng chỗ thì mới được tính.
+
+Spec import mã nguồn qua alias `src/...` (khai báo ở `paths` của `tsconfig.json`
+và `moduleNameMapper` của Jest), giữ nguyên đường dẫn thật của module thay vì
+chuỗi `../../../`:
+
+```ts
+import { normalizeJob } from 'src/modules/scraper/normalize.js';
+```
+
+Test e2e vẫn ở `test/*.e2e-spec.ts`, chạy riêng bằng `pnpm test:e2e`.
+
+| File (trong `test/unit/`) | Bảo vệ điều gì |
 |---|---|
-| `matching/evaluation.schema.spec.ts` | Trọng số 30/25/15/30 và ngưỡng verdict 75/60/45/30 đúng như `04-job-evaluation.md`. Schema chặn điểm âm, điểm vượt 100, điểm thập phân |
-| `documents/latex.spec.ts` | `escapeLatex` vô hiệu `\input`, `\write18`, bom `\def\x{\x\x}`. Dấu cách và tiếng Việt không bị biến dạng. Lời chào lặp bị cắt |
-| `skills/prompt-builder.service.spec.ts` | `keepSections` BỎ được mục `## Output Format`. Placeholder không có ánh xạ vẫn bị thay, không để lại nguyên văn trong prompt |
-| `storage/local.storage.spec.ts` | Chặn path traversal 6 dạng. Khoá của người dùng này không đọc được workspace của người khác |
-| `dashboard/suggestions.spec.ts` | Ngưỡng hiện từng thẻ gợi ý, và không bao giờ trả quá 4 thẻ |
-| `dashboard/skill-gaps.spec.ts` | ReactJS/React được coi là một; JavaScript KHÔNG bị nhầm thành Java |
-| `profile/completion.spec.ts` | Mảng rỗng và chuỗi trắng tính là chưa điền; thứ tự ưu tiên nhắc điền |
-| `ai/failure-kind.spec.ts` | SCHEMA được ưu tiên hơn TIMEOUT; bóc được RetryError để lấy nguyên nhân thật |
-| `admin/ai-health.spec.ts` | p50/p95 không bị một lần 517 giây kéo lệch như trung bình |
+| `modules/matching/evaluation.schema.spec.ts` | Trọng số 30/25/15/30 và ngưỡng verdict 75/60/45/30 đúng như `04-job-evaluation.md`. Schema chặn điểm âm, điểm vượt 100, điểm thập phân |
+| `modules/documents/latex.spec.ts` | `escapeLatex` vô hiệu `\input`, `\write18`, bom `\def\x{\x\x}`. Dấu cách và tiếng Việt không bị biến dạng. Lời chào lặp bị cắt |
+| `modules/skills/prompt-builder.service.spec.ts` | `keepSections` BỎ được mục `## Output Format`. Placeholder không có ánh xạ vẫn bị thay, không để lại nguyên văn trong prompt |
+| `modules/storage/local.storage.spec.ts` | Chặn path traversal 6 dạng. Khoá của người dùng này không đọc được workspace của người khác |
+| `modules/dashboard/suggestions.spec.ts` | Ngưỡng hiện từng thẻ gợi ý, và không bao giờ trả quá 4 thẻ |
+| `modules/dashboard/skill-gaps.spec.ts` | ReactJS/React được coi là một; JavaScript KHÔNG bị nhầm thành Java |
+| `modules/profile/completion.spec.ts` | Mảng rỗng và chuỗi trắng tính là chưa điền; thứ tự ưu tiên nhắc điền |
+| `modules/ai/failure-kind.spec.ts` | SCHEMA được ưu tiên hơn TIMEOUT; bóc được RetryError để lấy nguyên nhân thật |
+| `modules/admin/ai-health.spec.ts` | p50/p95 không bị một lần 517 giây kéo lệch như trung bình |
+| `common/guards/jwt-auth.guard.spec.ts` | `@Public()` đi thẳng không đụng passport; route thường vẫn phải qua. Metadata đọc bằng `getAllAndOverride` nên mở được một route lẻ trong controller đã đóng |
+| `common/filters/prisma-exception.filter.spec.ts` | P2025 ra 404, P2002 ra 409, P2003 ra 400, mã lạ ra 500. Tên bảng và tên cột trong `error.meta` không rò ra phản hồi |
+| `common/middleware/request-log.middleware.spec.ts` | Query string không lọt vào log. Request bị guard chặn và đường dẫn không tồn tại vẫn được ghi - kiểm bằng một app Nest thật, không đụng database |
+| `modules/profile-sources/pdf-text.spec.ts` | Dấu tiếng Việt sống qua vòng trích xuất PDF — kiểm trên **PDF thật**. File quá lớn bị chặn TRƯỚC khi parse; PDF hỏng, rỗng, cắt dở đều ra lỗi đã phân loại chứ không sập |
+| `modules/profile-sources/cv-pdf.source.spec.ts` | PDF scan ném `ScannedPdfError` chứ KHÔNG trả bằng chứng rỗng. Câu lỗi cho người dùng không lộ tên lớp lỗi; lỗi lạ trả `null` để không bị nhận vơ là lỗi PDF |
 
 Các CLI trong `.agents/skills/*/cli/` có bộ test riêng chạy bằng `bun test`.
 CI duyệt qua mọi thư mục CLI thay vì liệt kê từng cái, nên portal thêm sau sẽ tự
@@ -268,3 +445,48 @@ pnpm run bench -- deepseek-v4-flash-free glm-5
 ```
 
 Script chấm điểm thử một cặp hồ sơ/tin tuyển dụng đã biết trước đáp án và báo các lỗi ngữ nghĩa mà schema không bắt được (sai thang điểm, eligibility sai, gaps rỗng).
+
+## Chạy bằng Docker
+
+`Dockerfile` nằm ở **gốc repo**, không phải trong `server/`, và build context cũng phải là gốc repo: image cần cả `server/` lẫn `.claude/skills` và `.agents/skills` — hai thư mục sau nằm ngoài `server/` nhưng được đọc lúc khởi động.
+
+```bash
+# từ gốc repo
+docker build -t ai-job-server -f Dockerfile .
+```
+
+Chạy migration là **bước riêng**, không nhúng vào lệnh khởi động: nhúng vào thì khi scale ra nhiều instance, mọi bản sẽ cùng chạy migration một lúc.
+
+```bash
+docker run --rm --network <mạng-có-postgres> \
+  -e DATABASE_URL="postgresql://..." \
+  ai-job-server pnpm prisma migrate deploy
+
+docker run -d --name ai-job-server --network <mạng-có-postgres> \
+  -e DATABASE_URL="postgresql://..." \
+  -e JWT_SECRET="<khoá thật>" \
+  -e CORS_ORIGIN="https://app.example.com" \
+  -v ai-job-workspaces:/app/workspaces \
+  -p 4000:4000 ai-job-server
+```
+
+### Vài điều trong image không hiển nhiên
+
+- **Node >= 22.12 là yêu cầu cứng**, đã khai trong `engines`. `ai` và `@ai-sdk/openai-compatible` là ESM thuần không có bản CommonJS, còn `nest build` xuất ra CommonJS — ứng dụng chạy được nhờ Node cho phép `require()` một module ESM, tính năng chỉ có từ 22.12. Image cũ hơn chết lúc khởi động với thông báo không liên quan gì tới nguyên nhân.
+- **bun và curl đều được cài** vì portal CLI cần chúng: cả bốn CLI chạy bằng bun, và TopCV chặn TLS fingerprint của bun nên CLI của nó gọi qua curl. Thiếu chúng thì việc quét hỏng *lúc chạy*, không phải lúc build.
+- **Đường dẫn khai tường minh** bằng `SKILLS_DIR`, `PORTALS_DIR`, `STORAGE_LOCAL_ROOT`. Mặc định trong `configuration.ts` là tương đối theo `process.cwd()` — đúng khi chạy `pnpm start` từ `server/`, nhưng đó là giả định ngầm về vị trí tiến trình, và nếu sai thì scraper im lặng không tìm thấy portal nào.
+- **`workspaces/` phải gắn volume.** Đó là nơi ghi file `.tex` của người dùng; không gắn thì dữ liệu mất theo container.
+- **`dotenv` nằm ở `dependencies`, không phải `devDependencies`**, vì `main.ts` import nó lúc chạy và image cài bằng `pnpm install --prod`.
+
+### Hai probe, trả lời hai câu hỏi khác nhau
+
+| Route | Câu hỏi | Khi trả lỗi thì làm gì |
+|---|---|---|
+| `GET /api/health` | Tiến trình còn trả lời được không? | Khởi động lại container |
+| `GET /api/ready` | Có nhận việc được không? | Rút khỏi load balancer, **đừng** khởi động lại |
+
+`HEALTHCHECK` trong image cố ý dùng `/api/health` chứ không phải `/api/ready`: nếu healthcheck của container đọc readiness thì một lần database chập chờn sẽ khiến Docker khởi động lại một tiến trình hoàn toàn khoẻ mạnh — làm sự cố nặng thêm thay vì chỉ ngừng nhận request.
+
+### Nâng cấp một database đã chạy từ trước
+
+Hàng đợi tạo trước tháng 8/2026 dùng policy `standard`, còn cơ chế chặn trùng cần `exclusive`, mà pg-boss không cho đổi policy tại chỗ. Máy chủ sẽ **từ chối khởi động** kèm hướng dẫn. Chạy một lần với `QUEUE_POLICY_MIGRATE=true` rồi bỏ biến đó đi — việc đang chờ trong hàng đợi sẽ mất, nên chạy khi hàng đợi rỗng.

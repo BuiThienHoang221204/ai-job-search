@@ -1,19 +1,34 @@
 ---
-framework_version: 1.0.0
+framework_version: 1.1.0
 ---
 
 # Agent Guidelines: AI Job Search
 
-This workspace is structured to manage job search activities, scraper tools, CVs, cover letters, and interview preparation.
+Repo này chứa **hai runtime dùng chung một bộ đặc tả**. Xác định mình đang làm việc nào trước khi đọc tiếp — hai runtime có nguồn sự thật khác nhau, và nhầm chỗ là nguyên nhân phổ biến nhất khiến agent sửa sai file.
 
-## Thin-Pointer Design (Single Source of Truth)
+| Bạn đang làm gì | Đọc gì |
+|---|---|
+| **Viết code backend** (NestJS trong `server/`) — gần như mọi việc hiện nay | [CLAUDE.md](CLAUDE.md) rồi [server/README.md](server/README.md) |
+| **Chạy quy trình tìm việc cá nhân** (`/apply`, `/rank`, `/scrape`…) | [.claude/](.claude/) là nguồn sự thật |
 
-To prevent duplication and configuration drift across different AI agent frameworks (Claude Code, Google Antigravity, Codex, Cursor, Gemini CLI, etc.), this workspace uses a unified thin-pointer design. All agent runtimes should load the canonical specifications and candidate profiles from the files and directories below:
+## Thiết kế thin-pointer (một nguồn sự thật)
 
-1. **Personal Candidate Profile:**
-   - The candidate profile, contact details, education, and target preferences are defined in [CLAUDE.md](CLAUDE.md) and the individual profile methodology files under [.claude/skills/job-application-assistant/](.claude/skills/job-application-assistant/) (specifically `01-*.md` etc.).
-2. **Canonical Workflow Specifications:**
-   - The step-by-step instructions and triggers for tasks (setup, scrape, rank, apply, upskill, interview) are defined in the [.claude/](.claude/) directory (specifically under `.claude/skills/` and `.claude/commands/`).
-   - Do not duplicate these rules or specifications. Treat `.claude/` files as the single source of truth.
-3. **Portal Search Skills:**
-   - Job-portal search CLIs live under [.agents/skills/](.agents/skills/) in the portable Agent Skills format (with a `SKILL.md` per portal). Codex and Antigravity discover these automatically; the `/scrape` workflow in [.claude/skills/job-scraper/](.claude/skills/job-scraper/) orchestrates them.
+Để không trùng lặp và không lệch cấu hình giữa các framework agent khác nhau (Claude Code, Google Antigravity, Codex, Cursor, Gemini CLI…), mọi runtime nạp đặc tả từ đúng những chỗ dưới đây thay vì tự khai lại:
+
+1. **Đặc tả quy trình (nguồn sự thật cho CẢ HAI runtime):**
+   - Các bước và điều kiện kích hoạt của từng tác vụ (setup, scrape, rank, apply, upskill, interview) nằm trong [.claude/](.claude/) — cụ thể là `.claude/skills/` và `.claude/commands/`.
+   - Backend **nạp chính các file này lúc chạy** (`SkillRegistryService`) và nhồi khung đặc tả vào prompt, nên sửa một file `.md` ở đó là đổi hành vi của máy chủ đang chạy. Đừng sao chép nội dung sang code.
+
+2. **Hồ sơ ứng viên:**
+   - Với backend: bảng `Profile` trong Postgres. `PromptBuilderService` điền các token `[YOUR_*]` trong khung đặc tả từ đó lúc chạy.
+   - Với runtime Claude Code: `CLAUDE.md` — nhưng phần hồ sơ ở đó **đã được bỏ** và không nên khôi phục; lý do ghi trong chính file đó.
+
+3. **Portal search CLI:**
+   - Nằm dưới [.agents/skills/](.agents/skills/) theo định dạng Agent Skills chuẩn (mỗi portal một `SKILL.md`). Codex và Antigravity tự phát hiện; quy trình `/scrape` trong [.claude/skills/job-scraper/](.claude/skills/job-scraper/) điều phối chúng.
+   - Backend gọi các CLI này bằng `bun` qua `PortalCliService`. Thêm portal = thêm một thư mục, không sửa code.
+
+## Ràng buộc CI cần biết trước khi sửa
+
+- Sửa **file này** thì bắt buộc bump `framework_version` ở frontmatter, nếu không `tools/check_framework_version.py` làm đỏ CI.
+- `tools/`, `scripts/`, `.agents/skills/*/`, `.claude/skills/*/SKILL.md` bị khoá vị trí bởi `lint_skills.py` và `security_guards.py`. Di chuyển chúng làm đỏ CI.
+- `security_guards.py` ghim danh sách quyền trong `.claude/settings.json` và các quy tắc dữ liệu cá nhân trong `.gitignore`. Nới quyền hoặc bỏ quy tắc đó là đỏ CI — đấy là chủ đích.
