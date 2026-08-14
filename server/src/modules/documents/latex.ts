@@ -67,10 +67,40 @@ export type Identity = {
 
 const item = (text: string) => `  \\item ${escapeLatex(text)}`;
 
+/**
+ * Sinh một macro liên hệ, hoặc KHÔNG sinh gì khi không có dữ liệu.
+ *
+ * Vì sao cần: `\phone[mobile]{}` với giá trị rỗng vẫn vẽ icon fontawesome, và tên
+ * icon lọt vào **lớp text** của PDF. Đã đo trên bản compile thật rồi đọc ngược bằng
+ * `pdf-parse`: dòng liên hệ ra thành
+ *
+ *   "MOBILE-ANDROID-ALT • 🖂 admin@aijob.local"
+ *
+ * ATS đọc chính lớp text đó, nên một hồ sơ không có số điện thoại lại mang theo
+ * chuỗi rác `MOBILE-ANDROID-ALT` giữa phần thông tin liên hệ. Exit code của lualatex
+ * là 0 và không có cảnh báo nào — lỗi này chỉ lộ ra khi đọc lại PDF đã sinh.
+ *
+ * Trả về chuỗi rỗng thay vì macro, và caller lọc dòng rỗng đi.
+ */
+const contactMacro = (
+  macro: string,
+  value: string | null | undefined,
+  option?: string,
+): string => {
+  const trimmed = value?.trim();
+  if (!trimmed) return '';
+  const suffix = option ? `[${option}]` : '';
+  return `\\${macro}${suffix}{${escapeLatex(trimmed)}}`;
+};
+
+/// Ghép các macro liên hệ, bỏ những cái không có dữ liệu.
+const contactBlock = (lines: string[]): string =>
+  lines.filter((line) => line.length > 0).join('\n');
+
 /// Sinh CV theo moderncv/banking, dùng khớp template trong cv/main_example.tex.
 ///
-/// CHƯA có bước compile. File .tex được ghi ra Storage; việc chạy lualatex cần
-/// container cách ly và sẽ làm ở giai đoạn sau.
+/// Compile bằng **lualatex**. `moderncv` nằm sẵn trong TeX Live nên template này
+/// không cần tài sản ngoài nào.
 export const renderCv = (identity: Identity, content: CvContent): string => {
   const experiences = content.experiences
     .map((experience) =>
@@ -110,10 +140,14 @@ export const renderCv = (identity: Identity, content: CvContent): string => {
 \\usepackage{needspace}
 
 \\name{${escapeLatex(identity.name)}}{}
-\\title{${escapeLatex(identity.title ?? '')}}
-\\address{${escapeLatex(identity.location ?? '')}}{}{}
-\\phone[mobile]{${escapeLatex(identity.phone ?? '')}}
-\\email{${escapeLatex(identity.email)}}
+${contactBlock([
+  contactMacro('title', identity.title),
+  identity.location?.trim()
+    ? `\\address{${escapeLatex(identity.location.trim())}}{}{}`
+    : '',
+  contactMacro('phone', identity.phone, 'mobile'),
+  contactMacro('email', identity.email),
+])}
 
 \\begin{document}
 \\makecvtitle
@@ -140,12 +174,42 @@ ${skills}
 `;
 };
 
-/// Sinh thư xin việc theo cover.cls (XeLaTeX).
+/**
+ * Ngày tháng bằng tiếng Việt.
+ *
+ * KHÔNG dùng `\today` của LaTeX: nó theo ngôn ngữ của document class, và `moderncv`
+ * mặc định là tiếng Anh — thư tiếng Việt sẽ mang dòng "August 13, 2026". Đã thấy
+ * đúng như vậy trên bản compile thử.
+ *
+ * Cũng không nạp `babel` với `vietnamese` chỉ để lấy một dòng ngày: babel đổi cả
+ * cách chia từ (hyphenation) và tên các mục, tức là đổi thứ đang chạy tốt để giải
+ * một việc mà một dòng chuỗi là đủ.
+ */
+const vietnameseDate = (now: Date): string =>
+  `Ngày ${now.getDate()} tháng ${now.getMonth() + 1} năm ${now.getFullYear()}`;
+
+/**
+ * Sinh thư xin việc bằng phần **letter của `moderncv`** (lualatex).
+ *
+ * Trước đây dùng `cover.cls` của bản fork, và nó KHÔNG dùng được cho tiếng Việt:
+ * font Lato/Raleway đi kèm thiếu 21 mã ký tự riêng của tiếng Việt (`ạ` U+1EA1,
+ * `ơ` U+01A1, `ư` U+01B0, `ế`, `ệ`, `ậ`…). Bản fork viết cho tiếng Đan Mạch, nơi Lato
+ * phủ `æøå` thừa sức.
+ *
+ * Hệ quả đã thấy trên bản compile thật: chữ Việt **biến mất khỏi trang giấy**, không
+ * chỉ khỏi lớp text — "ứng tuyển" ra thành "ng tuyn", "quản trị hệ thống" thành
+ * "qun tr h thng". PDF vẫn ra 1 trang và exit code vẫn 0.
+ *
+ * Đổi sang `moderncv` được ba thứ cùng lúc: tiếng Việt sạch (0 glyph thiếu, đã đo),
+ * thư xin việc trông cùng một bộ với CV, và hệ thống bớt hẳn một engine (`xelatex`)
+ * cùng 1,7MB font nhúng.
+ */
 export const renderCoverLetter = (
   identity: Identity,
   company: string,
   role: string,
   content: CoverLetterContent,
+  now: Date = new Date(),
 ): string => {
   // Model hay chép lại lời chào vào đầu đoạn mở, khiến thư có hai lời chào liền
   // nhau. Dặn trong prompt không đủ chắc với model yếu, nên cắt ở đây luôn.
@@ -173,22 +237,37 @@ export const renderCoverLetter = (
     .join('\n\n');
 
   return `% File này do hệ thống sinh ra. Không sửa trực tiếp.
-\\documentclass[11pt,a4paper]{cover}
+% Compile bằng lualatex, giống CV.
+\\documentclass[11pt,a4paper,sans]{moderncv}
+\\moderncvstyle{banking}
+\\moderncvcolor{blue}
+\\usepackage[scale=0.82]{geometry}
 
-\\name{${escapeLatex(identity.name)}}
-\\email{${escapeLatex(identity.email)}}
-\\phone{${escapeLatex(identity.phone ?? '')}}
-\\recipient{${escapeLatex(company)}}
-\\subjectline{Ứng tuyển vị trí ${escapeLatex(role)}}
+\\name{${escapeLatex(identity.name)}}{}
+${contactBlock([
+  identity.location?.trim()
+    ? `\\address{${escapeLatex(identity.location.trim())}}{}{}`
+    : '',
+  contactMacro('phone', identity.phone, 'mobile'),
+  contactMacro('email', identity.email),
+])}
+
+\\recipient{${escapeLatex(company)}}{}
+\\date{${escapeLatex(vietnameseDate(now))}}
+\\opening{${escapeLatex(content.salutation)}}
+\\closing{Trân trọng,}
 
 \\begin{document}
-\\makecovertitle
+\\makelettertitle
 
-\\opening{${escapeLatex(content.salutation)}}
+% Dòng chủ đề nằm trong thân thư, không phải macro riêng: moderncv không có
+% \\subjectline, và thêm một macro tự định nghĩa chỉ để in một dòng in đậm là thêm
+% một thứ có thể vỡ khi moderncv đổi phiên bản.
+\\textbf{Về việc: Ứng tuyển vị trí ${escapeLatex(role)}}
 
-\\lettercontent{${body}}
+${body}
 
-\\closing{Trân trọng,}
+\\makeletterclosing
 \\end{document}
 `;
 };

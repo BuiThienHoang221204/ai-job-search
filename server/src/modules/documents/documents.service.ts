@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type {
   Document,
   DocumentKind,
@@ -23,6 +29,7 @@ import {
   type CvContentResult,
   type FormAnswerResult,
 } from './document.schema.js';
+import { LATEX_COMPILER, type LatexCompiler } from './latex-compile.js';
 import {
   renderCoverLetter,
   renderCv,
@@ -31,6 +38,26 @@ import {
 } from './latex.js';
 
 const SKILL_NAME = 'job-application-assistant';
+
+/// Timeout cho việc soạn CV và thư xin việc.
+///
+/// ĐO ĐƯỢC trên gateway free (bảng `ai_calls`, chỉ tính lượt thành công):
+///   document.cv:          39,4s và 83,7s
+///   document.coverLetter: 54,2s và 61,1s
+///
+/// Mẫu nhỏ (n=2 mỗi loại) nhưng đã đủ để kết luận: mức 90 giây mặc định của
+/// `AiService` là quá sát. Một trong hai lượt soạn CV dùng tới 83,7 giây, tức
+/// 93% ngân sách — nghĩa là đường này sẽ hỏng chập chờn vì hết giờ chứ không
+/// phải vì lỗi thật, và người dùng thấy "soạn CV thất bại" không lý do rõ ràng.
+///
+/// Vì sao hai đường này chậm hơn `match.evaluate` (p50 33s): chấm điểm trả về
+/// vài con số kèm nhận xét ngắn, còn ở đây model phải sinh ra toàn bộ nội dung
+/// CV hoặc thư — số token đầu ra lớn hơn hẳn, và độ trễ đi theo token đầu ra.
+///
+/// 180 giây vẫn nằm dưới `server.setTimeout` 5 phút trong `main.ts` (nên đường
+/// đồng bộ còn kịp) và dưới ngưỡng 10 phút của reconcile. Xem thêm ghi chú cùng
+/// loại ở `upskill.service.ts`.
+const DOCUMENT_TIMEOUT_MS = 180_000;
 
 @Injectable()
 export class DocumentsService {
@@ -42,6 +69,7 @@ export class DocumentsService {
     private readonly skills: SkillRegistryService,
     private readonly prompts: PromptBuilderService,
     @Inject(STORAGE) private readonly storage: Storage,
+    @Inject(LATEX_COMPILER) private readonly latex: LatexCompiler,
   ) {}
 
   /// Quy tắc viết lách dùng chung cho cả CV lẫn thư xin việc.
@@ -110,30 +138,16 @@ export class DocumentsService {
       context: { purpose: 'document.cv', userId: document.userId },
       system,
       prompt,
+      timeoutMs: DOCUMENT_TIMEOUT_MS,
     });
 
-    const identity = await this.identity(document.userId, profile);
-    const tex = renderCv(identity, {
-      ...object,
-      experiences: object.experiences.map((experience) => ({
-        ...experience,
-        location: experience.location ?? '',
-      })),
-      educations: object.educations.map((education) => ({
-        ...education,
-        period: education.period ?? '',
-        detail: education.detail ?? '',
-      })),
-    });
-
-    const key = userKey(
-      document.userId,
-      'cv',
-      `main_${slugify(job ? `${job.company}_${job.title}` : 'tong-quat')}.tex`,
+    const storageKey = await this.renderAndStore(
+      document,
+      profile,
+      job,
+      object,
     );
-    await this.storage.write(key, tex);
-
-    return { content: object, storageKey: key, modelId };
+    return { content: object, storageKey, modelId };
   }
 
   private async generateCoverLetter(
@@ -194,20 +208,127 @@ export class DocumentsService {
         context: { purpose: 'document.coverLetter', userId: document.userId },
         system,
         prompt,
+        timeoutMs: DOCUMENT_TIMEOUT_MS,
       },
     );
 
-    const identity = await this.identity(document.userId, profile);
-    const tex = renderCoverLetter(identity, job.company, job.title, object);
-
-    const key = userKey(
-      document.userId,
-      'cover_letters',
-      `cover_${slugify(`${job.company}_${job.title}`)}.tex`,
+    const storageKey = await this.renderAndStore(
+      document,
+      profile,
+      job,
+      object,
     );
-    await this.storage.write(key, tex);
+    return { content: object, storageKey, modelId };
+  }
 
-    return { content: object, storageKey: key, modelId };
+  /**
+   * Render `content` thành `.tex` rồi ghi vào Storage. **KHÔNG gọi AI.**
+   *
+   * Tách ra khỏi `generateCv`/`generateCoverLetter` vì render là **hàm tất định của
+   * `content`**: cùng một `content` luôn cho ra cùng một `.tex`. Nhờ vậy `rerender()`
+   * sửa được tài liệu cũ sau khi sửa template mà không phải gọi model lại.
+   *
+   * Đây là việc đã cần đến thật: sau khi sửa lỗi macro liên hệ rỗng (`\phone[mobile]{}`
+   * làm tên icon lọt vào lớp text PDF mà ATS đọc), mọi `.tex` sinh trước đó vẫn mang
+   * lỗi — và lúc ấy không có đường nào sửa chúng ngoài việc gọi lại model, tức là tốn
+   * một lượt gọi cho một thứ chẳng liên quan gì tới model.
+   */
+  private async renderAndStore(
+    document: Document,
+    profile: Profile | null,
+    job: Job | null,
+    content: unknown,
+  ): Promise<string> {
+    const identity = await this.identity(document.userId, profile);
+
+    if (document.kind === 'CV') {
+      const cv = content as CvContentResult;
+      const tex = renderCv(identity, {
+        ...cv,
+        experiences: cv.experiences.map((experience) => ({
+          ...experience,
+          location: experience.location ?? '',
+        })),
+        educations: cv.educations.map((education) => ({
+          ...education,
+          period: education.period ?? '',
+          detail: education.detail ?? '',
+        })),
+      });
+
+      const key = userKey(
+        document.userId,
+        'cv',
+        `main_${slugify(job ? `${job.company}_${job.title}` : 'tong-quat')}.tex`,
+      );
+      await this.storage.write(key, tex);
+      return key;
+    }
+
+    if (document.kind === 'COVER_LETTER') {
+      if (!job) {
+        throw new NotFoundException(
+          'Thư xin việc bắt buộc phải gắn với một công việc',
+        );
+      }
+      const tex = renderCoverLetter(
+        identity,
+        job.company,
+        job.title,
+        content as CoverLetterResult,
+      );
+
+      const key = userKey(
+        document.userId,
+        'cover_letters',
+        `cover_${slugify(`${job.company}_${job.title}`)}.tex`,
+      );
+      await this.storage.write(key, tex);
+      return key;
+    }
+
+    // FORM_ANSWER không có bản `.tex`: nó là một đoạn trả lời để dán vào form, nên
+    // không có gì để render.
+    throw new UnprocessableEntityException(
+      `Tài liệu loại ${document.kind} không có bản LaTeX để render lại.`,
+    );
+  }
+
+  /**
+   * Render lại `.tex` từ `content` đã lưu, KHÔNG gọi model.
+   *
+   * Dùng khi template LaTeX được sửa: nội dung do model sinh vẫn đúng, chỉ cách trình
+   * bày là cũ. Vì vậy hàm này CỐ Ý không đổi `content`, `modelId` lẫn `generatedAt` —
+   * chúng nói về lượt gọi model, mà lượt đó không hề chạy lại. Đổi chúng sẽ làm mất
+   * dấu vết model nào đã sinh ra nội dung này.
+   */
+  async rerender(userId: string, documentId: string): Promise<Document> {
+    const document = await this.get(userId, documentId);
+
+    if (document.status !== 'DONE' || !document.content) {
+      throw new UnprocessableEntityException(
+        `Tài liệu đang ở trạng thái ${document.status} và chưa có nội dung để render lại.`,
+      );
+    }
+
+    const [profile, job] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId: document.userId } }),
+      document.jobId
+        ? this.prisma.job.findUnique({ where: { id: document.jobId } })
+        : Promise.resolve(null),
+    ]);
+
+    const storageKey = await this.renderAndStore(
+      document,
+      profile,
+      job,
+      document.content,
+    );
+
+    return this.prisma.document.update({
+      where: { id: documentId },
+      data: { storageKey },
+    });
   }
 
   private async generateFormAnswer(
@@ -302,9 +423,17 @@ export class DocumentsService {
     };
   }
 
-  async generate(documentId: string): Promise<Document> {
-    const document = await this.prisma.document.findUnique({
-      where: { id: documentId },
+  /// Sinh nội dung cho một tài liệu đã tạo.
+  ///
+  /// `userId` là tham số BẮT BUỘC, không phải tuỳ chọn: khoá tra cứu là
+  /// (id, userId) nên không đường nào sinh - và nhận về nội dung - tài liệu của
+  /// người khác. Trước đây hàm chỉ nhận `documentId` và tra theo id đơn thuần,
+  /// nên route `generate-sync` gọi thẳng vào đây đã để bất kỳ ai đăng nhập cũng
+  /// đọc được CV/thư xin việc của user khác. Giữ userId trong chữ ký để lần sau
+  /// thêm caller mới thì không thể quên kiểm tra quyền.
+  async generate(userId: string, documentId: string): Promise<Document> {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, userId },
     });
     if (!document)
       throw new NotFoundException(`Không tìm thấy tài liệu: ${documentId}`);
@@ -417,5 +546,39 @@ export class DocumentsService {
       throw new NotFoundException('Tài liệu này không có file nguồn');
     }
     return this.storage.readText(document.storageKey);
+  }
+
+  /**
+   * Compile tài liệu ra PDF và trả về bytes.
+   *
+   * **KHÔNG cache PDF vào Storage**, và đó là quyết định có chủ đích chứ không phải
+   * bỏ sót. Compile mất khoảng 5 giây, còn `.tex` là nguồn duy nhất của sự thật:
+   * cache PDF sẽ tạo ra một bản thứ hai có thể lệch với `.tex` sau khi người dùng
+   * sinh lại nội dung, và không có cách nào biết bản nào mới hơn ngoài việc thêm
+   * hash — tức là thêm đúng thứ máy móc mà 5 giây không đáng để đổi.
+   *
+   * Khi nào nên đổi ý: khi đo được là người dùng tải cùng một PDF nhiều lần, hoặc
+   * khi compile chậm hơn đáng kể trên máy chủ thật.
+   */
+  async pdf(userId: string, id: string): Promise<Buffer> {
+    const tex = await this.source(userId, id);
+    const result = await this.latex.compile(tex);
+
+    if (!result.ok) {
+      // 422 chứ không 500: tài liệu tồn tại và yêu cầu hợp lệ, nhưng nội dung không
+      // compile được. Người dùng cần đọc `reason` để biết nên làm gì.
+      throw new UnprocessableEntityException(result.reason);
+    }
+
+    if (result.warnings.length > 0) {
+      // Ký tự font không vẽ được là cách chữ bị âm thầm mất khỏi PDF. Không chặn
+      // việc tải, nhưng phải ghi lại — nếu không thì một CV thiếu chữ đi ra ngoài
+      // mà không ai biết.
+      this.logger.warn(
+        `PDF ${id} thiếu ${result.warnings.length} ký tự font: ${result.warnings.join(', ')}`,
+      );
+    }
+
+    return result.pdf;
   }
 }

@@ -23,5 +23,41 @@ services:
       timeout: 5s
       retries: 10
 
+  # Dịch vụ compile LaTeX ra PDF.
+  #
+  # Vì sao là dịch vụ riêng chứ không để app tự gọi `docker run`: app chạy trong
+  # container thì không có socket Docker, mà mount socket vào là cho app quyền tương
+  # đương root trên host. Và kể cả mount thì `-v <thư mục tạm>:/work` vẫn vỡ, vì
+  # daemon nằm trên host nên nó giải đường dẫn đó trên filesystem của host — nơi thư
+  # mục tạm bên trong container app không tồn tại.
+  #
+  # Build trước khi chạy:
+  #   docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
+  latex:
+    image: aijob-latex
+    container_name: aijob-latex
+    restart: unless-stopped
+    # KHÔNG mở cổng ra host. App gọi qua network nội bộ bằng tên `latex`. Mở cổng ra
+    # ngoài là biến một dịch vụ nội bộ thành endpoint ai cũng gọi được.
+    expose:
+      - "8080"
+    # Trần tài nguyên: một tài liệu độc hại có thể bơm bộ nhớ hoặc quay vô hạn bằng
+    # một macro tự gọi chính nó. Đo được một lượt compile CV thật cần dưới 512MB.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1"
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
 volumes:
   postgres_data:

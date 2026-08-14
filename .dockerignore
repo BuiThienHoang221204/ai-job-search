@@ -1,0 +1,37 @@
+# CẢNH BÁO khi sửa file này: `.claude/skills` và `.agents/skills` PHẢI đi vào
+# image - chúng được đọc lúc khởi động. Đừng thêm mẫu `**/*.md`: khung prompt
+# chính là các file .md trong .claude/skills, loại chúng ra thì ứng dụng build
+# thành công rồi chết lúc chạy.
+
+.git
+.gitignore
+.github
+.vscode
+
+# Cài lại trong image bằng lockfile; copy vào chỉ làm layer phình và có nguy cơ
+# mang theo binary biên dịch cho hệ điều hành khác.
+**/node_modules
+
+server/dist
+server/coverage
+server/*.tsbuildinfo
+
+# Bí mật của máy dev. .env.example vẫn được giữ để làm tài liệu.
+server/.env
+
+# Dữ liệu người dùng sinh ra lúc chạy, gắn volume thay vì nướng vào image.
+workspaces
+
+# Chỉ dùng cho runtime Claude Code, không phần nào của máy chủ đọc tới.
+tools
+scripts
+cv
+cover_letters
+salary_lookup.py
+
+# Test không chạy trong image chạy thật.
+server/test
+
+README.md
+AGENTS.md
+CLAUDE.md

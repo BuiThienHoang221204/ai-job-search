@@ -20,7 +20,7 @@ export class DocumentsProcessor implements OnModuleInit {
       QUEUE.GENERATE_DOCUMENT,
       async (data) => {
         this.logger.log(`Sinh tài liệu ${data.documentId}`);
-        await this.documents.generate(data.documentId);
+        await this.documents.generate(data.userId, data.documentId);
       },
     );
   }
