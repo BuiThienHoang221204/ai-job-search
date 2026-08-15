@@ -21,9 +21,11 @@ export class LocalStorage implements Storage {
     this.root = resolve(config.get<string>('storage.localRoot')!);
   }
 
-  /// Chặn path traversal. Key đến từ tên công ty / chức danh do LLM sinh ra,
-  /// nên một key dạng "../../server/.env" là khả năng thật chứ không phải giả
-  /// định.
+  /**
+   * Chặn path traversal. Key đến từ tên công ty / chức danh do LLM sinh ra,
+   * nên một key dạng "../../server/.env" là khả năng thật chứ không phải giả
+   * định.
+   */
   private resolveKey(key: string): string {
     const normalised = key.replace(/\\/g, '/');
     if (normalised.startsWith('/') || /^[a-zA-Z]:/.test(normalised)) {

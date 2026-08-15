@@ -2,8 +2,10 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 
-/// Prisma 7 bỏ engine tích hợp: PrismaClient không còn tự đọc DATABASE_URL nữa
-/// mà bắt buộc phải được truyền một driver adapter.
+/**
+ * Prisma 7 bỏ engine tích hợp: PrismaClient không còn tự đọc DATABASE_URL nữa
+ * mà bắt buộc phải được truyền một driver adapter.
+ */
 @Injectable()
 export class PrismaService
   extends PrismaClient

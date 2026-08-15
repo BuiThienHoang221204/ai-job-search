@@ -16,14 +16,7 @@ import {
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
 
-/// Sau bao lâu thì một hàng còn ở trạng thái RUNNING được coi là bị bỏ rơi.
-///
-/// `AiService` cắt mỗi lời gọi ở 90 giây, nên một hàng vẫn RUNNING sau 5 phút gần
-/// như chắc chắn là do tiến trình chấm nó đã chết giữa đường, không phải đang làm.
-///
-/// Mốc này BẮT BUỘC phải có. Không có nó, phép giành quyền ở `claim()` sẽ chặn
-/// vĩnh viễn: hàng mắc ở RUNNING và không lần chấm nào sau đó giành được quyền,
-/// tức là hỏng nặng hơn hẳn cái mà `claim()` được viết ra để sửa.
+/** Sau bao lâu thì một hàng còn ở trạng thái RUNNING được coi là bị bỏ rơi. */
 export const STALE_RUNNING_MS = 5 * 60_000;
 
 @Injectable()
@@ -37,11 +30,7 @@ export class MatchingService {
     private readonly prompts: PromptBuilderService,
   ) {}
 
-  /// Vân tay của một lần chấm điểm.
-  ///
-  /// Gồm nội dung skill, hồ sơ và mô tả công việc. Bất kỳ thứ nào đổi thì hash
-  /// đổi, và đó là tín hiệu duy nhất cho biết kết quả cũ đã hết giá trị. Nhờ
-  /// nó mà mở dashboard 100 lần cũng không gọi AI thêm lần nào.
+  /** Vân tay của một lần chấm điểm. */
   private promptHash(
     skillHash: string,
     profile: Profile | null,
@@ -61,8 +50,6 @@ export class MatchingService {
   private buildPrompt(profile: Profile | null, job: Job) {
     const skill = this.skills.get(SKILL_NAME);
 
-    // Chỉ lấy phần khung đánh giá. Xem PromptBuilderService.keepSections để
-    // biết vì sao không được nhồi cả file vào prompt.
     const selected = this.prompts.keepSections(
       skill.references.get(REFERENCE_FILE) ?? '',
       ['eligibility gate', 'scoring dimensions', 'weighting', 'thresholds'],
@@ -109,9 +96,7 @@ export class MatchingService {
     return { system, prompt, skillHash: skill.contentHash };
   }
 
-  /// Chấm điểm một cặp (user, job) và lưu kết quả.
-  ///
-  /// `force` bỏ qua kiểm tra hash để chấm lại khi người dùng bấm nút.
+  /** Chấm điểm một cặp (user, job) và lưu kết quả. */
   async evaluate(
     userId: string,
     jobId: string,
@@ -139,8 +124,6 @@ export class MatchingService {
       this.logger.debug(
         `Bỏ qua ${jobId}: một tiến trình khác đang chấm cặp này`,
       );
-      // Giành quyền thất bại nghĩa là hàng CHẮC CHẮN tồn tại và đang RUNNING -
-      // trả về nguyên trạng đó để giao diện hiện "đang chấm" thay vì báo lỗi.
       return this.prisma.jobMatch.findUniqueOrThrow({
         where: { userId_jobId: { userId, jobId } },
       });
@@ -154,8 +137,6 @@ export class MatchingService {
         prompt,
       });
 
-      // Eligibility FAIL là bộ lọc cứng: không chấm điểm, không soạn hồ sơ.
-      // Vẫn lưu bản ghi để giao diện giải thích được vì sao công việc bị loại.
       const ineligible = object.eligibility.verdict === 'FAIL';
       const overall = ineligible ? 0 : computeOverall(object);
 
@@ -200,20 +181,7 @@ export class MatchingService {
     }
   }
 
-  /// Giành quyền chấm một cặp (user, job).
-  ///
-  /// Trả `false` khi một tiến trình khác đang chấm cặp này. Lúc đó TUYỆT ĐỐI
-  /// không được gọi model: hai lượt song song trên cùng một cặp vừa tốn tiền hai
-  /// lần, vừa cùng ghi vào một hàng nên ai xong sau thắng - kết quả cuối là ngẫu
-  /// nhiên.
-  ///
-  /// Dùng compare-and-swap thay vì đọc-rồi-ghi. Mẫu cũ (`upsert` đặt RUNNING vô
-  /// điều kiện) không hề chặn gì: giữa lúc đọc trạng thái và lúc ghi luôn có khe
-  /// cho tiến trình khác lọt vào. Ở đây điều kiện nằm ngay trong câu `UPDATE`,
-  /// nên chính Postgres phân xử và chỉ một bên thắng.
-  ///
-  /// Hàng đợi đã chặn trùng từ lúc xếp việc, nhưng lớp này vẫn cần: route
-  /// `/matches/evaluate-sync` gọi thẳng vào service, không đi qua hàng đợi.
+  /** Giành quyền chấm một cặp (user, job). */
   private async claim(userId: string, jobId: string): Promise<boolean> {
     const staleBefore = new Date(Date.now() - STALE_RUNNING_MS);
 
@@ -223,7 +191,6 @@ export class MatchingService {
         jobId,
         OR: [
           { status: { not: 'RUNNING' } },
-          // Cửa thoát cho hàng bị bỏ rơi vì tiến trình chấm nó đã chết.
           { updatedAt: { lt: staleBefore } },
         ],
       },
@@ -231,9 +198,6 @@ export class MatchingService {
     });
     if (claimed.count > 0) return true;
 
-    // `count === 0` có hai nguyên nhân khác hẳn nhau: hàng chưa tồn tại, hoặc
-    // hàng đang RUNNING và còn mới. Chỉ trường hợp đầu được phép đi tiếp, và
-    // ràng buộc unique là thứ phân biệt hai trường hợp đó mà không cần đọc thêm.
     try {
       await this.prisma.jobMatch.create({
         data: { userId, jobId, status: 'RUNNING' },
@@ -245,12 +209,11 @@ export class MatchingService {
     }
   }
 
-  /// Danh sách kết quả đã chấm, dùng cho màn hình "Việc làm phù hợp".
-  /// Chỉ đọc DB, không gọi AI.
-  /// Gắn cờ `saved` vào bản ghi job lồng bên trong.
-  ///
-  /// Màn hình "Việc làm phù hợp" hiện nút Lưu trên từng thẻ, mà nó đọc
-  /// endpoint này chứ không đọc /api/jobs - nên cờ phải có ở cả hai chỗ.
+  /**
+   * Danh sách kết quả đã chấm, dùng cho màn hình "Việc làm phù hợp".
+   * Chỉ đọc DB, không gọi AI.
+   * Gắn cờ `saved` vào bản ghi job lồng bên trong.
+   */
   private withSavedFlag<T extends { job: { saves: unknown[] } }>(match: T) {
     const { saves, ...job } = match.job;
     return { ...match, job: { ...job, saved: saves.length > 0 } };

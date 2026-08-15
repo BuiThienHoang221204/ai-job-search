@@ -8,11 +8,7 @@ import { ScraperService } from './scraper.service.js';
 
 const JOB_NAME = 'scrape.nightly';
 
-/// Quét tin hằng đêm.
-///
-/// Đăng ký lịch bằng SchedulerRegistry chứ không dùng decorator `@Cron`:
-/// decorator đọc giá trị lúc nạp class, nên biểu thức lịch và múi giờ sẽ bị
-/// đóng băng thành hằng số và không đọc được từ cấu hình.
+/** Quét tin hằng đêm. */
 @Injectable()
 export class ScrapeCronService implements OnModuleInit {
   private readonly logger = new Logger(ScrapeCronService.name);
@@ -48,11 +44,7 @@ export class ScrapeCronService implements OnModuleInit {
     this.logger.log(`Cron quét tin: "${schedule}" theo giờ ${timeZone}`);
   }
 
-  /// Quét lần lượt TỪNG portal, không song song.
-  ///
-  /// Chạy song song sẽ nhanh hơn nhưng đồng thời đánh vào cả bốn trang - và
-  /// nếu máy chủ dùng chung một IP thì đó đúng là dấu hiệu của một con bot.
-  /// Quét đêm không có ai ngồi chờ, nên chậm không phải vấn đề.
+  /** Quét lần lượt TỪNG portal, không song song. */
   async runAllPortals(): Promise<{ portal: string; runId: string }[]> {
     if (this.running) {
       this.logger.warn('Lần quét trước còn đang chạy; bỏ qua lượt này');
@@ -70,14 +62,11 @@ export class ScrapeCronService implements OnModuleInit {
 
       for (const portal of portals) {
         try {
-          // userId = null: đây là lần quét của hệ thống, dùng chung cho mọi
-          // người, không thuộc về tài khoản nào.
           const run = await this.scraper.create(null, portal);
           await this.queue.send(QUEUE.SCRAPE_RUN, { runId: run.id });
           started.push({ portal, runId: run.id });
           this.logger.log(`Đã xếp hàng quét ${portal} (run ${run.id})`);
         } catch (error) {
-          // Một portal hỏng KHÔNG được chặn ba portal còn lại.
           this.logger.error(
             `Không xếp được hàng quét ${portal}: ${
               error instanceof Error ? error.message : String(error)

@@ -1,10 +1,6 @@
 import { z } from 'zod';
 
-/// Truy vấn tìm việc do AI sinh từ hồ sơ ứng viên.
-///
-/// Skill job-scraper có file search-queries.md mô tả chiến lược truy vấn theo
-/// nhóm ưu tiên. Ở đây model đóng vai trò đó: đọc hồ sơ, sinh ra bộ từ khóa
-/// bám sát kỹ năng và định hướng thật sự của người dùng.
+/** Truy vấn tìm việc do AI sinh từ hồ sơ ứng viên. */
 export const searchPlanSchema = z.object({
   queries: z
     .array(
@@ -14,7 +10,7 @@ export const searchPlanSchema = z.object({
           .min(2)
           .max(60)
           .describe(
-            'Từ khóa tìm kiếm NGẮN, 1-3 từ, bằng tiếng Anh vì tin tuyển dụng IT Việt Nam dùng tiếng Anh. Ví dụ: "reactjs", "frontend engineer", "nextjs typescript". Không đặt câu, không dùng dấu câu.',
+            'Từ khóa tìm kiếm NGẮN, 1-4 từ. Ngành CNTT và kỹ thuật dùng TIẾNG ANH ("reactjs", "frontend engineer", "devops engineer"); mọi ngành khác dùng TIẾNG VIỆT CÓ DẤU ("kế toán tổng hợp", "nhân viên kinh doanh", "chuyên viên tuyển dụng"). Không đặt câu, không dùng dấu câu.',
           ),
         location: z
           .string()
@@ -32,7 +28,7 @@ export const searchPlanSchema = z.object({
     .min(2)
     .max(6)
     .describe(
-      'Sắp theo độ ưu tiên giảm dần. Truy vấn đầu tiên phải bám sát kỹ năng chính và chức danh hiện tại của ứng viên.',
+      'Sắp theo độ ưu tiên giảm dần. Truy vấn đầu tiên phải là CHỨC DANH hiện tại của ứng viên; các truy vấn sau ghép chức danh với lĩnh vực mục tiêu, rồi mới tới kỹ năng chính.',
     ),
 });
 

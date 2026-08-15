@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { buildAiHealth, type AiHealth } from './ai-health.js';
 
-/// Trần số bản ghi đọc lên để tính phân vị. Đủ rộng để có ý nghĩa thống kê,
-/// đủ hẹp để không kéo cả bảng lên bộ nhớ khi nhật ký lớn dần.
+/**
+ * Trần số bản ghi đọc lên để tính phân vị. Đủ rộng để có ý nghĩa thống kê,
+ * đủ hẹp để không kéo cả bảng lên bộ nhớ khi nhật ký lớn dần.
+ */
 const MAX_ROWS = 5_000;
 
 @Injectable()
@@ -29,24 +31,21 @@ export class AdminService {
     return { ...buildAiHealth(rows), windowDays: days };
   }
 
-  /// Các lần hỏng gần nhất, kèm thông báo thật. Bảng tổng hợp cho biết CÓ vấn
-  /// đề; danh sách này cho biết vấn đề là gì.
+  /**
+   * Các lần hỏng gần nhất, kèm thông báo thật. Bảng tổng hợp cho biết CÓ vấn
+   * đề; danh sách này cho biết vấn đề là gì.
+   */
   recentFailures(limit: number) {
     return this.prisma.aiCall.findMany({
       where: { ok: false },
       orderBy: { createdAt: 'desc' },
       take: limit,
       select: {
-        /// `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
-        /// trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
-        /// nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
-        /// nhật trở nên sai), còn cột model hiện "· gpt-…" vì `provider` là
-        /// undefined ngay trước dấu chấm giữa.
-        ///
-        /// Không thứ nào bị TypeScript bắt: giao diện parse JSON `unknown` nên
-        /// một trường khai trong interface mà API không trả vẫn hợp kiểu. Chỉ
-        /// chạy thật với dữ liệu thật mới lộ ra — bảng này chỉ có hàng khi ĐÃ có
-        /// lần gọi model hỏng.
+        /**
+         * `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
+         * trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
+         * nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
+         */
         id: true,
         purpose: true,
         provider: true,

@@ -8,18 +8,7 @@ import { LoginDto, RegisterDto } from './dto/auth.dto.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { ThrottleAuth } from '../../common/throttle.js';
 
-/// Đăng ký và đăng nhập vừa ĐẶT COOKIE vừa trả token trong body.
-///
-/// Hai đường là cố ý, không phải thừa: giao diện web dùng cookie (an toàn hơn
-/// vì JavaScript không đọc được), còn script, bài kiểm thử và về sau là ứng
-/// dụng di động thì dùng Bearer. `JwtStrategy` chấp nhận cả hai.
-///
-/// `passthrough: true` là bắt buộc khi tiêm @Res: thiếu nó thì Nest giao toàn
-/// bộ việc trả lời cho mình, và giá trị return từ hàm sẽ không bao giờ được
-/// gửi đi - request treo cho đến khi hết giờ.
-///
-/// Ba route `@Public()` dưới đây là TOÀN BỘ bề mặt không cần đăng nhập của
-/// máy chủ. Mọi route khác đóng theo mặc định nhờ APP_GUARD trong CommonModule.
+/** Đăng ký và đăng nhập vừa ĐẶT COOKIE vừa trả token trong body. */
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
@@ -49,9 +38,11 @@ export class AuthController {
     return result;
   }
 
-  /// `@Public()` là cố ý: đăng xuất khi token đã hết hạn vẫn phải xoá được
-  /// cookie, nếu không người dùng mắc kẹt với một cookie chết mà không có cách
-  /// nào bỏ đi. Route này chỉ xoá cookie, không đọc gì của ai.
+  /**
+   * `@Public()` là cố ý: đăng xuất khi token đã hết hạn vẫn phải xoá được
+   * cookie, nếu không người dùng mắc kẹt với một cookie chết mà không có cách
+   * nào bỏ đi. Route này chỉ xoá cookie, không đọc gì của ai.
+   */
   @Public()
   @Post('logout')
   @HttpCode(200)

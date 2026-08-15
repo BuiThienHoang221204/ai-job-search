@@ -23,12 +23,11 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  /// Chống email trùng bằng ràng buộc unique của DB, không bằng một lần đọc
-  /// trước đó. Ngoài việc đóng khe race (hai request cùng email đồng thời đều
-  /// đọc thấy "chưa có" rồi cùng ghi), cách này còn bịt một kênh phụ về thời
-  /// gian: bản cũ trả về ngay khi email đã tồn tại mà chưa kịp băm mật khẩu, nên
-  /// đo thời gian phản hồi là đoán được email nào đã đăng ký. Giờ cả hai nhánh
-  /// đều trả sau khi băm.
+  /**
+   * Chống email trùng bằng ràng buộc unique của DB, không bằng một lần đọc
+   * trước đó. Ngoài việc đóng khe race (hai request cùng email đồng thời đều
+   * đọc thấy "chưa có" rồi cùng ghi), cách này còn bịt một kênh phụ về thời
+   */
   async register(dto: RegisterDto): Promise<AuthResult> {
     const user = await this.prisma.user
       .create({
@@ -36,8 +35,6 @@ export class AuthService {
           email: dto.email,
           name: dto.name,
           passwordHash: await hash(dto.password, BCRYPT_ROUNDS),
-          // Tạo sẵn hồ sơ rỗng để các màn hình khác không phải xử lý trường
-          // hợp null.
           profile: { create: {} },
         },
       })
@@ -55,8 +52,6 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    // Cùng một thông báo cho cả hai trường hợp, để không lộ email nào đã tồn
-    // tại.
     if (!user || !(await compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }

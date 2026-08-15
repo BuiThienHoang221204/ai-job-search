@@ -1,8 +1,4 @@
-/// Suy khoá portal từ tên thư mục skill.
-///
-/// `itviec-search` -> `itviec`, `linkedin-search` -> `linkedin`. Bỏ hậu tố
-/// `-search` vì nó là quy ước đặt tên của framework chứ không mang thông tin;
-/// giữ lại thì API sẽ đòi `?portal=itviec-search`, dài mà chẳng rõ hơn.
+/** Suy khoá portal từ tên thư mục skill. */
 export function portalKeyFrom(directory: string): string {
   return directory.replace(/-(search|jobs|portal)$/, '');
 }
@@ -10,16 +6,13 @@ export function portalKeyFrom(directory: string): string {
 export type PortalEntry = {
   key: string;
   directory: string;
-  /// Đường dẫn CLI tương đối so với gốc repo, dùng làm tham số cho `bun run`.
+  /** Đường dẫn CLI tương đối so với gốc repo, dùng làm tham số cho `bun run`. */
   cliPath: string;
   enabled: boolean;
   description: string;
 };
 
-/// Một thư mục skill có đủ điều kiện làm portal hay không.
-///
-/// Tách khỏi phần đọc đĩa để test được: hàm này chỉ nhận sự kiện đã quan sát
-/// (có SKILL.md không, có cli.ts không, frontmatter ghi gì) và trả về kết luận.
+/** Một thư mục skill có đủ điều kiện làm portal hay không. */
 export function evaluateCandidate(input: {
   directory: string;
   hasSkillFile: boolean;
@@ -29,8 +22,6 @@ export function evaluateCandidate(input: {
   if (!input.hasSkillFile) return { skip: 'không có SKILL.md' };
   if (!input.hasCli) return { skip: 'không có cli/src/cli.ts' };
 
-  // `enabled` vắng mặt thì coi như bật. Framework dùng quy ước này: chỉ khi
-  // muốn TẮT mới phải ghi ra.
   const raw = input.frontmatter.enabled;
   const enabled = raw === undefined || raw === null ? true : raw !== false;
 

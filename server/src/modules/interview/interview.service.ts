@@ -36,9 +36,6 @@ export class InterviewService {
   ) {
     const skill = this.skills.get(SKILL_NAME);
 
-    // 07 cho khung STAR và danh sách câu hỏi khó; 02 cho đặc điểm hành vi, thứ
-    // quyết định cách ứng viên nên dẫn dắt câu trả lời. Bỏ các mục chỉ có ý
-    // nghĩa với agent chat.
     const framework = this.prompts.render(
       this.prompts.keepSections(
         skill.references.get('07-interview-prep.md') ?? '',

@@ -126,6 +126,24 @@ Ba điều dễ làm sai ở adapter ATS:
 
 Quy tắc: **nhãn có dấu hỏi thì bỏ qua** (`QUESTION_MARKS`, gồm cả `？` toàn rộng). Nó làm mất vài ô lẽ ra điền được — "What's the name you'd prefer us to use?" cũng bị bỏ — và đó là đánh đổi có chủ đích: với hồ sơ xin việc, **thiếu tốt hơn sai**, và ô bị bỏ vẫn hiện trong danh sách "bạn cần tự điền".
 
+## Quét tin — đây là trợ lý tìm việc ĐA NGÀNH
+
+Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. Việc hệ thống từng chỉ mang về tin IT là hệ quả tình cờ của việc người dùng thử đầu tiên là dân IT, và nó đã được sửa ngày 2026-08-15. Đừng "sửa" ngược lại.
+
+**Ngôn ngữ từ khoá đi theo ngành, và đây là chỗ dễ làm hỏng nhất.** Chức danh IT/kỹ thuật ở Việt Nam đăng bằng tiếng Anh (`frontend developer`); mọi ngành còn lại đăng bằng tiếng Việt có dấu (`kế toán tổng hợp`, `nhân viên kinh doanh`). Chọn sai ngôn ngữ **không** trả về tin sai — nó trả về **không gì cả**, một triệu chứng trông y hệt portal hỏng. Quy tắc này nằm ở hai nơi và phải giữ khớp nhau: prompt trong `scraper.service.ts` và `.describe()` của trường `query` trong `scraper.schema.ts`. Mô tả zod đi thẳng vào JSON schema gửi cho model, nên nó là mệnh lệnh sống chứ không phải chú thích.
+
+**Truy vấn xếp theo CHỨC DANH trước, kỹ năng sau** (`query-plan.ts`). Với hồ sơ IT thì kỹ năng cũng là tên tin tuyển dụng nên xếp kiểu nào cũng chạy; với mọi ngành khác thì không — kỹ năng chính của một kế toán là `Excel`, `Misa`, `giao tiếp`. Lĩnh vực mục tiêu được **ghép** với chức danh, không bao giờ đứng một mình: `Ngân hàng` trả về mọi vị trí trong ngành từ giao dịch viên tới bảo vệ.
+
+**Không có từ khoá mặc định nào.** Hồ sơ trống thì lần quét FAILED kèm lời nhắc đi điền hồ sơ, và **không gọi model**. Trước đây chỗ này lùi về `'developer'` và gọi đó là "quét rộng" — `developer` không rộng, nó là một nghề. Đừng thêm lại một giá trị mặc định: không có từ khoá trung lập nào tồn tại, `việc làm` trả về vài chục nghìn tin ngẫu nhiên.
+
+**Tin rác đắt gấp N lần bạn tưởng.** `planFanOut` chấm mỗi tin mới với MỌI người dùng đủ điều kiện, nên một tin lạc ngành tốn `số người dùng` lượt gọi model chứ không phải một. Đó là lý do độ chính xác của truy vấn quan trọng hơn số lượng truy vấn.
+
+**ITviec chỉ có IT, và vẫn cố ý được gọi cho mọi người.** Chọn portal theo ngành cần một khái niệm "ngành của hồ sơ" mà `Profile` chưa có. Trong lúc đó, người dùng ngoài IT chịu một lượt quét rỗng — **giao diện phải phân biệt "0 tin vì portal không phục vụ ngành này" với "0 tin vì hỏng"**, không thì họ tưởng app lỗi.
+
+**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa, lý do ghi trong docblock của `planForSystem`.
+
+`.claude/skills/job-scraper/search-queries.md` **được nạp vào `skill.references` nhưng không prompt nào đọc** — `refineQueries` tự dựng prompt riêng. Sửa file đó chỉ đổi hành vi runtime Claude Code, không đổi gì ở backend. Chỉ các file của `job-application-assistant` mới thật sự được nhồi vào prompt.
+
 ## Hàng đợi
 
 - Khoá chặn trùng được **suy ra từ payload** trong `queue-key.ts`, không do người gọi truyền vào. Thêm hàng đợi mới thì phải thêm một nhánh khoá — có test đối chiếu `QUEUE` với danh sách khoá nên quên là đỏ ngay.

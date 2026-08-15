@@ -34,11 +34,7 @@ export type AiHealth = {
   }>;
 };
 
-/// Phân vị theo phương pháp "nearest rank" trên mảng đã sắp.
-///
-/// Dùng p50/p95 chứ KHÔNG dùng trung bình: độ trễ gọi model có đuôi rất dài -
-/// một lần 517 giây sẽ kéo trung bình lên và che mất thực tế là phần lớn lần
-/// gọi đều nhanh. Trung bình ở đây nói dối một cách có hệ thống.
+/** Phân vị theo phương pháp "nearest rank" trên mảng đã sắp. */
 export function percentile(sortedMs: number[], p: number): number {
   if (!sortedMs.length) return 0;
   const rank = Math.ceil((p / 100) * sortedMs.length);
@@ -58,8 +54,6 @@ const summarise = (rows: AiCallRow[]) => {
   return {
     total: rows.length,
     ok,
-    // Làm tròn 1 chữ số thập phân: 97.3% và 97% là hai thông điệp khác nhau
-    // khi bạn đang quyết định có đổi nhà cung cấp hay không.
     successRate: rows.length ? Math.round((ok / rows.length) * 1000) / 10 : 0,
     p50Ms: percentile(durations, 50),
     p95Ms: percentile(durations, 95),
@@ -83,7 +77,6 @@ export function buildAiHealth(rows: AiCallRow[]): AiHealth {
     ...summarise(rows),
     byPurpose: [...byPurposeMap.entries()]
       .map(([purpose, group]) => ({ purpose, ...summarise(group) }))
-      // Tác vụ hỏng nhiều nhất lên đầu: đó là chỗ cần sửa trước.
       .sort((a, b) => a.successRate - b.successRate || b.total - a.total),
     byModel: [...byModelMap.entries()]
       .map(([modelId, group]) => {

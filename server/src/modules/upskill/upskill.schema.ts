@@ -3,11 +3,11 @@ import { z } from 'zod';
 const vn = (max: number, hint: string) =>
   z.string().min(1).max(max).describe(`${hint} Viết bằng tiếng Việt có dấu.`);
 
-/// Bốn nhãn phân loại lấy từ Step 4 của .claude/skills/upskill/SKILL.md.
+/** Bốn nhãn phân loại lấy từ Step 4 của .claude/skills/upskill/SKILL.md. */
 export const gapCategory = z.enum(['domain', 'soft', 'tooling', 'credential']);
 
 export const upskillSchema = z.object({
-  /// Pass 1 trong skill gốc: đối chiếu kỹ năng cứng.
+  /** Pass 1 trong skill gốc: đối chiếu kỹ năng cứng. */
   hardGaps: z
     .array(
       z.object({
@@ -36,7 +36,7 @@ export const upskillSchema = z.object({
       'Kỹ năng kỹ thuật cụ thể mà tin tuyển dụng đòi hỏi nhưng hồ sơ chưa có.',
     ),
 
-  /// Pass 2 trong skill gốc: suy luận những thứ đối chiếu kỹ năng bỏ sót.
+  /** Pass 2 trong skill gốc: suy luận những thứ đối chiếu kỹ năng bỏ sót. */
   synthesisedGaps: z
     .array(
       z.object({

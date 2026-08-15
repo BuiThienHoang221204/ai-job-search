@@ -1,11 +1,11 @@
 import { registerDecorator, type ValidationOptions } from 'class-validator';
 
 export type JsonBounds = {
-  /// Kích thước tối đa sau khi JSON.stringify, tính bằng byte.
+  /** Kích thước tối đa sau khi JSON.stringify, tính bằng byte. */
   maxBytes: number;
-  /// Số phần tử tối đa nếu giá trị là mảng.
+  /** Số phần tử tối đa nếu giá trị là mảng. */
   maxItems: number;
-  /// Độ sâu lồng nhau tối đa. Mặc định đủ cho dữ liệu hồ sơ thật.
+  /** Độ sâu lồng nhau tối đa. Mặc định đủ cho dữ liệu hồ sơ thật. */
   maxDepth?: number;
 };
 
@@ -31,19 +31,11 @@ function depthOf(value: unknown, limit: number, current = 1): number {
   return current;
 }
 
-/// Kiểm một khối JSON tự do có nằm trong giới hạn hay không.
-///
-/// Tách khỏi decorator để test được như một hàm thuần: đây là chỗ duy nhất
-/// quyết định cái gì lọt vào prompt, nên nó phải kiểm được mà không cần dựng cả
-/// pipeline validation của Nest.
-///
-/// Trả về `null` khi hợp lệ, hoặc lý do đầu tiên khiến nó hỏng.
+/** Kiểm một khối JSON tự do có nằm trong giới hạn hay không. */
 export function checkJsonBounds(
   value: unknown,
   bounds: JsonBounds,
 ): BoundsFailure | null {
-  // Chỉ nhận mảng hoặc object. Một chuỗi hay một số lọt vào đây nghĩa là client
-  // gửi sai hình dạng, và đoán ý người gửi ở tầng validation là sai chỗ.
   const isContainer =
     Array.isArray(value) || (typeof value === 'object' && value !== null);
   if (!isContainer) return 'not-json-container';
@@ -52,9 +44,6 @@ export function checkJsonBounds(
     return 'too-many-items';
   }
 
-  // Kiểm ĐỘ SÂU trước kích thước: một cấu trúc lồng vài nghìn tầng vẫn có thể
-  // rất nhỏ sau khi stringify, nhưng đủ để làm mọi bước duyệt cây phía sau tốn
-  // kém bất thường.
   const maxDepth = bounds.maxDepth ?? DEFAULT_MAX_DEPTH;
   if (depthOf(value, maxDepth) > maxDepth) return 'too-deep';
 
@@ -62,8 +51,6 @@ export function checkJsonBounds(
   try {
     serialised = JSON.stringify(value);
   } catch {
-    // Cấu trúc vòng. Prisma cũng không ghi được, và JSON.stringify trong
-    // PromptBuilder sẽ ném ngay giữa lúc dựng prompt.
     return 'not-json-container';
   }
   if (Buffer.byteLength(serialised, 'utf8') > bounds.maxBytes) {
@@ -80,22 +67,7 @@ const MESSAGES: Record<BoundsFailure, string> = {
   'too-large': 'vượt quá dung lượng cho phép',
 };
 
-/**
- * Chặn trên cho một trường JSON tự do.
- *
- * VÌ SAO CẦN: năm trường hồ sơ (`experiences`, `educations`, `certificates`,
- * `projects`, `behavioralTraits`) được lưu nguyên dạng rồi `JSON.stringify`
- * thẳng vào prompt gửi lên nhà cung cấp model. Trước đây chúng khai
- * `@IsOptional() unknown` — nghĩa là JSON tuỳ ý, kích thước tuỳ ý. Một người
- * dùng gửi vài megabyte vào đó là mỗi lần chấm điểm của họ kéo theo một prompt
- * khổng lồ: chậm, tốn tiền, và với gateway có hạn mức thì đủ để làm hỏng dịch
- * vụ cho những người khác.
- *
- * CỐ Ý không kiểm hình dạng bên trong. Hình dạng của các khối này chưa được
- * chốt ở đâu cả (giao diện cho nhập JSON thô), nên áp một schema ở đây sẽ khoá
- * chết dữ liệu người dùng đang có. Chặn trên về kích thước là phần đúng đắn có
- * thể làm ngay mà không phải quyết định trước một thiết kế chưa xong.
- */
+/** Chặn trên cho một trường JSON tự do. */
 export function IsBoundedJson(
   bounds: JsonBounds,
   validationOptions?: ValidationOptions,

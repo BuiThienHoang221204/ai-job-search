@@ -3,7 +3,7 @@ import { z } from 'zod';
 const vn = (max: number, hint: string) =>
   z.string().min(1).max(max).describe(`${hint} Viết bằng tiếng Việt có dấu.`);
 
-/// CV tailored, dịch từ 05-cv-templates.md.
+/** CV tailored, dịch từ 05-cv-templates.md. */
 export const cvSchema = z.object({
   profileStatement: vn(
     600,
@@ -57,7 +57,7 @@ export const cvSchema = z.object({
     .max(6),
 });
 
-/// Thư xin việc, dịch từ 06-cover-letter-templates.md và 03-writing-style.md.
+/** Thư xin việc, dịch từ 06-cover-letter-templates.md và 03-writing-style.md. */
 export const coverLetterSchema = z.object({
   salutation: vn(
     120,
@@ -83,8 +83,10 @@ export const coverLetterSchema = z.object({
   closing: vn(400, 'Đoạn kết, hướng về bước tiếp theo.'),
 });
 
-/// Câu trả lời cho ô văn bản tự do trong form ứng tuyển, dịch từ
-/// 08-application-forms.md.
+/**
+ * Câu trả lời cho ô văn bản tự do trong form ứng tuyển, dịch từ
+ * 08-application-forms.md.
+ */
 export const formAnswerSchema = z.object({
   answers: z
     .array(
@@ -98,9 +100,6 @@ export const formAnswerSchema = z.object({
           .min(1)
           .max(2500)
           .describe('Nội dung để dán vào ô form. Tiếng Việt có dấu.'),
-        // Skill gốc yêu cầu "Count characters programmatically. Do not
-        // estimate." Model chỉ ước lượng, nên số này sẽ được code đếm lại và
-        // ghi đè.
         characterCount: z
           .number()
           .int()

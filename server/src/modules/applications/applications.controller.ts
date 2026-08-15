@@ -23,8 +23,10 @@ export class ListApplicationsDto {
 }
 
 export class UpdateStatusDto {
-  /// Danh sách hợp lệ dựng từ chính enum, không gõ tay lại. Gõ tay lại nghĩa là
-  /// thêm một trạng thái vào schema mà quên sửa ở đây thì API lặng lẽ từ chối.
+  /**
+   * Danh sách hợp lệ dựng từ chính enum, không gõ tay lại. Gõ tay lại nghĩa là
+   * thêm một trạng thái vào schema mà quên sửa ở đây thì API lặng lẽ từ chối.
+   */
   @IsIn(ALL_STATUSES)
   status!: ApplicationStatus;
 
@@ -48,15 +50,19 @@ export class ApplicationsController {
     return this.applications.get(user.id, id);
   }
 
-  /// Tạo đơn. Chặn nếu công việc chưa chấm điểm hoặc eligibility = FAIL.
-  /// Tự xếp hàng đợi sinh CV và thư xin việc (bước 2-3 của SKILL.md).
+  /**
+   * Tạo đơn. Chặn nếu công việc chưa chấm điểm hoặc eligibility = FAIL.
+   * Tự xếp hàng đợi sinh CV và thư xin việc (bước 2-3 của SKILL.md).
+   */
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
     return this.applications.create(user.id, dto.jobId);
   }
 
-  /// Đổi trạng thái. Luôn là 'user' vì đường vào duy nhất là người dùng bấm
-  /// nút; hệ thống không có route nào tự đổi trạng thái hộ.
+  /**
+   * Đổi trạng thái. Luôn là 'user' vì đường vào duy nhất là người dùng bấm
+   * nút; hệ thống không có route nào tự đổi trạng thái hộ.
+   */
   @Put(':id/status')
   updateStatus(
     @CurrentUser() user: AuthUser,

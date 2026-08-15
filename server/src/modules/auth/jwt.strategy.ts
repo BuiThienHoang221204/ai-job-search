@@ -9,12 +9,11 @@ import { AUTH_COOKIE } from './auth.cookie.js';
 
 export type JwtPayload = { sub: string; email: string };
 
-/// Lấy token từ cookie httpOnly. Cần `cookieParser()` đã chạy ở main.ts,
-/// không thì `request.cookies` là undefined và mọi request đều 401.
-/// Thu hẹp kiểu từng bước thay vì ép kiểu: @types/cookie-parser khai
-/// `request.cookies` là `any`, nên một phép ép kiểu sẽ lặng lẽ trả về `any` và
-/// mất hết kiểm tra. Cách này còn chịu được trường hợp cookieParser() chưa
-/// chạy - trả null thay vì ném lỗi.
+/**
+ * Lấy token từ cookie httpOnly. Cần `cookieParser()` đã chạy ở main.ts,
+ * không thì `request.cookies` là undefined và mọi request đều 401.
+ * Thu hẹp kiểu từng bước thay vì ép kiểu: @types/cookie-parser khai
+ */
 const fromCookie = (request: Request): string | null => {
   const cookies: unknown = (request as { cookies?: unknown }).cookies;
   if (typeof cookies !== 'object' || cookies === null) return null;
@@ -29,9 +28,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly prisma: PrismaService,
   ) {
     super({
-      /// Cookie được xét TRƯỚC. Giao diện web dùng cookie; Bearer giữ lại cho
-      /// script, bài kiểm thử và ứng dụng di động sau này. Bỏ Bearer đi thì mọi
-      /// công cụ dòng lệnh gọi API đều phải mô phỏng cookie.
+      /**
+       * Cookie được xét TRƯỚC. Giao diện web dùng cookie; Bearer giữ lại cho
+       * script, bài kiểm thử và ứng dụng di động sau này. Bỏ Bearer đi thì mọi
+       * công cụ dòng lệnh gọi API đều phải mô phỏng cookie.
+       */
       jwtFromRequest: ExtractJwt.fromExtractors([
         fromCookie,
         ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -46,7 +47,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       where: { id: payload.sub },
       select: { id: true, email: true, name: true, role: true },
     });
-    // Token còn hạn nhưng tài khoản đã bị xóa.
     if (!user) throw new UnauthorizedException();
     return user;
   }

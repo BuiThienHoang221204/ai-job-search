@@ -5,8 +5,6 @@ import { AdminController } from './admin.controller.js';
 import { AdminService } from './admin.service.js';
 
 @Module({
-  // Cần ScrapeCronService cho route chạy tay lượt quét hằng đêm, và
-  // ReconcileService cho route nhặt việc rơi ngay.
   imports: [ScraperModule, ReconcileModule],
   controllers: [AdminController],
   providers: [AdminService],

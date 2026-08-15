@@ -1,12 +1,4 @@
-/// Bốn thẻ "Gợi ý từ AI" trên màn hình Tổng quan.
-///
-/// KHÔNG gọi model. Mọi gợi ý đều suy ra được từ dữ liệu đã có trong
-/// database: hồ sơ thiếu gì, kỹ năng nào lặp lại trong các tin không đạt,
-/// việc nào đang điểm cao. Gọi model ở đây sẽ đợi vài chục giây và phụ thuộc
-/// gateway, để đổi lấy đúng những kết luận mà một câu SQL đã trả lời được.
-///
-/// Tên "Gợi ý từ AI" trên giao diện vẫn đúng theo nghĩa rộng: dữ liệu dùng để
-/// suy ra đều do AI chấm điểm sinh ra.
+/** Bốn thẻ "Gợi ý từ AI" trên màn hình Tổng quan. */
 
 export type SuggestionType = 'cv' | 'apply' | 'network' | 'skill';
 
@@ -15,15 +7,15 @@ export type Suggestion = {
   type: SuggestionType;
   title: string;
   description: string;
-  /// Cho giao diện điều hướng khi bấm vào thẻ.
+  /** Cho giao diện điều hướng khi bấm vào thẻ. */
   href?: string;
 };
 
 export type SuggestionInput = {
   profileCompletion: number;
-  /// Tên tiếng Việt của các mục hồ sơ còn trống, đã sắp theo độ quan trọng.
+  /** Tên tiếng Việt của các mục hồ sơ còn trống, đã sắp theo độ quan trọng. */
   missingProfileFields: string[];
-  /// Kỹ năng xuất hiện nhiều nhất trong `gaps` của các lần chấm điểm.
+  /** Kỹ năng xuất hiện nhiều nhất trong `gaps` của các lần chấm điểm. */
   recurringGaps: Array<{ skill: string; jobCount: number }>;
   totalMatches: number;
   topMatch: {
@@ -32,19 +24,17 @@ export type SuggestionInput = {
     score: number;
     daysOld: number;
   } | null;
-  /// Số tin bị loại vì không đủ điều kiện - đáng chú ý nếu cao bất thường.
+  /** Số tin bị loại vì không đủ điều kiện - đáng chú ý nếu cao bất thường. */
   ineligibleCount: number;
 };
 
-/// Ngưỡng trên nó mới coi là "rất phù hợp, nên nộp sớm".
+/** Ngưỡng trên nó mới coi là "rất phù hợp, nên nộp sớm". */
 const HOT_MATCH_SCORE = 85;
 const HOT_MATCH_MAX_DAYS = 7;
 
 export function buildSuggestions(input: SuggestionInput): Suggestion[] {
   const suggestions: Suggestion[] = [];
 
-  // 1. Hồ sơ chưa đầy đủ làm mọi kết quả chấm điểm kém tin cậy, nên nó đứng
-  // đầu.
   if (input.profileCompletion < 100 && input.missingProfileFields.length) {
     const missing = input.missingProfileFields.slice(0, 3).join(', ');
     suggestions.push({
@@ -56,8 +46,6 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     });
   }
 
-  // 2. Kỹ năng lặp lại ở nhiều tin là thiếu hụt có hệ thống, không phải ngẫu
-  // nhiên.
   const topGap = input.recurringGaps[0];
   if (topGap && topGap.jobCount >= 2) {
     suggestions.push({
@@ -72,7 +60,6 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     });
   }
 
-  // 3. Việc điểm cao và còn mới - đây là thẻ duy nhất có tính thời hạn.
   if (
     input.topMatch &&
     input.topMatch.score >= HOT_MATCH_SCORE &&
@@ -87,8 +74,6 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     });
   }
 
-  // 4. Nhiều tin bị loại vì điều kiện là dấu hiệu tìm sai hướng, không phải
-  // hồ sơ yếu. Chỉ báo khi nó chiếm phần đáng kể.
   if (
     input.ineligibleCount >= 2 &&
     input.ineligibleCount * 3 >= input.totalMatches
@@ -102,7 +87,6 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     });
   }
 
-  // 5. Chưa có dữ liệu thì báo điều cần làm trước, thay vì để ô trống.
   if (!suggestions.length && input.totalMatches === 0) {
     suggestions.push({
       id: 'no-jobs',

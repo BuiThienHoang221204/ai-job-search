@@ -11,34 +11,25 @@ import {
   type LatexCompileResult,
 } from './latex-compile.js';
 
-/// Ảnh TeX Live. **8,92GB** — người vận hành phải `docker pull` trước, và
-/// `DockerSandbox` đặt `--pull never` nên thiếu ảnh sẽ báo lỗi rõ thay vì tải giữa
-/// một request.
-///
-/// Ảnh TRẦN là đủ: cả hai template đều dùng `moderncv`, nằm sẵn trong TeX Live. Từng
-/// có một ảnh riêng mang `cover.cls` cùng 1,7MB font cho template thư xin việc cũ —
-/// đã bỏ, xem docblock của `renderCoverLetter`.
+/**
+ * Ảnh TeX Live. **8,92GB** — người vận hành phải `docker pull` trước, và
+ * `DockerSandbox` đặt `--pull never` nên thiếu ảnh sẽ báo lỗi rõ thay vì tải giữa
+ * một request.
+ */
 export const LATEX_IMAGE = process.env.LATEX_IMAGE ?? 'aijob-latex';
 
-/// ĐO ĐƯỢC qua `docker run`, gồm cả thời gian khởi container: 4,6–5,1 giây.
-/// 60 giây là biên rộng gấp hơn mười lần, đủ cho một CV dài hoặc máy đang tải cao,
-/// mà vẫn ngắn hơn hẳn `server.setTimeout` 5 phút.
+/**
+ * ĐO ĐƯỢC qua `docker run`, gồm cả thời gian khởi container: 4,6–5,1 giây.
+ * 60 giây là biên rộng gấp hơn mười lần, đủ cho một CV dài hoặc máy đang tải cao,
+ * mà vẫn ngắn hơn hẳn `server.setTimeout` 5 phút.
+ */
 const COMPILE_TIMEOUT_MS = 60_000;
 
 const TEX_NAME = 'main.tex';
 const PDF_NAME = 'main.pdf';
 const LOG_NAME = 'main.log';
 
-/**
- * Compile bằng cách chạy `docker run` qua SEAM 2.
- *
- * Dùng khi app chạy TRỰC TIẾP trên máy phát triển. Ở production dùng
- * `HttpLatexCompiler` — lý do trong docblock của `latex-compile.ts`.
- *
- * Mỗi lần compile khởi một container mới, nên nó chậm hơn dịch vụ thường trú (5,1s
- * so với 2,6–3,1s) và chịu lại chi phí dựng cache font mỗi lượt. Với môi trường phát
- * triển thì đổi lấy sự đơn giản là đáng.
- */
+/** Compile bằng cách chạy `docker run` qua SEAM 2. */
 @Injectable()
 export class SandboxLatexCompiler implements LatexCompiler {
   private readonly logger = new Logger(SandboxLatexCompiler.name);
@@ -53,11 +44,6 @@ export class SandboxLatexCompiler implements LatexCompiler {
    * MỘT lượt chạy là đủ, và đó là điều đã kiểm chứ không phải giả định: log của
    * `rerunfilecheck` báo `File 'main.out' has not changed`, vì template không có
    * mục lục lẫn tham chiếu chéo. Thêm `\tableofcontents` hay `\ref` vào template
-   * thì phải chạy hai lượt — dấu hiệu là log xuất hiện yêu cầu rerun thật.
-   *
-   * `-no-shell-escape` tắt hẳn `\write18`. Mặc định của TeX Live là "restricted",
-   * vẫn cho vài lệnh trong danh sách trắng chạy được; ở đây không cần lệnh nào.
-   * Cùng với `--network none` của sandbox, đây là lớp chặn thứ hai sau `escapeLatex`.
    */
   async compile(tex: string): Promise<LatexCompileResult> {
     try {
@@ -77,13 +63,6 @@ export class SandboxLatexCompiler implements LatexCompiler {
       const log = result.artifacts[LOG_NAME]?.toString() ?? result.stdout;
       const pdf = result.artifacts[PDF_NAME];
 
-      /*
-       * Điều kiện thành công là **CÓ PDF**, không phải exit code 0.
-       *
-       * Hai chiều đều sai nếu chỉ tin exit code. `-interaction=nonstopmode` khiến
-       * lualatex bỏ qua nhiều lỗi và vẫn thoát 0 dù PDF thiếu hoặc dở dang; ngược
-       * lại nó có thể thoát khác 0 vì một cảnh báo mà PDF vẫn dùng được.
-       */
       if (!pdf || pdf.byteLength === 0) {
         return { ok: false, reason: firstTexError(log), log };
       }
@@ -101,7 +80,7 @@ export class SandboxLatexCompiler implements LatexCompiler {
   }
 }
 
-/// Câu cho người dùng, theo từng nguyên nhân của sandbox.
+/** Câu cho người dùng, theo từng nguyên nhân của sandbox. */
 function sandboxReason(error: SandboxError): string {
   switch (error.kind) {
     case 'TIMEOUT':

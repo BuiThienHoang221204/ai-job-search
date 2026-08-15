@@ -17,9 +17,11 @@ import { JobSourceRouter } from './job-source.router.js';
 import { ScraperService } from './scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
 
-/// Cố ý KHÔNG dùng @IsIn với danh sách cứng: danh sách portal được quét lúc
-/// khởi động nên decorator (chạy lúc nạp class) không thể biết trước. Kiểm tra
-/// ở thân hàm, nơi đọc được registry thật.
+/**
+ * Cố ý KHÔNG dùng @IsIn với danh sách cứng: danh sách portal được quét lúc
+ * khởi động nên decorator (chạy lúc nạp class) không thể biết trước. Kiểm tra
+ * ở thân hàm, nơi đọc được registry thật.
+ */
 export class StartScrapeDto {
   @IsOptional() @IsString() portal?: string;
 }
@@ -32,19 +34,16 @@ export class ScraperController {
     private readonly queue: QueueService,
   ) {}
 
-  /// Danh sách portal đã đăng ký. Giao diện dùng để dựng menu chọn.
+  /** Danh sách portal đã đăng ký. Giao diện dùng để dựng menu chọn. */
   @Get('portals')
   listPortals() {
     return { portals: this.portals.describePortals() };
   }
 
-  /// Quét lại thư mục portal mà không phải khởi động lại máy chủ. Dùng sau khi
-  /// thêm một thư mục portal mới hoặc đổi cờ `enabled:` trong SKILL.md.
-  ///
-  /// ADMIN: đây là việc vận hành máy chủ (đọc lại đĩa), không phải việc của một
-  /// ứng viên. Route quét bên dưới thì vẫn để user thường vì quét việc làm theo
-  /// hồ sơ của chính mình là tính năng - chỗ đó chặn bằng rate limit, không phải
-  /// bằng vai trò.
+  /**
+   * Quét lại thư mục portal mà không phải khởi động lại máy chủ. Dùng sau khi
+   * thêm một thư mục portal mới hoặc đổi cờ `enabled:` trong SKILL.md.
+   */
   @Post('portals/reload')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -63,8 +62,10 @@ export class ScraperController {
     return this.scraper.get(user.id, id);
   }
 
-  /// Đường GHI. Tạo bản ghi PENDING rồi đẩy vào hàng đợi; một lần quét mất
-  /// vài phút vì phải tôn trọng nhịp request tới portal.
+  /**
+   * Đường GHI. Tạo bản ghi PENDING rồi đẩy vào hàng đợi; một lần quét mất
+   * vài phút vì phải tôn trọng nhịp request tới portal.
+   */
   @ThrottleScrape()
   @Post()
   async start(@CurrentUser() user: AuthUser, @Body() dto: StartScrapeDto) {

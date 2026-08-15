@@ -39,24 +39,7 @@ import {
 
 const SKILL_NAME = 'job-application-assistant';
 
-/// Timeout cho việc soạn CV và thư xin việc.
-///
-/// ĐO ĐƯỢC trên gateway free (bảng `ai_calls`, chỉ tính lượt thành công):
-///   document.cv:          39,4s và 83,7s
-///   document.coverLetter: 54,2s và 61,1s
-///
-/// Mẫu nhỏ (n=2 mỗi loại) nhưng đã đủ để kết luận: mức 90 giây mặc định của
-/// `AiService` là quá sát. Một trong hai lượt soạn CV dùng tới 83,7 giây, tức
-/// 93% ngân sách — nghĩa là đường này sẽ hỏng chập chờn vì hết giờ chứ không
-/// phải vì lỗi thật, và người dùng thấy "soạn CV thất bại" không lý do rõ ràng.
-///
-/// Vì sao hai đường này chậm hơn `match.evaluate` (p50 33s): chấm điểm trả về
-/// vài con số kèm nhận xét ngắn, còn ở đây model phải sinh ra toàn bộ nội dung
-/// CV hoặc thư — số token đầu ra lớn hơn hẳn, và độ trễ đi theo token đầu ra.
-///
-/// 180 giây vẫn nằm dưới `server.setTimeout` 5 phút trong `main.ts` (nên đường
-/// đồng bộ còn kịp) và dưới ngưỡng 10 phút của reconcile. Xem thêm ghi chú cùng
-/// loại ở `upskill.service.ts`.
+/** Timeout cho việc soạn CV và thư xin việc. */
 const DOCUMENT_TIMEOUT_MS = 180_000;
 
 @Injectable()
@@ -72,7 +55,7 @@ export class DocumentsService {
     @Inject(LATEX_COMPILER) private readonly latex: LatexCompiler,
   ) {}
 
-  /// Quy tắc viết lách dùng chung cho cả CV lẫn thư xin việc.
+  /** Quy tắc viết lách dùng chung cho cả CV lẫn thư xin việc. */
   private writingRules(profile: Profile | null): string {
     const skill = this.skills.get(SKILL_NAME);
     return this.prompts.render(
@@ -221,18 +204,7 @@ export class DocumentsService {
     return { content: object, storageKey, modelId };
   }
 
-  /**
-   * Render `content` thành `.tex` rồi ghi vào Storage. **KHÔNG gọi AI.**
-   *
-   * Tách ra khỏi `generateCv`/`generateCoverLetter` vì render là **hàm tất định của
-   * `content`**: cùng một `content` luôn cho ra cùng một `.tex`. Nhờ vậy `rerender()`
-   * sửa được tài liệu cũ sau khi sửa template mà không phải gọi model lại.
-   *
-   * Đây là việc đã cần đến thật: sau khi sửa lỗi macro liên hệ rỗng (`\phone[mobile]{}`
-   * làm tên icon lọt vào lớp text PDF mà ATS đọc), mọi `.tex` sinh trước đó vẫn mang
-   * lỗi — và lúc ấy không có đường nào sửa chúng ngoài việc gọi lại model, tức là tốn
-   * một lượt gọi cho một thứ chẳng liên quan gì tới model.
-   */
+  /** Render `content` thành `.tex` rồi ghi vào Storage. **KHÔNG gọi AI.** */
   private async renderAndStore(
     document: Document,
     profile: Profile | null,
@@ -287,21 +259,12 @@ export class DocumentsService {
       return key;
     }
 
-    // FORM_ANSWER không có bản `.tex`: nó là một đoạn trả lời để dán vào form, nên
-    // không có gì để render.
     throw new UnprocessableEntityException(
       `Tài liệu loại ${document.kind} không có bản LaTeX để render lại.`,
     );
   }
 
-  /**
-   * Render lại `.tex` từ `content` đã lưu, KHÔNG gọi model.
-   *
-   * Dùng khi template LaTeX được sửa: nội dung do model sinh vẫn đúng, chỉ cách trình
-   * bày là cũ. Vì vậy hàm này CỐ Ý không đổi `content`, `modelId` lẫn `generatedAt` —
-   * chúng nói về lượt gọi model, mà lượt đó không hề chạy lại. Đổi chúng sẽ làm mất
-   * dấu vết model nào đã sinh ra nội dung này.
-   */
+  /** Render lại `.tex` từ `content` đã lưu, KHÔNG gọi model. */
   async rerender(userId: string, documentId: string): Promise<Document> {
     const document = await this.get(userId, documentId);
 
@@ -384,8 +347,6 @@ export class DocumentsService {
       prompt,
     });
 
-    // Skill gốc nói rõ: đếm ký tự bằng chương trình, không ước lượng. Model trả
-    // về characterCount nhưng con số đó không đáng tin, nên đếm lại ở đây.
     const answers = object.answers.map((answer) => ({
       ...answer,
       characterCount: [...answer.text].length,
@@ -423,14 +384,7 @@ export class DocumentsService {
     };
   }
 
-  /// Sinh nội dung cho một tài liệu đã tạo.
-  ///
-  /// `userId` là tham số BẮT BUỘC, không phải tuỳ chọn: khoá tra cứu là
-  /// (id, userId) nên không đường nào sinh - và nhận về nội dung - tài liệu của
-  /// người khác. Trước đây hàm chỉ nhận `documentId` và tra theo id đơn thuần,
-  /// nên route `generate-sync` gọi thẳng vào đây đã để bất kỳ ai đăng nhập cũng
-  /// đọc được CV/thư xin việc của user khác. Giữ userId trong chữ ký để lần sau
-  /// thêm caller mới thì không thể quên kiểm tra quyền.
+  /** Sinh nội dung cho một tài liệu đã tạo. */
   async generate(userId: string, documentId: string): Promise<Document> {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, userId },
@@ -503,7 +457,6 @@ export class DocumentsService {
         kind,
         title,
         jobId: jobId ?? null,
-        // Tham số đầu vào tạm lưu ở content; bước sinh sẽ ghi đè bằng kết quả.
         content: params ?? undefined,
       },
     });
@@ -538,8 +491,10 @@ export class DocumentsService {
     return document;
   }
 
-  /// Đọc file .tex từ Storage. Khóa luôn bắt đầu bằng userId nên không thể đọc
-  /// chéo workspace của người khác.
+  /**
+   * Đọc file .tex từ Storage. Khóa luôn bắt đầu bằng userId nên không thể đọc
+   * chéo workspace của người khác.
+   */
   async source(userId: string, id: string): Promise<string> {
     const document = await this.get(userId, id);
     if (!document.storageKey) {
@@ -548,32 +503,16 @@ export class DocumentsService {
     return this.storage.readText(document.storageKey);
   }
 
-  /**
-   * Compile tài liệu ra PDF và trả về bytes.
-   *
-   * **KHÔNG cache PDF vào Storage**, và đó là quyết định có chủ đích chứ không phải
-   * bỏ sót. Compile mất khoảng 5 giây, còn `.tex` là nguồn duy nhất của sự thật:
-   * cache PDF sẽ tạo ra một bản thứ hai có thể lệch với `.tex` sau khi người dùng
-   * sinh lại nội dung, và không có cách nào biết bản nào mới hơn ngoài việc thêm
-   * hash — tức là thêm đúng thứ máy móc mà 5 giây không đáng để đổi.
-   *
-   * Khi nào nên đổi ý: khi đo được là người dùng tải cùng một PDF nhiều lần, hoặc
-   * khi compile chậm hơn đáng kể trên máy chủ thật.
-   */
+  /** Compile tài liệu ra PDF và trả về bytes. */
   async pdf(userId: string, id: string): Promise<Buffer> {
     const tex = await this.source(userId, id);
     const result = await this.latex.compile(tex);
 
     if (!result.ok) {
-      // 422 chứ không 500: tài liệu tồn tại và yêu cầu hợp lệ, nhưng nội dung không
-      // compile được. Người dùng cần đọc `reason` để biết nên làm gì.
       throw new UnprocessableEntityException(result.reason);
     }
 
     if (result.warnings.length > 0) {
-      // Ký tự font không vẽ được là cách chữ bị âm thầm mất khỏi PDF. Không chặn
-      // việc tải, nhưng phải ghi lại — nếu không thì một CV thiếu chữ đi ra ngoài
-      // mà không ai biết.
       this.logger.warn(
         `PDF ${id} thiếu ${result.warnings.length} ký tự font: ${result.warnings.join(', ')}`,
       );

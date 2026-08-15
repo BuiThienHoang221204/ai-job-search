@@ -1,19 +1,4 @@
-/**
- * Script chạy TRONG sandbox. Đi vào `/work/apply.mjs` mỗi lượt chạy.
- *
- * Vì sao là một chuỗi trong TypeScript chứ không phải file `.mjs` riêng: `nest build`
- * chỉ dịch `.ts` sang `dist/`, nên một file `.mjs` cạnh source sẽ VẮNG trong bản
- * build production — đúng loại lỗi chỉ lộ ra sau khi deploy. Khai `assets` trong
- * `nest-cli.json` thì lại phải giải đường dẫn khác nhau giữa `src` và `dist`.
- *
- * Đánh đổi đã biết: chuỗi này không được eslint/tsc kiểm. Bù lại bằng cách giữ nó
- * MÁY MÓC — mọi quyết định (điền gì, kết luận gì) nằm ở `field-plan.ts`, nơi có test
- * đơn vị. Script chỉ dò chuỗi và gán giá trị.
- *
- * Nó nhận `/work/input.json` và ghi `/work/report.json` + `/work/screenshot.png`.
- * Không nhận tham số dòng lệnh: URL của tin tuyển dụng là dữ liệu không tin cậy, và
- * một chuỗi đi qua argv là một chuỗi đi qua chỗ dễ nhầm.
- */
+/** Script chạy TRONG sandbox. Đi vào `/work/apply.mjs` mỗi lượt chạy. */
 export const APPLY_SCRIPT = String.raw`
 import { chromium } from "playwright";
 import { readFile, writeFile } from "node:fs/promises";

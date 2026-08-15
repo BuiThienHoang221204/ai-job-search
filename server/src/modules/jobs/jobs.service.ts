@@ -6,10 +6,7 @@ import type { CreateJobDto, ListJobsQueryDto } from './dto/job.dto.js';
 export class JobsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /// Tạo hoặc cập nhật tin tuyển dụng.
-  ///
-  /// Chống trùng theo (source, externalId) để scrape lại nhiều lần không sinh
-  /// bản ghi mới. Tin dán tay không có externalId thì luôn tạo mới.
+  /** Tạo hoặc cập nhật tin tuyển dụng. */
   async upsert(dto: CreateJobDto) {
     const data = {
       title: dto.title,
@@ -39,9 +36,11 @@ export class JobsService {
     });
   }
 
-  /// Quan hệ `saves` đã được lọc sẵn theo userId, nên chỉ cần biết mảng có
-  /// rỗng hay không. Tách ra thành hàm riêng để logic này chỉ tồn tại ở một
-  /// chỗ.
+  /**
+   * Quan hệ `saves` đã được lọc sẵn theo userId, nên chỉ cần biết mảng có
+   * rỗng hay không. Tách ra thành hàm riêng để logic này chỉ tồn tại ở một
+   * chỗ.
+   */
   private withSavedFlag<T extends { saves: unknown[] }>(job: T) {
     const { saves, ...rest } = job;
     return { ...rest, saved: saves.length > 0 };
@@ -63,8 +62,6 @@ export class JobsService {
         orderBy: { scrapedAt: 'desc' },
         take: query.limit ?? 20,
         skip: query.offset ?? 0,
-        // Quan hệ có điều kiện: một truy vấn duy nhất, không N+1 và không bắt
-        // giao diện gọi thêm một lượt chỉ để biết tin nào đã lưu.
         include: { saves: { where: { userId }, select: { id: true } } },
       }),
       this.prisma.job.count({ where }),
@@ -82,8 +79,10 @@ export class JobsService {
     return this.withSavedFlag(job);
   }
 
-  /// Lưu tin. Bấm nút hai lần không được sinh lỗi - dùng upsert thay vì
-  /// create.
+  /**
+   * Lưu tin. Bấm nút hai lần không được sinh lỗi - dùng upsert thay vì
+   * create.
+   */
   async save(userId: string, jobId: string) {
     await this.get(jobId, userId);
     await this.prisma.savedJob.upsert({
@@ -94,8 +93,10 @@ export class JobsService {
     return { saved: true };
   }
 
-  /// Bỏ lưu. Bỏ một tin chưa từng lưu cũng trả về bình thường: nút bấm là một
-  /// công tắc, không phải một giao dịch.
+  /**
+   * Bỏ lưu. Bỏ một tin chưa từng lưu cũng trả về bình thường: nút bấm là một
+   * công tắc, không phải một giao dịch.
+   */
   async unsave(userId: string, jobId: string) {
     await this.prisma.savedJob.deleteMany({ where: { userId, jobId } });
     return { saved: false };

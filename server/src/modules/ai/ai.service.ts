@@ -14,10 +14,12 @@ import {
 } from './failure-kind.js';
 import { ModelCatalogService } from './model-catalog.service.js';
 
-/// Ai gọi và gọi để làm gì. Bắt buộc: không có nó thì nhật ký chỉ cho biết
-/// "có lỗi" mà không cho biết tác vụ nào đang hỏng.
+/**
+ * Ai gọi và gọi để làm gì. Bắt buộc: không có nó thì nhật ký chỉ cho biết
+ * "có lỗi" mà không cho biết tác vụ nào đang hỏng.
+ */
 export type AiCallContext = {
-  /// Tên hàng đợi hoặc tác vụ, ví dụ "match.evaluate".
+  /** Tên hàng đợi hoặc tác vụ, ví dụ "match.evaluate". */
   purpose: string;
   userId?: string;
 };
@@ -28,21 +30,26 @@ export type GenerateObjectOptions<T> = {
   prompt: string;
   context: AiCallContext;
   modelId?: string;
-  /// Số lần thử lại khi model trả về JSON sai schema. Model free hay sai định
-  /// dạng hơn model trả phí nên mặc định để 2.
+  /**
+   * Số lần thử lại khi model trả về JSON sai schema. Model free hay sai định
+   * dạng hơn model trả phí nên mặc định để 2.
+   */
   maxRetries?: number;
-  /// Hạn thời gian cho MỘT lần gọi, tính bằng mili-giây.
+  /** Hạn thời gian cho MỘT lần gọi, tính bằng mili-giây. */
   timeoutMs?: number;
 };
 
-/// Gateway free của OpenCode không trả 429 khi bị quá tải - nó chỉ chậm dần.
-/// Đã đo được một lần gọi kéo dài 517 giây. Không có hạn này thì một request
-/// đồng bộ sẽ treo gần 9 phút, còn job trong hàng đợi sẽ ôm chỗ worker suốt
-/// thời gian đó.
+/**
+ * Gateway free của OpenCode không trả 429 khi bị quá tải - nó chỉ chậm dần.
+ * Đã đo được một lần gọi kéo dài 517 giây. Không có hạn này thì một request
+ * đồng bộ sẽ treo gần 9 phút, còn job trong hàng đợi sẽ ôm chỗ worker suốt
+ */
 const DEFAULT_TIMEOUT_MS = 90_000;
 
-/// Kiểu trả về của streamText không được ai@7 export ra ngoài, nên lấy ngược
-/// từ chính hàm đó thay vì khai báo lại.
+/**
+ * Kiểu trả về của streamText không được ai@7 export ra ngoài, nên lấy ngược
+ * từ chính hàm đó thay vì khai báo lại.
+ */
 type StreamTextResult = ReturnType<typeof streamText>;
 
 export type StreamTextOptions = {
@@ -51,22 +58,14 @@ export type StreamTextOptions = {
   modelId?: string;
 };
 
-/// Mặt tiếp xúc mà các module khác dùng để gọi model.
-///
-/// Suy ra từ chính `AiService` bằng `Pick` chứ KHÔNG khai lại tham số, để hai
-/// bên không thể lệch nhau: đổi chữ ký `generateObject` là bản giả trong test
-/// hỏng build ngay, thay vì âm thầm khớp một hình dạng đã cũ rồi để test xanh
-/// trong khi production đỏ.
-///
-/// `streamText` cố ý không nằm trong mặt tiếp xúc này: chưa module nào dùng, và
-/// đưa vào đây sẽ buộc mọi bản giả phải hiện thực một thứ không ai gọi.
+/** Mặt tiếp xúc mà các module khác dùng để gọi model. */
 export type Ai = Pick<AiService, 'generateObject'>;
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
 
-  /// Các model thử tiếp khi model đang dùng HẾT HẠN MỨC. Xem `configuration.ts`.
+  /** Các model thử tiếp khi model đang dùng HẾT HẠN MỨC. Xem `configuration.ts`. */
   private readonly fallbackModelIds: string[];
 
   constructor(
@@ -74,20 +73,12 @@ export class AiService {
     private readonly prisma: PrismaService,
     config: ConfigService,
   ) {
-    // Chỉ là điểm KHỞI ĐẦU cho việc dò, không phải quyết định cuối cùng:
-    // generateObject sẽ tự đổi nếu gateway từ chối.
     this.structuredOutputs =
       config.get<boolean>('ai.structuredOutputs') ?? false;
     this.fallbackModelIds = config.get<string[]>('ai.fallbackModelIds') ?? [];
   }
 
-  /**
-   * Thứ tự model sẽ thử cho MỘT lời gọi.
-   *
-   * Model được yêu cầu (hoặc model mặc định) đứng đầu, rồi tới danh sách dự phòng đã
-   * bỏ trùng. Bỏ trùng là cần: model mặc định thường cũng nằm trong danh sách dự
-   * phòng, và thử lại đúng model vừa hết hạn mức chỉ tốn thêm một round-trip.
-   */
+  /** Thứ tự model sẽ thử cho MỘT lời gọi. */
   private modelChain(requested?: string): Array<string | undefined> {
     const chain: Array<string | undefined> = [requested];
     for (const id of this.fallbackModelIds) {
@@ -96,10 +87,7 @@ export class AiService {
     return chain;
   }
 
-  /// Ghi lại một lần gọi. KHÔNG bao giờ được làm hỏng lần gọi thật.
-  ///
-  /// Nhật ký là thứ yếu; nếu ghi thất bại thì chỉ log ra rồi đi tiếp. Ném lỗi
-  /// ở đây sẽ biến một sự cố của bảng phụ thành sự cố của cả tính năng.
+  /** Ghi lại một lần gọi. KHÔNG bao giờ được làm hỏng lần gọi thật. */
   private async record(entry: {
     context: AiCallContext;
     provider: string;
@@ -133,16 +121,7 @@ export class AiService {
     }
   }
 
-  /// Chế độ đang dùng để ép định dạng đầu ra.
-  ///
-  /// `true`  - gửi `response_format` kèm JSON schema; API tự ép cấu trúc.
-  /// `false` - chế độ `json_object`; schema đi vào prompt, model tự tuân thủ.
-  ///
-  /// KHÔNG cắm cứng, vì khả năng của gateway ĐỔI THEO THỜI GIAN mà không báo.
-  /// Đã chứng kiến cả hai chiều trong cùng một phiên: lúc đầu để `false` thì
-  /// model tự bịa cấu trúc và mọi lần gọi đều hỏng, bật `true` mới chạy; ít
-  /// lâu sau chính `true` lại nhận "This response_format type is unavailable
-  /// now" cho mọi lời gọi. Cắm cứng chiều nào cũng sẽ sai vào một ngày nào đó.
+  /** Chế độ đang dùng để ép định dạng đầu ra. */
   private structuredOutputs: boolean;
 
   private async languageModel(
@@ -163,26 +142,10 @@ export class AiService {
     };
   }
 
-  /// Sinh dữ liệu có cấu trúc theo schema Zod.
-  ///
-  /// Dùng cái này cho mọi thứ sẽ ghi xuống DB. Không bao giờ parse JSON từ
-  /// streamText bằng tay: model free thường bao quanh JSON bằng văn xuôi hoặc
-  /// rào ```json, còn generateObject sẽ tự ép định dạng và thử lại.
+  /** Sinh dữ liệu có cấu trúc theo schema Zod. */
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
-    /*
-     * Hết hạn mức thì ĐỔI MODEL, không phải thử lại cùng model.
-     *
-     * Hạn mức của gateway free tính theo TỪNG MODEL — đã đo: cùng một thời điểm,
-     * `deepseek-v4-flash-free` trả 429 `FreeUsageLimitError` trong khi `hy3-free` vẫn
-     * chạy. Nên thử lại cùng model chỉ đốt thêm thời gian, còn đổi model thì đi được.
-     *
-     * Chỉ đổi khi ĐÚNG là hết hạn mức. Mọi lỗi khác — schema sai, hết giờ, gateway
-     * hỏng — đều ném ra ngay: đổi model vì một lỗi schema là che mất tín hiệu "model
-     * này quá yếu cho tác vụ", và sẽ lặng lẽ chuyển cả hệ thống sang một model khác
-     * mà không ai quyết định.
-     */
     const chain = this.modelChain(options.modelId);
     let lastRateLimit: unknown;
 
@@ -205,16 +168,13 @@ export class AiService {
     throw lastRateLimit;
   }
 
-  /// Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng.
+  /** Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng. */
   private async withFormatFallback<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
     try {
       return await this.attempt(options, this.structuredOutputs);
     } catch (error) {
-      // Gateway từ chối đúng cơ chế ép định dạng đang dùng. Đổi sang chế độ
-      // kia và NHỚ LẠI, để những lời gọi sau không phải trả giá bằng một lần
-      // hỏng nữa. Chỉ đổi một lần: nếu chế độ kia cũng hỏng thì ném ra thật.
       if (!isResponseFormatUnsupported(error)) throw error;
 
       const fallback = !this.structuredOutputs;
@@ -227,25 +187,12 @@ export class AiService {
     }
   }
 
-  /// Bơm JSON Schema thẳng vào system prompt.
-  ///
-  /// Chỉ dùng ở chế độ `json_object`, và là BẮT BUỘC chứ không phải cho chắc.
-  /// Ở chế độ đó API không ép cấu trúc, còn system prompt của ta thì rất dài
-  /// (cả khung đánh giá lấy từ file skill) nên model bám theo tiêu đề mục
-  /// trong đó thay vì theo schema. Đã quan sát đúng hiện tượng: model trả
-  /// `eligibility_gate` / `technical_skills_match` trong khi schema đòi
-  /// `eligibility` / `technical`, và trả `{cover_letter: "\documentclass..."}`
-  /// thay cho các trường có cấu trúc. Nội dung thì tốt, chỉ sai tên trường.
-  ///
-  /// Đặt ở CUỐI system prompt là có chủ đích: phần gần chỗ sinh chữ nhất có
-  /// sức nặng lớn nhất.
+  /** Bơm JSON Schema thẳng vào system prompt. */
   private withSchemaInstruction<T>(system: string, schema: ZodType<T>): string {
     let json: unknown;
     try {
       json = z.toJSONSchema(schema);
     } catch (error) {
-      // Không dựng được schema thì vẫn gọi tiếp - mất phần hướng dẫn còn hơn
-      // mất cả lời gọi.
       this.logger.warn(
         `Không dựng được JSON Schema để nhắc model: ${
           error instanceof Error ? error.message : String(error)
@@ -316,9 +263,6 @@ export class AiService {
         errorMessage: truncateError(error),
       });
 
-      // "response did not match schema" một mình không đủ để sửa gì. Ghi lại
-      // chính xác văn bản model trả về, vì đó là thứ duy nhất cho biết nên
-      // siết schema, đổi mô tả hay bỏ bớt phần nào trong prompt.
       if (NoObjectGeneratedError.isInstance(error)) {
         this.logger.error(
           [
@@ -333,12 +277,10 @@ export class AiService {
     }
   }
 
-  /// Stream văn bản cho các màn hình người dùng ngồi chờ (CV, cover letter).
+  /** Stream văn bản cho các màn hình người dùng ngồi chờ (CV, cover letter). */
   async streamText(
     options: StreamTextOptions,
   ): Promise<{ modelId: string; result: StreamTextResult }> {
-    // streamText trả văn bản tự do nên không cần ép định dạng; truyền false để
-    // không gửi response_format lên gateway một cách vô ích.
     const { model, id } = await this.languageModel(options.modelId, false);
     return {
       modelId: id,

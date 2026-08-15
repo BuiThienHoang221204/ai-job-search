@@ -1,14 +1,9 @@
 import type { Profile } from '../../generated/prisma/client.js';
 
-/// Các trường quyết định chất lượng chấm điểm, kèm nhãn tiếng Việt để hiện ra
-/// cho người dùng biết còn thiếu gì.
-///
-/// Đây không phải mọi trường trong bảng Profile - chỉ những trường thật sự đi
-/// vào prompt đánh giá. Thêm một trường trang trí vào đây sẽ làm phần trăm
-/// hoàn thiện tụt xuống mà không cải thiện kết quả nào.
-///
-/// Thứ tự trong mảng là thứ tự ưu tiên hiển thị: cái đầu tiên ảnh hưởng nhiều
-/// nhất đến độ chính xác của việc chấm điểm.
+/**
+ * Các trường quyết định chất lượng chấm điểm, kèm nhãn tiếng Việt để hiện ra
+ * cho người dùng biết còn thiếu gì.
+ */
 export const SCORED_FIELDS = [
   { key: 'primarySkills', label: 'Kỹ năng chính' },
   { key: 'experiences', label: 'Kinh nghiệm làm việc' },
@@ -25,8 +20,10 @@ export const SCORED_FIELDS = [
   { key: 'targetSectors', label: 'Ngành mục tiêu' },
 ] as const satisfies ReadonlyArray<{ key: keyof Profile; label: string }>;
 
-/// Một trường được coi là đã điền khi nó có nội dung thật: mảng rỗng và chuỗi
-/// toàn khoảng trắng đều tính là chưa điền.
+/**
+ * Một trường được coi là đã điền khi nó có nội dung thật: mảng rỗng và chuỗi
+ * toàn khoảng trắng đều tính là chưa điền.
+ */
 const isFilled = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.length > 0;
   if (value === null || value === undefined) return false;

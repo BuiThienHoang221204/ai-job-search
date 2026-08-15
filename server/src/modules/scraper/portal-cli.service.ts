@@ -17,9 +17,6 @@ export type PortalJobCard = {
   title: string;
   company: string | null;
   companyUrl: string | null;
-  /// Ảnh logo công ty. Chỉ topcv và vietnamworks có; itviec và linkedin không
-  /// đưa logo ra trang danh sách, nên null là chuyện bình thường chứ không
-  /// phải lỗi - giao diện tự lùi về ô chữ cái đầu.
   companyLogo: string | null;
   location: string | null;
   workMode: string | null;
@@ -27,11 +24,7 @@ export type PortalJobCard = {
   postedAt: string | null;
   tags: string[];
   url: string;
-  /// Có giá trị khi portal trả sẵn mô tả ngay trong kết quả tìm kiếm.
-  ///
-  /// VietnamWorks gọi API JSON nên có; ITviec và TopCV phải tải thêm trang chi
-  /// tiết. Phía gọi thấy trường này khác null thì bỏ hẳn request `detail` -
-  /// nhanh gấp đôi và bớt một chỗ có thể hỏng.
+  /** Có giá trị khi portal trả sẵn mô tả ngay trong kết quả tìm kiếm. */
   description?: string | null;
 };
 
@@ -45,17 +38,7 @@ export type SearchArgs = {
   limit?: number;
 };
 
-/// Chạy CLI tìm việc trong .agents/skills/.
-///
-/// Danh sách portal được QUÉT lúc khởi động chứ không khai cứng trong code:
-/// thêm một portal = thêm một thư mục có SKILL.md và cli/src/cli.ts. Cách này
-/// cũng tôn trọng cờ `enabled:` trong frontmatter, nên tắt một portal không
-/// cần sửa code và không cần build lại.
-///
-/// AN TOÀN: dùng execFile với MẢNG tham số, không bao giờ nối chuỗi vào shell.
-/// Từ khóa tìm kiếm do model sinh ra, nên một chuỗi kiểu `react"; rm -rf /` là
-/// khả năng thật chứ không phải giả định. Với mảng tham số và shell mặc định
-/// tắt, chuỗi đó chỉ là một từ khóa vô hại.
+/** Chạy CLI tìm việc trong .agents/skills/. */
 @Injectable()
 export class PortalCliService implements OnModuleInit {
   private readonly logger = new Logger(PortalCliService.name);
@@ -65,8 +48,10 @@ export class PortalCliService implements OnModuleInit {
   private readonly delayMs: number;
   private portals = new Map<string, PortalEntry>();
 
-  /// Thời điểm gọi portal gần nhất, dùng để giữ nhịp. Theo TỪNG portal chứ
-  /// không phải một mốc chung: chờ ITviec không có lý do gì để hoãn LinkedIn.
+  /**
+   * Thời điểm gọi portal gần nhất, dùng để giữ nhịp. Theo TỪNG portal chứ
+   * không phải một mốc chung: chờ ITviec không có lý do gì để hoãn LinkedIn.
+   */
   private lastCallAt = new Map<string, number>();
 
   constructor(config: ConfigService) {
@@ -80,14 +65,13 @@ export class PortalCliService implements OnModuleInit {
     await this.reload();
   }
 
-  /// Quét lại thư mục portal. Gọi được lúc chạy để nhận portal mới mà không
-  /// phải khởi động lại máy chủ.
+  /**
+   * Quét lại thư mục portal. Gọi được lúc chạy để nhận portal mới mà không
+   * phải khởi động lại máy chủ.
+   */
   async reload(): Promise<PortalEntry[]> {
     const found = new Map<string, PortalEntry>();
 
-    // Khai kiểu tường minh: readdir có nhiều overload và suy kiểu tự động sẽ
-    // chọn nhánh trả về Buffer, khiến entry.name thành Buffer chứ không phải
-    // chuỗi.
     let entries: Dirent[];
     try {
       entries = await readdir(this.portalsDir, { withFileTypes: true });
@@ -151,7 +135,7 @@ export class PortalCliService implements OnModuleInit {
     return this.portals.has(portal);
   }
 
-  /// Giữ nhịp giữa hai lần gọi cùng một portal.
+  /** Giữ nhịp giữa hai lần gọi cùng một portal. */
   private async pace(portal: string): Promise<void> {
     const last = this.lastCallAt.get(portal);
     if (last !== undefined) {
@@ -176,7 +160,6 @@ export class PortalCliService implements OnModuleInit {
       const { stdout } = await run('bun', ['run', config.cliPath, ...args], {
         cwd: this.repoRoot,
         timeout: this.timeoutMs,
-        // Giới hạn output để một trang hỏng không làm phình bộ nhớ.
         maxBuffer: 8 * 1024 * 1024,
         windowsHide: true,
       });
@@ -186,7 +169,6 @@ export class PortalCliService implements OnModuleInit {
       return JSON.parse(stdout) as T;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      // CLI ghi lỗi ra stderr dưới dạng JSON; lấy ra cho dễ đọc.
       const stderr = (error as { stderr?: string }).stderr ?? '';
       const parsed = stderr.trim().startsWith('{')
         ? (JSON.parse(stderr.trim()) as { error?: string; code?: string })
@@ -199,9 +181,11 @@ export class PortalCliService implements OnModuleInit {
     }
   }
 
-  /// Kết quả đi qua `normalizeCards` vì bốn CLI KHÔNG cùng hình dạng đầu ra:
-  /// itviec/topcv/vietnamworks trả mảng trần, còn linkedin trả
-  /// `{ meta, results }` và gọi `postedAt` là `date`. Xem normalize.ts.
+  /**
+   * Kết quả đi qua `normalizeCards` vì bốn CLI KHÔNG cùng hình dạng đầu ra:
+   * itviec/topcv/vietnamworks trả mảng trần, còn linkedin trả
+   * `{ meta, results }` và gọi `postedAt` là `date`. Xem normalize.ts.
+   */
   async search(portal: string, args: SearchArgs): Promise<PortalJobCard[]> {
     const argv = ['search', '--format', 'json'];
     if (args.query) argv.push('--query', args.query);

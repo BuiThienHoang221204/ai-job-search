@@ -28,15 +28,7 @@ export class ApplicationsService {
     private readonly queue: QueueService,
   ) {}
 
-  /// Tạo đơn ứng tuyển cho một công việc.
-  ///
-  /// Bước 1 của SKILL.md (đánh giá độ phù hợp) phải XONG trước, và ở đây chỉ
-  /// kiểm tra kết quả chứ không chấm lại. Đơn không thể tồn tại mà không có
-  /// điểm: cả màn hình lẫn thư xin việc đều dựng trên kết quả chấm đó.
-  ///
-  /// eligibility = FAIL là cổng chặn cứng theo `04-job-evaluation.md`: tin đòi
-  /// quốc tịch hoặc giấy phép lao động mà ứng viên không đáp ứng thì không soạn
-  /// hồ sơ, vì nộp cũng không được xét.
+  /** Tạo đơn ứng tuyển cho một công việc. */
   async create(userId: string, jobId: string) {
     const match = await this.prisma.jobMatch.findUnique({
       where: { userId_jobId: { userId, jobId } },
@@ -59,10 +51,6 @@ export class ApplicationsService {
       );
     }
 
-    // Chống trùng đơn bằng ràng buộc @@unique([userId, jobId]), KHÔNG bằng một
-    // lần đọc trước đó: hai request đồng thời đều đọc thấy "chưa có đơn" rồi
-    // cùng ghi, và chỉ DB mới phân xử được ai thắng. Đọc trước rồi ghi sau thì
-    // kẻ thua nhận 500 thay vì 409.
     const application = await this.prisma.application
       .create({
         data: {
@@ -97,12 +85,7 @@ export class ApplicationsService {
     return application;
   }
 
-  /// Bước 2 và 3 của SKILL.md: CV theo vị trí và thư xin việc.
-  ///
-  /// Bước 4 (chuẩn bị phỏng vấn) CỐ Ý không chạy ở đây mà đợi đến khi trạng
-  /// thái chuyển sang INTERVIEW. Ba lần gọi model cho một đơn vừa mới tạo là
-  /// lãng phí: phần lớn đơn không đi tới vòng phỏng vấn, mà mỗi lần gọi mất
-  /// hàng chục giây trên gateway free và có gần một nửa khả năng hỏng.
+  /** Bước 2 và 3 của SKILL.md: CV theo vị trí và thư xin việc. */
   private async prepareDocuments(
     userId: string,
     jobId: string,
@@ -128,8 +111,10 @@ export class ApplicationsService {
     ]);
   }
 
-  /// Danh sách đơn kèm số lượng theo từng nhóm, dùng cho các tab trên màn hình
-  /// Lịch sử ứng tuyển. Chỉ đọc DB, không gọi AI.
+  /**
+   * Danh sách đơn kèm số lượng theo từng nhóm, dùng cho các tab trên màn hình
+   * Lịch sử ứng tuyển. Chỉ đọc DB, không gọi AI.
+   */
   async list(userId: string, group?: StatusGroup) {
     const rows = await this.prisma.application.findMany({
       where: { userId },
@@ -149,8 +134,6 @@ export class ApplicationsService {
       },
     });
 
-    // Đếm trên toàn bộ rồi mới lọc: các tab phải hiện tổng số thật, không phải
-    // số sau khi đã lọc theo chính tab đang chọn.
     const counts = rows.reduce<Record<string, number>>(
       (acc, row) => {
         const key = groupOf(row.status);
@@ -179,8 +162,6 @@ export class ApplicationsService {
     if (!application)
       throw new NotFoundException('Không tìm thấy đơn ứng tuyển');
 
-    // Tài liệu của đơn được SUY RA chứ không lưu khóa ngoại - xem ghi chú trên
-    // model Application trong schema.prisma.
     const [documents, interviewPrep] = await Promise.all([
       this.prisma.document.findMany({
         where: { userId, jobId: application.jobId },
@@ -194,11 +175,7 @@ export class ApplicationsService {
     return { ...application, documents, interviewPrep };
   }
 
-  /// Đổi trạng thái đơn.
-  ///
-  /// `actor` mặc định là 'user' vì đường vào duy nhất hiện nay là người dùng
-  /// bấm nút. Khi nào có đồng bộ hộp thư thì truyền 'system' để các quy tắc
-  /// trong transitions.ts chặn được việc máy tự quyết thay người.
+  /** Đổi trạng thái đơn. */
   async updateStatus(
     userId: string,
     id: string,
@@ -243,10 +220,6 @@ export class ApplicationsService {
       include: { job: true, events: { orderBy: { createdAt: 'asc' } } },
     });
 
-    // Bước 4 của SKILL.md, kích hoạt đúng lúc cần: có lịch phỏng vấn rồi mới
-    // soạn câu hỏi. Hỏng ở đây không được làm hỏng việc đổi trạng thái - trạng
-    // thái là sự thật người dùng vừa nhập, còn chuẩn bị phỏng vấn thì bấm lại
-    // được.
     if (to === 'INTERVIEW') {
       try {
         await this.queue.send(QUEUE.INTERVIEW_PREP, {
@@ -266,7 +239,7 @@ export class ApplicationsService {
     return updated;
   }
 
-  /// Số liệu cho màn hình Tổng quan.
+  /** Số liệu cho màn hình Tổng quan. */
   async countsFor(userId: string): Promise<{ total: number; active: number }> {
     const rows = await this.prisma.application.findMany({
       where: { userId },

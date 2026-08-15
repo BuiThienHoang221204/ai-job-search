@@ -9,18 +9,7 @@ import {
 import type { PortalEntry } from './portal-registry.js';
 import type { JobSource } from './job-source.interface.js';
 
-/**
- * Chọn adapter theo khoá nguồn. Đây là toàn bộ nội dung của SEAM 5 ở phía người gọi.
- *
- * `ScraperService` nhận cái này và không biết gì về CLI hay HTTP. Nhờ vậy thêm nguồn
- * thứ ba (API có giấy phép, career page doanh nghiệp…) chỉ là thêm một adapter và một
- * dòng ở đây.
- *
- * Thứ tự ưu tiên: CLI trước, ATS sau. Chỉ quan trọng khi hai adapter khai cùng một
- * khoá, mà điều đó không xảy ra được: khoá ATS luôn có dạng `vendor-company` còn khoá
- * CLI đến từ tên thư mục skill. Vẫn ghi log nếu trùng, vì "không xảy ra được" là loại
- * câu hay sai.
- */
+/** Chọn adapter theo khoá nguồn. Đây là toàn bộ nội dung của SEAM 5 ở phía người gọi. */
 @Injectable()
 export class JobSourceRouter implements JobSource {
   private readonly logger = new Logger(JobSourceRouter.name);
@@ -73,8 +62,10 @@ export class JobSourceRouter implements JobSource {
     return this.pick(portal).detail(portal, slug);
   }
 
-  /// Không có adapter nào nhận thì ném NGAY với danh sách đang có: một lượt quét vào
-  /// khoá lạ mà im lặng trả mảng rỗng sẽ được ghi là "thành công, 0 tin".
+  /**
+   * Không có adapter nào nhận thì ném NGAY với danh sách đang có: một lượt quét vào
+   * khoá lạ mà im lặng trả mảng rỗng sẽ được ghi là "thành công, 0 tin".
+   */
   private pick(portal: string): JobSource {
     const adapter = this.adapters.find((item) => item.has(portal));
     if (!adapter) {

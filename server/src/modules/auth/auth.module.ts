@@ -14,9 +14,6 @@ import { JwtStrategy } from './jwt.strategy.js';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('auth.jwtSecret')!,
         signOptions: {
-          // jsonwebtoken gõ kiểu expiresIn thành union chuỗi hẹp ("7d",
-          // "1h"...), còn giá trị ở đây đến từ .env nên chỉ biết là string
-          // lúc chạy.
           expiresIn: config.get<string>(
             'auth.jwtExpiresIn',
           ) as `${number}${'s' | 'm' | 'h' | 'd'}`,

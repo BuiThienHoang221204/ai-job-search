@@ -28,15 +28,7 @@ import { StorageModule } from './modules/storage/storage.module.js';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    // Cung cấp SchedulerRegistry cho ScrapeCronService. Lịch và múi giờ đọc từ
-    // cấu hình chứ không khai bằng decorator - xem scrape-cron.service.ts.
     ScheduleModule.forRoot(),
-    // Trần chung theo IP. Những route tốn kém có trần riêng chặt hơn, khai bằng
-    // `@Throttle` ngay tại route.
-    //
-    // LƯU Ý khi deploy sau reverse proxy: throttler định danh client theo IP, mà
-    // sau proxy thì mọi request đều mang IP của proxy nếu Express chưa bật
-    // `trust proxy`. Không bật thì cả hệ thống dùng chung một hạn mức.
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -46,18 +38,11 @@ import { StorageModule } from './modules/storage/storage.module.js';
             limit: config.get<number>('throttle.limit')!,
           },
         ],
-        // `skipIf` là chỗ duy nhất tắt được rate limiting cho test: guard đăng ký
-        // qua token APP_GUARD nên `overrideGuard` của Nest không với tới. Đọc cấu
-        // hình một lần lúc khởi động, không đọc lại mỗi request.
         skipIf: () => config.get<boolean>('throttle.disabled') === true,
       }),
     }),
-    // Đăng ký filter và interceptor toàn cục. Đặt trước các module tính năng
-    // cho khớp thứ tự đọc, không phải vì Nest đòi hỏi thứ tự này.
     CommonModule,
     PrismaModule,
-    // Đặt sớm: probe phải trả lời được kể cả khi một module tính năng nào đó
-    // chưa khởi tạo xong.
     HealthModule,
     StorageModule,
     QueueModule,
@@ -75,8 +60,6 @@ import { StorageModule } from './modules/storage/storage.module.js';
     DocumentsModule,
     ApplicationsModule,
     DashboardModule,
-    // Sau các module tính năng: nó nhặt lại việc nền của chúng, nên đọc theo thứ
-    // tự này thì rõ hơn là đặt trước.
     ReconcileModule,
     AdminModule,
   ],

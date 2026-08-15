@@ -14,25 +14,23 @@ import matter from 'gray-matter';
 export type SkillManifest = {
   name: string;
   description: string;
-  /// Danh sách tool trong frontmatter của Claude Code. Engine chưa thi hành
-  /// tool nào, nhưng phải đọc để sau này chặn skill dùng tool không hỗ trợ.
+  /**
+   * Danh sách tool trong frontmatter của Claude Code. Engine chưa thi hành
+   * tool nào, nhưng phải đọc để sau này chặn skill dùng tool không hỗ trợ.
+   */
   allowedTools: string[];
   frameworkVersion?: string;
 };
 
 export type LoadedSkill = SkillManifest & {
-  /// Phần thân của SKILL.md, đã bỏ frontmatter.
+  /** Phần thân của SKILL.md, đã bỏ frontmatter. */
   body: string;
-  /// Các file tham chiếu cùng thư mục, ví dụ "04-job-evaluation.md".
+  /** Các file tham chiếu cùng thư mục, ví dụ "04-job-evaluation.md". */
   references: Map<string, string>;
   contentHash: string;
 };
 
-/// Đọc các skill từ .claude/skills/ và giữ trong bộ nhớ.
-///
-/// Đây là lý do đặt engine chung repo với skill: thêm một skill là thêm một
-/// thư mục, không phải deploy lại code. Cùng file SKILL.md đó vẫn chạy được
-/// trong Claude Code, nên việc soạn và debug skill không đổi môi trường.
+/** Đọc các skill từ .claude/skills/ và giữ trong bộ nhớ. */
 @Injectable()
 export class SkillRegistryService implements OnModuleInit {
   private readonly logger = new Logger(SkillRegistryService.name);
@@ -59,8 +57,6 @@ export class SkillRegistryService implements OnModuleInit {
     }
 
     for (const entry of entries) {
-      // isDirectory() trả false cho symlink. server/.claude/skills của Prisma
-      // toàn là symlink; thư mục skill thật thì không, nên bỏ qua là đúng.
       if (!entry.isDirectory()) continue;
 
       const dir = join(this.skillsDir, entry.name);
@@ -111,8 +107,6 @@ export class SkillRegistryService implements OnModuleInit {
         contentHash: hash.digest('hex').slice(0, 16),
       };
 
-      // Đăng ký theo cả tên thư mục lẫn tên trong frontmatter: job-scraper có
-      // frontmatter `name: scrape` nhưng nằm trong thư mục job-scraper.
       this.skills.set(entry.name, skill);
       if (skill.name !== entry.name) this.skills.set(skill.name, skill);
 
@@ -139,8 +133,10 @@ export class SkillRegistryService implements OnModuleInit {
     return skill;
   }
 
-  /// Lấy một file tham chiếu, ví dụ
-  /// reference('job-application-assistant', '04-job-evaluation.md').
+  /**
+   * Lấy một file tham chiếu, ví dụ
+   * reference('job-application-assistant', '04-job-evaluation.md').
+   */
   reference(skillName: string, fileName: string): string {
     const skill = this.get(skillName);
     const content = skill.references.get(fileName);

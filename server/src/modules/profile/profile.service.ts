@@ -24,7 +24,6 @@ export class ProfileService {
       update: data,
     });
 
-    // Tính lại phần trăm hoàn thiện sau mỗi lần sửa.
     return this.prisma.profile.update({
       where: { userId },
       data: { completion: completionPercent(saved) },

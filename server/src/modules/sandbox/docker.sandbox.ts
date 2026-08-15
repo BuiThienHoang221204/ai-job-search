@@ -12,12 +12,16 @@ import {
   type SandboxSpec,
 } from './sandbox.interface.js';
 
-/// Bao lâu thì bỏ cuộc chờ `docker version`. Kiểm tra sẵn sàng phải nhanh, vì nó
-/// nằm trên đường `/ready` — probe treo còn tệ hơn probe báo hỏng.
+/**
+ * Bao lâu thì bỏ cuộc chờ `docker version`. Kiểm tra sẵn sàng phải nhanh, vì nó
+ * nằm trên đường `/ready` — probe treo còn tệ hơn probe báo hỏng.
+ */
 const AVAILABILITY_TIMEOUT_MS = 5_000;
 
-/// Mức mặc định, đo trên một lượt compile CV thật: 512MB và 1 CPU là đủ, lượt chạy
-/// mất khoảng 5 giây.
+/**
+ * Mức mặc định, đo trên một lượt compile CV thật: 512MB và 1 CPU là đủ, lượt chạy
+ * mất khoảng 5 giây.
+ */
 const DEFAULT_MEMORY_MB = 512;
 const DEFAULT_CPUS = 1;
 
@@ -28,28 +32,7 @@ type Spawned = {
   timedOut: boolean;
 };
 
-/**
- * Tham số của `docker run`.
- *
- * Hàm thuần ở tầng module, KHÔNG phải method của class: đây là chỗ duy nhất quyết
- * định một lượt chạy có mạng hay không, nên nó phải kiểm được mà không cần Docker.
- * Xem `test/unit/modules/sandbox/docker-args.spec.ts`.
- *
- * Bốn thứ ở đây là **bảo mật**, không phải tối ưu:
- *
- * - `--network`: **mặc định `none`**. Đây là lớp chặn cuối nếu một ngày nào đó
- *   `escapeLatex` bị lọt — không có mạng thì không thể gửi dữ liệu hồ sơ ra ngoài.
- *   Chỉ mở khi `spec.network === 'egress'`, và chỉ Assisted Apply cần (trình duyệt
- *   phải tải được trang tuyển dụng). Mặc định nằm ở đây chứ không ở caller: quên
- *   khai thì được cấu hình ĐÓNG.
- * - `--memory`, `--cpus`: một tài liệu độc hại có thể bơm bộ nhớ hoặc quay vô hạn.
- *   Không có trần thì nó lấy hết máy chủ.
- * - `--rm`: xoá container khi xong. Xem ghi chú về `name` trong `run()` cho trường
- *   hợp hết giờ.
- * - `--pull never`: KHÔNG tự tải ảnh. Ảnh TeX Live nặng 8,92GB và ảnh Playwright
- *   ~2GB; tải chúng ngay giữa một request của người dùng là treo vài phút rồi hết
- *   giờ. Thiếu ảnh phải là một lỗi nói rõ ràng, và là việc của người vận hành.
- */
+/** Tham số của `docker run`. */
 export function dockerArgs(
   name: string,
   work: string,
@@ -64,8 +47,6 @@ export function dockerArgs(
     '--name',
     name,
     '--network',
-    // `bridge` là mạng mặc định của Docker; đặt tường minh để đọc log thấy rõ lượt
-    // nào có mạng.
     spec.network === 'egress' ? 'bridge' : 'none',
     '--memory',
     `${memory}m`,
@@ -101,14 +82,6 @@ export class DockerSandbox implements SandboxRunner {
   async run(spec: SandboxSpec): Promise<SandboxResult> {
     const work = await mkdtemp(join(tmpdir(), 'aijob-sandbox-'));
 
-    /*
-     * Tên container đặt tường minh thay vì để Docker tự sinh.
-     *
-     * `docker run --rm` chỉ xoá container khi tiến trình client kết thúc BÌNH
-     * THƯỜNG. Khi hết giờ và ta giết client, container vẫn chạy tiếp và vẫn giữ
-     * 512MB — một lượt compile treo trở thành một container bị bỏ rơi. Có tên thì
-     * mới `docker rm -f` được nó.
-     */
     const name = `aijob-${randomUUID()}`;
 
     try {
@@ -141,8 +114,6 @@ export class DockerSandbox implements SandboxRunner {
       if (error instanceof SandboxError) throw error;
       throw new SandboxError(classify(error), messageOf(error));
     } finally {
-      // Dọn thư mục tạm dù thành công hay không. `force` để không nổ khi thư mục đã
-      // biến mất, `maxRetries` vì Windows đôi khi còn giữ handle một nhịp.
       await rm(work, { recursive: true, force: true, maxRetries: 3 }).catch(
         (error: unknown) =>
           this.logger.warn(`Không dọn được ${work}: ${messageOf(error)}`),
@@ -160,8 +131,7 @@ export class DockerSandbox implements SandboxRunner {
       try {
         artifacts[path] = await readFile(join(work, path));
       } catch {
-        // Vắng mặt là chuyện bình thường: compile hỏng thì không có PDF. Caller
-        // đọc `exitCode` và quyết định, chứ ở đây không đoán thay.
+        // Vắng mặt là bình thường: compile hỏng thì không có PDF.
       }
     }
 
@@ -177,13 +147,7 @@ export class DockerSandbox implements SandboxRunner {
     );
   }
 
-  /**
-   * Gọi `docker` và thu stdout/stderr, có hạn thời gian.
-   *
-   * `spawn` với mảng tham số, KHÔNG dùng shell: tên file đi vào lệnh có nguồn từ
-   * người dùng, và một shell ở giữa biến dấu `;` hay backtick trong tên file thành
-   * lệnh chạy được.
-   */
+  /** Gọi `docker` và thu stdout/stderr, có hạn thời gian. */
   private spawn(args: string[], timeoutMs: number): Promise<Spawned> {
     return new Promise((resolve, reject) => {
       const child = spawn('docker', args, { shell: false });
@@ -216,14 +180,13 @@ export class DockerSandbox implements SandboxRunner {
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
-/// Phân loại theo dấu hiệu của tiến trình con, vì `docker` báo lỗi qua stderr và
-/// mã thoát chứ không qua lớp lỗi.
+/**
+ * Phân loại theo dấu hiệu của tiến trình con, vì `docker` báo lỗi qua stderr và
+ * mã thoát chứ không qua lớp lỗi.
+ */
 function classify(error: unknown): SandboxErrorKind {
   const message = messageOf(error);
 
-  // `spawn docker ENOENT` = chưa cài Docker. Thông báo về daemon = đã cài nhưng
-  // chưa chạy. Hai chuyện khác nhau với người vận hành nhưng cùng một hành động
-  // với người dùng, nên gộp làm một phân loại.
   if (/ENOENT/.test(message)) return 'RUNTIME_UNAVAILABLE';
   if (/daemon|pipe\/docker|cannot connect/i.test(message)) {
     return 'RUNTIME_UNAVAILABLE';

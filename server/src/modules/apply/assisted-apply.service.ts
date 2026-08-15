@@ -17,9 +17,11 @@ import { DocumentsService } from '../documents/documents.service.js';
 import { BrowserApplyService } from './browser-apply.service.js';
 import type { ApplyResult } from './apply.types.js';
 
-/// Ảnh chụp là PNG toàn trang, đo được ~555KB trên một form thật. Giữ trong Storage
-/// chứ không nhồi vào database: nó là file, và cột `Bytes` sẽ làm mọi truy vấn lịch
-/// sử kéo theo hàng megabyte không ai cần.
+/**
+ * Ảnh chụp là PNG toàn trang, đo được ~555KB trên một form thật. Giữ trong Storage
+ * chứ không nhồi vào database: nó là file, và cột `Bytes` sẽ làm mọi truy vấn lịch
+ * sử kéo theo hàng megabyte không ai cần.
+ */
 const screenshotKey = (userId: string, attemptId: string): string =>
   userKey(userId, 'apply', `${attemptId}.png`);
 
@@ -35,13 +37,7 @@ export class AssistedApplyService {
     @Inject(STORAGE) private readonly storage: Storage,
   ) {}
 
-  /**
-   * Tạo bản ghi PENDING rồi xếp việc. Trả về biên nhận, KHÔNG trả về kết quả.
-   *
-   * Bản ghi được tạo TRƯỚC khi xếp hàng, và `attemptId` là khoá dedup của hàng đợi:
-   * xếp hai lần cho cùng một bản ghi luôn là trùng lặp. Cùng khuôn với
-   * `document.generate` và `profile.synthesize`.
-   */
+  /** Tạo bản ghi PENDING rồi xếp việc. Trả về biên nhận, KHÔNG trả về kết quả. */
   async start(userId: string, jobId: string): Promise<{ attemptId: string }> {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
@@ -49,8 +45,6 @@ export class AssistedApplyService {
     });
     if (!job) throw new NotFoundException('Không tìm thấy tin tuyển dụng.');
 
-    // Kiểm ngay tại đây thay vì để worker phát hiện: một tin không có link thì không
-    // có gì để mở, và người dùng cần biết ngay lúc bấm.
     if (!job.url) {
       throw new BadRequestException(
         'Tin tuyển dụng này không có link ứng tuyển để mở.',
@@ -66,13 +60,7 @@ export class AssistedApplyService {
     return { attemptId: attempt.id };
   }
 
-  /**
-   * Chạy một lượt. Gọi từ worker, KHÔNG gọi từ đường HTTP.
-   *
-   * Không ném lỗi ra ngoài trong trường hợp thất bại nghiệp vụ: mọi kết luận — kể cả
-   * `UNREACHABLE` — đều là dữ liệu để hiện cho người dùng, không phải sự cố. Chỉ lỗi
-   * hạ tầng thật (không đọc được database) mới được nổ.
-   */
+  /** Chạy một lượt. Gọi từ worker, KHÔNG gọi từ đường HTTP. */
   async execute(attemptId: string): Promise<void> {
     const attempt = await this.prisma.applyAttempt.findUnique({
       where: { id: attemptId },
@@ -122,16 +110,7 @@ export class AssistedApplyService {
     }
   }
 
-  /**
-   * Lấy CV và thư xin việc mới nhất đã DONE, dạng PDF.
-   *
-   * PDF được compile tại đây chứ không lấy từ cache: `.tex` là nguồn sự thật duy
-   * nhất trong hệ thống này (xem `documents.service.ts`), nên một bản PDF cũ có thể
-   * lệch với nội dung hiện tại.
-   *
-   * Thiếu tài liệu KHÔNG chặn lượt chạy: điền được họ tên và email vẫn có giá trị,
-   * và người dùng tự đính kèm file sau. Nên mỗi lỗi ở đây chỉ ghi log rồi đi tiếp.
-   */
+  /** Lấy CV và thư xin việc mới nhất đã DONE, dạng PDF. */
   private async attachments(
     userId: string,
     jobId: string,
@@ -148,9 +127,6 @@ export class AssistedApplyService {
     kind: 'CV' | 'COVER_LETTER',
     jobId: string,
   ): Promise<Buffer | undefined> {
-    // Ưu tiên tài liệu viết riêng cho tin này; không có thì lấy bản tổng quát gần
-    // nhất. Một CV nhắm đúng vị trí tốt hơn, nhưng không có nó thì bản tổng quát
-    // vẫn hơn là không đính kèm gì.
     const document =
       (await this.prisma.document.findFirst({
         where: { userId, kind, jobId, status: 'DONE' },
@@ -186,8 +162,6 @@ export class AssistedApplyService {
       try {
         await this.storage.write(key, result.screenshot);
       } catch (error) {
-        // Mất ảnh không được làm mất cả kết quả: danh sách trường đã điền vẫn dùng
-        // được, và người dùng vẫn biết phải làm gì tiếp.
         this.logger.warn(
           `Không lưu được ảnh chụp: ${error instanceof Error ? error.message : String(error)}`,
         );
@@ -201,13 +175,6 @@ export class AssistedApplyService {
         status: 'DONE',
         outcome: result.outcome,
         message: result.message,
-        /*
-         * `FilledField[]` không tự khớp `Prisma.InputJsonValue`: kiểu JSON của Prisma
-         * đòi index signature mà một interface không có. Ép kiểu qua `unknown` là
-         * cách duy nhất, và phải giữ nguyên dạng dài này — `eslint --fix` từng gỡ một
-         * bản ngắn hơn vì rule `no-unnecessary-type-assertion` coi nó là vô ích, và
-         * build vỡ ngay sau đó. Cùng chuyện với `evidence` ở `profile-draft.service.ts`.
-         */
         filled: result.filled as unknown as Prisma.InputJsonValue,
         unmatched: result.unmatched,
         screenshotKey: key,
@@ -215,7 +182,7 @@ export class AssistedApplyService {
     });
   }
 
-  /// Lượt gần nhất của một tin. Đường ĐỌC, không gọi gì nặng.
+  /** Lượt gần nhất của một tin. Đường ĐỌC, không gọi gì nặng. */
   async latest(userId: string, jobId: string): Promise<ApplyAttempt | null> {
     return this.prisma.applyAttempt.findFirst({
       where: { userId, jobId },
@@ -239,13 +206,7 @@ export class AssistedApplyService {
     return this.storage.read(attempt.screenshotKey);
   }
 
-  /**
-   * Người dùng khẳng định đã TỰ nộp trên trang tuyển dụng.
-   *
-   * Hệ thống không thể tự biết điều này — nó không bấm nút nộp. Vì vậy `confirmedAt`
-   * là lời khẳng định của người dùng, và tên trường phải nói đúng điều đó thay vì
-   * `submittedAt` (nghe như hệ thống đã nộp).
-   */
+  /** Người dùng khẳng định đã TỰ nộp trên trang tuyển dụng. */
   async confirm(userId: string, attemptId: string): Promise<ApplyAttempt> {
     const attempt = await this.get(userId, attemptId);
 

@@ -6,10 +6,7 @@ import {
 } from '../queue/queue.service.js';
 import { MatchingService } from './matching.service.js';
 
-/// Tiêu thụ hàng đợi chấm điểm.
-///
-/// Đây là "đường ghi" trong kiến trúc: AI chỉ chạy ở đây, chạy trước, chạy
-/// nền. Màn hình dashboard không bao giờ đợi nó.
+/** Tiêu thụ hàng đợi chấm điểm. */
 @Injectable()
 export class MatchingProcessor implements OnModuleInit {
   private readonly logger = new Logger(MatchingProcessor.name);

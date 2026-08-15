@@ -8,46 +8,35 @@ import {
 } from 'class-validator';
 import { IsBoundedJson } from '../../../common/validators/bounded-json.js';
 
-/// Trần cho các trường chữ ngắn (chức danh, địa điểm, quốc tịch...).
+/** Trần cho các trường chữ ngắn (chức danh, địa điểm, quốc tịch...). */
 const SHORT = 200;
 
-/// Trần cho phần tự giới thiệu. Dài hơn hẳn các trường trên vì nó là đoạn văn,
-/// nhưng vẫn phải có trần: nó đi thẳng vào mọi prompt chấm điểm.
+/**
+ * Trần cho phần tự giới thiệu. Dài hơn hẳn các trường trên vì nó là đoạn văn,
+ * nhưng vẫn phải có trần: nó đi thẳng vào mọi prompt chấm điểm.
+ */
 const SUMMARY = 4_000;
 
-/// Trần cho mỗi phần tử trong các mảng kỹ năng, mục tiêu, lĩnh vực.
+/** Trần cho mỗi phần tử trong các mảng kỹ năng, mục tiêu, lĩnh vực. */
 const ITEM = 200;
 
-/// Số phần tử tối đa mỗi mảng. 60 kỹ năng đã là nhiều hơn bất kỳ hồ sơ thật nào;
-/// quá số đó thì gần như chắc chắn là dán nhầm hoặc cố tình nhồi prompt.
+/**
+ * Số phần tử tối đa mỗi mảng. 60 kỹ năng đã là nhiều hơn bất kỳ hồ sơ thật nào;
+ * quá số đó thì gần như chắc chắn là dán nhầm hoặc cố tình nhồi prompt.
+ */
 const ITEMS = 60;
 
-/// Chặn trên cho các khối JSON tự do. 64KB đủ cho một sự nghiệp dài kể chi tiết,
-/// và vẫn nhỏ hơn nhiều so với mức làm phình prompt tới mức đáng lo.
+/**
+ * Chặn trên cho các khối JSON tự do. 64KB đủ cho một sự nghiệp dài kể chi tiết,
+ * và vẫn nhỏ hơn nhiều so với mức làm phình prompt tới mức đáng lo.
+ */
 const JSON_BOUNDS = { maxBytes: 64 * 1024, maxItems: 100 } as const;
 
-/**
- * Mọi trường đều tuỳ chọn, và service chỉ ghi những trường được gửi lên.
- *
- * Ghi từng phần là có chủ đích: gửi cả hồ sơ mỗi lần lưu sẽ khiến một tab mở lâu
- * ghi đè mất thay đổi mà tab kia vừa lưu. Xem thêm ghi chú ở `profile.controller`
- * về việc động từ là PUT nhưng thân request là một phần.
- *
- * Mọi trần độ dài ở đây tồn tại vì một lý do chung: **những giá trị này đi thẳng
- * vào prompt gửi lên nhà cung cấp model**. Không có trần thì một hồ sơ là một
- * cách để bơm prompt tuỳ ý dài, tốn tiền mỗi lần chấm điểm.
- */
+/** Mọi trường đều tuỳ chọn, và service chỉ ghi những trường được gửi lên. */
 export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(SHORT) headline?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) location?: string;
-  /**
-   * Số điện thoại. Trần 40 ký tự, KHÔNG dùng `SHORT` (200) như các trường khác.
-   *
-   * Trường này không đi vào prompt mà đi vào **form ứng tuyển của nhà tuyển dụng**
-   * (Assisted Apply điền nó). Một chuỗi 200 ký tự trong ô số điện thoại là dữ liệu
-   * rác gửi tới người khác, nên trần ở đây phản ánh hình dạng thật của dữ liệu chứ
-   * không phải giới hạn chi phí model.
-   */
+  /** Số điện thoại. Trần 40 ký tự, KHÔNG dùng `SHORT` (200) như các trường khác. */
   @IsOptional() @IsString() @MaxLength(40) phone?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) country?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) employmentStatus?: string;
@@ -136,8 +125,6 @@ export class UpdateProfileDto {
   @MaxLength(ITEM, { each: true })
   dealBreakers?: string[];
 
-  // Năm khối JSON tự do. Chỉ chặn trên về kích thước, KHÔNG áp schema hình dạng -
-  // xem lý do trong `bounded-json.ts`.
   @IsOptional() @IsBoundedJson(JSON_BOUNDS) behavioralTraits?: unknown;
   @IsOptional() @IsBoundedJson(JSON_BOUNDS) experiences?: unknown;
   @IsOptional() @IsBoundedJson(JSON_BOUNDS) educations?: unknown;

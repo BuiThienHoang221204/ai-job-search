@@ -1,42 +1,14 @@
 import { z } from 'zod';
 
-/**
- * Hình dạng hồ sơ do model đề xuất từ bằng chứng.
- *
- * Hai nguyên tắc quyết định file này, và cả hai đều quan trọng hơn việc trích được
- * nhiều trường.
- *
- * **1. Chỉ đề xuất những gì bằng chứng CHỨNG MINH được.** Mọi trường đều
- * `optional`: một CV không nhắc tới học vấn thì model phải bỏ trống, không được
- * đoán. Vì vậy schema này KHÔNG có `min(1)` trên mảng — mảng rỗng là câu trả lời
- * hợp lệ và trung thực.
- *
- * **2. Có những trường model KHÔNG ĐƯỢC đề xuất, dù `Profile` có chúng.** Cụ thể:
- *
- * - `careerGoals`, `energizingTasks`, `drainingTasks`, `targetSectors`,
- *   `dealBreakers` — đây là **sở thích và ý muốn**. Một CV không nói việc gì làm
- *   bạn kiệt sức. Suy ra từ chức danh cũ là bịa, và nó bịa vào đúng phần chiếm
- *   30% điểm phù hợp (chiều Định hướng nghề nghiệp), tức là làm lệch toàn bộ kết
- *   quả chấm điểm về sau.
- * - `citizenship`, `workPermit`, `workPermitNote` — **tình trạng pháp lý**. Đoán
- *   sai ở đây làm sai Eligibility Gate, mà Gate là bộ lọc CỨNG: một suy đoán sai
- *   loại thẳng ứng viên khỏi những việc họ đủ điều kiện làm. "Sinh ở Hà Nội" không
- *   chứng minh được quốc tịch hay giấy phép lao động.
- * - `commuteConstraint`, `willingToRelocate`, `remotePreference` — cũng là sở
- *   thích, và `willingToRelocate` là boolean nên mặc định sai sẽ im lặng hoàn toàn.
- * - `lackingSkills` — trường này suy ra từ việc ĐỐI CHIẾU hồ sơ với tin tuyển
- *   dụng (đó là việc của `upskill`), không phải đọc từ CV. Một CV không liệt kê
- *   những gì nó thiếu.
- *
- * Người dùng tự điền những trường đó ở màn Hồ sơ. Đó không phải thiếu sót của
- * Agent 1 mà là ranh giới của nó.
- */
+/** Hình dạng hồ sơ do model đề xuất từ bằng chứng. */
 
 const line = (max: number, hint: string) =>
   z.string().min(1).max(max).describe(hint);
 
-/// Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh khi người
-/// dùng áp dụng bản nháp. Model không được đặt id.
+/**
+ * Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh khi người
+ * dùng áp dụng bản nháp. Model không được đặt id.
+ */
 const experienceItem = z.object({
   company: line(160, 'Tên công ty, ghi đúng như trong CV.'),
   position: line(160, 'Chức danh.'),
@@ -136,13 +108,7 @@ export const profileProposalSchema = z.object({
   certificates: z.array(certificateItem).max(20),
   projects: z.array(projectItem).max(15),
 
-  /**
-   * Những gì model KHÔNG tìm thấy trong bằng chứng.
-   *
-   * Đây là trường có giá trị bậc nhất ở màn xác nhận, và nó ép model phải thừa
-   * nhận giới hạn thay vì lấp chỗ trống. Không có nó, một CV thiếu học vấn chỉ
-   * cho ra `educations: []` — trông y như một lỗi đọc.
-   */
+  /** Những gì model KHÔNG tìm thấy trong bằng chứng. */
   missing: z
     .array(line(200, 'Một thông tin hồ sơ cần mà bằng chứng không có.'))
     .max(15)
@@ -150,11 +116,7 @@ export const profileProposalSchema = z.object({
       'Liệt kê những phần KHÔNG suy ra được từ bằng chứng, để người dùng tự bổ sung. Viết bằng tiếng Việt.',
     ),
 
-  /**
-   * Ghi chú của model về độ tin cậy của chính nó.
-   *
-   * Ví dụ: "CV không ghi năm tốt nghiệp nên khoảng thời gian học vấn để trống".
-   */
+  /** Ghi chú của model về độ tin cậy của chính nó. */
   notes: z
     .array(line(300, 'Một điểm cần lưu ý về cách đọc bằng chứng.'))
     .max(10),

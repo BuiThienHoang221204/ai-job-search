@@ -28,7 +28,7 @@ export class InterviewController {
     return this.interview.get(user.id, jobId);
   }
 
-  /// Đường GHI, không đồng bộ.
+  /** Đường GHI, không đồng bộ. */
   @ThrottleAi()
   @Post('prep')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
@@ -40,7 +40,7 @@ export class InterviewController {
     return { queued: true, queueJobId: id };
   }
 
-  /// Chạy ngay, dùng để thử nghiệm và đo chất lượng model.
+  /** Chạy ngay, dùng để thử nghiệm và đo chất lượng model. */
   @ThrottleAi()
   @Post('prep-sync')
   prepNow(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {

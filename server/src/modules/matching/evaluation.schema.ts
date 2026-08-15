@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
-/// Mô tả được gửi kèm JSON schema lên API, nên đây là nơi hiệu quả nhất để nêu
-/// ràng buộc. Không có dòng .describe() này, model free chấm theo thang 0-5
-/// rồi trả về 4 - hợp lệ với kiểu dữ liệu nhưng sai hoàn toàn về ý nghĩa.
+/**
+ * Mô tả được gửi kèm JSON schema lên API, nên đây là nơi hiệu quả nhất để nêu
+ * ràng buộc. Không có dòng .describe() này, model free chấm theo thang 0-5
+ * rồi trả về 4 - hợp lệ với kiểu dữ liệu nhưng sai hoàn toàn về ý nghĩa.
+ */
 const score = z
   .number()
   .int()
@@ -20,18 +22,18 @@ const note = z
     'Giải thích ngắn bằng tiếng Việt có dấu, 1-2 câu, nêu bằng chứng cụ thể từ hồ sơ và tin tuyển dụng.',
   );
 
-/// Cấu trúc kết quả chấm điểm, dịch nguyên từ
-/// .claude/skills/job-application-assistant/04-job-evaluation.md.
-///
-/// Không để model tự do trả văn xuôi rồi parse tay: model free rất hay bọc
-/// JSON trong ```json hoặc thêm lời dẫn. generateObject ép đúng schema này và
-/// tự thử lại.
+/**
+ * Cấu trúc kết quả chấm điểm, dịch nguyên từ
+ * .claude/skills/job-application-assistant/04-job-evaluation.md.
+ */
 export const evaluationSchema = z.object({
-  /// Công đoạn chạy TRƯỚC khi chấm điểm. Nếu FAIL thì các chiều dưới bị bỏ qua.
+  /** Công đoạn chạy TRƯỚC khi chấm điểm. Nếu FAIL thì các chiều dưới bị bỏ qua. */
   eligibility: z.object({
     verdict: z.enum(['PASS', 'FAIL', 'UNVERIFIED']),
-    /// Trích nguyên văn câu chữ trong tin tuyển dụng dẫn tới kết luận. Để
-    /// trống nếu tin không nói gì về quốc tịch / quyền làm việc.
+    /**
+     * Trích nguyên văn câu chữ trong tin tuyển dụng dẫn tới kết luận. Để
+     * trống nếu tin không nói gì về quốc tịch / quyền làm việc.
+     */
     quote: z.string().max(600).default(''),
     note: note,
   }),
@@ -41,7 +43,7 @@ export const evaluationSchema = z.object({
   behavioral: z.object({ score, note }),
   career: z.object({ score, note }),
 
-  /// Location là PASS/FAIL, không tính vào điểm có trọng số.
+  /** Location là PASS/FAIL, không tính vào điểm có trọng số. */
   location: z.object({ pass: z.boolean(), note: note }),
 
   strengths: z
@@ -68,7 +70,7 @@ export const evaluationSchema = z.object({
 
 export type Evaluation = z.infer<typeof evaluationSchema>;
 
-/// Trọng số lấy từ mục "Weighting" của 04-job-evaluation.md.
+/** Trọng số lấy từ mục "Weighting" của 04-job-evaluation.md. */
 export const WEIGHTS = {
   technical: 0.3,
   experience: 0.25,
@@ -76,11 +78,7 @@ export const WEIGHTS = {
   career: 0.3,
 } as const;
 
-/// Điểm tổng được tính ở server chứ không hỏi model.
-///
-/// Model rất hay tự "làm tròn" điểm tổng cho khớp với cảm nhận của nó, khiến
-/// tổng không còn khớp với các điểm thành phần hiện trên giao diện. Trọng số
-/// là quy tắc kinh doanh, thuộc về code.
+/** Điểm tổng được tính ở server chứ không hỏi model. */
 export const computeOverall = (evaluation: Evaluation): number =>
   Math.round(
     evaluation.technical.score * WEIGHTS.technical +
@@ -91,7 +89,7 @@ export const computeOverall = (evaluation: Evaluation): number =>
 
 export type FitVerdictValue = 'STRONG' | 'GOOD' | 'MODERATE' | 'WEAK' | 'POOR';
 
-/// Ngưỡng lấy từ mục "Thresholds" của 04-job-evaluation.md.
+/** Ngưỡng lấy từ mục "Thresholds" của 04-job-evaluation.md. */
 export const verdictFor = (overall: number): FitVerdictValue => {
   if (overall >= 75) return 'STRONG';
   if (overall >= 60) return 'GOOD';

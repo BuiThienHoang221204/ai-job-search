@@ -17,27 +17,37 @@ import {
   type SandboxRunner,
 } from '../sandbox/sandbox.interface.js';
 
-/// Ảnh phải được tải trước. `--pull never` của sandbox biến ảnh thiếu thành một lỗi
-/// nói rõ, thay vì một lượt tải 3,54GB giữa request của người dùng.
+/**
+ * Ảnh phải được tải trước. `--pull never` của sandbox biến ảnh thiếu thành một lỗi
+ * nói rõ, thay vì một lượt tải 3,54GB giữa request của người dùng.
+ */
 export const BROWSER_IMAGE = 'aijob-browser:1.62.1';
 
-/// Cả lượt chạy: khởi Chromium + tải trang + điền + chụp ảnh. Đo được trên một lượt
-/// thật là ~13 giây, nên 90 giây là rộng rãi mà vẫn không để một trang treo giữ chỗ
-/// worker quá lâu.
+/**
+ * Cả lượt chạy: khởi Chromium + tải trang + điền + chụp ảnh. Đo được trên một lượt
+ * thật là ~13 giây, nên 90 giây là rộng rãi mà vẫn không để một trang treo giữ chỗ
+ * worker quá lâu.
+ */
 const RUN_TIMEOUT_MS = 90_000;
 
-/// Riêng cho việc điều hướng, phải NHỎ HƠN hạn của cả lượt: hết hạn điều hướng thì
-/// script vẫn ghi được báo cáo và ta biết vì sao, còn hết hạn cả lượt thì container
-/// bị giết và không còn gì để đọc.
+/**
+ * Riêng cho việc điều hướng, phải NHỎ HƠN hạn của cả lượt: hết hạn điều hướng thì
+ * script vẫn ghi được báo cáo và ta biết vì sao, còn hết hạn cả lượt thì container
+ * bị giết và không còn gì để đọc.
+ */
 const NAVIGATION_TIMEOUT_MS = 45_000;
 
-/// Chromium ăn nhiều RAM hơn LaTeX. 512MB mặc định của sandbox không đủ - tab đầu
-/// tiên đã chiếm gần hết và trang nặng sẽ bị OOM-kill, cho ra một lỗi vô nghĩa.
+/**
+ * Chromium ăn nhiều RAM hơn LaTeX. 512MB mặc định của sandbox không đủ - tab đầu
+ * tiên đã chiếm gần hết và trang nặng sẽ bị OOM-kill, cho ra một lỗi vô nghĩa.
+ */
 const MEMORY_MB = 2048;
 const CPUS = 2;
 
-/// Nhãn nút chấp nhận cookie, tiếng Việt và tiếng Anh. Banner cookie che cả nút ứng
-/// tuyển lẫn form - đã gặp đúng chuyện đó trên topcv.vn khi đo bằng tay.
+/**
+ * Nhãn nút chấp nhận cookie, tiếng Việt và tiếng Anh. Banner cookie che cả nút ứng
+ * tuyển lẫn form - đã gặp đúng chuyện đó trên topcv.vn khi đo bằng tay.
+ */
 const COOKIE_BUTTONS = [
   'chấp nhận tất cả',
   'đồng ý',
@@ -47,34 +57,16 @@ const COOKIE_BUTTONS = [
 ];
 
 export interface ApplyRequest {
-  /// Link tin tuyển dụng. Dữ liệu KHÔNG tin cậy: nó đến từ trang của người khác.
+  /** Link tin tuyển dụng. Dữ liệu KHÔNG tin cậy: nó đến từ trang của người khác. */
   url: string;
   identity: ApplyIdentity;
-  /// PDF của CV đã sinh. Vắng thì vẫn chạy, chỉ không đính kèm được.
+  /** PDF của CV đã sinh. Vắng thì vẫn chạy, chỉ không đính kèm được. */
   cv?: Buffer;
-  /// PDF thư xin việc. Có thì đính vào ô "Cover Letter" nếu form có ô đó.
+  /** PDF thư xin việc. Có thì đính vào ô "Cover Letter" nếu form có ô đó. */
   coverLetter?: Buffer;
 }
 
-/**
- * Assisted Apply — mở link, điền form, chụp ảnh, **DỪNG**.
- *
- * KHÔNG BAO GIỜ bấm nút nộp, và đó là quyết định thiết kế chứ không phải việc còn
- * thiếu. Ba lý do, ghi ở đây vì đây là chỗ người ta sẽ tìm khi muốn "làm cho xong":
- *
- * 1. Hồ sơ gửi sai KHÔNG THU HỒI ĐƯỢC, và người chịu trách nhiệm là ứng viên chứ
- *    không phải hệ thống.
- * 2. Không có cách nào để máy biết nó đã điền đúng. Nó dò nhãn bằng regex; một nhãn
- *    lạ khớp sai là một hồ sơ mang thông tin sai đi nộp.
- * 3. Nộp tự động vào hệ thống của nhà tuyển dụng thật là hành vi bot trên tài sản
- *    của người khác.
- *
- * Đây là adapter THỨ HAI của SEAM 2. Nó cần đúng năng lực mà `latex-compile` cần —
- * đưa file vào, chạy một lệnh có hạn thời gian, lấy artifact ra, dọn sạch — nhưng
- * khác một điểm: **nó cần mạng**. Vì vậy nó là chỗ duy nhất trong hệ thống khai
- * `network: 'egress'`, và cũng vì vậy nó chỉ được nhận những trường trong
- * `ApplyIdentity` (danh sách trắng hẹp), không nhận nội dung do model sinh.
- */
+/** Assisted Apply — mở link, điền form, chụp ảnh, **DỪNG**. */
 @Injectable()
 export class BrowserApplyService {
   private readonly logger = new Logger(BrowserApplyService.name);
@@ -109,7 +101,6 @@ export class BrowserApplyService {
         command: ['node', 'apply.mjs'],
         timeoutMs: RUN_TIMEOUT_MS,
         artifacts: ['report.json', 'screenshot.png'],
-        // Chỗ DUY NHẤT trong hệ thống mở mạng cho sandbox. Xem docblock của class.
         network: 'egress',
         limits: { memoryMb: MEMORY_MB, cpus: CPUS },
       });
@@ -119,8 +110,6 @@ export class BrowserApplyService {
 
     const report = this.parseReport(result.artifacts['report.json']);
     if (!report) {
-      // Không có báo cáo nghĩa là script chết trước khi ghi được gì. stdout/stderr là
-      // thứ duy nhất còn lại để chẩn đoán, nên ghi log chứ đừng bỏ.
       this.logger.error(
         `Không đọc được report.json (exit ${result.exitCode}). stderr: ${result.stderr.slice(0, 500)}`,
       );
@@ -150,8 +139,10 @@ export class BrowserApplyService {
     };
   }
 
-  /// Ảnh trình duyệt có sẵn hay không. Dùng để giao diện nói trước thay vì để người
-  /// dùng bấm rồi mới hỏng.
+  /**
+   * Ảnh trình duyệt có sẵn hay không. Dùng để giao diện nói trước thay vì để người
+   * dùng bấm rồi mới hỏng.
+   */
   available(): Promise<boolean> {
     return this.sandbox.available();
   }
@@ -159,8 +150,6 @@ export class BrowserApplyService {
   private parseReport(raw: Buffer | undefined): PageReport | null {
     if (!raw || raw.length === 0) return null;
     try {
-      // Không kiểm từng trường: script là code của ta, không phải đầu vào ngoài. Chỉ
-      // cần chắc nó là JSON và có đúng hình dạng tối thiểu.
       const parsed = JSON.parse(raw.toString('utf8')) as Partial<PageReport>;
       if (typeof parsed.reachable !== 'boolean') return null;
       return {
@@ -175,13 +164,7 @@ export class BrowserApplyService {
     }
   }
 
-  /**
-   * Lỗi của sandbox → câu cho người dùng.
-   *
-   * Không để lộ tên lớp lỗi hay chữ "docker": người dùng không làm gì được với
-   * chúng, và chúng nói sai về nguyên nhân (thiếu ảnh là việc của người vận hành,
-   * không phải lỗi của người dùng).
-   */
+  /** Lỗi của sandbox → câu cho người dùng. */
   private fromSandboxError(error: unknown): ApplyResult {
     const kind = error instanceof SandboxError ? error.kind : 'OTHER';
     if (error instanceof SandboxError) {

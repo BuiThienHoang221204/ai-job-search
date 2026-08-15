@@ -14,25 +14,13 @@ import { upskillSchema, type UpskillResult } from './upskill.schema.js';
 
 const SKILL_NAME = 'upskill';
 
-/// Số công việc tối thiểu để báo cáo tổng hợp có ý nghĩa. Dưới ngưỡng này,
-/// cái gọi là "xu hướng thị trường" chỉ là đặc điểm của vài tin tuyển dụng lẻ.
+/**
+ * Số công việc tối thiểu để báo cáo tổng hợp có ý nghĩa. Dưới ngưỡng này,
+ * cái gọi là "xu hướng thị trường" chỉ là đặc điểm của vài tin tuyển dụng lẻ.
+ */
 const MIN_JOBS_FOR_AGGREGATE = 3;
 
-/// Lời gọi model nặng nhất trong hệ thống, nên nó có timeout riêng.
-///
-/// ĐO ĐƯỢC, không phỏng đoán: với mức 90 giây mặc định của `AiService`, chế độ
-/// AGGREGATE thất bại đúng ở mốc 90 giây với "The operation was aborted due to
-/// timeout" và `jobsAnalysed = 0` — nghĩa là màn Lộ trình học KHÔNG BAO GIỜ tạo
-/// nổi một báo cáo tổng hợp trên gateway free. Nó nhồi tới 30 công việc (mỗi
-/// công việc kèm 600 ký tự mô tả) rồi yêu cầu sinh ra hardGaps, synthesisedGaps,
-/// learningPlan và summary trong một object; so với `match.evaluate` (p50 33s,
-/// p95 82s cho MỘT công việc) thì mức 90 giây không bao giờ đủ.
-///
-/// Vì sao 4 phút là an toàn — ba mốc bao quanh nó, cả ba đều rộng hơn:
-///   - reconcile coi việc là bị bỏ rơi sau `STUCK_AFTER_MS` = 10 phút,
-///   - `server.setTimeout` trong `main.ts` là 5 phút, nên `generate-sync` vẫn kịp,
-///   - cửa sổ giành quyền 5 phút của matching là đường khác và vẫn giữ 90 giây.
-/// Nâng con số này lên quá 5 phút sẽ phá cả ba, đừng làm mà không sửa chúng.
+/** Lời gọi model nặng nhất trong hệ thống, nên nó có timeout riêng. */
 const AGGREGATE_TIMEOUT_MS = 240_000;
 
 @Injectable()
@@ -46,11 +34,10 @@ export class UpskillService {
     private readonly prompts: PromptBuilderService,
   ) {}
 
-  /// Skill gốc đọc job_search_tracker.csv và dùng cột `fit_rating`. Ở đây bảng
-  /// job_matches đóng đúng vai trò đó, còn `overallScore` chính là fit_rating.
-  ///
-  /// Trọng số lấy nguyên từ Step 3 của SKILL.md: (100 - fit) / 100. Công việc
-  /// càng ít phù hợp càng lộ ra nhiều khoảng trống, nên đóng góp nhiều hơn.
+  /**
+   * Skill gốc đọc job_search_tracker.csv và dùng cột `fit_rating`. Ở đây bảng
+   * job_matches đóng đúng vai trò đó, còn `overallScore` chính là fit_rating.
+   */
   private async collectJobs(userId: string, jobId?: string) {
     if (jobId) {
       const match = await this.prisma.jobMatch.findUnique({
@@ -108,8 +95,6 @@ export class UpskillService {
         context: { purpose: 'upskill.report', userId: report.userId },
         system,
         prompt,
-        // Chế độ TARGETED chỉ có một công việc nên vừa mức mặc định; chỉ
-        // AGGREGATE mới cần nới.
         timeoutMs:
           report.mode === 'AGGREGATE' ? AGGREGATE_TIMEOUT_MS : undefined,
       });
@@ -155,9 +140,6 @@ export class UpskillService {
   ) {
     const skill = this.skills.get(SKILL_NAME);
 
-    // SKILL.md của upskill là kịch bản từng bước cho agent (đọc CSV,
-    // WebSearch, ghi file báo cáo). Chỉ lấy phần định nghĩa hai pass phân
-    // tích; các bước thao tác file không áp dụng cho server.
     const framework = this.prompts.render(
       this.prompts.keepSections(skill.body, [
         'step 3',

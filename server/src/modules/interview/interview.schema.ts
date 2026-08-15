@@ -3,10 +3,12 @@ import { z } from 'zod';
 const vn = (max: number, hint: string) =>
   z.string().min(1).max(max).describe(`${hint} Viết bằng tiếng Việt có dấu.`);
 
-/// Cấu trúc bộ câu hỏi phỏng vấn, dịch từ
-/// .claude/skills/job-application-assistant/07-interview-prep.md.
+/**
+ * Cấu trúc bộ câu hỏi phỏng vấn, dịch từ
+ * .claude/skills/job-application-assistant/07-interview-prep.md.
+ */
 export const interviewPrepSchema = z.object({
-  /// File skill quy định dùng khung STAR: Situation - Task - Action - Result.
+  /** File skill quy định dùng khung STAR: Situation - Task - Action - Result. */
   starAnswers: z
     .array(
       z.object({

@@ -26,7 +26,7 @@ export class JobsController {
     return this.jobs.list(query, user.id);
   }
 
-  /// Phải khai TRƯỚC ':id', nếu không Nest sẽ coi "saved" là một id.
+  /** Phải khai TRƯỚC ':id', nếu không Nest sẽ coi "saved" là một id. */
   @Get('saved')
   listSaved(@CurrentUser() user: AuthUser) {
     return this.jobs.listSaved(user.id);
@@ -49,8 +49,10 @@ export class JobsController {
     return this.jobs.unsave(user.id, id);
   }
 
-  /// Nạp tin tuyển dụng rồi đưa ngay vào hàng đợi chấm điểm cho người dùng
-  /// hiện tại.
+  /**
+   * Nạp tin tuyển dụng rồi đưa ngay vào hàng đợi chấm điểm cho người dùng
+   * hiện tại.
+   */
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {
     const job = await this.jobs.upsert(dto);

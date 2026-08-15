@@ -13,8 +13,10 @@ export class MatchingController {
     private readonly queue: QueueService,
   ) {}
 
-  /// Đường ĐỌC. Chỉ truy vấn DB, không gọi AI - màn hình dashboard và danh
-  /// sách việc làm đều vào đây.
+  /**
+   * Đường ĐỌC. Chỉ truy vấn DB, không gọi AI - màn hình dashboard và danh
+   * sách việc làm đều vào đây.
+   */
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListMatchesQueryDto) {
     return this.matching.listMatches(
@@ -29,8 +31,10 @@ export class MatchingController {
     return this.matching.getMatch(user.id, jobId);
   }
 
-  /// Đường GHI, không đồng bộ. Trả về ngay, worker chấm điểm ở nền; giao diện
-  /// hiện trạng thái PENDING rồi cập nhật sau.
+  /**
+   * Đường GHI, không đồng bộ. Trả về ngay, worker chấm điểm ở nền; giao diện
+   * hiện trạng thái PENDING rồi cập nhật sau.
+   */
   @ThrottleAi()
   @Post('evaluate')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
@@ -42,8 +46,10 @@ export class MatchingController {
     return { queued: true, queueJobId: id };
   }
 
-  /// Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model.
-  /// Không dùng cho giao diện: một lần gọi mất vài giây.
+  /**
+   * Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model.
+   * Không dùng cho giao diện: một lần gọi mất vài giây.
+   */
   @ThrottleAi()
   @Post('evaluate-sync')
   evaluateNow(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {

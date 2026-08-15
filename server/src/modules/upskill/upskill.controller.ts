@@ -7,8 +7,10 @@ import { UpskillService } from './upskill.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
 export class GenerateUpskillDto {
-  /// Có jobId thì phân tích một công việc (chế độ TARGETED trong skill gốc);
-  /// không có thì tổng hợp toàn bộ (chế độ AGGREGATE).
+  /**
+   * Có jobId thì phân tích một công việc (chế độ TARGETED trong skill gốc);
+   * không có thì tổng hợp toàn bộ (chế độ AGGREGATE).
+   */
   @IsOptional() @IsString() jobId?: string;
 }
 
@@ -19,7 +21,7 @@ export class UpskillController {
     private readonly queue: QueueService,
   ) {}
 
-  /// Báo cáo mới nhất đã hoàn thành - màn hình Upskill đọc cái này.
+  /** Báo cáo mới nhất đã hoàn thành - màn hình Upskill đọc cái này. */
   @Get()
   latest(@CurrentUser() user: AuthUser) {
     return this.upskill.latest(user.id);
@@ -35,8 +37,10 @@ export class UpskillController {
     return this.upskill.get(user.id, id);
   }
 
-  /// Tạo bản ghi PENDING rồi đẩy vào hàng đợi. Trả về reportId để giao diện
-  /// theo dõi trạng thái.
+  /**
+   * Tạo bản ghi PENDING rồi đẩy vào hàng đợi. Trả về reportId để giao diện
+   * theo dõi trạng thái.
+   */
   @ThrottleAi()
   @Post('generate')
   async enqueue(
@@ -51,7 +55,7 @@ export class UpskillController {
     return { queued: true, reportId: report.id, mode: report.mode };
   }
 
-  /// Chạy ngay, dùng để thử nghiệm.
+  /** Chạy ngay, dùng để thử nghiệm. */
   @ThrottleAi()
   @Post('generate-sync')
   async generateNow(

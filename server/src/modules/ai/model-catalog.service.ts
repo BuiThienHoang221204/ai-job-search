@@ -27,11 +27,7 @@ export type ResolvedModel = {
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const SUPPORTED_NPM = '@ai-sdk/openai-compatible';
 
-/// Port từ ai-skill-chat/src/models.ts.
-///
-/// Giữ nguyên ý tưởng gốc: catalog của OpenCode được cache ở thượng nguồn nên
-/// có thể còn sót lại model đã gỡ bỏ. Với endpoint OpenAI-compatible, ưu tiên
-/// danh sách /models trực tiếp từ provider.
+/** Port từ ai-skill-chat/src/models.ts. */
 @Injectable()
 export class ModelCatalogService {
   private readonly logger = new Logger(ModelCatalogService.name);
@@ -106,8 +102,10 @@ export class ModelCatalogService {
     return ids;
   }
 
-  /// Chọn model để chạy. `requireToolCall` dành cho các skill cần gọi tool;
-  /// chấm điểm fit chỉ cần structured output nên không bắt buộc.
+  /**
+   * Chọn model để chạy. `requireToolCall` dành cho các skill cần gọi tool;
+   * chấm điểm fit chỉ cần structured output nên không bắt buộc.
+   */
   async resolve(
     requestedModelId?: string,
     requireToolCall = false,
