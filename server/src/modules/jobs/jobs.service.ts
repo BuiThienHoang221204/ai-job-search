@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { FitVerdict, MatchStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { CreateJobDto, ListJobsQueryDto } from './dto/job.dto.js';
 
@@ -46,6 +47,34 @@ export class JobsService {
     return { ...rest, saved: saves.length > 0 };
   }
 
+  /**
+   * Gắn trạng thái chấm điểm của CHÍNH người dùng đang hỏi vào mỗi tin.
+   *
+   * Thiếu trường này thì giao diện không có cách nào biết một tin đã có điểm,
+   * nên nó luôn mời bấm "Chấm điểm" kể cả khi điểm đã nằm sẵn trong database.
+   */
+  private withMatchState<
+    T extends {
+      matches: {
+        status: MatchStatus;
+        overallScore: number | null;
+        verdict: FitVerdict | null;
+      }[];
+    },
+  >(job: T) {
+    const { matches, ...rest } = job;
+    return { ...rest, match: matches[0] ?? null };
+  }
+
+  /** `matches` được lọc theo userId nên nhiều nhất một phần tử. */
+  private readonly relations = (userId: string) => ({
+    saves: { where: { userId }, select: { id: true } },
+    matches: {
+      where: { userId },
+      select: { status: true, overallScore: true, verdict: true },
+    },
+  });
+
   async list(query: ListJobsQueryDto, userId: string) {
     const where = query.q
       ? {
@@ -62,21 +91,24 @@ export class JobsService {
         orderBy: { scrapedAt: 'desc' },
         take: query.limit ?? 20,
         skip: query.offset ?? 0,
-        include: { saves: { where: { userId }, select: { id: true } } },
+        include: this.relations(userId),
       }),
       this.prisma.job.count({ where }),
     ]);
 
-    return { items: items.map((job) => this.withSavedFlag(job)), total };
+    return {
+      items: items.map((job) => this.withMatchState(this.withSavedFlag(job))),
+      total,
+    };
   }
 
   async get(id: string, userId: string) {
     const job = await this.prisma.job.findUnique({
       where: { id },
-      include: { saves: { where: { userId }, select: { id: true } } },
+      include: this.relations(userId),
     });
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
-    return this.withSavedFlag(job);
+    return this.withMatchState(this.withSavedFlag(job));
   }
 
   /**

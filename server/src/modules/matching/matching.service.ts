@@ -254,4 +254,41 @@ export class MatchingService {
     if (!match) throw new NotFoundException('Chưa chấm điểm công việc này');
     return this.withSavedFlag(match);
   }
+
+  /**
+   * Điểm đã có sẵn hay chưa, dùng để không xếp hàng một việc không có gì làm.
+   *
+   * Chỉ `DONE` mới tính. `FAILED` là trạng thái cuối người dùng bấm lại được,
+   * còn `PENDING`/`RUNNING` thì khoá chặn trùng của hàng đợi lo.
+   */
+  async findDoneScore(userId: string, jobId: string) {
+    return this.prisma.jobMatch.findFirst({
+      where: { userId, jobId, status: 'DONE' },
+      select: { overallScore: true, verdict: true },
+    });
+  }
+
+  /**
+   * Ghi `PENDING` ngay lúc xếp hàng, trước khi worker chạm tới.
+   *
+   * Nhờ vậy giao diện chỉ cần đọc trạng thái từ database là đủ, không phải giữ
+   * "tôi vừa bấm" trong bộ nhớ trình duyệt - thứ mất sạch khi người dùng rời
+   * trang, và chính là nguyên nhân nút chấm điểm quay về mặc định.
+   */
+  async markPending(userId: string, jobId: string): Promise<void> {
+    const revived = await this.prisma.jobMatch.updateMany({
+      where: { userId, jobId, status: 'FAILED' },
+      data: { status: 'PENDING', error: null },
+    });
+    if (revived.count > 0) return;
+
+    try {
+      await this.prisma.jobMatch.create({
+        data: { userId, jobId, status: 'PENDING' },
+      });
+    } catch (error) {
+      // Đã có bản ghi nghĩa là đang PENDING/RUNNING/DONE - không có gì để đổi.
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
 }

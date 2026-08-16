@@ -38,12 +38,21 @@ export class MatchingController {
   @ThrottleAi()
   @Post('evaluate')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
+    const force = dto.force ?? false;
+
+    if (!force) {
+      const done = await this.matching.findDoneScore(user.id, dto.jobId);
+      if (done) return { queued: false, alreadyScored: true, ...done };
+    }
+
+    await this.matching.markPending(user.id, dto.jobId);
+
     const id = await this.queue.send(QUEUE.EVALUATE_MATCH, {
       userId: user.id,
       jobId: dto.jobId,
-      force: dto.force ?? false,
+      force,
     });
-    return { queued: true, queueJobId: id };
+    return { queued: true, alreadyScored: false, queueJobId: id };
   }
 
   /**

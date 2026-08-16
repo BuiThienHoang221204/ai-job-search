@@ -11,12 +11,16 @@ export default tseslint.config(
     // tsconfig.json vì trình phân giải type cần đọc nó.
     // prisma.config.ts nằm ngoài "include" (chỉ CLI của Prisma đọc file này),
     // nên phải bỏ qua, không thì IDE báo "file không thuộc project nào".
+    // test/*.mjs là hai script chạy jest, nằm ngoài "include" của tsconfig nên
+    // project service không nhận. Lệnh `pnpm lint` chỉ quét *.ts nên không thấy,
+    // còn IDE thì lint mọi file đang mở và báo "Parsing error".
     ignores: [
       'eslint.config.mjs',
       'prisma.config.ts',
       'src/generated/**',
       'dist/**',
       'scripts/**',
+      'test/*.mjs',
     ],
   },
   eslint.configs.recommended,
