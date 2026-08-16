@@ -6,7 +6,17 @@ name: ai-job-search
 
 services:
   postgres:
-    image: postgres:17-alpine
+    # pgvector chứ không phải postgres chính thức: Pha 4 cần extension `vector`,
+    # mà ảnh `postgres:17-alpine` KHÔNG kèm nó (`create extension vector` báo
+    # "extension is not available").
+    #
+    # Volume đổi tên sang postgres_data_pgvector, cố ý KHÔNG dùng lại volume cũ:
+    # ảnh cũ chạy musl, ảnh này chạy glibc, và hai thư viện đó sắp xếp chuỗi khác
+    # nhau nên index trên cột text dựng dưới musl có thể sai thứ tự dưới glibc —
+    # truy vấn vẫn chạy, chỉ trả thiếu kết quả, không báo lỗi gì. Đã đi đường
+    # dump → restore. Volume cũ `ai-job-search_postgres_data` giữ nguyên để quay
+    # lại được: đổi hai dòng này về như cũ là xong.
+    image: pgvector/pgvector:pg17
     container_name: aijob-postgres
     restart: unless-stopped
     environment:
@@ -16,7 +26,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_pgvector:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aijob -d aijob"]
       interval: 5s
@@ -60,4 +70,6 @@ services:
       retries: 3
 
 volumes:
+  # Volume CU (postgres_data) co y giu lai de quay ve duoc.
   postgres_data:
+  postgres_data_pgvector:

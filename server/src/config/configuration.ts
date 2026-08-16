@@ -18,10 +18,14 @@ const configuration = () => ({
   },
 
   ai: {
+    /** Lõi mặc định. Các lõi hệ thống biết nằm ở `modules/ai/providers/`. */
     provider: process.env.MODEL_PROVIDER ?? 'opencode',
     modelId: process.env.MODEL_ID ?? 'deepseek-v4-flash-free',
 
-    /** Các model thử tiếp khi model chính HẾT HẠN MỨC. */
+    /**
+     * Các mắt xích thử tiếp khi mắt xích đang dùng không chạy được. Viết
+     * `lõi/model` để nhảy sang lõi khác, hoặc chỉ `model` cho lõi mặc định.
+     */
     fallbackModelIds: (
       process.env.MODEL_FALLBACK_IDS ??
       'deepseek-v4-flash-free,mimo-v2.5-free,nemotron-3.5-lightning-free,hy3-free'
@@ -30,7 +34,29 @@ const configuration = () => ({
       .map((id) => id.trim())
       .filter(Boolean),
 
-    apiKey: process.env.AI_API_KEY ?? 'public',
+    /**
+     * Key theo từng lõi. Tên biến môi trường tương ứng được khai trong
+     * `providers/<lõi>.ts` để câu báo lỗi chỉ đúng chỗ cần sửa.
+     */
+    apiKeys: {
+      opencode: process.env.AI_API_KEY ?? 'public',
+      openrouter: process.env.OPENROUTER_API_KEY ?? '',
+      /**
+       * Kilo nhận request mà KHÔNG cần key — đã đo, cả không header lẫn
+       * `Bearer public` đều trả 200. Để mặc định `'public'` thay vì chuỗi rỗng
+       * vì đó là giá trị đã thử thật; chuỗi rỗng thì chưa biết SDK gửi header
+       * kiểu gì.
+       */
+      kilo: process.env.KILO_API_KEY ?? 'public',
+    } as Record<string, string>,
+
+    /**
+     * Cho phép chuỗi chạm model TRẢ TIỀN. Mặc định TẮT, và mặc định đó là chủ
+     * đích: OpenRouter phục vụ 413 model gồm cả loại đắt tiền, còn hàng đợi
+     * chấm điểm thì chạy theo cron với số lượt bằng số tin nhân số người dùng.
+     */
+    allowPaidModels: process.env.AI_ALLOW_PAID_MODELS === 'true',
+
     catalogUrl:
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
 

@@ -6,7 +6,12 @@ const vn = (max: number, hint: string) =>
 /** Bốn nhãn phân loại lấy từ Step 4 của .claude/skills/upskill/SKILL.md. */
 export const gapCategory = z.enum(['domain', 'soft', 'tooling', 'credential']);
 
-export const upskillSchema = z.object({
+/**
+ * Lời gọi 1: đọc mô tả công việc, tìm ra khoảng trống. Tách khỏi lộ trình học vì
+ * gộp cả hai vào một lời gọi đã đo là không chạy nổi — xem docblock của
+ * `UpskillService.generate`.
+ */
+export const upskillGapsSchema = z.object({
   /** Pass 1 trong skill gốc: đối chiếu kỹ năng cứng. */
   hardGaps: z
     .array(
@@ -52,7 +57,14 @@ export const upskillSchema = z.object({
     .describe(
       'Khoảng trống về kiến thức ngành, cách làm việc, công cụ/quy trình, hoặc chứng chỉ. Không lặp lại hardGaps.',
     ),
+});
 
+/**
+ * Lời gọi 2: từ khoảng trống của lời gọi 1 suy ra lộ trình học. Đầu vào KHÔNG có
+ * mô tả công việc — khoảng trống đã mang đủ thông tin, và đó chính là chỗ tiết
+ * kiệm được token.
+ */
+export const upskillPlanSchema = z.object({
   learningPlan: z
     .array(
       z.object({
@@ -83,4 +95,5 @@ export const upskillSchema = z.object({
   ),
 });
 
-export type UpskillResult = z.infer<typeof upskillSchema>;
+export type UpskillGaps = z.infer<typeof upskillGapsSchema>;
+export type UpskillPlan = z.infer<typeof upskillPlanSchema>;

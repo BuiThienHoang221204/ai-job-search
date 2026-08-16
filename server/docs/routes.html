@@ -685,11 +685,17 @@
         <ol class="steps">
           <li>Có <code>jobId</code> → chế độ TARGETED, lấy đúng một kết quả chấm. Không có → AGGREGATE, lấy tối đa 30 kết quả DONE <b>sắp điểm tăng dần</b> (việc kém phù hợp lên trước).</li>
           <li>Chặn: chưa có job nào → 400. AGGREGATE mà dưới <b>3 job</b> → 400. "Xu hướng thị trường" rút từ 2 tin tuyển dụng chỉ là đặc điểm của 2 tin đó.</li>
-          <li>Nạp <code>upskill/SKILL.md</code> nhưng chỉ giữ Step 3–6, tức phần định nghĩa hai pass phân tích. Các bước thao tác file và WebSearch trong skill gốc không áp dụng cho server.</li>
-          <li>Mỗi job vào prompt kèm <b>trọng số <code>(100 − điểm) / 100</code></b>, lấy nguyên công thức Step 3.</li>
-          <li><code>generateObject()</code> trả hardGaps, synthesisedGaps (4 nhãn: domain / soft / tooling / credential), learningPlan có thứ tự học, và tóm tắt.</li>
-          <li>Ghi kèm <code>jobsAnalysed</code> — người dùng cần thấy báo cáo dựa trên bao nhiêu việc.</li>
+          <li>Nạp <code>upskill/SKILL.md</code> và <b>chia đôi</b>: Step 3–5 (hai pass phân tích) cho lời gọi 1, Step 6–7 (lộ trình và thứ tự học) cho lời gọi 2. Các bước thao tác file và WebSearch trong skill gốc không áp dụng cho server.</li>
+          <li><b>Lời gọi 1 — <code>upskill.gaps</code>, timeout 180s.</b> Mỗi job vào prompt kèm <b>trọng số <code>(100 − điểm) / 100</code></b>, lấy nguyên công thức Step 3. Trả về hardGaps và synthesisedGaps (4 nhãn: domain / soft / tooling / credential).</li>
+          <li><b>Lời gọi 2 — <code>upskill.plan</code>, timeout 120s.</b> Đầu vào là hồ sơ + danh sách khoảng trống của lời gọi 1, <b>không có mô tả công việc</b>. Trả về learningPlan có thứ tự học và tóm tắt.</li>
+          <li>Ghép hai kết quả rồi ghi một lần, kèm <code>jobsAnalysed</code> — người dùng cần thấy báo cáo dựa trên bao nhiêu việc. Lời gọi 1 hỏng thì dừng luôn, không trả tiền cho lời gọi 2.</li>
         </ol>
+        <div class="callout">
+          <b>Vì sao hai lời gọi.</b> Bản một-lời-gọi <b>chưa từng tạo nổi một báo cáo AGGREGATE</b>: nhồi 30 công việc vào một prompt rồi đòi sinh cả bốn trường thì
+          <code>deepseek-v4-flash-free</code> hết giờ ở mốc 240s, còn <code>mimo-v2.5-free</code> viết xong sau 28,3s nhưng thiếu một dấu <code>{</code> nên cả JSON hỏng.
+          Tách theo <b>quan hệ dữ liệu</b>: lộ trình học vốn suy từ khoảng trống, nên lời gọi 2 không cần mô tả công việc — và đó chính là chỗ prompt nhỏ đi.
+          Chế độ TARGETED cũng đi đúng đường này, để <code>generate()</code> chỉ có một đường code.
+        </div>
         <div class="callout">
           Skill gốc đọc <code>job_search_tracker.csv</code> và dùng cột <code>fit_rating</code>.
           Ở đây bảng <code>job_matches</code> đóng đúng vai trò đó, và <code>overallScore</code> <b>chính là</b> <code>fit_rating</code>.

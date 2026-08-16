@@ -56,6 +56,8 @@ pnpm lint && pnpm test && pnpm test:e2e
 
 Bộ test đơn vị chạy qua **`test/run-unit.mjs`**, không phải `jest` trực tiếp: `pdf-parse` nạp worker pdfjs bằng `import()` động nên jest cần `--experimental-vm-modules`. Docblock của file đó ghi những cách đã thử mà không tránh được — đừng thử lại.
 
+**`ai.service.spec.ts` đòi Node ≥ 24.9 và sẽ không nạp được trên bản thấp hơn.** Nó gọi `jest.requireActual('ai')` trên một package ESM thuần, mà `require(ESM)` đồng bộ của jest 30 cần API vm mới. Trên Node 22 nó báo *"Jest's require(ESM) requires Node v24.9+"* và cả suite đỏ dù code không sai. Chạy cả bộ 460 test thì dùng Node ≥ 24.9; các suite còn lại chạy được từ Node 22.12.
+
 ## Xuất PDF (Pha 3) — ba điều đã trả giá để biết
 
 **Hai đường, chọn bằng `LATEX_SERVICE_URL`.** Có giá trị → `HttpLatexCompiler` gọi dịch vụ riêng (production). Bỏ trống → `SandboxLatexCompiler` gọi `docker run` qua SEAM 2 (máy phát triển, app chạy trực tiếp trên host). App ghi ra log lúc khởi động nó đang dùng đường nào.
@@ -157,11 +159,37 @@ Gateway free đã đo trên 215 lượt `match.evaluate`: **95,3% thành công, 
 
 **`match.evaluate` là tác vụ NHẸ NHẤT, đừng lấy p50 của nó làm mức chung.** Đo tiếp ngày 2026-08-12, chỉ tính lượt thành công: `document.coverLetter` 54–61s, `document.cv` 39–84s, `interview.prep` ~50s, còn `upskill.report` chế độ AGGREGATE thì **luôn vượt mốc 90 giây** nên chưa từng tạo nổi một bản. Lý do: chấm điểm trả về vài con số, các tác vụ kia sinh ra cả một tài liệu — độ trễ đi theo **token đầu ra**.
 
-Nên `document.*` đã đổi sang timeout 180s và `upskill.report` AGGREGATE sang 240s. Thứ tự ba mốc này phải giữ, đừng nới một cái mà không xem hai cái còn lại: **timeout gọi model < `server.setTimeout` 5 phút (`main.ts`) < `STUCK_AFTER_MS` 10 phút (reconcile)**.
+Nên `document.*` đã đổi sang timeout 180s. Thứ tự ba mốc này phải giữ, đừng nới một cái mà không xem hai cái còn lại: **timeout MỘT lời gọi model < `server.setTimeout` 5 phút (`main.ts`) < `STUCK_AFTER_MS` 10 phút (reconcile)**.
+
+**Báo cáo upskill là tác vụ duy nhất dùng HAI lời gọi model, và nới timeout đã được thử rồi bỏ.** Bản một-lời-gọi ở mức 240s vẫn hỏng: `deepseek-v4-flash-free` hết giờ đúng mốc 240s, còn `mimo-v2.5-free` viết xong sau 28,3s với `finishReason=stop` nhưng thiếu một dấu `{` nên cả JSON không parse được. Chẩn đoán: **một lời gọi đang đòi quá nhiều**, không phải timeout ngắn cũng không phải chọn nhầm model.
+
+Nay `UpskillService.generate` chạy `upskill.gaps` (180s, mang tới 30 mô tả công việc) rồi `upskill.plan` (120s, chỉ mang lại danh sách khoảng trống).
+
+**Đã chạy thật ngày 2026-08-15 và RA ĐƯỢC một bản** — lần đầu tiên. Số từ `ai_calls`, 30 công việc, cả hai lời gọi rơi vào `hy3-free`: `upskill.gaps` **158 giây / 13.071 token ra**, `upskill.plan` **96 giây / 8.594 token ra**. Cộng lại **21.665 token đầu ra** — đó chính là thứ bản một-lời-gọi đòi model sinh trong MỘT phản hồi, và là lý do nó chưa bao giờ xong.
+
+**Biên an toàn mỏng: 158 giây trên hạn 180, tức 88% ngân sách.** Nếu nó bắt đầu hỏng vì hết giờ thì nới **lời gọi 1** lên 240s, đừng nới cả hai — lời gọi 2 chỉ dùng 80% của 120s.
+
+Ba điều đừng làm hỏng:
+
+- **Lời gọi 2 KHÔNG được mang mô tả công việc.** Thêm lại `jobLines` vào prompt thứ hai là quay về đúng bản đã hỏng. Có test đơn vị ghim điều này.
+- **Hai purpose riêng trong `ai_calls`**, không gộp lại thành `upskill.report`: gộp thì mất khả năng biết lời gọi nào mới là cái chậm.
+- **Khung phân tích chia đôi theo trường**: `keepSections` lấy Step 3–5 cho lời gọi 1, Step 6–7 cho lời gọi 2. Đổi tên tiêu đề trong `.claude/skills/upskill/SKILL.md` thì `keepSections` trả về chuỗi **rỗng** — không lỗi, không log, chỉ là một báo cáo tệ đi mà không ai biết. Test đơn vị đọc file SKILL.md thật chính vì lý do đó.
 
 **Hạn mức gateway free cạn trong một buổi:** sau khoảng 30 lượt gọi, mọi request nhận `Rate limit exceeded` và hỏng sau ~7 giây, kéo dài hơn một giờ. Khi thấy `failureKind = UPSTREAM` mà `durationMs` chỉ vài nghìn, đó là hạn mức chứ không phải lỗi code — đừng đi sửa gì, hãy đợi. Và **đừng gọi model trực tiếp trong lúc demo**, chuẩn bị dữ liệu trước.
 
 Gateway **không có model embedding nào**, nên vector search ở Pha 4 sẽ cần một nhà cung cấp khác chỉ cho embedding.
+
+### Nhiều lõi model — mỗi lõi MỘT FILE, không phải một thư mục
+
+`src/modules/ai/providers/` có `opencode.ts` và `openrouter.ts`. **Thêm lõi = thêm một file + một dòng trong `index.ts`.** Đừng biến chúng thành class Nest: đã đếm, **146/185 provider trong catalog dùng chung đúng một adapter** `@ai-sdk/openai-compatible`, nên một class cho mỗi lõi sẽ là một class không có hàm nào — và làm việc thêm lõi **khó hơn**, đúng cái điều nó nhắm tới.
+
+`AiService` và `failure-*.ts` **cố ý ở nguyên `modules/ai/`**, không xuống `core/`: 10 module import `AiService`, **0 module** import `ModelCatalogService`. Cấu trúc thư mục đang nói đúng ranh giới đó, đừng xoá nó đi.
+
+Chuỗi dự phòng đi xuyên lõi qua chuỗi `lõi/model`, tách ở dấu `/` **đầu tiên** (91/91 model id của OpenCode không có `/`, 351/351 của OpenRouter thì có — nên không nhập nhằng). Không có tiền tố hợp lệ thì cả chuỗi là model id của lõi mặc định, nhờ vậy `.env` cũ vẫn chạy.
+
+**Chuỗi đi tiếp trong đúng hai trường hợp**: hết hạn mức, hoặc `ModelUnavailableError` (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là hỏng schema). Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
+
+**Hai ràng buộc về tiền:** `resolve()` **không bao giờ tự thay model khác** (bản cũ lấy `models[0]`; OpenRouter có 413 model gồm loại đắt, và hàng đợi chấm điểm chạy theo cron), và `AI_ALLOW_PAID_MODELS` mặc định `false` với model **không khai giá bị coi là trả tiền**.
 
 ### Catalog KHÔNG phải danh sách model dùng được
 
@@ -185,6 +213,10 @@ Cả repo này lẫn OpenCode CLI khi chưa đăng nhập đều dùng chung key
 | `hy3-free` | được | model reasoning, ~1380 token suy luận cho một câu tầm thường |
 | `laguna-s-2.1-free` | KHÔNG | content rỗng dù cho 1500 token |
 | `ling-3.0-tiny-free` | KHÔNG | server_error |
+
+**`structured_outputs: true` KHÔNG có nghĩa là kết quả dùng được — đây là trục hỏng thứ hai, đo được ngày 2026-08-15.** Ba model free của OpenRouter qua được schema trên prompt thật đều trả về chữ hỏng: `nemotron-nano-9b-v2` lẫn chữ Ả Rập và chữ Hàn giữa câu tiếng Việt ("ph السياسة", "Đhettoawk"), `nemotron-3-super-120b` viết `strengths`/`gaps`/`recommendation` bằng **tiếng Anh** dù note thì tiếng Việt sạch. Và **không cái nào ổn định**: cùng model, hai lượt cách nhau vài phút, hai kiểu hỏng khác nhau.
+
+Nên `bench-models.mjs` kiểm thêm hai thứ schema không bắt được: **chữ ngoài bảng Latin**, và **trường dài mà không có lấy một dấu tiếng Việt**. Đừng bỏ hai kiểm tra đó — thiếu chúng thì script chấm "tốt nhất" cho một model trả về chữ Ả Rập, và nó đã làm đúng như vậy một lần.
 
 **Bẫy đo lường đã sập một lần, đừng sập lại:** `hy3-free` và `nemotron` là model **reasoning** — chúng tiêu 700–2300 token vào `reasoning_content` TRƯỚC khi sinh `content`. Thử với `max_tokens: 8` thì `content` ra rỗng và trông y như model không làm được việc; tôi đã kết luận sai đúng như vậy. `AiService` cố ý KHÔNG đặt `maxOutputTokens`.
 

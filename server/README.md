@@ -437,14 +437,48 @@ Các CLI trong `.agents/skills/*/cli/` có bộ test riêng chạy bằng `bun t
 CI duyệt qua mọi thư mục CLI thay vì liệt kê từng cái, nên portal thêm sau sẽ tự
 được kiểm tra.
 
+## Nhiều lõi model (SEAM: `modules/ai/providers/`)
+
+Một "lõi" là một gateway phục vụ model. Hiện có ba: `opencode`, `openrouter` và `kilo`, mỗi cái **một file** trong `src/modules/ai/providers/`.
+
+**Thêm lõi mới = thêm một file rồi thêm một dòng trong `providers/index.ts`.** Không có class nào phải viết, không đăng ký gì với Nest. Lý do cố ý là dữ liệu chứ không phải class: trong 185 provider của catalog, **146 cái dùng chung đúng một adapter** (`@ai-sdk/openai-compatible`), nên giữa chúng chỉ khác nhau baseURL, tên biến chứa key, và cách biết một model làm được gì.
+
+Chuỗi dự phòng đi **xuyên lõi**. Mỗi mắt xích trong `MODEL_FALLBACK_IDS` viết `lõi/model`, hoặc chỉ `model` cho lõi mặc định:
+
+```
+MODEL_FALLBACK_IDS=deepseek-v4-flash-free,openrouter/openai/gpt-oss-20b:free
+```
+
+Tách ở dấu `/` **đầu tiên**. Cách mã hoá này không nhập nhằng nhờ một sự thật đã đo: 91/91 model id của OpenCode không có dấu `/`, 351/351 của OpenRouter thì có.
+
+**Khác biệt thật giữa hai lõi chỉ có một**, và nó là lý do `providers/` tồn tại:
+
+| | OpenCode `/models` | OpenRouter `/models` |
+|---|---|---|
+| Trường trả về | `id`, `object`, `created`, `owned_by` | + `supported_parameters`, `pricing`, `context_length` |
+| Biết model làm được structured output? | **Không** — chỉ đo mới biết | **Có, khai sẵn** |
+
+Nên `openrouter.ts` có hàm `declaresStructuredOutput`, `opencode.ts` không có — và **việc nó không có chính là tài liệu** cho biết lõi đó mù. Bù lại, `opencode.ts` giữ `knownNoStructuredOutput`: danh sách model đã đo là hỏng. Đó là danh sách **chặn**, cố ý không phải danh sách cho phép — model chưa đo vẫn được thử.
+
+**`kilo` là ca thứ ba, và nó phá vỡ quy tắc trên có chủ đích.** `/models` của kilo CÓ trả `supported_parameters` (272/361 model khai `structured_outputs`), nhưng lõi này **cố ý không đọc** — vì lời khai đó đã đo là sai: `tencent/hy3:free` khai `false` mà vẫn trả JSON hợp lệ trên prompt thật, và nó cho tiếng Việt sạch nhất trong mọi model đã thử. Đừng "sửa cho nhất quán với openrouter"; có test ghim điều này.
+
+`kilo` **nhận request không cần API key** (đã đo: không header vẫn 200), nên nó là mắt xích cứu hộ khi hai lõi kia cạn hạn mức. Nhưng nó là **mắt xích CUỐI, không phải lõi chính**: cả 14 model free của nó đều tự khai `mayTrainOnYourPrompts: true`, mà app thì gửi đi CV người thật.
+
+Hai ràng buộc về tiền, đừng nới:
+
+- **`resolve()` KHÔNG bao giờ tự thay thế model khác.** Bản cũ không tìm thấy model được yêu cầu thì lấy `models[0]`. Với OpenCode toàn free thì vô hại; OpenRouter có 413 model gồm cả loại đắt, nên gõ sai một ký tự trong `.env` sẽ thành một hoá đơn chạy theo cron.
+- **`AI_ALLOW_PAID_MODELS` mặc định `false`**, và model không khai giá bị coi là **trả tiền**.
+
 ## Đánh giá chất lượng model
 
 ```bash
-pnpm run bench                       # tất cả model free mặc định
-pnpm run bench -- deepseek-v4-flash-free glm-5
+pnpm run bench                       # model free của lõi mặc định
+pnpm run bench -- openrouter/openai/gpt-oss-20b:free deepseek-v4-flash-free
 ```
 
 Script chấm điểm thử một cặp hồ sơ/tin tuyển dụng đã biết trước đáp án và báo các lỗi ngữ nghĩa mà schema không bắt được (sai thang điểm, eligibility sai, gaps rỗng).
+
+**Nó dùng KHUNG ĐÁNH GIÁ THẬT, đọc từ chính file `04-job-evaluation.md` mà `MatchingService` nạp lúc chạy** — và đây là bản sửa một bẫy đo đã sập một lần. Bản cũ dùng system prompt ba dòng tự chế, nên `nemotron-3.5-lightning` xong trong 12,4 giây và bị kết luận là "dùng được"; prompt thật của app mang cả khung này và nó hết giờ ở mốc 90 giây. **Đo bằng prompt nhỏ là đo một tác vụ khác.**
 
 ## Chạy bằng Docker
 

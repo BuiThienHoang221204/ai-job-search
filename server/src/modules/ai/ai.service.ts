@@ -12,14 +12,18 @@ import {
   truncateError,
   type FailureKind,
 } from './failure-kind.js';
-import { ModelCatalogService } from './model-catalog.service.js';
+import { formatModelRef, parseModelRef } from './model-ref.js';
+import { providerIds } from './providers/index.js';
+import {
+  ModelCatalogService,
+  ModelUnavailableError,
+} from './model-catalog.service.js';
 
 /**
  * Ai gọi và gọi để làm gì. Bắt buộc: không có nó thì nhật ký chỉ cho biết
  * "có lỗi" mà không cho biết tác vụ nào đang hỏng.
  */
 export type AiCallContext = {
-  /** Tên hàng đợi hoặc tác vụ, ví dụ "match.evaluate". */
   purpose: string;
   userId?: string;
 };
@@ -30,12 +34,7 @@ export type GenerateObjectOptions<T> = {
   prompt: string;
   context: AiCallContext;
   modelId?: string;
-  /**
-   * Số lần thử lại khi model trả về JSON sai schema. Model free hay sai định
-   * dạng hơn model trả phí nên mặc định để 2.
-   */
   maxRetries?: number;
-  /** Hạn thời gian cho MỘT lần gọi, tính bằng mili-giây. */
   timeoutMs?: number;
 };
 
@@ -46,10 +45,6 @@ export type GenerateObjectOptions<T> = {
  */
 const DEFAULT_TIMEOUT_MS = 90_000;
 
-/**
- * Kiểu trả về của streamText không được ai@7 export ra ngoài, nên lấy ngược
- * từ chính hàm đó thay vì khai báo lại.
- */
 type StreamTextResult = ReturnType<typeof streamText>;
 
 export type StreamTextOptions = {
@@ -64,9 +59,9 @@ export type Ai = Pick<AiService, 'generateObject'>;
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-
-  /** Các model thử tiếp khi model đang dùng HẾT HẠN MỨC. Xem `configuration.ts`. */
   private readonly fallbackModelIds: string[];
+  private readonly defaultModelId: string;
+  private readonly defaultProviderId: string;
 
   constructor(
     private readonly catalog: ModelCatalogService,
@@ -76,13 +71,34 @@ export class AiService {
     this.structuredOutputs =
       config.get<boolean>('ai.structuredOutputs') ?? false;
     this.fallbackModelIds = config.get<string[]>('ai.fallbackModelIds') ?? [];
+    this.defaultModelId = config.get<string>('ai.modelId') ?? '';
+    this.defaultProviderId = config.get<string>('ai.provider') ?? '';
   }
 
-  /** Thứ tự model sẽ thử cho MỘT lời gọi. */
+  /** Dạng đầy đủ `lõi/model`, để so trùng không phụ thuộc cách viết tắt. */
+  private canonical(ref: string): string {
+    return formatModelRef(
+      parseModelRef(ref, providerIds(), this.defaultProviderId),
+    );
+  }
+
+  /**
+   * Thứ tự mắt xích sẽ thử cho MỘT lời gọi. So trùng theo dạng đầy đủ, nếu
+   * không thì `deepseek-v4-flash-free` và `opencode/deepseek-v4-flash-free`
+   * thành hai mắt xích và model vừa hết hạn mức sẽ được thử lại ngay lập tức.
+   */
   private modelChain(requested?: string): Array<string | undefined> {
-    const chain: Array<string | undefined> = [requested];
+    // Giữ `undefined` khi không cấu hình model mặc định, để catalog dùng mặc
+    // định của chính nó thay vì đi hỏi một model tên rỗng.
+    const first = requested ?? (this.defaultModelId || undefined);
+    const chain: Array<string | undefined> = [first];
+    const seen = new Set([this.canonical(first ?? this.defaultModelId)]);
+
     for (const id of this.fallbackModelIds) {
-      if (id !== requested) chain.push(id);
+      const key = this.canonical(id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      chain.push(id);
     }
     return chain;
   }
@@ -124,10 +140,20 @@ export class AiService {
   /** Chế độ đang dùng để ép định dạng đầu ra. */
   private structuredOutputs: boolean;
 
+  /**
+   * Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó
+   * là OpenAI-compatible nên không cần adapter thứ hai. Cái thay đổi theo lõi
+   * chỉ là `baseURL` và `apiKey`, và cả hai đến từ `catalog.resolve()`.
+   */
   private async languageModel(
     modelId: string | undefined,
     structuredOutputs: boolean,
-  ): Promise<{ model: LanguageModel; id: string; provider: string }> {
+  ): Promise<{
+    model: LanguageModel;
+    id: string;
+    provider: string;
+    ref: string;
+  }> {
     const resolved = await this.catalog.resolve(modelId);
     const provider = createOpenAICompatible({
       name: resolved.providerId,
@@ -139,33 +165,48 @@ export class AiService {
       model: provider(resolved.model.id),
       id: resolved.model.id,
       provider: resolved.providerId,
+      ref: formatModelRef({
+        providerId: resolved.providerId,
+        modelId: resolved.model.id,
+      }),
     };
   }
 
-  /** Sinh dữ liệu có cấu trúc theo schema Zod. */
+  /**
+   * Sinh dữ liệu có cấu trúc theo schema Zod.
+   *
+   * Chuỗi đi tiếp trong đúng HAI trường hợp, và cả hai đều là "mắt xích này
+   * không dùng được" chứ không phải "tác vụ này hỏng": hết hạn mức, hoặc model
+   * không khả dụng (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là
+   * không giữ nổi structured output). Mọi lỗi khác ném ra ngay — đặc biệt là lỗi
+   * schema, vì đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model
+   * này quá yếu cho tác vụ".
+   */
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
     const chain = this.modelChain(options.modelId);
-    let lastRateLimit: unknown;
+    let lastSkipped: unknown;
 
     for (const [index, modelId] of chain.entries()) {
       try {
         return await this.withFormatFallback({ ...options, modelId });
       } catch (error) {
-        if (!isRateLimited(error)) throw error;
+        const unavailable = error instanceof ModelUnavailableError;
+        if (!unavailable && !isRateLimited(error)) throw error;
 
-        lastRateLimit = error;
+        lastSkipped = error;
+        const reason = unavailable ? error.message : 'hết hạn mức';
         const next = chain[index + 1];
         this.logger.warn(
           next
-            ? `Model ${modelId ?? '(mặc định)'} hết hạn mức, thử ${next}`
-            : `Model ${modelId ?? '(mặc định)'} hết hạn mức và không còn model dự phòng`,
+            ? `Bỏ qua ${modelId ?? '(mặc định)'} (${reason}), thử ${next}`
+            : `Bỏ qua ${modelId ?? '(mặc định)'} (${reason}) và không còn mắt xích dự phòng`,
         );
       }
     }
 
-    throw lastRateLimit;
+    throw lastSkipped;
   }
 
   /** Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng. */
@@ -216,7 +257,7 @@ export class AiService {
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<{ object: T; modelId: string }> {
-    const { model, id, provider } = await this.languageModel(
+    const { model, id, provider, ref } = await this.languageModel(
       options.modelId,
       structuredOutputs,
     );
@@ -237,7 +278,7 @@ export class AiService {
       });
 
       const durationMs = Date.now() - startedAt;
-      this.logger.log(`generateObject ${id} xong sau ${durationMs}ms`);
+      this.logger.log(`generateObject ${ref} xong sau ${durationMs}ms`);
 
       await this.record({
         context: options.context,
@@ -266,7 +307,7 @@ export class AiService {
       if (NoObjectGeneratedError.isInstance(error)) {
         this.logger.error(
           [
-            `generateObject ${id} thất bại sau ${durationMs}ms`,
+            `generateObject ${ref} thất bại sau ${durationMs}ms`,
             `finishReason=${error.finishReason} outputTokens=${error.usage?.outputTokens}`,
             `--- model trả về ---`,
             (error.text ?? '(rỗng)').slice(0, 4000),
