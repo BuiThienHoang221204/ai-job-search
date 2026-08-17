@@ -16,6 +16,7 @@ import {
   userKey,
   type Storage,
 } from '../storage/storage.interface.js';
+import { completionPercent } from '../profile/completion.js';
 import { CvPdfSource, type CvPdfInput } from './cv-pdf.source.js';
 import type { Evidence } from './evidence.js';
 import type { ProfileProposal } from './profile-proposal.schema.js';
@@ -58,6 +59,21 @@ export class ProfileDraftService {
     });
 
     return { draftId: draft.id, evidence };
+  }
+
+  /** File PDF gốc của một bản nháp, đọc từ Storage. */
+  async file(
+    userId: string,
+    draftId: string,
+  ): Promise<{ data: Buffer; filename: string }> {
+    const draft = await this.get(userId, draftId);
+    if (!draft.storageKey) {
+      throw new NotFoundException('Bản nháp này không giữ file gốc.');
+    }
+    return {
+      data: await this.storage.read(draft.storageKey),
+      filename: draft.filename ?? 'cv.pdf',
+    };
   }
 
   /** Bản nháp mới nhất, kể cả đang chạy hoặc đã hỏng. */
@@ -121,10 +137,19 @@ export class ProfileDraftService {
       );
     }
 
-    await this.prisma.profile.upsert({
+    const saved = await this.prisma.profile.upsert({
       where: { userId },
       create: { userId, ...data },
       update: data,
+    });
+
+    // Phải tính lại completion Ở ĐÂY, giống ProfileService.update. Thiếu bước này
+    // thì hồ sơ dựng hoàn toàn từ CV giữ nguyên mặc định 0, nằm dưới
+    // MIN_COMPLETION_TO_SCORE, và người dùng đó không bao giờ được fan-out chấm
+    // điểm - một màn hình trống vĩnh viễn, không kèm lỗi nào.
+    await this.prisma.profile.update({
+      where: { userId },
+      data: { completion: completionPercent(saved) },
     });
 
     return this.prisma.profileDraft.update({

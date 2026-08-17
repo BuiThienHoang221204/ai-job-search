@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import request from 'supertest';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
+import { MIN_COMPLETION_TO_SCORE } from 'src/modules/scraper/fan-out.js';
 import type { ProfileProposal } from 'src/modules/profile-sources/profile-proposal.schema.js';
 import {
   createTestApp,
@@ -186,6 +187,43 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     // KHÔNG được tích nên KHÔNG được ghi, dù đề xuất có giá trị cho nó.
     expect(profile?.summary ?? null).toBeNull();
     expect(profile?.secondarySkills ?? []).toEqual([]);
+  });
+
+  test('áp dụng CV vào hồ sơ TRỐNG thì tính lại completion', async () => {
+    harness.ai.willReturn(proposal);
+    const draftId = await uploadAndGetId(harness, user);
+    await harness.queue.drain();
+
+    // Đúng bộ trường mà `defaultSelection` tích sẵn cho một hồ sơ trống: không có
+    // gì để ghi đè nên mọi đề xuất đều được chọn.
+    await request(harness.server)
+      .put(`/api/profile-drafts/${draftId}/apply`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        fields: [
+          'headline',
+          'location',
+          'country',
+          'summary',
+          'primarySkills',
+          'secondarySkills',
+          'directExperienceDomains',
+          'experiences',
+          'educations',
+        ],
+      })
+      .expect(200);
+
+    const profile = await harness.prisma.profile.findUnique({
+      where: { userId: user.id },
+    });
+
+    // Đây là đường tạo hồ sơ bằng `create`, nơi `completion` từng giữ nguyên mặc
+    // định 0. Dưới MIN_COMPLETION_TO_SCORE thì `fanOut` bỏ qua người này, nên họ
+    // không bao giờ nhận được một match nào mà cũng không thấy lỗi gì.
+    expect(profile?.completion ?? 0).toBeGreaterThanOrEqual(
+      MIN_COMPLETION_TO_SCORE,
+    );
   });
 
   test('không ghi được những trường model bị cấm đề xuất', async () => {
