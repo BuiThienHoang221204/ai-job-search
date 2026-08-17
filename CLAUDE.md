@@ -16,6 +16,25 @@ pnpm lint && pnpm test && pnpm test:e2e
 
 `pnpm test:e2e` **cần Postgres đang chạy** (`pnpm db:up`) và biến `TEST_DATABASE_URL` trỏ tới database có tên kết thúc bằng `_test`. Nó tự tạo database đó và tự chạy migration.
 
+### Tài khoản dùng cho bộ test
+
+```
+admin@aijob.local  /  MatKhauTest123!
+```
+
+**Chỉ dành cho database DEV trên máy cá nhân.** Đây không phải bí mật — cặp này vốn đã nằm cứng trong `server/test/app.e2e-spec.ts` và cả 6 spec Playwright của `ui-ai-job-search/test/visual/`. Ghi lại ở đây vì nó **không được viết ở đâu cả**, và khi database dev bị seed lại thì mật khẩu lệch đi, làm **toàn bộ 6 spec Playwright hỏng ngay ở bước đăng nhập** — một triệu chứng trông y hệt như giao diện bị vỡ, mất khá lâu mới lần ra.
+
+Đặt lại khi nó lệch (bcrypt cost **12**, phải khớp `BCRYPT_ROUNDS` trong `auth.service.ts`):
+
+```bash
+cd server
+node -e "require('bcryptjs').hash('MatKhauTest123!',12).then(h=>process.stdout.write(h))" > /tmp/h.txt
+docker exec aijob-postgres psql -U aijob -d aijob \
+  -c "update users set \"passwordHash\"='$(cat /tmp/h.txt)' where email='admin@aijob.local';"
+```
+
+Tài khoản này là **ADMIN**, vì `test/visual/admin-refetch.spec.ts` cần vào `/admin`. **Đừng dùng lại mật khẩu này ở bất kỳ đâu có dữ liệu thật.**
+
 ## Ràng buộc cứng — đừng "sửa" chúng
 
 - **Node >= 22.12.** `ai` và `@ai-sdk/openai-compatible` là ESM thuần không có bản CommonJS, còn `nest build` xuất CommonJS; chạy được là nhờ Node cho phép `require()` một module ESM. Gặp lỗi ESM thì **đừng** hạ cấp package hay đổi `module` trong tsconfig chính.
