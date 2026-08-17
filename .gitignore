@@ -17,6 +17,7 @@ server/skills-lock.json
 # Workspace dữ liệu người dùng (CV, cover letter, tracker...).
 # Sẽ chuyển lên S3/R2 sau; đường dẫn đã mang userId nên chỉ cần đổi driver.
 workspaces/
+workspaces-test/
 
 # Python
 __pycache__/

@@ -16,13 +16,23 @@ const nodeOptions = [process.env.NODE_OPTIONS, flag]
   .filter(Boolean)
   .join(' ');
 
+/// Kho file RIÊNG cho e2e, song sinh với TEST_DATABASE_URL.
+///
+/// Thiếu dòng này thì test ghi thẳng vào `../workspaces` của môi trường phát
+/// triển: mỗi lượt chạy đẻ ra một thư mục người dùng kèm CV và ảnh chụp, không
+/// bao giờ được dọn. Đã tích tụ 220 file CV và 97 ảnh trước khi phát hiện.
 const result = spawnSync(
   'npx',
   ['jest', '--config', './test/jest-e2e.json', ...process.argv.slice(2)],
   {
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, NODE_OPTIONS: nodeOptions },
+    env: {
+      ...process.env,
+      NODE_OPTIONS: nodeOptions,
+      STORAGE_LOCAL_ROOT:
+        process.env.TEST_STORAGE_LOCAL_ROOT ?? '../workspaces-test',
+    },
   },
 );
 
