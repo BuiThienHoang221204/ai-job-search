@@ -6,10 +6,13 @@ import {
   Param,
   Post,
   Put,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import {
   ArrayMaxSize,
   ArrayNotEmpty,
@@ -91,6 +94,23 @@ export class ProfileDraftController {
   @Get('history')
   async history(@CurrentUser() user: AuthUser) {
     return withFailureKinds(await this.drafts.history(user.id));
+  }
+
+  /** File CV gốc đã nộp. Dùng `StreamableFile`, KHÔNG trả `Buffer` trực tiếp. */
+  @Get(':id/file')
+  async file(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { data, filename } = await this.drafts.file(user.id, id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Length': String(data.length),
+      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      'Cache-Control': 'private, max-age=3600',
+    });
+    return new StreamableFile(data);
   }
 
   /**
