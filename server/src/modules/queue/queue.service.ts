@@ -25,7 +25,14 @@ export const QUEUE = {
   PROFILE_SYNTHESIZE: 'profile.synthesize',
   /** Mở link tuyển dụng trong sandbox, điền form, chụp ảnh. KHÔNG bấm nút nộp. */
   APPLY_ASSIST: 'apply.assist',
+  /** Rút yêu cầu của MỘT tin, dùng chung cho mọi hồ sơ. Pha A. */
+  EXTRACT_REQUIREMENTS: 'job.requirements',
 } as const;
+
+export type ExtractRequirementsPayload = {
+  jobId: string;
+  force?: boolean;
+};
 
 export type EvaluateMatchPayload = {
   userId: string;

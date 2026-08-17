@@ -158,10 +158,64 @@ model Job {
   documents      Document[]
   applications   Application[]
   embedding      JobEmbedding?
+  requirements   JobRequirement?
 
   @@unique([source, externalId])
   @@index([postedAt])
   @@map("jobs")
+}
+
+/// Yêu cầu rút ra từ MỘT tin, không phụ thuộc ứng viên nào.
+///
+/// Rút một lần cho mỗi tin rồi đối chiếu với mọi hồ sơ bằng phép so sánh thuần:
+/// số lời gọi model đi từ (số người × số tin) xuống còn (số tin).
+model JobRequirement {
+  jobId String @id
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status MatchStatus @default(PENDING)
+
+  requiredSkills   String[] @default([])
+  niceToHaveSkills String[] @default([])
+
+  minYears  Int?
+  seniority JobSeniority @default(UNKNOWN)
+
+  citizenshipRequired String?
+  workPermitRequired  Boolean @default(false)
+  eligibilityQuote    String? @db.Text
+
+  city         String?
+  remotePolicy RemotePolicy @default(UNKNOWN)
+
+  /// Vân tay của phần tin đã đưa vào prompt. Đổi thì phải rút lại.
+  sourceHash  String?
+  modelId     String?
+  extractedAt DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("job_requirements")
+}
+
+enum JobSeniority {
+  INTERN
+  FRESHER
+  JUNIOR
+  MIDDLE
+  SENIOR
+  LEAD
+  UNKNOWN
+}
+
+enum RemotePolicy {
+  ONSITE
+  HYBRID
+  REMOTE
+  UNKNOWN
 }
 
 /// Vector ngữ nghĩa của một tin tuyển dụng, dùng để LỌC SƠ BỘ trước khi gọi

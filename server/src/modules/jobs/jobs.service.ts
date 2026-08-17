@@ -1,6 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { FitVerdict, MatchStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import type { JobRequirement } from '../../generated/prisma/client.js';
+import { JobRequirementsService } from '../matching/job-requirements.service.js';
+import {
+  matchRequirements,
+  type MatchProfile,
+} from '../matching/requirement-match.js';
+import { keywordOverlap } from '../scraper/fan-out.js';
 import type { CreateJobDto, ListJobsQueryDto } from './dto/job.dto.js';
 
 @Injectable()
@@ -73,7 +80,75 @@ export class JobsService {
       where: { userId },
       select: { status: true, overallScore: true, verdict: true },
     },
+    requirements: true,
   });
+
+  /** Hồ sơ rút về đúng những trường việc đối chiếu cần. */
+  private async matchProfileOf(userId: string): Promise<MatchProfile | null> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: {
+        primarySkills: true,
+        secondarySkills: true,
+        citizenship: true,
+        workPermit: true,
+        location: true,
+        willingToRelocate: true,
+      },
+    });
+    return profile ? JobRequirementsService.toMatchProfile(profile) : null;
+  }
+
+  /**
+   * Đối chiếu hồ sơ với yêu cầu của tin, hoặc lùi về đếm từ khoá khi tin chưa
+   * được rút trích.
+   *
+   * KHÔNG đổi ra phần trăm. Tin liệt kê mọi thứ họ muốn còn hồ sơ chỉ khai vài
+   * thứ, nên tỉ lệ luôn bị dìm - đã đo: 2/10 trên một tin AI chấm 80.
+   */
+  private withSystemMatch<
+    T extends {
+      title: string;
+      description: string;
+      requirements: JobRequirement | null;
+    },
+  >(job: T, profile: MatchProfile | null) {
+    const { requirements, ...rest } = job;
+
+    if (!profile) {
+      return { ...rest, systemMatch: null };
+    }
+
+    if (requirements?.status === 'DONE') {
+      const result = matchRequirements(
+        JobRequirementsService.toRequirements(requirements),
+        profile,
+      );
+      return {
+        ...rest,
+        systemMatch: {
+          kind: 'REQUIREMENTS' as const,
+          met: result.met,
+          total: result.total,
+          score: result.score,
+          eligibility: result.eligibility,
+          checks: result.checks,
+        },
+      };
+    }
+
+    return {
+      ...rest,
+      systemMatch: {
+        kind: 'KEYWORDS' as const,
+        met: keywordOverlap(`${job.title} ${job.description}`, profile.skills),
+        total: profile.skills.length,
+        score: 0,
+        eligibility: 'UNVERIFIED' as const,
+        checks: [],
+      },
+    };
+  }
 
   async list(query: ListJobsQueryDto, userId: string) {
     const where = query.q
@@ -85,7 +160,7 @@ export class JobsService {
         }
       : {};
 
-    const [items, total] = await Promise.all([
+    const [items, total, skills] = await Promise.all([
       this.prisma.job.findMany({
         where,
         orderBy: { scrapedAt: 'desc' },
@@ -94,21 +169,33 @@ export class JobsService {
         include: this.relations(userId),
       }),
       this.prisma.job.count({ where }),
+      this.matchProfileOf(userId),
     ]);
 
     return {
-      items: items.map((job) => this.withMatchState(this.withSavedFlag(job))),
+      items: items.map((job) =>
+        this.withSystemMatch(
+          this.withMatchState(this.withSavedFlag(job)),
+          skills,
+        ),
+      ),
       total,
     };
   }
 
   async get(id: string, userId: string) {
-    const job = await this.prisma.job.findUnique({
-      where: { id },
-      include: this.relations(userId),
-    });
+    const [job, skills] = await Promise.all([
+      this.prisma.job.findUnique({
+        where: { id },
+        include: this.relations(userId),
+      }),
+      this.matchProfileOf(userId),
+    ]);
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
-    return this.withMatchState(this.withSavedFlag(job));
+    return this.withSystemMatch(
+      this.withMatchState(this.withSavedFlag(job)),
+      skills,
+    );
   }
 
   /**

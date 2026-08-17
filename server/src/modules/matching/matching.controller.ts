@@ -4,6 +4,8 @@ import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { EvaluateJobDto, ListMatchesQueryDto } from './dto/matching.dto.js';
 import { MatchingService } from './matching.service.js';
+import { JobRequirementsService } from './job-requirements.service.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
 @Controller('matches')
@@ -11,6 +13,7 @@ export class MatchingController {
   constructor(
     private readonly matching: MatchingService,
     private readonly queue: QueueService,
+    private readonly requirements: JobRequirementsService,
   ) {}
 
   /**
@@ -53,6 +56,17 @@ export class MatchingController {
       force,
     });
     return { queued: true, alreadyScored: false, queueJobId: id };
+  }
+
+  /** Rút yêu cầu của một tin ngay (Pha A). Dùng để đo chất lượng rút trích. */
+  @Roles('ADMIN')
+  @ThrottleAi()
+  @Post('requirements/:jobId')
+  extractRequirements(
+    @Param('jobId') jobId: string,
+    @Query('force') force?: string,
+  ) {
+    return this.requirements.extract(jobId, force === 'true');
   }
 
   /**
