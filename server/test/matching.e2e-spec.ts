@@ -150,6 +150,39 @@ describe('Chấm điểm: cache và giành quyền', () => {
     expect(harness.ai.calls).toHaveLength(2);
   });
 
+  /// Hash băm chính prompt, nên một lần ghi không đổi nội dung không được phép
+  /// làm mất cache. Băm `JSON.stringify(profile)` thì `updatedAt` phá hỏng điều đó.
+  test('lưu hồ sơ mà không đổi gì thì vẫn dùng cache', async () => {
+    harness.ai.willReturn(evaluation());
+    await matching.evaluate(user.id, jobId);
+
+    const before = await harness.prisma.profile.findUniqueOrThrow({
+      where: { userId: user.id },
+    });
+    await harness.prisma.profile.update({
+      where: { userId: user.id },
+      data: { headline: before.headline },
+    });
+    await matching.evaluate(user.id, jobId);
+
+    expect(harness.ai.calls).toHaveLength(1);
+  });
+
+  /// `refreshKnownCards` cập nhật lương và ngày đăng sau mỗi lượt quét, mà lương
+  /// có đi vào prompt - nên nó phải làm hash đổi.
+  test('lương của tin đổi thì chấm lại', async () => {
+    harness.ai.willReturn(evaluation(), evaluation());
+    await matching.evaluate(user.id, jobId);
+
+    await harness.prisma.job.update({
+      where: { id: jobId },
+      data: { salaryRaw: '40 - 55 triệu' },
+    });
+    await matching.evaluate(user.id, jobId);
+
+    expect(harness.ai.calls).toHaveLength(2);
+  });
+
   describe('giành quyền chấm', () => {
     /// Nếu thiếu bước này, hai worker cùng chấm một cặp sẽ gọi model hai lần và
     /// cùng ghi vào một hàng - kết quả cuối phụ thuộc ai xong sau.

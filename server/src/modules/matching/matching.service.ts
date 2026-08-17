@@ -30,19 +30,16 @@ export class MatchingService {
     private readonly prompts: PromptBuilderService,
   ) {}
 
-  /** Vân tay của một lần chấm điểm. */
-  private promptHash(
-    skillHash: string,
-    profile: Profile | null,
-    job: Job,
-  ): string {
+  /**
+   * Vân tay của một lần chấm điểm: băm ĐÚNG thứ model nhìn thấy.
+   *
+   * Băm object hồ sơ thay vì prompt sẽ sai cả hai chiều — `updatedAt` làm mất
+   * cache dù không đổi gì, còn `workMode`/`salaryRaw`/`tags` đổi thì không nhận ra.
+   */
+  private promptHash(system: string, prompt: string): string {
     return createHash('sha256')
-      .update(skillHash)
-      .update(profile ? JSON.stringify(profile) : 'no-profile')
-      .update(job.title)
-      .update(job.company)
-      .update(job.description)
-      .update(job.location ?? '')
+      .update(system)
+      .update(prompt)
       .digest('hex')
       .slice(0, 32);
   }
@@ -93,7 +90,7 @@ export class MatchingService {
       job.description,
     ].join('\n');
 
-    return { system, prompt, skillHash: skill.contentHash };
+    return { system, prompt };
   }
 
   /** Chấm điểm một cặp (user, job) và lưu kết quả. */
@@ -112,8 +109,8 @@ export class MatchingService {
 
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
 
-    const { system, prompt, skillHash } = this.buildPrompt(profile, job);
-    const hash = this.promptHash(skillHash, profile, job);
+    const { system, prompt } = this.buildPrompt(profile, job);
+    const hash = this.promptHash(system, prompt);
 
     if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
       this.logger.debug(`Bỏ qua ${jobId}: đã chấm và chưa có gì thay đổi`);
@@ -219,8 +216,28 @@ export class MatchingService {
     return { ...match, job: { ...job, saved: saves.length > 0 } };
   }
 
+  /** Điểm chấm TRƯỚC lần sửa hồ sơ gần nhất thì không còn phản ánh hồ sơ hiện tại. */
+  private withStaleFlag<T extends { evaluatedAt: Date | null }>(
+    match: T,
+    profileUpdatedAt: Date | null,
+  ) {
+    const stale =
+      profileUpdatedAt !== null &&
+      match.evaluatedAt !== null &&
+      match.evaluatedAt < profileUpdatedAt;
+    return { ...match, stale };
+  }
+
+  private async profileUpdatedAt(userId: string): Promise<Date | null> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { updatedAt: true },
+    });
+    return profile?.updatedAt ?? null;
+  }
+
   async listMatches(userId: string, limit = 20, offset = 0) {
-    const [items, total] = await Promise.all([
+    const [items, total, updatedAt] = await Promise.all([
       this.prisma.jobMatch.findMany({
         where: { userId, status: 'DONE' },
         orderBy: { overallScore: 'desc' },
@@ -233,9 +250,12 @@ export class MatchingService {
         },
       }),
       this.prisma.jobMatch.count({ where: { userId, status: 'DONE' } }),
+      this.profileUpdatedAt(userId),
     ]);
     return {
-      items: items.map((match) => this.withSavedFlag(match)),
+      items: items.map((match) =>
+        this.withStaleFlag(this.withSavedFlag(match), updatedAt),
+      ),
       total,
       limit,
       offset,
@@ -243,16 +263,19 @@ export class MatchingService {
   }
 
   async getMatch(userId: string, jobId: string) {
-    const match = await this.prisma.jobMatch.findUnique({
-      where: { userId_jobId: { userId, jobId } },
-      include: {
-        job: {
-          include: { saves: { where: { userId }, select: { id: true } } },
+    const [match, updatedAt] = await Promise.all([
+      this.prisma.jobMatch.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+        include: {
+          job: {
+            include: { saves: { where: { userId }, select: { id: true } } },
+          },
         },
-      },
-    });
+      }),
+      this.profileUpdatedAt(userId),
+    ]);
     if (!match) throw new NotFoundException('Chưa chấm điểm công việc này');
-    return this.withSavedFlag(match);
+    return this.withStaleFlag(this.withSavedFlag(match), updatedAt);
   }
 
   /**
