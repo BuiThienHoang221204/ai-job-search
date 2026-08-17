@@ -279,6 +279,11 @@ export class ScraperService {
         );
       }
 
+      const extracted = await this.extractRequirements(savedJobIds);
+      if (extracted) {
+        this.logger.log(`Xếp hàng rút yêu cầu cho ${extracted} tin`);
+      }
+
       const queued = await this.fanOut(run.userId, savedJobIds);
 
       return await this.prisma.scrapeRun.update({
@@ -336,6 +341,18 @@ export class ScraperService {
     return updated;
   }
 
+  /**
+   * Xếp hàng rút yêu cầu cho các tin vừa lưu. MỘT lượt cho mỗi tin, dùng chung
+   * cho mọi hồ sơ — đây là thứ giữ chi phí ở mức O(số tin).
+   */
+  private async extractRequirements(jobIds: string[]): Promise<number> {
+    if (!jobIds.length) return 0;
+    return this.queue.sendMany(
+      QUEUE.EXTRACT_REQUIREMENTS,
+      jobIds.map((jobId) => ({ jobId })),
+    );
+  }
+
   /** Xếp hàng chấm điểm cho các tin vừa lưu. */
   private async fanOut(
     userId: string | null,
@@ -350,22 +367,35 @@ export class ScraperService {
       );
     }
 
-    const [users, scored] = await Promise.all([
+    const [users, scored, jobs] = await Promise.all([
       this.prisma.profile.findMany({
         where: { completion: { gte: MIN_COMPLETION_TO_SCORE } },
-        select: { userId: true, completion: true },
+        select: {
+          userId: true,
+          completion: true,
+          primarySkills: true,
+          secondarySkills: true,
+        },
       }),
       this.prisma.jobMatch.findMany({
         where: { jobId: { in: jobIds } },
         select: { userId: true, jobId: true },
       }),
+      this.prisma.job.findMany({
+        where: { id: { in: jobIds } },
+        select: { id: true, title: true, description: true },
+      }),
     ]);
 
     const plan = planFanOut({
-      newJobIds: jobIds,
+      jobs: jobs.map((job) => ({
+        id: job.id,
+        text: `${job.title} ${job.description}`,
+      })),
       users: users.map((row) => ({
         id: row.userId,
         completion: row.completion,
+        skills: [...row.primarySkills, ...row.secondarySkills],
       })),
       alreadyScored: scored.map((row) => pairKey(row.userId, row.jobId)),
     });
@@ -377,7 +407,7 @@ export class ScraperService {
 
     this.logger.log(
       `Xếp hàng ${queued}/${plan.targets.length} lượt chấm cho ${users.length} hồ sơ` +
-        (plan.dropped ? `; CẮT ${plan.dropped} lượt vì chạm trần` : '') +
+        (plan.dropped ? `; BỎ ${plan.dropped} lượt ngoài hạn ngạch` : '') +
         (plan.skippedThinProfiles
           ? `; bỏ qua ${plan.skippedThinProfiles} hồ sơ quá sơ sài`
           : ''),
