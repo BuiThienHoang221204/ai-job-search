@@ -160,6 +160,7 @@ export class AiService {
       baseURL: resolved.baseURL,
       apiKey: resolved.apiKey,
       supportsStructuredOutputs: structuredOutputs,
+      headers: resolved.headers,
     });
     return {
       model: provider(resolved.model.id),

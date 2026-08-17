@@ -21,6 +21,16 @@ export type ProviderDescriptor = {
   apiKeyEnv: string;
 
   /**
+   * Tên biến môi trường chứa `User-Agent` gửi kèm mỗi request. Bỏ trống thì
+   * dùng User-Agent mặc định của thư viện HTTP.
+   *
+   * Có mặt vì một lõi đã đo được là **phân biệt đối xử theo User-Agent** — xem
+   * docblock của `opencode.ts`. Khai bằng biến môi trường chứ không cứng trong
+   * code để tắt được mà không phải build lại.
+   */
+  userAgentEnv?: string;
+
+  /**
    * Đọc MỘT phần tử `data[]` của `GET /models`: gateway có KHAI là model này
    * giữ được structured output không. Bỏ trống nghĩa là gateway không khai gì,
    * và khi đó chỉ `knownNoStructuredOutput` mới biết.

@@ -12,6 +12,7 @@ export const opencode: ProviderDescriptor = {
   id: 'opencode',
   label: 'OpenCode Zen',
   apiKeyEnv: 'AI_API_KEY',
+  userAgentEnv: 'OPENCODE_USER_AGENT',
 
   knownNoStructuredOutput: [
     // Trả content rỗng dù đã cho tới 1500 token.

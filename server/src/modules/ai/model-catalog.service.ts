@@ -28,6 +28,8 @@ export type ResolvedModel = {
   model: CatalogModel;
   baseURL: string;
   apiKey: string;
+  /** Header thêm vào mỗi request. Rỗng với hầu hết lõi — xem `userAgentEnv`. */
+  headers: Record<string, string>;
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -86,6 +88,17 @@ export class ModelCatalogService {
     return this.config.get<boolean>('ai.allowPaidModels') ?? false;
   }
 
+  /**
+   * Header riêng của một lõi. Hiện chỉ có `User-Agent`, và chỉ `opencode` dùng
+   * tới — lý do đầy đủ nằm trong docblock của `providers/opencode.ts`.
+   */
+  private headersFor(descriptor: ProviderDescriptor): Record<string, string> {
+    if (!descriptor.userAgentEnv) return {};
+    const agents = this.config.get<Record<string, string>>('ai.userAgents');
+    const agent = agents?.[descriptor.id];
+    return agent ? { 'User-Agent': agent } : {};
+  }
+
   /** Key của một lõi. Thiếu key là lỗi cấu hình, không phải lỗi lúc chạy. */
   private apiKeyFor(descriptor: ProviderDescriptor): string {
     const keys = this.config.get<Record<string, string>>('ai.apiKeys') ?? {};
@@ -127,13 +140,17 @@ export class ModelCatalogService {
   private async liveModels(
     baseURL: string,
     apiKey: string,
+    headers: Record<string, string> = {},
   ): Promise<Map<string, Record<string, unknown>> | undefined> {
     const url = `${baseURL.replace(/\/$/, '')}/models`;
     const cached = this.liveModelCache.get(url);
     if (cached && cached.expiresAt > Date.now()) return cached.entries;
 
     const response = await fetch(url, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      headers: {
+        ...headers,
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
     });
     if (!response.ok) return undefined;
 
@@ -189,6 +206,7 @@ export class ModelCatalogService {
     }
 
     const apiKey = this.apiKeyFor(descriptor);
+    const headers = this.headersFor(descriptor);
     const catalog = await this.loadCatalog();
     const provider = catalog[descriptor.id];
     if (!provider) {
@@ -205,9 +223,15 @@ export class ModelCatalogService {
       );
     }
 
-    await this.assertServed(descriptor, selected, baseURL, apiKey);
+    await this.assertServed(descriptor, selected, baseURL, apiKey, headers);
 
-    return { providerId: provider.id, model: selected, baseURL, apiKey };
+    return {
+      providerId: provider.id,
+      model: selected,
+      baseURL,
+      apiKey,
+      headers,
+    };
   }
 
   /** Tìm đúng model được yêu cầu, và nói rõ vì sao khi không dùng được. */
@@ -257,10 +281,11 @@ export class ModelCatalogService {
     model: CatalogModel,
     baseURL: string,
     apiKey: string,
+    headers: Record<string, string> = {},
   ): Promise<void> {
     let live: Map<string, Record<string, unknown>> | undefined;
     try {
-      live = await this.liveModels(baseURL, apiKey);
+      live = await this.liveModels(baseURL, apiKey, headers);
     } catch {
       return;
     }

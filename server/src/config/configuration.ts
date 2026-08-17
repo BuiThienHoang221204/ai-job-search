@@ -51,6 +51,13 @@ const configuration = () => ({
     } as Record<string, string>,
 
     /**
+     * `User-Agent` gửi kèm request, theo từng lõi. Bỏ trống = dùng mặc định của thư viện HTTP.
+     */
+    userAgents: {
+      opencode: process.env.OPENCODE_USER_AGENT ?? 'opencode',
+    } as Record<string, string>,
+
+    /**
      * Cho phép chuỗi chạm model TRẢ TIỀN. Mặc định TẮT, và mặc định đó là chủ
      * đích: OpenRouter phục vụ 413 model gồm cả loại đắt tiền, còn hàng đợi
      * chấm điểm thì chạy theo cron với số lượt bằng số tin nhân số người dùng.
@@ -61,6 +68,21 @@ const configuration = () => ({
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
 
     structuredOutputs: process.env.AI_STRUCTURED_OUTPUTS === 'true',
+  },
+
+  /**
+   * Pha 4 · lọc sơ bộ bằng ngữ nghĩa. Nhà cung cấp RIÊNG cho embedding, vì đã
+   * đo: OpenCode không có model embedding nào, OpenRouter cũng vậy (0/413).
+   */
+  semantic: {
+    apiKey: process.env.GEMINI_API_KEY ?? '',
+
+    /**
+     * Số tin đưa cho model chấm điểm với mỗi người dùng, sau khi lọc bằng
+     * vector. Hiện fan-out chấm MỌI tin × MỌI người; đây là con số thay thế
+     * phép nhân đó.
+     */
+    topK: parseInt(process.env.SEMANTIC_TOP_K ?? '10', 10),
   },
 
   skills: {

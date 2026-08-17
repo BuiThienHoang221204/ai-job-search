@@ -63,8 +63,8 @@ model Profile {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Danh tính
-  headline         String?
-  location         String?
+  headline String?
+  location String?
 
   /// So dien thoai. Gan nhu MOI form ung tuyen doi truong nay, va template CV da
   /// ho tro macro `\phone` tu truoc - truoc do `documents.service.ts` luon truyen
@@ -80,9 +80,9 @@ model Profile {
   summary          String?  @db.Text
 
   // Công dân / giấy phép lao động - phục vụ Eligibility Gate
-  citizenship       String?
-  workPermit        String?
-  workPermitNote    String?
+  citizenship    String?
+  workPermit     String?
+  workPermitNote String?
 
   // Kỹ năng -> [YOUR_PRIMARY_SKILLS] / [YOUR_SECONDARY_SKILLS] / [SKILLS_YOU_LACK]
   primarySkills   String[] @default([])
@@ -116,6 +116,8 @@ model Profile {
   completion Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  embedding ProfileEmbedding?
 
   @@map("profiles")
 }
@@ -155,10 +157,63 @@ model Job {
   interviewPreps InterviewPrep[]
   documents      Document[]
   applications   Application[]
+  embedding      JobEmbedding?
 
   @@unique([source, externalId])
   @@index([postedAt])
   @@map("jobs")
+}
+
+/// Vector ngữ nghĩa của một tin tuyển dụng, dùng để LỌC SƠ BỘ trước khi gọi
+/// model chấm điểm. Nó KHÔNG thay việc chấm điểm — chỉ quyết định tin nào đáng
+/// được chấm.
+///
+/// Để bảng riêng chứ không thêm cột vào `jobs`, vì hai lý do:
+/// 1. Đổi model hoặc đổi số chiều sau này không phải migrate cả bảng `jobs`.
+/// 2. Prisma không có kiểu `vector`, phải khai `Unsupported()` — mà trường
+///    `Unsupported` thì Prisma Client KHÔNG đọc được, mọi truy vấn phải qua
+///    `$queryRaw`. Giữ nó tách biệt để phần còn lại của `jobs` vẫn dùng client
+///    bình thường.
+model JobEmbedding {
+  jobId String @id
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// Model đã sinh vector này. Đổi model thì vector cũ không so được với vector
+  /// mới, nên phải biết cái nào sinh ra cái nào.
+  model String
+  dim   Int
+
+  embedding Unsupported("vector(768)")
+
+  createdAt DateTime @default(now())
+
+  @@index([model])
+  @@map("job_embeddings")
+}
+
+/// Vector ngữ nghĩa của một hồ sơ. Cần để tìm "K tin gần hồ sơ này nhất".
+///
+/// Nội dung đưa vào embedding CỐ Ý không có thông tin định danh (tên, điện
+/// thoại, địa chỉ): tên riêng không giúp gì cho độ tương đồng ngữ nghĩa, mà lại
+/// là dữ liệu cá nhân gửi ra dịch vụ ngoài. Hai lý do độc lập cùng chỉ về một
+/// cách làm.
+model ProfileEmbedding {
+  profileId String  @id
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  model String
+  dim   Int
+
+  embedding Unsupported("vector(768)")
+
+  /// Hồ sơ đổi thì vector phải sinh lại. Giữ hash của phần văn bản đã embed để
+  /// biết khi nào cần làm mới mà không phải so cả hồ sơ.
+  sourceHash String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profile_embeddings")
 }
 
 model SavedJob {
@@ -243,7 +298,7 @@ model JobMatch {
   recommendation String?  @db.Text
 
   // --- Truy vết ---
-  modelId String?
+  modelId     String?
   /// Hash của (nội dung skill + hồ sơ + mô tả công việc). Khi hash đổi nghĩa là
   /// kết quả đã cũ và cần chấm lại; khi trùng thì bỏ qua, không gọi AI lại.
   promptHash  String?
@@ -275,15 +330,15 @@ model InterviewPrep {
   status MatchStatus @default(PENDING)
 
   /// Các câu trả lời theo cấu trúc STAR (Situation - Task - Action - Result).
-  starAnswers Json?
+  starAnswers    Json?
   /// Câu hỏi khó kèm gợi ý trả lời, gồm cả câu về khoảng trống trong hồ sơ.
   toughQuestions Json?
   /// Câu ứng viên nên hỏi lại nhà tuyển dụng.
   questionsToAsk String[] @default([])
   /// Ý chính cần nhắc đến, bám theo yêu cầu của tin tuyển dụng.
-  talkingPoints String[] @default([])
+  talkingPoints  String[] @default([])
   /// Điểm yếu nhà tuyển dụng nhiều khả năng sẽ đào vào.
-  likelyProbes String[] @default([])
+  likelyProbes   String[] @default([])
 
   modelId     String?
   promptHash  String?
@@ -336,13 +391,13 @@ model ProfileDraft {
   /// Đường dẫn file gốc trong Storage, để người dùng tải lại đúng file đã nộp.
   storageKey String?
   /// Tên file lúc nộp, hiện ở màn xác nhận.
-  filename String?
+  filename   String?
 
   modelId     String?
   generatedAt DateTime?
   /// Thời điểm người dùng ĐÃ áp dụng bản nháp này vào hồ sơ. null nghĩa là chưa.
-  appliedAt DateTime?
-  error     String?   @db.Text
+  appliedAt   DateTime?
+  error       String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -375,12 +430,12 @@ model UpskillReport {
 
   /// Thiếu hụt kỹ năng cứng, đã tính trọng số theo điểm phù hợp:
   /// công việc càng ít phù hợp càng lộ ra nhiều khoảng trống.
-  hardGaps Json?
+  hardGaps        Json?
   /// Thiếu hụt suy luận: domain, soft skill, tooling, credential.
   synthesisedGaps Json?
   /// Lộ trình học theo thứ tự ưu tiên.
-  learningPlan Json?
-  summary      String? @db.Text
+  learningPlan    Json?
+  summary         String? @db.Text
 
   modelId     String?
   generatedAt DateTime?
@@ -403,7 +458,7 @@ enum DocumentKind {
 }
 
 model Document {
-  id     String @id @default(cuid())
+  id     String  @id @default(cuid())
   userId String
   jobId  String?
 
@@ -463,10 +518,10 @@ model ScrapeRun {
   /// tìm theo hướng nào khi kết quả không như mong đợi.
   queries Json?
 
-  jobsFound   Int @default(0)
+  jobsFound  Int @default(0)
   /// Tin mới thật sự - đã trừ phần trùng với lần quét trước.
-  jobsNew     Int @default(0)
-  jobsQueued  Int @default(0)
+  jobsNew    Int @default(0)
+  jobsQueued Int @default(0)
 
   modelId    String?
   startedAt  DateTime?
@@ -513,9 +568,9 @@ model AiCall {
   provider String
   modelId  String
 
-  ok          Boolean
-  failureKind AiFailureKind?
-  errorMessage String?       @db.Text
+  ok           Boolean
+  failureKind  AiFailureKind?
+  errorMessage String?        @db.Text
 
   durationMs   Int
   inputTokens  Int?
@@ -578,7 +633,7 @@ model Application {
   /// RANKED nhiều ngày trước khi nộp.
   appliedAt DateTime?
   /// Ngày chốt kết quả cuối (HIRED / REJECTED / NO_RESPONSE / ...).
-  closedAt DateTime?
+  closedAt  DateTime?
 
   events ApplicationEvent[]
 
@@ -627,7 +682,7 @@ model ApplyAttempt {
   message String? @db.Text
 
   /// `FilledField[]` - nhan va gia tri da dien, de nguoi dung doi chieu voi anh chup.
-  filled Json?
+  filled    Json?
   /// Nhan cua nhung o khong luat nao khop. Cho biet can bo sung luat gi.
   unmatched String[] @default([])
 
