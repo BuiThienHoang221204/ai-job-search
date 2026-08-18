@@ -4,8 +4,8 @@ import { StorageModule } from '../storage/storage.module.js';
 import { CvPdfSource } from './cv-pdf.source.js';
 import { ProfileDraftController } from './profile-draft.controller.js';
 import { ProfileDraftProcessor } from './profile-draft.processor.js';
-import { ProfileDraftService } from './profile-draft.service.js';
-import { ProfileSynthesizerService } from './profile-synthesizer.service.js';
+import { ProfileDraftService } from './services/profile-draft.service.js';
+import { ProfileSynthesizerService } from './services/profile-synthesizer.service.js';
 
 /** SEAM 3 · đọc hồ sơ từ nguồn ngoài — Agent 1 của đề tài. */
 @Module({

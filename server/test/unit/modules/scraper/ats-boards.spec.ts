@@ -5,7 +5,7 @@ import {
   parseBoards,
   type AtsBoard,
 } from 'src/modules/scraper/ats-boards.js';
-import { filterByQuery } from 'src/modules/scraper/ats-source.service.js';
+import { filterByQuery } from 'src/modules/scraper/services/ats-source.service.js';
 
 /*
  * Chuẩn hoá dữ liệu của ba hệ ATS. Dữ liệu mẫu dưới đây lấy từ phản hồi THẬT của
@@ -186,7 +186,7 @@ describe('normalizeAtsJobs - Lever', () => {
   });
 
   test('lấy hostedUrl, không lấy applyUrl', () => {
-    // `hostedUrl` là trang tin; `applyUrl` là form. Assisted Apply tự tìm form từ
+    // `hostedUrl` là trang tin; `applyUrl` là form. Người dùng mở form từ
     // trang tin, còn lưu applyUrl thì người dùng bấm "Xem tin gốc" ra giữa form.
     const [card] = normalizeAtsJobs(board('lever'), rows);
     expect(card.url).toBe('https://jobs.lever.co/acme/abc-123');

@@ -1,10 +1,10 @@
 import type { MatchStatus } from 'src/generated/prisma/enums.js';
-import { STALE_RUNNING_MS } from 'src/modules/matching/matching.service.js';
+import { STALE_RUNNING_MS } from 'src/modules/matching/services/matching.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import {
   ReconcileService,
   STUCK_AFTER_MS,
-} from 'src/modules/reconcile/reconcile.service.js';
+} from 'src/modules/reconcile/services/reconcile.service.js';
 import {
   createTestApp,
   type TestApp,

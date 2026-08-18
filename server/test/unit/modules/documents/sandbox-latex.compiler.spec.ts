@@ -1,7 +1,7 @@
 import {
   LATEX_IMAGE,
   SandboxLatexCompiler,
-} from 'src/modules/documents/sandbox-latex.compiler.js';
+} from 'src/modules/documents/compilers/sandbox-latex.compiler.js';
 import { FakeSandbox } from 'src/testing/fake-sandbox.js';
 
 const PDF = Buffer.from('%PDF-1.7 gia lap');

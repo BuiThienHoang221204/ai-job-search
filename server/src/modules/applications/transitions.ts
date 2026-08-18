@@ -39,6 +39,21 @@ export const groupOf = (status: ApplicationStatus): StatusGroup => {
   return isFinal(status) ? 'closed' : 'open';
 };
 
+/** Mọi trạng thái, dựng từ chính hai mảng trên chứ không gõ tay lại. */
+export const ALL_STATUSES = [
+  ...OPEN_STATUSES,
+  ...FINAL_STATUSES,
+] as const satisfies readonly ApplicationStatus[];
+
+/**
+ * Đảo ngược `groupOf`: những trạng thái nào thuộc một nhóm. Suy ra từ chính
+ * `groupOf` nên thêm một trạng thái vào enum là bảng lọc tự đúng theo.
+ */
+export const statusesOfGroup = (group: StatusGroup): ApplicationStatus[] =>
+  (ALL_STATUSES as readonly ApplicationStatus[]).filter(
+    (status) => groupOf(status) === group,
+  );
+
 export type TransitionRequest = {
   from: ApplicationStatus;
   to: ApplicationStatus;

@@ -112,20 +112,6 @@ Muốn dựng lại `cover.cls` (ví dụ sau khi đổi font của nó sang fon
 
 Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `\today`: `\today` theo ngôn ngữ document class, và moderncv mặc định tiếng Anh — đã thấy dòng "August 13, 2026" trong một thư tiếng Việt.
 
-## Assisted Apply (Pha 5) — bốn điều đã đo, không đoán
-
-**Máy KHÔNG bấm nút nộp.** Đây là quyết định thiết kế, không phải việc còn thiếu — lý do đầy đủ trong docblock của `BrowserApplyService`. Đừng "làm cho xong" bằng cách thêm một lần `click()`.
-
-**Form ứng tuyển của cả 4 portal Việt nằm sau tường đăng nhập.** Đo bằng chính HTML của TopCV: nút "Ứng tuyển ngay" là `href="javascript:showLoginPopup('...?apply-form=1', ...)"`. VietnamWorks không có form nào trên trang công khai. Nên `LOGIN_WALL` là một **kết luận hợp lệ**, không phải lỗi cần sửa; nơi luồng tự động chạy thật là form công khai kiểu Greenhouse/Lever/Ashby.
-
-**Chính sách ở TypeScript, cơ chế ở trong trang.** `field-plan.ts` sinh bảng luật và phân loại kết quả (có test đơn vị); `apply-script.ts` chỉ dò chuỗi và gán giá trị. Đừng chuyển quyết định nào vào script: nó là một template string, không được eslint/tsc kiểm.
-
-**Khớp trên MỌI thuộc tính nhận dạng, không chỉ một nhãn.** Đo trên form Greenhouse: hai ô file có `id="resume"` và `id="cover_letter"`, còn nhãn của cả hai — và của cả 5 tầng ancestor — đều là "Attach", vì form ẩn `input[type=file]` thật rồi vẽ một nút riêng. Chỉ khớp theo nhãn thì **CV bị đính vào cả ô thư xin việc**, và đó là lỗi người đọc hồ sơ thấy ngay. Cũng vì thế luật file KHÔNG có nhánh dự phòng lỏng (`attach|upload|file`): ô không đọc được thì để `unmatched` cho người dùng tự đính — thà thiếu còn hơn đính sai tài liệu.
-
-**`--network` mặc định là `none`**, chỉ Assisted Apply khai `'egress'`. Có test bảo mật riêng ở `test/unit/modules/sandbox/docker-args.spec.ts`, gồm cả nhánh "một giá trị lạ KHÔNG mở được mạng" — spec có thể đến từ JSON trong hàng đợi, nên so sánh phải là danh sách trắng. Vì lượt chạy này vừa có hồ sơ vừa có Internet, nó chỉ nhận `ApplyIdentity` (4 trường), không nhận nội dung do model sinh.
-
-Ảnh `aijob-browser:1.62.1` phải build trước (`browser-service/Dockerfile`) — 3,54GB. Ảnh chính thức của Playwright chỉ có trình duyệt, KHÔNG có package npm `playwright`.
-
 ## Nguồn tin: SEAM 5, hai adapter
 
 `ScraperService` KHÔNG biết một nguồn là CLI hay HTTP — nó hỏi `JobSourceRouter`. Hai adapter:
@@ -133,19 +119,13 @@ Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `
 - `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bốn portal Việt nằm ở đây.
 - `AtsSourceService` — gọi **API job board công khai** của Greenhouse/Lever/Ashby, khai bằng `ATS_BOARDS=greenhouse:gitlab,ashby:ramp`.
 
-**Vì sao có nguồn ATS, và lý do KHÔNG phải "thêm tin": form ứng tuyển của chúng công khai.** Bốn portal Việt đặt form sau tường đăng nhập nên Assisted Apply với chúng chỉ trả `LOGIN_WALL`. Đã đo trên board GitLab: 201 tin có mô tả → 42 khớp "DevOps" → 12 lưu, rồi Assisted Apply điền được 6 trường thật trên một tin trong số đó.
+**Vì sao có nguồn ATS: tin của chúng lấy được qua API công bố, có tài liệu, không cần key — đọc chúng không phải scrape.** Đây cũng là món trả nợ ToS mà lộ trình ghi ở mục 4: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Đã đo trên board GitLab: 201 tin có mô tả → 42 khớp "DevOps" → 12 lưu.
 
 Ba điều dễ làm sai ở adapter ATS:
 
 1. **Lever trả MẢNG ở tầng ngoài**, Greenhouse và Ashby bọc trong `{ jobs: [...] }`. Đọc sai chỗ này thì luôn ra 0 tin và lượt quét vẫn được ghi là "thành công".
 2. **Greenhouse cần `?content=true`**, thiếu nó thì `content` vắng và phải gọi thêm một request cho từng tin. Cả ba đều trả mô tả sẵn, nên `AtsSourceService.detail()` cố ý **ném lỗi** — nó không bao giờ được gọi tới.
 3. **Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ.
-
-## Assisted Apply: ô nào là CÂU HỎI thì không tự điền
-
-Đã điền sai thật trên form GitLab: ô **"Are you Hispanic/Latino?"** nhận giá trị **"Hồ Chí Minh"**, vì luật địa điểm khớp trên `haystack` (nhãn + id + name) và id nội bộ của ô đó chứa từ khớp. Một câu trả lời nhân khẩu học sai đi vào hồ sơ gửi nhà tuyển dụng không phải chuyện nhỏ.
-
-Quy tắc: **nhãn có dấu hỏi thì bỏ qua** (`QUESTION_MARKS`, gồm cả `？` toàn rộng). Nó làm mất vài ô lẽ ra điền được — "What's the name you'd prefer us to use?" cũng bị bỏ — và đó là đánh đổi có chủ đích: với hồ sơ xin việc, **thiếu tốt hơn sai**, và ô bị bỏ vẫn hiện trong danh sách "bạn cần tự điền".
 
 ## Quét tin — đây là trợ lý tìm việc ĐA NGÀNH
 

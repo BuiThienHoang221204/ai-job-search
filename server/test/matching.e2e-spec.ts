@@ -1,5 +1,5 @@
-import type { Evaluation } from 'src/modules/matching/evaluation.schema.js';
-import { MatchingService } from 'src/modules/matching/matching.service.js';
+import type { Evaluation } from 'src/modules/matching/schemas/evaluation.schema.js';
+import { MatchingService } from 'src/modules/matching/services/matching.service.js';
 import {
   createTestApp,
   type TestApp,

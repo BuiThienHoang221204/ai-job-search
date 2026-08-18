@@ -1,4 +1,4 @@
-import type { PortalJobCard } from './portal-cli.service.js';
+import type { PortalJobCard } from './services/portal-cli.service.js';
 
 /** Ba hệ ATS, và đây là **hàm thuần** — không fetch, không log, không Nest. */
 export type AtsVendor = 'greenhouse' | 'lever' | 'ashby';

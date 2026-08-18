@@ -1,5 +1,5 @@
 import type { Profile } from 'src/generated/prisma/client.js';
-import { PromptBuilderService } from 'src/modules/skills/prompt-builder.service.js';
+import { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
 
 const service = new PromptBuilderService();
 

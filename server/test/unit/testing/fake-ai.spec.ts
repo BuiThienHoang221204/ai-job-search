@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { GenerateObjectOptions } from 'src/modules/ai/ai.service.js';
+import type { GenerateObjectOptions } from 'src/modules/ai/services/ai.service.js';
 import { FAKE_MODEL_ID, FakeAi } from 'src/testing/fake-ai.js';
 
 const schema = z.object({ score: z.number(), note: z.string() });

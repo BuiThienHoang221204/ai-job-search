@@ -23,8 +23,6 @@ export const QUEUE = {
   SCRAPE_RUN: 'scrape.run',
   /** Đọc CV/nguồn ngoài thành một ĐỀ XUẤT hồ sơ, chờ người dùng xác nhận. */
   PROFILE_SYNTHESIZE: 'profile.synthesize',
-  /** Mở link tuyển dụng trong sandbox, điền form, chụp ảnh. KHÔNG bấm nút nộp. */
-  APPLY_ASSIST: 'apply.assist',
   /** Rút yêu cầu của MỘT tin, dùng chung cho mọi hồ sơ. Pha A. */
   EXTRACT_REQUIREMENTS: 'job.requirements',
 } as const;
@@ -59,10 +57,6 @@ export type GenerateDocumentPayload = {
 export type ProfileSynthesizePayload = {
   userId: string;
   draftId: string;
-};
-
-export type ApplyAssistPayload = {
-  attemptId: string;
 };
 
 export type ScrapeRunPayload = {

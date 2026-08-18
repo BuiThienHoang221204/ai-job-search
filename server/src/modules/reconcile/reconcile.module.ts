@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ReconcileCronService } from './reconcile-cron.service.js';
-import { ReconcileService } from './reconcile.service.js';
+import { ReconcileCronService } from './services/reconcile-cron.service.js';
+import { ReconcileService } from './services/reconcile.service.js';
 
 /** Nhặt lại việc nền đã rơi mất. */
 @Module({

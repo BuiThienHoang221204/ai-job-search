@@ -156,7 +156,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       await createCvFor(first);
 
       const response = await get('/api/documents', second).expect(200);
-      expect(response.body).toEqual([]);
+      expect(response.body).toMatchObject({ items: [], total: 0 });
     });
 
     test('hồ sơ của mỗi người là riêng biệt', async () => {

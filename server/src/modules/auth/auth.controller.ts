@@ -4,7 +4,7 @@ import { AuthService } from './auth.service.js';
 import { clearAuthCookie, setAuthCookie } from './auth.cookie.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { LoginDto, RegisterDto } from './dto/auth.dto.js';
+import { LoginDto, RegisterDto } from './auth.dto.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { ThrottleAuth } from '../../common/throttle.js';
 

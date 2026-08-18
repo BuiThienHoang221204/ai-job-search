@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { isUniqueViolation } from '../../prisma/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type { LoginDto, RegisterDto } from './dto/auth.dto.js';
+import type { LoginDto, RegisterDto } from './auth.dto.js';
 
 const BCRYPT_ROUNDS = 12;
 

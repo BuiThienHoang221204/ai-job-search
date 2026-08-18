@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { buildAiHealth, type AiHealth } from './ai-health.js';
 
@@ -35,26 +37,33 @@ export class AdminService {
    * Các lần hỏng gần nhất, kèm thông báo thật. Bảng tổng hợp cho biết CÓ vấn
    * đề; danh sách này cho biết vấn đề là gì.
    */
-  recentFailures(limit: number) {
-    return this.prisma.aiCall.findMany({
-      where: { ok: false },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        /**
-         * `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
-         * trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
-         * nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
-         */
-        id: true,
-        purpose: true,
-        provider: true,
-        modelId: true,
-        failureKind: true,
-        errorMessage: true,
-        durationMs: true,
-        createdAt: true,
-      },
-    });
+  async recentFailures(query: PaginationQueryDto) {
+    const where = { ok: false };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.aiCall.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs(query),
+        select: {
+          /**
+           * `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
+           * trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
+           * nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
+           */
+          id: true,
+          purpose: true,
+          provider: true,
+          modelId: true,
+          failureKind: true,
+          errorMessage: true,
+          durationMs: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.aiCall.count({ where }),
+    ]);
+
+    return pageOf(items, total, query);
   }
 }

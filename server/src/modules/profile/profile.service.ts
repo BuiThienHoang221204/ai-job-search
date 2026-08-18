@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Profile } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import type { UpdateProfileDto } from './dto/profile.dto.js';
+import type { UpdateProfileDto } from './profile.dto.js';
 import { completionPercent } from './completion.js';
 
 @Injectable()

@@ -19,6 +19,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
@@ -48,10 +49,13 @@ export class CreateFormAnswerDto {
   characterLimit?: number;
 }
 
-export class ListDocumentsDto {
+export class ListDocumentsDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn(['CV', 'COVER_LETTER', 'FORM_ANSWER'])
   kind?: 'CV' | 'COVER_LETTER' | 'FORM_ANSWER';
+
+  /** Chỉ tài liệu đã tạo cho ĐÚNG tin này. */
+  @IsOptional() @IsString() jobId?: string;
 }
 
 @Controller('documents')
@@ -63,7 +67,7 @@ export class DocumentsController {
 
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListDocumentsDto) {
-    return this.documents.list(user.id, query.kind);
+    return this.documents.list(user.id, query.kind, query.jobId, query);
   }
 
   @Get(':id')

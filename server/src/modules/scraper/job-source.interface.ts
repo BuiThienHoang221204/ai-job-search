@@ -2,7 +2,7 @@ import type {
   PortalJobCard,
   PortalJobDetail,
   SearchArgs,
-} from './portal-cli.service.js';
+} from './services/portal-cli.service.js';
 import type { PortalEntry } from './portal-registry.js';
 
 export const JOB_SOURCE = Symbol('JOB_SOURCE');

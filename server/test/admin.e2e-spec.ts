@@ -70,8 +70,13 @@ describe('Hợp đồng dữ liệu màn quản trị', () => {
       .set('Authorization', `Bearer ${admin.token}`)
       .expect(200);
 
-    const rows = response.body as Array<Record<string, unknown>>;
+    const page = response.body as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
+    const rows = page.items;
     expect(rows).toHaveLength(1);
+    expect(page.total).toBe(1);
     expect(Object.keys(rows[0]).sort()).toEqual([...AI_FAILURE_FIELDS]);
 
     // `id` phải là giá trị dùng được làm key của React, không phải null hay ''.
@@ -109,9 +114,13 @@ describe('Hợp đồng dữ liệu màn quản trị', () => {
       .set('Authorization', `Bearer ${admin.token}`)
       .expect(200);
 
-    const rows = response.body as Array<Record<string, unknown>>;
-    expect(rows).toHaveLength(1);
-    expect(rows[0].failureKind).toBe('UPSTREAM');
+    const page = response.body as {
+      items: Array<Record<string, unknown>>;
+      total: number;
+    };
+    expect(page.items).toHaveLength(1);
+    expect(page.total).toBe(1);
+    expect(page.items[0].failureKind).toBe('UPSTREAM');
   });
 
   test('tài khoản thường không đọc được', async () => {

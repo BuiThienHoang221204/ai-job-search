@@ -1,4 +1,4 @@
-import type { JobRequirements } from './job-requirements.schema.js';
+import type { JobRequirements } from './schemas/job-requirements.schema.js';
 
 /** Kỹ năng phụ đáng ít điểm hơn kỹ năng bắt buộc, nhưng không phải không đáng gì. */
 const NICE_TO_HAVE_WEIGHT = 0.5;

@@ -1,7 +1,7 @@
 import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
-import { SkillRegistryService } from './skill-registry.service.js';
+import { SkillRegistryService } from './services/skill-registry.service.js';
 
 /**
  * Công cụ vận hành, không phải dữ liệu người dùng: danh sách skill để lộ tên và

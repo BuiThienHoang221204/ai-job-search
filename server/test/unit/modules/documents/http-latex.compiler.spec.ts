@@ -1,4 +1,4 @@
-import { HttpLatexCompiler } from 'src/modules/documents/http-latex.compiler.js';
+import { HttpLatexCompiler } from 'src/modules/documents/compilers/http-latex.compiler.js';
 
 const PDF = Buffer.from('%PDF-1.7 gia lap');
 const BASE = 'http://latex:8080';

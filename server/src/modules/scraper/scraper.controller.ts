@@ -5,16 +5,18 @@ import {
   Get,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { JobSourceRouter } from './job-source.router.js';
-import { ScraperService } from './scraper.service.js';
+import { ScraperService } from './services/scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
 
 /**
@@ -53,8 +55,8 @@ export class ScraperController {
   }
 
   @Get('runs')
-  history(@CurrentUser() user: AuthUser) {
-    return this.scraper.history(user.id);
+  history(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
+    return this.scraper.history(user.id, query);
   }
 
   @Get('runs/:id')

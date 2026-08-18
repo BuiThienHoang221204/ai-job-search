@@ -4,7 +4,7 @@ import {
   evaluationSchema,
   verdictFor,
   type Evaluation,
-} from 'src/modules/matching/evaluation.schema.js';
+} from 'src/modules/matching/schemas/evaluation.schema.js';
 
 /// Kết quả hợp lệ tối thiểu, dùng làm nền rồi ghi đè từng trường.
 const base = (scores: {

@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
@@ -19,8 +20,8 @@ export class InterviewController {
   ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser) {
-    return this.interview.list(user.id);
+  list(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
+    return this.interview.list(user.id, query);
   }
 
   @Get(':jobId')

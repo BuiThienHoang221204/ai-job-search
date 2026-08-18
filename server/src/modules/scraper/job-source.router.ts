@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AtsSourceService } from './ats-source.service.js';
+import { AtsSourceService } from './services/ats-source.service.js';
 import {
   PortalCliService,
   type PortalJobCard,
   type PortalJobDetail,
   type SearchArgs,
-} from './portal-cli.service.js';
+} from './services/portal-cli.service.js';
 import type { PortalEntry } from './portal-registry.js';
 import type { JobSource } from './job-source.interface.js';
 

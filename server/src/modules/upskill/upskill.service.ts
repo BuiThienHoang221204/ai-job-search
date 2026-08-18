@@ -5,11 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Profile, UpskillReport } from '../../generated/prisma/client.js';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/ai.service.js';
+import { AiService } from '../ai/services/ai.service.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
-import { PromptBuilderService } from '../skills/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/skill-registry.service.js';
+import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
+import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import {
   upskillGapsSchema,
   upskillPlanSchema,
@@ -290,23 +292,29 @@ export class UpskillService {
     return withFailureKind(report);
   }
 
-  async history(userId: string) {
-    const reports = await this.prisma.upskillReport.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-      select: {
-        id: true,
-        mode: true,
-        status: true,
-        jobsAnalysed: true,
-        summary: true,
-        createdAt: true,
-        generatedAt: true,
-        error: true,
-      },
-    });
-    return withFailureKinds(reports);
+  async history(userId: string, query: PaginationQueryDto) {
+    const where = { userId };
+
+    const [reports, total] = await this.prisma.$transaction([
+      this.prisma.upskillReport.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs(query),
+        select: {
+          id: true,
+          mode: true,
+          status: true,
+          jobsAnalysed: true,
+          summary: true,
+          createdAt: true,
+          generatedAt: true,
+          error: true,
+        },
+      }),
+      this.prisma.upskillReport.count({ where }),
+    ]);
+
+    return pageOf(withFailureKinds(reports), total, query);
   }
 
   async get(userId: string, id: string) {

@@ -12,9 +12,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Profile } from 'src/generated/prisma/client.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
-import type { AiService } from 'src/modules/ai/ai.service.js';
-import { PromptBuilderService } from 'src/modules/skills/prompt-builder.service.js';
-import type { SkillRegistryService } from 'src/modules/skills/skill-registry.service.js';
+import type { AiService } from 'src/modules/ai/services/ai.service.js';
+import { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
+import type { SkillRegistryService } from 'src/modules/skills/services/skill-registry.service.js';
 import { UpskillService } from 'src/modules/upskill/upskill.service.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 

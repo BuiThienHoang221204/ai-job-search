@@ -1,4 +1,7 @@
-import type { Ai, GenerateObjectOptions } from '../modules/ai/ai.service.js';
+import type {
+  Ai,
+  GenerateObjectOptions,
+} from '../modules/ai/services/ai.service.js';
 
 /**
  * Kết quả xếp sẵn cho một lần gọi: hoặc object mà model "trả về", hoặc lỗi để

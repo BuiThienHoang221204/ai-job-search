@@ -2,9 +2,9 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { EvaluateJobDto, ListMatchesQueryDto } from './dto/matching.dto.js';
-import { MatchingService } from './matching.service.js';
-import { JobRequirementsService } from './job-requirements.service.js';
+import { EvaluateJobDto, ListMatchesQueryDto } from './matching.dto.js';
+import { MatchingService } from './services/matching.service.js';
+import { JobRequirementsService } from './services/job-requirements.service.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
@@ -22,11 +22,7 @@ export class MatchingController {
    */
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListMatchesQueryDto) {
-    return this.matching.listMatches(
-      user.id,
-      query.limit ?? 20,
-      query.offset ?? 0,
-    );
+    return this.matching.listMatches(user.id, query);
   }
 
   @Get(':jobId')

@@ -7,9 +7,9 @@ import { SkillsModule } from '../skills/skills.module.js';
 import { DocumentsController } from './documents.controller.js';
 import { DocumentsProcessor } from './documents.processor.js';
 import { DocumentsService } from './documents.service.js';
-import { HttpLatexCompiler } from './http-latex.compiler.js';
+import { HttpLatexCompiler } from './compilers/http-latex.compiler.js';
 import { LATEX_COMPILER, type LatexCompiler } from './latex-compile.js';
-import { SandboxLatexCompiler } from './sandbox-latex.compiler.js';
+import { SandboxLatexCompiler } from './compilers/sandbox-latex.compiler.js';
 
 /** Chọn cách compile LaTeX theo môi trường. */
 const latexCompilerProvider = {

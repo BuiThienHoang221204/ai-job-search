@@ -1,14 +1,24 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { FitVerdict, MatchStatus } from '../../generated/prisma/client.js';
+import type {
+  FitVerdict,
+  MatchStatus,
+  Prisma,
+} from '../../generated/prisma/client.js';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { JobRequirement } from '../../generated/prisma/client.js';
-import { JobRequirementsService } from '../matching/job-requirements.service.js';
+import { JobRequirementsService } from '../matching/services/job-requirements.service.js';
 import {
   matchRequirements,
   type MatchProfile,
 } from '../matching/requirement-match.js';
 import { keywordOverlap } from '../scraper/fan-out.js';
-import type { CreateJobDto, ListJobsQueryDto } from './dto/job.dto.js';
+import { derivedFields } from './taxonomy/derived.js';
+import { OCCUPATIONS } from './taxonomy/occupations.js';
+import { PROVINCES, REMOTE_CODE } from './taxonomy/provinces.js';
+import { normalizeText } from './taxonomy/resolve.js';
+import type { CreateJobDto, JobSort, ListJobsQueryDto } from './job.dto.js';
 
 @Injectable()
 export class JobsService {
@@ -31,6 +41,7 @@ export class JobsService {
       salaryMax: dto.salaryMax ?? null,
       currency: dto.currency ?? null,
       tags: dto.tags ?? [],
+      ...derivedFields(dto.title, dto.company, dto.location, dto.tags ?? []),
     };
 
     if (!data.externalId) return this.prisma.job.create({ data });
@@ -88,6 +99,7 @@ export class JobsService {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
       select: {
+        headline: true,
         primarySkills: true,
         secondarySkills: true,
         citizenship: true,
@@ -109,7 +121,7 @@ export class JobsService {
   private withSystemMatch<
     T extends {
       title: string;
-      description: string;
+      tags: string[];
       requirements: JobRequirement | null;
     },
   >(job: T, profile: MatchProfile | null) {
@@ -141,7 +153,10 @@ export class JobsService {
       ...rest,
       systemMatch: {
         kind: 'KEYWORDS' as const,
-        met: keywordOverlap(`${job.title} ${job.description}`, profile.skills),
+        met: keywordOverlap(
+          `${job.title} ${job.tags.join(' ')}`,
+          profile.skills,
+        ),
         total: profile.skills.length,
         score: 0,
         eligibility: 'UNVERIFIED' as const,
@@ -150,36 +165,209 @@ export class JobsService {
     };
   }
 
-  async list(query: ListJobsQueryDto, userId: string) {
-    const where = query.q
-      ? {
-          OR: [
-            { title: { contains: query.q, mode: 'insensitive' as const } },
-            { company: { contains: query.q, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
+  /**
+   * Điều kiện lọc, dựng thành MỘT `where` để Postgres lọc, đếm và cắt trang
+   * trong cùng một truy vấn. Trước đây bộ lọc chạy trong bộ nhớ trên 300 tin
+   * mới nhất, nên tin thứ 301 trở đi không tồn tại với người đi tìm.
+   */
+  private whereFrom(
+    query: ListJobsQueryDto,
+    userId: string,
+  ): Prisma.JobWhereInput {
+    const needle = query.q ? normalizeText(query.q) : '';
+    const since = query.postedWithin
+      ? new Date(Date.now() - query.postedWithin * 24 * 60 * 60 * 1000)
+      : null;
 
-    const [items, total, skills] = await Promise.all([
+    return {
+      ...(needle ? { searchText: { contains: needle } } : {}),
+      ...(query.province?.length
+        ? { provinceCode: { in: query.province } }
+        : {}),
+      ...(query.occupation?.length
+        ? { occupationCode: { in: query.occupation } }
+        : {}),
+      ...(query.workMode?.length ? { workMode: { in: query.workMode } } : {}),
+      // So với `salaryMax`: câu hỏi là "tin này trả tới mức tôi cần không",
+      // không phải "sàn của tin có cao hơn mức tôi cần không".
+      ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
+      ...(since ? { postedAt: { gte: since } } : {}),
+      ...(query.scored
+        ? { matches: { some: { userId, status: 'DONE' as const } } }
+        : {}),
+    };
+  }
+
+  /**
+   * Thứ tự luôn kết bằng `id`: hai tin cùng mốc thời gian mà không có khoá phụ
+   * thì Postgres được phép trả chúng theo thứ tự khác nhau ở mỗi truy vấn, và
+   * khi đó lật trang sẽ vừa lặp vừa bỏ sót bản ghi.
+   *
+   * "Mới nhất" đo bằng `scrapedAt` chứ không phải `postedAt`, và đó là một
+   * đánh đổi có chủ đích: `postedAt` nullable nên phải sắp `DESC NULLS LAST`,
+   * mà thứ tự đó không index được - đo trên 50.000 tin thì mỗi lần mở danh
+   * sách là một lần quét toàn bảng. `scrapedAt` không null nên index đỡ được.
+   */
+  private orderFor(sort: JobSort): Prisma.JobOrderByWithRelationInput[] {
+    if (sort === 'salary') {
+      // Tin không công bố lương xuống cuối, thay vì bị coi là lương 0 rồi trộn
+      // lẫn với những tin lương thật sự thấp. Chế độ này CHẤP NHẬN phải sắp
+      // lại kết quả: nó ít được chọn hơn hẳn thứ tự mặc định.
+      return [{ salaryMax: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }];
+    }
+    return [{ scrapedAt: 'desc' }, { id: 'desc' }];
+  }
+
+  /**
+   * Trường của một thẻ việc làm.
+   *
+   * CỐ Ý không có `description`: nó có trần 60KB và không thẻ nào hiển thị nó,
+   * nên trả về là kéo hàng megabyte qua dây cho mỗi lần lật trang.
+   */
+  private readonly cardSelect = (userId: string) =>
+    ({
+      id: true,
+      source: true,
+      externalId: true,
+      url: true,
+      title: true,
+      company: true,
+      companyLogo: true,
+      location: true,
+      workMode: true,
+      salaryRaw: true,
+      salaryMin: true,
+      salaryMax: true,
+      currency: true,
+      tags: true,
+      postedAt: true,
+      scrapedAt: true,
+      provinceCode: true,
+      occupationCode: true,
+      saves: { where: { userId }, select: { id: true } },
+      matches: {
+        where: { userId },
+        select: { status: true, overallScore: true, verdict: true },
+      },
+      requirements: true,
+    }) satisfies Prisma.JobSelect;
+
+  async list(query: ListJobsQueryDto, userId: string) {
+    const where = this.whereFrom(query, userId);
+    const sort = query.sort ?? 'newest';
+
+    if (sort === 'match') return this.listByMatchScore(where, query, userId);
+
+    const [rows, total, profile] = await Promise.all([
       this.prisma.job.findMany({
         where,
-        orderBy: { scrapedAt: 'desc' },
-        take: query.limit ?? 20,
-        skip: query.offset ?? 0,
-        include: this.relations(userId),
+        orderBy: this.orderFor(sort),
+        ...pageArgs(query),
+        select: this.cardSelect(userId),
       }),
       this.prisma.job.count({ where }),
       this.matchProfileOf(userId),
     ]);
 
-    return {
-      items: items.map((job) =>
+    return pageOf(
+      rows.map((job) =>
         this.withSystemMatch(
           this.withMatchState(this.withSavedFlag(job)),
-          skills,
+          profile,
         ),
       ),
       total,
+      query,
+    );
+  }
+
+  /**
+   * Sắp theo điểm AI. Truy vấn đi từ phía `job_matches` chứ không phải `jobs`:
+   * điểm nằm ở bảng đó, và index `[userId, overallScore desc]` chỉ dùng được
+   * khi nó là bảng dẫn đầu.
+   *
+   * Hệ quả cố ý: chế độ này CHỈ trả tin đã chấm điểm. Trộn tin chưa chấm vào
+   * một danh sách sắp theo điểm thì không có chỗ nào đặt chúng cho đúng.
+   */
+  private async listByMatchScore(
+    jobWhere: Prisma.JobWhereInput,
+    query: ListJobsQueryDto,
+    userId: string,
+  ) {
+    const where = {
+      userId,
+      status: 'DONE' as const,
+      job: jobWhere,
+    };
+
+    const [rows, total, profile] = await Promise.all([
+      this.prisma.jobMatch.findMany({
+        where,
+        orderBy: [{ overallScore: 'desc' }, { jobId: 'desc' }],
+        ...pageArgs(query),
+        select: { job: { select: this.cardSelect(userId) } },
+      }),
+      this.prisma.jobMatch.count({ where }),
+      this.matchProfileOf(userId),
+    ]);
+
+    return pageOf(
+      rows.map((row) =>
+        this.withSystemMatch(
+          this.withMatchState(this.withSavedFlag(row.job)),
+          profile,
+        ),
+      ),
+      total,
+      query,
+    );
+  }
+
+  /**
+   * Danh mục cho thanh bộ lọc, kèm số tin mỗi mục.
+   *
+   * Đếm trên TOÀN BỘ bảng chứ không theo bộ lọc đang chọn: đếm động phải chạy
+   * lại một `groupBy` cho mỗi lần người dùng tích một ô, và với quy mô của đề
+   * tài thì lợi ích không bù được chi phí đó.
+   */
+  async filters() {
+    const [byProvince, byOccupation] = await Promise.all([
+      this.prisma.job.groupBy({
+        by: ['provinceCode'],
+        orderBy: { provinceCode: 'asc' },
+        _count: true,
+      }),
+      this.prisma.job.groupBy({
+        by: ['occupationCode'],
+        orderBy: { occupationCode: 'asc' },
+        _count: true,
+      }),
+    ]);
+
+    const provinceCounts = new Map(
+      byProvince.map((row) => [row.provinceCode, row._count]),
+    );
+    const occupationCounts = new Map(
+      byOccupation.map((row) => [row.occupationCode, row._count]),
+    );
+
+    return {
+      provinces: PROVINCES.map((province) => ({
+        code: province.code,
+        name: province.name,
+        count: provinceCounts.get(province.code) ?? 0,
+      })),
+      occupations: OCCUPATIONS.map((occupation) => ({
+        code: occupation.code,
+        name: occupation.name,
+        count: occupationCounts.get(occupation.code) ?? 0,
+      })),
+      /// Tin làm từ xa không thuộc tỉnh nào nên không nằm trong `PROVINCES`.
+      remote: {
+        code: REMOTE_CODE,
+        name: 'Làm việc từ xa',
+        count: provinceCounts.get(REMOTE_CODE) ?? 0,
+      },
     };
   }
 
@@ -221,19 +409,27 @@ export class JobsService {
     return { saved: false };
   }
 
-  async listSaved(userId: string) {
-    const saves = await this.prisma.savedJob.findMany({
-      where: { userId },
-      orderBy: { savedAt: 'desc' },
-      include: { job: true },
-    });
-    return {
-      items: saves.map((save) => ({
+  async listSaved(userId: string, query: PaginationQueryDto) {
+    const where = { userId };
+
+    const [saves, total] = await this.prisma.$transaction([
+      this.prisma.savedJob.findMany({
+        where,
+        orderBy: { savedAt: 'desc' },
+        ...pageArgs(query),
+        include: { job: true },
+      }),
+      this.prisma.savedJob.count({ where }),
+    ]);
+
+    return pageOf(
+      saves.map((save) => ({
         ...save.job,
         saved: true,
         savedAt: save.savedAt,
       })),
-      total: saves.length,
-    };
+      total,
+      query,
+    );
   }
 }

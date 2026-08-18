@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { ApplicationStatus } from '../../generated/prisma/enums.js';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
 import { isUniqueViolation } from '../../prisma/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
@@ -13,6 +15,7 @@ import { QUEUE, QueueService } from '../queue/queue.service.js';
 import {
   checkTransition,
   groupOf,
+  statusesOfGroup,
   timestampsFor,
   type StatusGroup,
   type TransitionActor,
@@ -114,41 +117,61 @@ export class ApplicationsService {
   /**
    * Danh sách đơn kèm số lượng theo từng nhóm, dùng cho các tab trên màn hình
    * Lịch sử ứng tuyển. Chỉ đọc DB, không gọi AI.
+   *
+   * `counts` đếm bằng `groupBy` chứ không đếm lại mảng đã tải: đếm trong bộ nhớ
+   * buộc phải kéo TOÀN BỘ đơn về mới ra được con số, nên danh sách không phân
+   * trang được.
    */
-  async list(userId: string, group?: StatusGroup) {
-    const rows = await this.prisma.application.findMany({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        job: {
-          select: {
-            id: true,
-            title: true,
-            company: true,
-            companyLogo: true,
-            location: true,
-            salaryRaw: true,
-            url: true,
-          },
-        },
-      },
-    });
+  async list(
+    userId: string,
+    group: StatusGroup | undefined,
+    query: PaginationQueryDto,
+  ) {
+    const where = {
+      userId,
+      ...(group ? { status: { in: statusesOfGroup(group) } } : {}),
+    };
 
-    const counts = rows.reduce<Record<string, number>>(
+    const [[items, total], grouped] = await Promise.all([
+      this.prisma.$transaction([
+        this.prisma.application.findMany({
+          where,
+          orderBy: { updatedAt: 'desc' },
+          ...pageArgs(query),
+          include: {
+            job: {
+              select: {
+                id: true,
+                title: true,
+                company: true,
+                companyLogo: true,
+                location: true,
+                salaryRaw: true,
+                url: true,
+              },
+            },
+          },
+        }),
+        this.prisma.application.count({ where }),
+      ]),
+      this.prisma.application.groupBy({
+        by: ['status'],
+        where: { userId },
+        orderBy: { status: 'asc' },
+        _count: true,
+      }),
+    ]);
+
+    const counts = grouped.reduce<Record<string, number>>(
       (acc, row) => {
-        const key = groupOf(row.status);
-        acc[key] = (acc[key] ?? 0) + 1;
-        acc.all += 1;
+        acc[groupOf(row.status)] += row._count;
+        acc.all += row._count;
         return acc;
       },
       { all: 0, open: 0, interview: 0, offer: 0, closed: 0 },
     );
 
-    const items = group
-      ? rows.filter((row) => groupOf(row.status) === group)
-      : rows;
-
-    return { items, counts };
+    return { ...pageOf(items, total, query), counts };
   }
 
   async get(userId: string, id: string) {

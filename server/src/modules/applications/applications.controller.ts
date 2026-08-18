@@ -1,22 +1,17 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { ApplicationStatus } from '../../generated/prisma/enums.js';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { ApplicationsService } from './applications.service.js';
-import {
-  FINAL_STATUSES,
-  OPEN_STATUSES,
-  type StatusGroup,
-} from './transitions.js';
-
-const ALL_STATUSES = [...OPEN_STATUSES, ...FINAL_STATUSES];
+import { ALL_STATUSES, type StatusGroup } from './transitions.js';
 
 export class CreateApplicationDto {
   @IsString() jobId!: string;
 }
 
-export class ListApplicationsDto {
+export class ListApplicationsDto extends PaginationQueryDto {
   @IsOptional()
   @IsIn(['open', 'interview', 'offer', 'closed'])
   group?: StatusGroup;
@@ -42,7 +37,7 @@ export class ApplicationsController {
 
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListApplicationsDto) {
-    return this.applications.list(user.id, query.group);
+    return this.applications.list(user.id, query.group, query);
   }
 
   @Get(':id')

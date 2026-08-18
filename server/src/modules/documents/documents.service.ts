@@ -12,10 +12,12 @@ import type {
   Prisma,
   Profile,
 } from '../../generated/prisma/client.js';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/ai.service.js';
-import { PromptBuilderService } from '../skills/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/skill-registry.service.js';
+import { AiService } from '../ai/services/ai.service.js';
+import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
+import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import {
   STORAGE,
   userKey,
@@ -462,23 +464,39 @@ export class DocumentsService {
     });
   }
 
-  list(userId: string, kind?: DocumentKind) {
-    return this.prisma.document.findMany({
-      where: { userId, ...(kind ? { kind } : {}) },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        kind: true,
-        status: true,
-        title: true,
-        storageKey: true,
-        createdAt: true,
-        generatedAt: true,
-        error: true,
-        job: { select: { id: true, title: true, company: true } },
-      },
-    });
+  async list(
+    userId: string,
+    kind: DocumentKind | undefined,
+    jobId: string | undefined,
+    query: PaginationQueryDto,
+  ) {
+    const where = {
+      userId,
+      ...(kind ? { kind } : {}),
+      ...(jobId ? { jobId } : {}),
+    };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.document.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs(query),
+        select: {
+          id: true,
+          kind: true,
+          status: true,
+          title: true,
+          storageKey: true,
+          createdAt: true,
+          generatedAt: true,
+          error: true,
+          job: { select: { id: true, title: true, company: true } },
+        },
+      }),
+      this.prisma.document.count({ where }),
+    ]);
+
+    return pageOf(items, total, query);
   }
 
   async get(userId: string, id: string) {

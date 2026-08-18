@@ -6,11 +6,13 @@ import type {
   JobMatch,
   Profile,
 } from '../../generated/prisma/client.js';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/ai.service.js';
+import { AiService } from '../ai/services/ai.service.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
-import { PromptBuilderService } from '../skills/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/skill-registry.service.js';
+import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
+import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import {
   interviewPrepSchema,
   type InterviewPrepResult,
@@ -174,12 +176,19 @@ export class InterviewService {
     return withFailureKind(prep);
   }
 
-  async list(userId: string) {
-    const preps = await this.prisma.interviewPrep.findMany({
-      where: { userId },
-      orderBy: { updatedAt: 'desc' },
-      include: { job: { select: { id: true, title: true, company: true } } },
-    });
-    return withFailureKinds(preps);
+  async list(userId: string, query: PaginationQueryDto) {
+    const where = { userId };
+
+    const [preps, total] = await this.prisma.$transaction([
+      this.prisma.interviewPrep.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        ...pageArgs(query),
+        include: { job: { select: { id: true, title: true, company: true } } },
+      }),
+      this.prisma.interviewPrep.count({ where }),
+    ]);
+
+    return pageOf(withFailureKinds(preps), total, query);
   }
 }

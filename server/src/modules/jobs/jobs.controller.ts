@@ -8,10 +8,11 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { CreateJobDto, ListJobsQueryDto } from './dto/job.dto.js';
+import { CreateJobDto, ListJobsQueryDto } from './job.dto.js';
 import { JobsService } from './jobs.service.js';
 
 @Controller('jobs')
@@ -26,10 +27,19 @@ export class JobsController {
     return this.jobs.list(query, user.id);
   }
 
+  /**
+   * Danh mục tỉnh/thành và ngành nghề kèm số tin, để giao diện dựng thanh lọc.
+   * Phải khai TRƯỚC ':id', nếu không Nest sẽ coi "filters" là một id.
+   */
+  @Get('filters')
+  filters() {
+    return this.jobs.filters();
+  }
+
   /** Phải khai TRƯỚC ':id', nếu không Nest sẽ coi "saved" là một id. */
   @Get('saved')
-  listSaved(@CurrentUser() user: AuthUser) {
-    return this.jobs.listSaved(user.id);
+  listSaved(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
+    return this.jobs.listSaved(user.id, query);
   }
 
   @Get(':id')

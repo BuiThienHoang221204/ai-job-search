@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Res,
   StreamableFile,
   UploadedFile,
@@ -19,13 +20,14 @@ import {
   IsArray,
   IsString,
 } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { ThrottleAi } from '../../common/throttle.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { cvPdfErrorMessage } from './cv-pdf.source.js';
 import { MAX_PDF_BYTES } from './pdf-text.js';
-import { ProfileDraftService } from './profile-draft.service.js';
+import { ProfileDraftService } from './services/profile-draft.service.js';
 
 export class ApplyDraftDto {
   /** Tên các trường người dùng đã tích ở màn xác nhận. */
@@ -92,8 +94,12 @@ export class ProfileDraftController {
   }
 
   @Get('history')
-  async history(@CurrentUser() user: AuthUser) {
-    return withFailureKinds(await this.drafts.history(user.id));
+  async history(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const page = await this.drafts.history(user.id, query);
+    return { ...page, items: withFailureKinds(page.items) };
   }
 
   /** File CV gốc đã nộp. Dùng `StreamableFile`, KHÔNG trả `Buffer` trực tiếp. */

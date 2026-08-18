@@ -8,10 +8,12 @@ import {
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
-import { ReconcileService } from '../reconcile/reconcile.service.js';
-import { ScrapeCronService } from '../scraper/scrape-cron.service.js';
+import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
+import { ReconcileService } from '../reconcile/services/reconcile.service.js';
+import { ScrapeCronService } from '../scraper/services/scrape-cron.service.js';
 import { AdminService } from './admin.service.js';
 
 export class AiHealthQueryDto {
@@ -23,14 +25,7 @@ export class AiHealthQueryDto {
   days?: number;
 }
 
-export class FailuresQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit?: number;
-}
+export class FailuresQueryDto extends PaginationQueryDto {}
 
 /**
  * Chỉ khai RolesGuard ở đây. `JwtAuthGuard` là APP_GUARD toàn cục và guard
@@ -45,6 +40,7 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly cron: ScrapeCronService,
     private readonly reconcile: ReconcileService,
+    private readonly backfill: TaxonomyBackfillService,
   ) {}
 
   /**
@@ -58,7 +54,7 @@ export class AdminController {
 
   @Get('ai-failures')
   failures(@Query() query: FailuresQueryDto) {
-    return this.admin.recentFailures(query.limit ?? 20);
+    return this.admin.recentFailures(query);
   }
 
   /** Chạy NGAY lượt quét hằng đêm, không đợi tới 23:00. */
@@ -73,6 +69,18 @@ export class AdminController {
         ? 'Đang quét ở nền. Theo dõi bằng GET /api/scrape/runs.'
         : 'Không có portal nào được đăng ký, hoặc lượt quét trước còn đang chạy.',
     };
+  }
+
+  /**
+   * Tính lại mã tỉnh/thành, mã ngành và văn bản tìm kiếm cho tin đã có.
+   *
+   * `?all=true` tính lại TẤT CẢ - dùng sau khi sửa danh mục tỉnh hoặc ngành,
+   * vì tin cũ vẫn giữ mã suy ra từ danh mục phiên bản trước.
+   */
+  @Post('jobs/backfill-taxonomy')
+  @HttpCode(200)
+  backfillTaxonomy(@Query('all') all?: string) {
+    return this.backfill.run(all === 'true');
   }
 
   /** Nhặt NGAY những việc nền đã rơi, không đợi lượt cron 10 phút. */

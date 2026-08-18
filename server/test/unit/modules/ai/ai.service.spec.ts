@@ -48,8 +48,8 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
 }));
 
 import { z } from 'zod';
-import { AiService } from 'src/modules/ai/ai.service.js';
-import type { ModelCatalogService } from 'src/modules/ai/model-catalog.service.js';
+import { AiService } from 'src/modules/ai/services/ai.service.js';
+import type { ModelCatalogService } from 'src/modules/ai/services/model-catalog.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { ConfigService } from '@nestjs/config';
 

@@ -4,7 +4,7 @@ import type { Server } from 'node:http';
 import request from 'supertest';
 import { AppModule } from 'src/app.module.js';
 import { configureApp } from 'src/bootstrap.js';
-import { AiService } from 'src/modules/ai/ai.service.js';
+import { AiService } from 'src/modules/ai/services/ai.service.js';
 import { AUTH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
@@ -39,7 +39,7 @@ export type TestApp = {
   ai: FakeAi;
   queue: FakeQueue;
   /// SEAM 2. Thay để KHÔNG test nào chạm Docker: một lượt `docker run` mất 5-10
-  /// giây, cần ảnh nhiều GB, và cần mạng ở đường Assisted Apply.
+  /// giây và cần ảnh nhiều GB.
   sandbox: FakeSandbox;
   /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
   ///

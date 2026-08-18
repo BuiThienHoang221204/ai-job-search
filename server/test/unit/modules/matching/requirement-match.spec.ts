@@ -1,4 +1,4 @@
-import type { JobRequirements } from 'src/modules/matching/job-requirements.schema.js';
+import type { JobRequirements } from 'src/modules/matching/schemas/job-requirements.schema.js';
 import {
   matchRequirements,
   type MatchProfile,
@@ -164,5 +164,18 @@ describe('matchRequirements', () => {
         false,
       );
     });
+  });
+});
+
+describe('chức danh tham gia đối chiếu', () => {
+  /// Hồ sơ kế toán khai Excel/Misa nhưng không khai "kế toán" thành kỹ năng.
+  /// Bỏ chức danh ra ngoài thì mọi tin kế toán đều khớp 0.
+  test('yêu cầu "kế toán" khớp chức danh "Kế toán tổng hợp"', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['kế toán'] }),
+      profile({ skills: ['Kế toán tổng hợp', 'Excel', 'Misa'] }),
+    );
+
+    expect(result.score).toBe(100);
   });
 });

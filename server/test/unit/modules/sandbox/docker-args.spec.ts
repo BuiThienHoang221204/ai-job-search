@@ -43,7 +43,9 @@ describe('dockerArgs - mạng', () => {
   });
 
   test("chỉ 'egress' mới mở mạng", () => {
-    // Assisted Apply cần: trình duyệt phải tải được trang tuyển dụng.
+    // Hiện KHÔNG lượt chạy nào khai `egress` — Assisted Apply đã gỡ ngày
+    // 2026-08-17. Giữ nhánh này vì luật là danh sách TRẮNG: test dưới đây ghim
+    // rằng một giá trị lạ không mở được mạng, và đó là bất biến bảo mật.
     expect(
       valueOf(
         dockerArgs('c', '/tmp/w', spec({ network: 'egress' })),
