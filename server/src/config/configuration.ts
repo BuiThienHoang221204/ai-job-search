@@ -100,10 +100,23 @@ const configuration = () => ({
 
     defaultLocation: process.env.SCRAPER_DEFAULT_LOCATION ?? 'Vietnam',
 
+    /** Trần số tin lấy về cho MỘT portal trong một lần quét. */
     maxJobsPerPortal: parseInt(
-      process.env.SCRAPER_MAX_JOBS_PER_PORTAL ?? '25',
+      process.env.SCRAPER_MAX_JOBS_PER_PORTAL ?? '50',
       10,
     ),
+
+    /** Chỉ lấy tin đăng trong bao nhiêu ngày gần nhất. */
+    maxAgeDays: parseInt(process.env.SCRAPER_MAX_AGE_DAYS ?? '7', 10),
+
+    /**
+     * Trần số trang duyệt cho MỘT truy vấn. LinkedIn trả 10 tin một trang, nên
+     * không phân trang thì một truy vấn không bao giờ đạt trần `maxJobsPerPortal`.
+     */
+    maxPages: parseInt(process.env.SCRAPER_MAX_PAGES ?? '5', 10),
+
+    /** Tin không đọc được ngày đăng: mặc định GIỮ, bật cờ này thì loại. */
+    requirePostedAt: process.env.SCRAPER_REQUIRE_POSTED_AT === 'true',
   },
 
   cron: {

@@ -36,6 +36,12 @@ export type SearchArgs = {
   remote?: 'remote' | 'hybrid' | 'onsite';
   page?: number;
   limit?: number;
+  /**
+   * Chỉ lấy tin đăng trong bao nhiêu ngày gần nhất. Chỉ portal khai
+   * `jobAge: true` mới lọc được ở đầu kia; các portal còn lại bỏ qua và phần
+   * lọc do `scraper.service` làm sau khi nhận thẻ.
+   */
+  postedWithinDays?: number;
 };
 
 /** Chạy CLI tìm việc trong .agents/skills/. */
@@ -193,6 +199,8 @@ export class PortalCliService implements OnModuleInit {
     if (args.remote) argv.push('--remote', args.remote);
     if (args.page) argv.push('--page', String(args.page));
     if (args.limit) argv.push('--limit', String(args.limit));
+    if (args.postedWithinDays && this.portals.get(portal)?.supportsJobAge)
+      argv.push('--jobage', String(args.postedWithinDays));
     return normalizeCards(await this.invoke<unknown>(portal, argv));
   }
 

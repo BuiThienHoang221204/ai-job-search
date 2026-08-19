@@ -12,6 +12,7 @@ description: >
   job posting.
 context: fork
 enabled: true  # set to false to keep this portal installed but have /scrape skip it
+jobAge: true   # portal filters by posting age itself (--jobage <days>)
 allowed-tools: Bash(bun run .agents/skills/linkedin-search/cli/src/cli.ts *)
 ---
 

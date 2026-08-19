@@ -200,6 +200,55 @@ toàn cục, nên quét theo từng người nghĩa là với 50 tài khoản th
 portal 50 lần để lấy về gần như cùng một bộ tin - vừa phí, vừa là cách nhanh nhất
 để bị chặn IP.
 
+### Trần tin, cửa sổ 7 ngày và phân trang
+
+Một lượt quét lấy tối đa `SCRAPER_MAX_JOBS_PER_PORTAL` tin (mặc định 50) cho MỘT
+portal, gom qua nhiều trang. Phân trang là bắt buộc chứ không phải tối ưu:
+LinkedIn trả đúng **10 tin một trang**, nên không lật trang thì một truy vấn
+không bao giờ đạt tới trần.
+
+Vòng lật trang dừng khi **trang vừa lấy không thêm được tin nào mới**, không phải
+khi gặp trang toàn tin quá hạn: ba portal Việt Nam không cam kết sắp theo ngày
+đăng, nên một trang toàn tin cũ KHÔNG bảo đảm trang sau cũng vậy.
+
+`SCRAPER_MAX_AGE_DAYS` (mặc định 7) lọc theo ngày đăng ở **hai tầng**: portal nào
+khai `jobAge: true` trong SKILL.md thì nhận cờ `--jobage` và tự lọc (chỉ LinkedIn),
+còn lại lọc ở phía máy chủ bằng `withinDays` **ngay sau `search`, trước `detail`** -
+lọc sau `detail` thì đã trả tiền cho đúng phần đắt nhất rồi mới biết tin cũ.
+
+Tin không đọc được ngày đăng thì **giữ**: ITviec và TopCV thỉnh thoảng không in
+nhãn ngày, loại sạch là mất tin thật. Đổi bằng `SCRAPER_REQUIRE_POSTED_AT=true`.
+
+### Chống trùng: ba tầng, tầng thứ ba mới là tầng đắt
+
+| Tầng | Cơ chế |
+|---|---|
+| Trong một lượt quét | `Map` theo `card.id`, gộp trùng giữa các truy vấn và các trang |
+| Giữa các đêm, cùng portal | `@@unique([source, externalId])`; tin đã có chỉ làm mới dữ liệu thẻ |
+| **Giữa các portal** | `Job.dedupeKey` - vân tay `công ty | chức danh | tỉnh` |
+
+Cùng một tin đăng trên TopCV, VietnamWorks và LinkedIn có ba `externalId` khác
+nhau nên hai tầng đầu không thấy gì. Không gộp thì mỗi bản sao tốn **một lượt gọi
+model** để rút yêu cầu và chiếm **một suất trong `PER_USER_LIMIT`** của người dùng -
+tức là ba bản sao của cùng một việc ăn hết 3/5 suất chấm điểm trong đêm đó.
+
+Hai quyết định dễ làm sai ở tầng này:
+
+- **`dedupeKey` KHÔNG được đặt `@@unique`.** Hai tin thật sự khác nhau vẫn có thể
+  đụng khoá, và lúc đó `upsert` sẽ ghi đè mất một tin. Kiểm tra bằng truy vấn lúc
+  ghi, trong cửa sổ 30 ngày gần nhất.
+- **Bản sao vẫn được LƯU**, chỉ gắn `duplicateOfId` rồi không xếp hàng gọi model.
+  Bỏ qua không lưu thì tập "đã biết" (nhận diện theo `source` + `externalId`) đêm
+  sau lại tưởng là tin mới và lại tốn một request `detail` - mỗi đêm một lần, mãi
+  mãi. Danh sách tin lọc `duplicateOfId: null` nên người dùng không thấy bản sao.
+
+Tin ẩn tên công ty ("Không rõ", "Confidential") có `dedupeKey = null` và không bao
+giờ bị gộp: gộp mọi tin ẩn danh cùng tỉnh vào một là sai nặng.
+
+Thêm một trường dẫn xuất mới thì phải chạy `POST /api/admin/jobs/backfill-taxonomy?all=true`
+(hoặc `node scripts/backfill-dedupe.mjs` khi chưa muốn dựng máy chủ). Chế độ tăng
+dần chỉ nhặt tin thiếu `searchText`.
+
 ### Fan-out là chỗ số lượt gọi model bùng lên
 
 Sau khi lưu tin, `planFanOut` quyết định chấm những cặp (người dùng, công việc)

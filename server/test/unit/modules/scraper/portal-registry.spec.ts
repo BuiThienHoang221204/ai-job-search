@@ -40,9 +40,18 @@ describe('evaluateCandidate', () => {
         directory: 'itviec-search',
         cliPath: '.agents/skills/itviec-search/cli/src/cli.ts',
         enabled: true,
+        supportsJobAge: false,
         description: '',
       },
     });
+  });
+
+  test('khai jobAge: true thì portal tự lọc được theo ngày đăng', () => {
+    const result = evaluateCandidate({
+      ...base,
+      frontmatter: { jobAge: true },
+    });
+    expect('entry' in result && result.entry.supportsJobAge).toBe(true);
   });
 
   test('thiếu SKILL.md thì bỏ qua', () => {

@@ -180,6 +180,9 @@ export class JobsService {
       : null;
 
     return {
+      // Bản sao của tin đã có ở portal khác không bao giờ vào danh sách: nó
+      // không mang thông tin mới, chỉ đẩy tin khác xuống dưới.
+      duplicateOfId: null,
       ...(needle ? { searchText: { contains: needle } } : {}),
       ...(query.province?.length
         ? { provinceCode: { in: query.province } }

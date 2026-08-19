@@ -9,6 +9,8 @@ export type PortalEntry = {
   /** Đường dẫn CLI tương đối so với gốc repo, dùng làm tham số cho `bun run`. */
   cliPath: string;
   enabled: boolean;
+  /** Portal tự lọc được theo ngày đăng (LinkedIn có --jobage). */
+  supportsJobAge: boolean;
   description: string;
 };
 
@@ -17,7 +19,7 @@ export function evaluateCandidate(input: {
   directory: string;
   hasSkillFile: boolean;
   hasCli: boolean;
-  frontmatter: { enabled?: unknown; description?: unknown };
+  frontmatter: { enabled?: unknown; jobAge?: unknown; description?: unknown };
 }): { entry: PortalEntry } | { skip: string } {
   if (!input.hasSkillFile) return { skip: 'không có SKILL.md' };
   if (!input.hasCli) return { skip: 'không có cli/src/cli.ts' };
@@ -31,6 +33,7 @@ export function evaluateCandidate(input: {
       directory: input.directory,
       cliPath: `.agents/skills/${input.directory}/cli/src/cli.ts`,
       enabled,
+      supportsJobAge: input.frontmatter.jobAge === true,
       description:
         typeof input.frontmatter.description === 'string'
           ? input.frontmatter.description

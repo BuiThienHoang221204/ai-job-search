@@ -160,3 +160,20 @@ export function parsePostedAt(
   if (parsed.getTime() > now.getTime() + UNIT_MS.day) return null;
   return parsed;
 }
+
+/**
+ * Tin có nằm trong `days` ngày gần nhất không.
+ *
+ * Không đọc được ngày đăng thì `strict` quyết định: mặc định GIỮ, vì ITviec và
+ * TopCV thỉnh thoảng không in nhãn ngày và loại sạch sẽ mất tin thật.
+ */
+export function withinDays(
+  value: string | null | undefined,
+  days: number,
+  strict = false,
+  now: Date = new Date(),
+): boolean {
+  const postedAt = parsePostedAt(value, now);
+  if (!postedAt) return !strict;
+  return now.getTime() - postedAt.getTime() <= days * UNIT_MS.day;
+}

@@ -4,6 +4,7 @@ import type { Profile, ScrapeRun } from '../../../generated/prisma/client.js';
 import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../../common/pagination.js';
 import { derivedFields } from '../../jobs/taxonomy/derived.js';
+import { dedupeKeyOf } from '../../jobs/taxonomy/dedupe.js';
 import { resolveProvince } from '../../jobs/taxonomy/resolve.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { AiService } from '../../ai/services/ai.service.js';
@@ -12,7 +13,8 @@ import { PromptBuilderService } from '../../skills/services/prompt-builder.servi
 import { JobSourceRouter } from '../job-source.router.js';
 import { type PortalJobCard } from './portal-cli.service.js';
 import { MIN_COMPLETION_TO_SCORE, pairKey, planFanOut } from '../fan-out.js';
-import { parsePostedAt } from '../normalize.js';
+import type { PlannedQuery } from '../query-plan.js';
+import { parsePostedAt, withinDays } from '../normalize.js';
 import { planForSystem, planFromProfile } from '../query-plan.js';
 import { searchPlanSchema, type SearchPlan } from '../scraper.schema.js';
 
@@ -23,11 +25,16 @@ import { searchPlanSchema, type SearchPlan } from '../scraper.schema.js';
 const SYSTEM_QUERY_LIMIT = 6;
 
 /**
- * Trần số tin lấy về một lần quét. Mỗi tin là một request `detail` nữa, và
- * sau đó là một lần gọi model để chấm điểm - nên con số này trực tiếp quyết
- * định tải lên cả ITviec lẫn gateway AI.
+ * Số tin xin cho MỘT request tìm kiếm. Không phải trần của cả lượt quét: trần
+ * đó là `scraper.maxJobsPerPortal` và được gom qua nhiều trang.
  */
-const MAX_JOBS_PER_RUN = 12;
+const PAGE_SIZE = 25;
+
+/**
+ * Chỉ gộp tin trùng với những tin quét được trong 30 ngày qua. Một tin cũ đã
+ * hết hạn không được phép nuốt mất tin cùng tên đăng lại mùa tuyển sau.
+ */
+const DEDUPE_WINDOW_MS = 30 * 86_400_000;
 
 /**
  * Nghỉ giữa các request tới portal. robots.txt cho phép, nhưng không có
@@ -41,6 +48,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
   private readonly defaultLocation: string;
+  private readonly maxJobsPerPortal: number;
+  private readonly maxAgeDays: number;
+  private readonly maxPages: number;
+  private readonly requirePostedAt: boolean;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,6 +63,87 @@ export class ScraperService {
   ) {
     this.defaultLocation =
       config.get<string>('scraper.defaultLocation') ?? 'Vietnam';
+    this.maxJobsPerPortal =
+      config.get<number>('scraper.maxJobsPerPortal') ?? 50;
+    this.maxAgeDays = config.get<number>('scraper.maxAgeDays') ?? 7;
+    this.maxPages = config.get<number>('scraper.maxPages') ?? 5;
+    this.requirePostedAt =
+      config.get<boolean>('scraper.requirePostedAt') ?? false;
+  }
+
+  /**
+   * Gom thẻ tin cho một lần quét: duyệt trang tới khi đủ suất hoặc trang không
+   * còn đóng góp tin nào mới.
+   *
+   * Điều kiện dừng là "trang này không thêm được tin nào" chứ không phải "trang
+   * này toàn tin cũ": ba portal Việt Nam không cam kết sắp theo ngày đăng, nên
+   * một trang toàn tin quá hạn KHÔNG bảo đảm trang sau cũng vậy.
+   */
+  private async collect(
+    portal: string,
+    queries: PlannedQuery[],
+  ): Promise<PortalJobCard[]> {
+    const seen = new Map<string, PortalJobCard>();
+    let stale = 0;
+
+    for (const query of queries) {
+      if (seen.size >= this.maxJobsPerPortal) break;
+
+      for (let page = 1; page <= this.maxPages; page++) {
+        const cards = await this.portals.search(portal, {
+          query: query.query,
+          location: query.location || this.defaultLocation,
+          page,
+          limit: PAGE_SIZE,
+          postedWithinDays: this.maxAgeDays,
+        });
+        await sleep(POLITE_DELAY_MS);
+        if (!cards.length) break;
+
+        const before = seen.size;
+        for (const card of cards) {
+          if (
+            !withinDays(card.postedAt, this.maxAgeDays, this.requirePostedAt)
+          ) {
+            stale += 1;
+            continue;
+          }
+          if (!seen.has(card.id)) seen.set(card.id, card);
+        }
+
+        this.logger.log(
+          `${portal} "${query.query}" trang ${page} -> ${cards.length} tin, tích lũy ${seen.size}`,
+        );
+        if (seen.size === before) break;
+        if (seen.size >= this.maxJobsPerPortal) break;
+      }
+    }
+
+    if (stale) {
+      this.logger.log(
+        `${portal}: bỏ ${stale} tin đăng quá ${this.maxAgeDays} ngày`,
+      );
+    }
+    return [...seen.values()].slice(0, this.maxJobsPerPortal);
+  }
+
+  /**
+   * Tin này đã có bản gốc ở portal khác chưa. Trả id của bản gốc, hoặc `null`
+   * khi đây là tin đầu tiên mang vân tay đó.
+   */
+  private async findOriginal(dedupeKey: string | null): Promise<string | null> {
+    if (!dedupeKey) return null;
+
+    const original = await this.prisma.job.findFirst({
+      where: {
+        dedupeKey,
+        duplicateOfId: null,
+        scrapedAt: { gte: new Date(Date.now() - DEDUPE_WINDOW_MS) },
+      },
+      orderBy: { scrapedAt: 'asc' },
+      select: { id: true },
+    });
+    return original?.id ?? null;
   }
 
   /** Sinh truy vấn trực tiếp từ hồ sơ, không gọi AI. */
@@ -179,25 +271,7 @@ export class ScraperService {
         data: { queries: plan.queries, modelId },
       });
 
-      const seen = new Map<string, PortalJobCard>();
-      for (const query of plan.queries) {
-        if (seen.size >= MAX_JOBS_PER_RUN) break;
-
-        const cards = await this.portals.search(run.portal, {
-          query: query.query,
-          location: query.location || this.defaultLocation,
-          limit: MAX_JOBS_PER_RUN,
-        });
-        for (const card of cards)
-          if (!seen.has(card.id)) seen.set(card.id, card);
-
-        this.logger.log(
-          `${run.portal} "${query.query}" -> ${cards.length} tin, tích lũy ${seen.size}`,
-        );
-        await sleep(POLITE_DELAY_MS);
-      }
-
-      const cards = [...seen.values()].slice(0, MAX_JOBS_PER_RUN);
+      const cards = await this.collect(run.portal, plan.queries);
 
       const existing = await this.prisma.job.findMany({
         where: {
@@ -223,6 +297,7 @@ export class ScraperService {
 
       const savedJobIds: string[] = [];
       let skipped = 0;
+      let merged = 0;
 
       for (const card of fresh) {
         try {
@@ -247,11 +322,14 @@ export class ScraperService {
             card.tags,
           );
 
+          const duplicateOfId = await this.findOriginal(derived.dedupeKey);
+
           const job = await this.prisma.job.upsert({
             where: {
               source_externalId: { source: run.portal, externalId: card.id },
             },
             create: {
+              duplicateOfId,
               source: run.portal,
               externalId: card.id,
               url: card.url,
@@ -274,6 +352,11 @@ export class ScraperService {
               ...derived,
             },
           });
+
+          if (duplicateOfId) {
+            merged += 1;
+            continue;
+          }
           savedJobIds.push(job.id);
         } catch (error) {
           skipped += 1;
@@ -285,9 +368,9 @@ export class ScraperService {
         }
       }
 
-      if (skipped) {
+      if (skipped || merged) {
         this.logger.log(
-          `Đã bỏ qua ${skipped}/${fresh.length} tin mới; lưu được ${savedJobIds.length}`,
+          `Đã bỏ qua ${skipped}/${fresh.length} tin mới, gộp ${merged} tin trùng portal khác; lưu được ${savedJobIds.length}`,
         );
       }
 
@@ -335,6 +418,11 @@ export class ScraperService {
           ? {
               location: card.location,
               provinceCode: resolveProvince(card.location),
+              dedupeKey: dedupeKeyOf(
+                card.title,
+                card.company ?? 'Không rõ',
+                resolveProvince(card.location),
+              ),
             }
           : {}),
       };

@@ -4,6 +4,7 @@ import {
   normalizeDetail,
   parsePostedAt,
   unwrapList,
+  withinDays,
 } from 'src/modules/scraper/normalize.js';
 
 /// Hình dạng thật của itviec / topcv / vietnamworks: mảng trần.
@@ -237,5 +238,30 @@ describe('parsePostedAt', () => {
     // sẽ ra một ngày đăng hoàn toàn bịa.
     expect(parsePostedAt('Hạn nộp 3 ngày', now)).toBeNull();
     expect(parsePostedAt('2030-01-01', now)).toBeNull();
+  });
+});
+
+describe('withinDays', () => {
+  const now = new Date('2026-08-10T12:00:00Z');
+
+  test('tin trong cửa sổ thì giữ', () => {
+    expect(withinDays('2 ngày trước', 7, false, now)).toBe(true);
+    expect(withinDays('2026-08-05', 7, false, now)).toBe(true);
+  });
+
+  test('tin ngoài cửa sổ thì loại', () => {
+    expect(withinDays('3 tuần trước', 7, false, now)).toBe(false);
+    expect(withinDays('2026-07-01', 7, false, now)).toBe(false);
+  });
+
+  test('đúng biên 7 ngày vẫn tính là trong cửa sổ', () => {
+    expect(withinDays('7 ngày trước', 7, false, now)).toBe(true);
+    expect(withinDays('8 ngày trước', 7, false, now)).toBe(false);
+  });
+
+  test('không đọc được ngày: mặc định giữ, strict thì loại', () => {
+    expect(withinDays(null, 7, false, now)).toBe(true);
+    expect(withinDays('Tuyển gấp', 7, false, now)).toBe(true);
+    expect(withinDays(null, 7, true, now)).toBe(false);
   });
 });

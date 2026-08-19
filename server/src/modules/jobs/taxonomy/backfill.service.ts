@@ -8,6 +8,8 @@ const BATCH_SIZE = 500;
 export interface BackfillResult {
   processed: number;
   missingProvince: number;
+  /** Tin không đủ dữ liệu để gộp trùng - phần lớn là tin ẩn tên công ty. */
+  missingDedupeKey: number;
 }
 
 /**
@@ -24,7 +26,14 @@ export class TaxonomyBackfillService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** `all = true` tính lại TẤT CẢ, dùng sau khi sửa danh mục tỉnh hoặc ngành. */
+  /**
+   * `all = true` tính lại TẤT CẢ, dùng sau khi sửa danh mục tỉnh hoặc ngành.
+   *
+   * Chế độ tăng dần chỉ nhặt tin thiếu `searchText`, nên sau khi thêm một
+   * trường dẫn xuất MỚI (như `dedupeKey`) thì phải chạy với `all = true`. Lọc
+   * theo `dedupeKey: null` thay thế không được: khoá đó null một cách hợp lệ ở
+   * tin ẩn tên công ty, và vòng lặp sẽ không bao giờ thoát.
+   */
   async run(all = false): Promise<BackfillResult> {
     const where = all ? {} : { searchText: null };
     let processed = 0;
@@ -58,10 +67,11 @@ export class TaxonomyBackfillService {
       this.logger.log(`Đã tính lại ${processed} tin`);
     }
 
-    const missingProvince = await this.prisma.job.count({
-      where: { provinceCode: null },
-    });
+    const [missingProvince, missingDedupeKey] = await Promise.all([
+      this.prisma.job.count({ where: { provinceCode: null } }),
+      this.prisma.job.count({ where: { dedupeKey: null } }),
+    ]);
 
-    return { processed, missingProvince };
+    return { processed, missingProvince, missingDedupeKey };
   }
 }

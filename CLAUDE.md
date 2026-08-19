@@ -139,6 +139,10 @@ Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. V
 
 **Tin rác đắt gấp N lần bạn tưởng.** `planFanOut` chấm mỗi tin mới với MỌI người dùng đủ điều kiện, nên một tin lạc ngành tốn `số người dùng` lượt gọi model chứ không phải một. Đó là lý do độ chính xác của truy vấn quan trọng hơn số lượng truy vấn.
 
+**Lượt quét đêm có ba trần, đừng chỉnh một cái mà quên hai cái kia:** `SCRAPER_MAX_JOBS_PER_PORTAL` (50 tin/portal, gom qua nhiều trang), `SCRAPER_MAX_AGE_DAYS` (7 ngày, lọc **trước** `detail` chứ không phải sau) và `SCRAPER_MAX_PAGES`. Nâng trần tin mà quên cửa sổ ngày thì database đầy tin đã đóng; lọc ngày sau khi gọi `detail` thì đã trả tiền đúng phần đắt nhất rồi.
+
+**Bản sao giữa các portal được LƯU kèm `duplicateOfId`, không bị bỏ qua.** Bỏ qua thì tập "đã biết" (theo `source` + `externalId`) đêm sau lại tưởng là tin mới và lại tốn một request `detail` — mỗi đêm một lần, mãi mãi. Và `dedupeKey` **không được** đặt `@@unique`: hai tin khác nhau đụng khoá thì `upsert` ghi đè mất một tin. Chi tiết ở `server/README.md`, mục "Chống trùng".
+
 **ITviec chỉ có IT, và vẫn cố ý được gọi cho mọi người.** Chọn portal theo ngành cần một khái niệm "ngành của hồ sơ" mà `Profile` chưa có. Trong lúc đó, người dùng ngoài IT chịu một lượt quét rỗng — **giao diện phải phân biệt "0 tin vì portal không phục vụ ngành này" với "0 tin vì hỏng"**, không thì họ tưởng app lỗi.
 
 **`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa, lý do ghi trong docblock của `planForSystem`.

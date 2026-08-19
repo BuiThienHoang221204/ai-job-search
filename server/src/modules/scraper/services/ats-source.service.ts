@@ -11,6 +11,7 @@ import type {
   PortalJobDetail,
   SearchArgs,
 } from './portal-cli.service.js';
+import { withinDays } from '../normalize.js';
 import type { PortalEntry } from '../portal-registry.js';
 import type { JobSource } from '../job-source.interface.js';
 
@@ -73,6 +74,7 @@ export class AtsSourceService implements JobSource {
       directory: '',
       cliPath: '',
       enabled: true,
+      supportsJobAge: false,
       description: `API job board công khai của ${board.vendor} (công ty ${board.company}) — API có tài liệu, không cần key`,
     }));
   }
@@ -92,7 +94,12 @@ export class AtsSourceService implements JobSource {
 
     const payload = await this.fetchBoard(board);
     const cards = normalizeAtsJobs(board, payload);
-    const matched = filterByQuery(cards, args.query);
+    const recent = args.postedWithinDays
+      ? cards.filter((card) =>
+          withinDays(card.postedAt, args.postedWithinDays!),
+        )
+      : cards;
+    const matched = filterByQuery(recent, args.query);
 
     this.logger.log(
       `${portal}: ${cards.length} tin có mô tả, ${matched.length} khớp "${args.query ?? '(không lọc)'}"`,

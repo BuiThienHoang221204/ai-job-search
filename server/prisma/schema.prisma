@@ -152,6 +152,22 @@ model Job {
   /// kiếm chạy `LIKE` trên đúng cột này để ăn được index trigram - `ILIKE` trên
   /// `title` thì không index nào đỡ nổi.
   searchText String?
+  /// Vân tay "công ty | chức danh đã bỏ nhiễu | tỉnh", dùng để nhận ra cùng một
+  /// tin đăng trên nhiều portal. `null` = không đủ dữ liệu để gộp.
+  ///
+  /// KHÔNG đặt @@unique: hai tin thật sự khác nhau vẫn có thể đụng khoá, và lúc
+  /// đó upsert sẽ ghi đè mất một tin. Kiểm tra bằng truy vấn lúc ghi.
+  dedupeKey String?
+
+  /// Trỏ về bản GỐC khi tin này là bản sao lấy từ portal khác.
+  ///
+  /// Bản sao vẫn được lưu chứ không bị bỏ qua: tập "đã biết" của scraper nhận
+  /// diện theo (source, externalId), nên bỏ qua đồng nghĩa mỗi đêm lại tưởng là
+  /// tin mới và lại tốn một request detail. Lưu lại thì lần sau nhận ra ngay, và
+  /// còn giữ được URL của nguồn thứ hai.
+  duplicateOfId String?
+  duplicateOf   Job?    @relation("JobDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates    Job[]   @relation("JobDuplicates")
 
   salaryRaw String?
   salaryMin Int?
@@ -185,6 +201,8 @@ model Job {
   @@index([provinceCode, scrapedAt(sort: Desc), id(sort: Desc)])
   @@index([occupationCode, scrapedAt(sort: Desc), id(sort: Desc)])
   @@index([postedAt])
+  @@index([dedupeKey])
+  @@index([duplicateOfId])
   @@index([salaryMax(sort: Desc)])
   @@index([tags], type: Gin)
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
