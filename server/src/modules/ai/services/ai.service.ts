@@ -13,6 +13,7 @@ import {
   type FailureKind,
 } from '../failure-kind.js';
 import { formatModelRef, parseModelRef } from '../model-ref.js';
+import { repairJsonText, topLevelKeys } from '../repair-json.js';
 import { providerIds } from '../providers/index.js';
 import {
   ModelCatalogService,
@@ -269,6 +270,21 @@ export class AiService {
     ].join('\n');
   }
 
+  /** Cứu JSON lệch định dạng trước khi bỏ cả lượt gọi. Chạy đúng một lần. */
+  private repair<T>(
+    text: string,
+    schema: ZodType<T>,
+    ref: string,
+  ): string | null {
+    const repaired = repairJsonText(text, topLevelKeys(schema));
+    this.logger.warn(
+      repaired
+        ? `Đã sửa JSON lệch định dạng của ${ref} trước khi kiểm schema`
+        : `Không sửa được JSON lệch định dạng của ${ref}`,
+    );
+    return repaired;
+  }
+
   private async attempt<T>(
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
@@ -287,6 +303,8 @@ export class AiService {
           ? options.system
           : this.withSchemaInstruction(options.system, options.schema),
         prompt: options.prompt,
+        repairText: ({ text }) =>
+          Promise.resolve(this.repair(text, options.schema, ref)),
         maxRetries: options.maxRetries ?? 2,
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,

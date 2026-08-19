@@ -23,7 +23,8 @@ const SYSTEM = [
   "- KHÔNG ghi bằng cấp, học vị hay chứng chỉ: Bachelor's degree, Cử nhân, IELTS không phải kỹ năng.",
   '- Mỗi kỹ năng tối đa 5 từ. Ưu tiên tên riêng (React, AWS) hơn diễn đạt dài.',
   '- Thà ghi 4 kỹ năng đúng còn hơn 14 mục trong đó 10 mục không khớp được với ai.',
-  '- Quốc tịch và giấy phép lao động: chỉ điền khi tin nói rõ. Tin im lặng thì để null và false - đoán sai ở đây loại oan ứng viên đủ điều kiện.',
+  '- Quốc tịch và giấy phép lao động: chỉ điền khi tin nói rõ - đoán sai ở đây loại oan ứng viên đủ điều kiện.',
+  '  Tin im lặng thì citizenshipRequired = null, còn workPermitRequired = false (trường này là true/false, KHÔNG BAO GIỜ null).',
 ].join('\n');
 
 @Injectable()

@@ -48,10 +48,11 @@ export const jobRequirementsSchema = z.object({
     .describe(
       'Quốc tịch hoặc thường trú mà tin ĐÒI HỎI. null nếu tin không nhắc tới - tuyệt đối không suy diễn.',
     ),
+  /** `preprocess` nuốt null: model thấy 4 field nullable kề bên là quơ null sang cả đây. */
   workPermitRequired: z
-    .boolean()
+    .preprocess((value) => value ?? false, z.boolean())
     .describe(
-      'Tin có nêu rõ ứng viên phải tự có giấy phép lao động hay không.',
+      'true CHỈ KHI tin nêu rõ ứng viên phải tự có giấy phép lao động. Tin không nhắc tới thì false - trường này chỉ nhận true/false, không nhận null.',
     ),
   eligibilityQuote: z
     .string()
