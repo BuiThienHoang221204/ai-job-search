@@ -184,7 +184,16 @@ export class InterviewService {
         where,
         orderBy: { updatedAt: 'desc' },
         ...pageArgs(query),
-        include: { job: { select: { id: true, title: true, company: true } } },
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              company: true,
+              companyLogo: true,
+            },
+          },
+        },
       }),
       this.prisma.interviewPrep.count({ where }),
     ]);
