@@ -195,8 +195,19 @@ export class JobsService {
       // không phải "sàn của tin có cao hơn mức tôi cần không".
       ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
       ...(since ? { postedAt: { gte: since } } : {}),
+      // "Đã chấm xong" KHÔNG phải "phù hợp". Không loại POOR ra thì màn hình
+      // "Việc làm phù hợp" xếp một tin 2 điểm ngang một tin 82 điểm - đã thấy
+      // thật: hồ sơ kế toán mở màn đó ra và chỉ toàn tin IT bị chấm POOR.
       ...(query.scored
-        ? { matches: { some: { userId, status: 'DONE' as const } } }
+        ? {
+            matches: {
+              some: {
+                userId,
+                status: 'DONE' as const,
+                verdict: { not: 'POOR' as const },
+              },
+            },
+          }
         : {}),
     };
   }

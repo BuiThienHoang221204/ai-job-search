@@ -515,6 +515,9 @@ export class ScraperService {
         (plan.dropped ? `; BỎ ${plan.dropped} lượt ngoài hạn ngạch` : '') +
         (plan.skippedThinProfiles
           ? `; bỏ qua ${plan.skippedThinProfiles} hồ sơ quá sơ sài`
+          : '') +
+        (plan.skippedNoOverlap
+          ? `; bỏ ${plan.skippedNoOverlap} cặp không khớp kỹ năng nào`
           : ''),
     );
     return queued;

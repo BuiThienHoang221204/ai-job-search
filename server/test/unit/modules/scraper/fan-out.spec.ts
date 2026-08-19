@@ -14,9 +14,12 @@ const users = (...completions: number[]) =>
     skills: ['devops'],
   }));
 
-/** Tin không chứa từ khoá nào, để tách tính chất hạn ngạch khỏi tính chất xếp hạng. */
+/**
+ * Mọi tin khớp ĐÚNG một từ khoá, để tách tính chất hạn ngạch khỏi tính chất
+ * xếp hạng. Phải khớp ít nhất một, nếu không `MIN_KEYWORD_OVERLAP` loại sạch.
+ */
 const jobs = (...ids: string[]) =>
-  ids.map((id) => ({ id, text: 'tin tuyển dụng' }));
+  ids.map((id) => ({ id, text: 'tuyển DevOps cho dự án mới' }));
 
 describe('keywordOverlap', () => {
   test('đếm số kỹ năng KHÁC NHAU xuất hiện trong tin', () => {
@@ -33,6 +36,39 @@ describe('keywordOverlap', () => {
   test('bỏ qua từ khoá quá ngắn', () => {
     // Một ký tự khớp gần như mọi tin, chỉ làm nhiễu thứ hạng.
     expect(keywordOverlap('DevOps Engineer', ['a', 'e'])).toBe(0);
+  });
+
+  /*
+   * Hai ca này là lý do hàm được viết lại. Khớp chuỗi con từng cho `Excel` dính
+   * vào "technical excellence" và `SAP` dính vào tên toà nhà "Sapphire" - mà
+   * mọi tin IT tiếng Anh đều có chữ "excellence", nên MỌI hồ sơ phi-IT có khai
+   * Excel đều bị ghép với chúng rồi tốn một lượt gọi model cho từng cặp.
+   */
+  test('không khớp khi từ khoá chỉ là một phần của từ khác', () => {
+    expect(keywordOverlap('technical excellence and impact', ['Excel'])).toBe(
+      0,
+    );
+    expect(keywordOverlap('- Excellent problem-solving', ['Excel'])).toBe(0);
+    expect(keywordOverlap('Podium Floor, Sapphire 2 tower', ['SAP'])).toBe(0);
+  });
+
+  test('vẫn khớp khi từ khoá đứng thành một từ trọn vẹn', () => {
+    expect(keywordOverlap('Thành thạo Excel, MISA', ['Excel'])).toBe(1);
+    expect(keywordOverlap('Kinh nghiệm SAP B1', ['SAP'])).toBe(1);
+    expect(keywordOverlap('báo cáo trên excel.', ['Excel'])).toBe(1);
+  });
+
+  test('không cắt nhầm từ khoá có ký tự đặc biệt', () => {
+    // `\b` của JS đặt biên sai ở những từ khoá này, nên biên phải tự dựng.
+    expect(keywordOverlap('Backend C++ và C#', ['C++', 'C#'])).toBe(2);
+    expect(keywordOverlap('Xây dựng ASP.NET Core', ['.NET'])).toBe(1);
+    expect(keywordOverlap('Node.js + React.js', ['Node.js'])).toBe(1);
+  });
+
+  test('khớp được tiếng Việt có dấu', () => {
+    const text = 'Tuyển Kế toán tổng hợp, làm báo cáo thuế hàng quý';
+    expect(keywordOverlap(text, ['Kế toán tổng hợp', 'Báo cáo thuế'])).toBe(2);
+    expect(keywordOverlap(text, ['Kế toán trưởng'])).toBe(0);
   });
 });
 
@@ -122,6 +158,28 @@ describe('planFanOut', () => {
     });
 
     expect(result.targets).toEqual([]);
+  });
+
+  test('không chấm tin không dính lấy một kỹ năng nào, và BÁO số bị bỏ', () => {
+    // Đây là ca của tài khoản kế toán: 3 tin IT, không tin nào chạm tới hồ sơ.
+    const result = planFanOut({
+      jobs: [
+        { id: 'it-1', text: 'Senior Fullstack Engineer, technical excellence' },
+        { id: 'it-2', text: 'Junior Software Engineer (.NET)' },
+        { id: 'ke-toan', text: 'Tuyển Kế toán tổng hợp, thành thạo MISA' },
+      ],
+      users: [
+        {
+          id: 'u1',
+          completion: 85,
+          skills: ['Kế toán tổng hợp', 'MISA', 'Excel'],
+        },
+      ],
+      alreadyScored: [],
+    });
+
+    expect(result.targets).toEqual([{ userId: 'u1', jobId: 'ke-toan' }]);
+    expect(result.skippedNoOverlap).toBe(2);
   });
 
   test('không có người dùng nào đủ điều kiện thì không sinh lượt nào', () => {
