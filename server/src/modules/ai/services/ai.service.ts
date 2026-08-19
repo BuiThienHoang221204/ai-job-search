@@ -155,12 +155,27 @@ export class AiService {
     ref: string;
   }> {
     const resolved = await this.catalog.resolve(modelId);
+    const userAgent = resolved.headers['User-Agent'];
+    this.logger.debug(
+      `AI headers cho ${resolved.model.id}: ${JSON.stringify(resolved.headers)}`,
+    );
+
+    const originalFetch = globalThis.fetch;
+    const forceUserAgentFetch: typeof globalThis.fetch = (input, init) => {
+      const headers = new Headers(init?.headers);
+      if (userAgent) {
+        headers.set('User-Agent', userAgent);
+      }
+      return originalFetch(input, { ...init, headers });
+    };
+
     const provider = createOpenAICompatible({
       name: resolved.providerId,
       baseURL: resolved.baseURL,
       apiKey: resolved.apiKey,
       supportsStructuredOutputs: structuredOutputs,
       headers: resolved.headers,
+      fetch: forceUserAgentFetch,
     });
     return {
       model: provider(resolved.model.id),

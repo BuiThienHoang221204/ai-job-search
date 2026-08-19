@@ -8,16 +8,16 @@ import { z } from 'zod';
  */
 export const jobRequirementsSchema = z.object({
   requiredSkills: z
-    .array(z.string().min(1).max(40))
+    .array(z.string().min(1).max(80))
     .max(10)
     .describe(
-      'Tối đa 8 kỹ năng BẮT BUỘC, mỗi mục 1-3 TỪ và phải là thứ một hồ sơ có thể khai. Công nghệ ("Kubernetes"), nghiệp vụ ("kế toán thuế"), hoặc lĩnh vực ("fintech"). TUYỆT ĐỐI không ghi kết quả công việc ("SLO bốn số chín"), phẩm chất ("tinh thần trách nhiệm") hay trách nhiệm ("quản lý đội ngũ").',
+      'Tối đa 8 kỹ năng BẮT BUỘC, mỗi mục 1-5 TỪ và phải là thứ một hồ sơ có thể khai. Công nghệ ("Kubernetes"), nghiệp vụ ("kế toán thuế"), hoặc lĩnh vực ("fintech"). TUYỆT ĐỐI không ghi kết quả công việc ("SLO bốn số chín"), phẩm chất ("tinh thần trách nhiệm") hay trách nhiệm ("quản lý đội ngũ"). Không ghi bằng cấp hay học vị - chỉ ghi kỹ năng/thông số.',
     ),
   niceToHaveSkills: z
-    .array(z.string().min(1).max(40))
+    .array(z.string().min(1).max(80))
     .max(10)
     .describe(
-      'Kỹ năng tin ghi là ưu tiên hoặc "là một lợi thế". Cùng ràng buộc như requiredSkills: 1-3 từ, phải khai được trong hồ sơ.',
+      'Kỹ năng tin ghi là ưu tiên hoặc "là một lợi thế". Cùng ràng buộc như requiredSkills: 1-5 từ, phải khai được trong hồ sơ.',
     ),
 
   minYears: z

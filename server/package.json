@@ -25,6 +25,7 @@
     "test:e2e": "node test/run-e2e.mjs",
     "db:up": "docker compose up -d",
     "db:migrate": "prisma migrate dev",
+    "db:seed": "node scripts/seed-demo.mjs",
     "db:studio": "prisma studio",
     "bench": "node scripts/bench-models.mjs",
     "db:down": "docker compose down"

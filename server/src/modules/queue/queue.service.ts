@@ -96,7 +96,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
         this.boss = new PgBossClass({
           connectionString,
           schema: 'pgboss',
-          max: 2,
+          max: 10,
         });
         this.boss.on('error', (error: Error) =>
           this.logger.error('pg-boss lỗi', error),

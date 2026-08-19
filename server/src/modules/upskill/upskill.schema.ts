@@ -31,7 +31,7 @@ export const upskillGapsSchema = z.object({
             'Độ ưu tiên 0-100. Càng nhiều công việc đòi hỏi và càng làm điểm phù hợp tụt xuống thì càng cao.',
           ),
         evidence: vn(
-          300,
+          500,
           'Công việc nào đòi hỏi kỹ năng này, dẫn chứng cụ thể.',
         ),
       }),
@@ -48,7 +48,7 @@ export const upskillGapsSchema = z.object({
         category: gapCategory,
         gap: vn(160, 'Khoảng trống không thể hiện ra qua danh sách kỹ năng.'),
         why: vn(
-          300,
+          500,
           'Vì sao điều này quan trọng với các vị trí ứng viên đang nhắm tới.',
         ),
       }),
@@ -70,12 +70,12 @@ export const upskillPlanSchema = z.object({
       z.object({
         order: z.number().int().min(1).describe('Thứ tự học, bắt đầu từ 1.'),
         topic: vn(120, 'Chủ đề cần học.'),
-        rationale: vn(300, 'Vì sao học cái này trước các cái khác.'),
+        rationale: vn(500, 'Vì sao học cái này trước các cái khác.'),
         estimatedWeeks: z.number().int().min(1).max(52),
         resources: z
           .array(
             vn(
-              200,
+              300,
               'Nguồn học cụ thể: tên khóa học, sách, tài liệu chính thức.',
             ),
           )

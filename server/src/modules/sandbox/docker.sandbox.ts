@@ -104,6 +104,13 @@ export class DockerSandbox implements SandboxRunner {
         );
       }
 
+      if (result.code !== 0 && !result.stdout && result.stderr) {
+        const errorKind = classify(result.stderr);
+        if (errorKind !== 'OTHER') {
+          throw new SandboxError(errorKind, result.stderr.trim());
+        }
+      }
+
       return {
         exitCode: result.code,
         stdout: result.stdout,
