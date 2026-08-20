@@ -19,10 +19,10 @@ SEARCH FLAGS
   --format <fmt>         json (mặc định) | table | plain.
 
 GHI CHÚ
-  CLI này gọi API JSON công khai của VietnamWorks, KHÔNG phân tích HTML: trang
-  /viec-lam là ứng dụng Next.js render phía trình duyệt nên HTML trả về không có
-  một tin nào.
-  Nhờ đó lệnh search đã kèm sẵn mô tả đầy đủ, không cần gọi detail cho từng tin.
+  Lệnh search gọi API JSON công khai: trang /viec-lam là ứng dụng Next.js render
+  phía trình duyệt nên HTML của nó không có một tin nào.
+  Mô tả trong kết quả search bị API CẮT ở vài trăm ký tự và kết thúc bằng "...".
+  Muốn mô tả đầy đủ thì gọi detail - lệnh đó đọc thêm HTML trang chi tiết.
   Tin ghi "Thương lượng" được trả về salary = null.
   Lọc địa điểm chạy ở phía client.
 `

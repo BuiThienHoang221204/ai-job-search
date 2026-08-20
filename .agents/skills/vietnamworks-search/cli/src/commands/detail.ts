@@ -1,9 +1,14 @@
 import {
+  BASE_URL,
   apiSearch,
+  descriptionFromDetailHtml,
+  fetchHtml,
   idFromSlug,
+  jobFromDetailHtml,
   queryFromSlug,
   slugFromUrl,
   toJobDetail,
+  type ApiJob,
   type JobDetail,
 } from "../helpers.ts"
 
@@ -17,6 +22,10 @@ import {
  * Nên cách chạy được là tìm bằng chính các từ trong alias rồi đối chiếu jobId.
  * Có đối chiếu là bắt buộc: truy vấn theo từ khoá có thể trả về tin khác gần
  * giống, và trả nhầm tin còn tệ hơn trả null.
+ *
+ * Metadata lấy từ API, MÔ TẢ lấy từ HTML trang chi tiết: bản mô tả trong API bị
+ * cắt ở vài trăm ký tự. Trang chi tiết hỏng thì vẫn trả bản API, vì một mô tả
+ * cụt còn dùng được còn null thì làm tin bị bỏ luôn.
  */
 export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
   const slug = slugOrUrl.startsWith("http")
@@ -28,6 +37,21 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
   const wantedId = idFromSlug(slug)
   if (!wantedId) return null
 
+  const url = `${BASE_URL}/${slug}`
+  const html = await fetchHtml(url).catch(() => null)
+  const match = await apiJob(slug, wantedId).catch(() => null)
+
+  if (match) {
+    const fromApi = toJobDetail(match)
+    const description = html ? descriptionFromDetailHtml(html, match) : null
+    if (fromApi) return description ? { ...fromApi, description } : fromApi
+  }
+
+  return html ? jobFromDetailHtml(html, url) : null
+}
+
+/** Tin trong API tìm kiếm, đối chiếu bằng jobId để không trả nhầm tin gần giống. */
+async function apiJob(slug: string, wantedId: string): Promise<ApiJob | null> {
   const response = await apiSearch({
     query: queryFromSlug(slug),
     page: 0,
@@ -36,10 +60,9 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
     userId: 0,
   })
 
-  const match = (response.data ?? []).find(
-    (job) => job.jobId !== undefined && String(job.jobId) === wantedId,
+  return (
+    (response.data ?? []).find(
+      (job) => job.jobId !== undefined && String(job.jobId) === wantedId,
+    ) ?? null
   )
-  if (!match) return null
-
-  return toJobDetail(match)
 }

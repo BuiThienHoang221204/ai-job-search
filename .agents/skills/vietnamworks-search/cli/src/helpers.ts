@@ -6,12 +6,18 @@
 // Lý do là bắt buộc chứ không phải cho gọn. Trang /viec-lam của VietnamWorks
 // là ứng dụng Next.js render hoàn toàn ở phía trình duyệt: HTML trả về chỉ có
 // <div id="__next"></div> rỗng, và từ khoá tìm kiếm chỉ xuất hiện 2 lần trong
-// 237KB - không có một tin tuyển dụng nào trong đó. Trang chi tiết cũng vậy,
-// và cũng không nhúng __NEXT_DATA__. Parse HTML ở đây sẽ luôn trả về rỗng.
+// 237KB - không có một tin tuyển dụng nào trong đó.
 //
 // Đổi lại thì API cho dữ liệu có cấu trúc sẵn: không regex, không lo đổi
-// markup, và jobDescription + jobRequirement nằm NGAY trong kết quả tìm kiếm
-// nên không cần thêm một request cho mỗi tin.
+// markup.
+//
+// NHƯNG API CẮT MÔ TẢ. jobDescription và jobRequirement trong kết quả tìm kiếm
+// bị cắt ngang chừng và để lại dấu "..." - đo được 507/511 ký tự trên một tin
+// mà bản đầy đủ dài 1.083. Vì vậy `search` chỉ cho mô tả TÓM TẮT, còn mô tả
+// đầy đủ phải lấy qua `detail`.
+//
+// Trang chi tiết thì parse được, khác với trang tìm kiếm: nội dung nằm trong
+// payload RSC mà Next.js đẩy qua `self.__next_f`. Xem `flightTextChunks`.
 //
 // Đây là API nội bộ, không có tài liệu công khai. Nó có thể đổi mà không báo -
 // đó là cái giá phải trả, và cũng là lý do mọi trường đều đọc phòng thủ.
@@ -127,6 +133,24 @@ export async function apiSearch(body: SearchBody): Promise<ApiResponse> {
   throw new Error("không gọi được API")
 }
 
+/** Tải HTML một trang chi tiết. Chỉ `detail` cần, và chỉ để lấy mô tả đầy đủ. */
+export async function fetchHtml(url: string): Promise<string> {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": UA,
+      Accept: "text/html,application/xhtml+xml",
+      "Accept-Language": "vi,en;q=0.8",
+      Referer: `${BASE_URL}/viec-lam`,
+    },
+    signal: AbortSignal.timeout(20_000),
+  })
+
+  if (!response.ok) {
+    throw new Error(`VietnamWorks trả về ${response.status} cho ${url}`)
+  }
+  return await response.text()
+}
+
 /**
  * Bỏ dấu tiếng Việt, chuẩn hoá về NFD trước.
  *
@@ -172,6 +196,164 @@ export function decodeEntities(text: string): string {
 /** API trả jobDescription và jobRequirement dưới dạng HTML, không phải text. */
 export const htmlToText = (html: string): string =>
   decodeEntities(stripTags(html)).replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim()
+
+/** API cắt mô tả ngang chừng và để lại dấu ba chấm ở cuối. */
+export const isTruncated = (html: string | null | undefined): boolean =>
+  /(\.\.\.|…)\s*$/.test(htmlToText(html ?? ""))
+
+/** Ghép các mảnh payload RSC mà Next.js đẩy qua `self.__next_f`. */
+export function flightBuffer(html: string): string {
+  const pushes = /self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)/g
+  let buffer = ""
+  let match: RegExpExecArray | null
+
+  while ((match = pushes.exec(html)) !== null) {
+    try {
+      buffer += JSON.parse(match[1]!) as string
+    } catch {
+      buffer += ""
+    }
+  }
+  return buffer
+}
+
+/**
+ * Các đoạn văn bản rời trong payload RSC, đánh dấu bằng `<id>:T<hex>,`.
+ *
+ * `<hex>` là SỐ BYTE chứ không phải số ký tự - cắt theo ký tự sẽ lố sang đoạn
+ * sau ở mọi tin tiếng Việt và ở cả dấu đầu dòng "•". Tra theo id để giải tham
+ * chiếu dạng "$<id>".
+ */
+export function flightTextChunks(buffer: string): Map<string, string> {
+  const bytes = Buffer.from(buffer, "utf8")
+  const marker = /([0-9a-f]+):T([0-9a-f]+),/g
+  const chunks = new Map<string, string>()
+  let cursor = 0
+
+  while (cursor < buffer.length) {
+    marker.lastIndex = cursor
+    const match = marker.exec(buffer)
+    if (!match) break
+
+    const from = match.index + match[0].length
+    const fromByte = Buffer.byteLength(buffer.slice(0, from), "utf8")
+    const text = bytes.subarray(fromByte, fromByte + parseInt(match[2]!, 16)).toString("utf8")
+
+    if (text) chunks.set(match[1]!, text)
+    cursor = from + text.length
+  }
+  return chunks
+}
+
+/**
+ * Mọi giá trị của một trường trong payload RSC.
+ *
+ * Trả về MẢNG chứ không phải một giá trị: trang có cả khối "việc làm tương tự"
+ * nên cùng một tên trường xuất hiện cho nhiều tin khác nhau. Giá trị có thể
+ * nằm thẳng trong JSON, hoặc là tham chiếu "$<id>" trỏ sang một đoạn rời.
+ */
+export function flightFieldValues(
+  buffer: string,
+  chunks: Map<string, string>,
+  field: "jobDescription" | "jobRequirement",
+): string[] {
+  const literal = new RegExp(`"${field}":\\s*("(?:[^"\\\\]|\\\\.)*")`, "g")
+  const values: string[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = literal.exec(buffer)) !== null) {
+    let raw: string
+    try {
+      raw = JSON.parse(match[1]!) as string
+    } catch {
+      continue
+    }
+
+    const resolved = raw.startsWith("$") ? chunks.get(raw.slice(1)) : raw
+    if (resolved) values.push(resolved)
+  }
+  return values
+}
+
+/** Vị trí đóng của object JSON mở ở `start`, có tính chuỗi và ký tự thoát. */
+function objectEnd(buffer: string, start: number): number {
+  let depth = 0
+  let inString = false
+
+  for (let at = start; at < buffer.length; at++) {
+    const char = buffer[at]
+    if (inString) {
+      if (char === "\\") at++
+      else if (char === '"') inString = false
+      continue
+    }
+
+    if (char === '"') inString = true
+    else if (char === "{") depth++
+    else if (char === "}" && --depth === 0) return at
+  }
+  return -1
+}
+
+/** `jobId` gần như luôn là khoá đầu tiên, nên không cần lùi xa để tìm dấu mở. */
+const OBJECT_LOOKBACK = 4_000
+
+/**
+ * Object JSON của một tin nhúng trong payload RSC, tra theo jobId.
+ *
+ * Đây là đường lấy tin khi API tìm kiếm không dò lại được - tin đăng lâu rồi
+ * thì tìm bằng từ khoá trong alias không còn ra nữa.
+ */
+export function flightJobObject(
+  buffer: string,
+  jobId: string,
+): Record<string, unknown> | null {
+  const found = new RegExp(`"jobId":\\s*${jobId}\\b`).exec(buffer)
+  if (!found) return null
+
+  const stopAt = Math.max(0, found.index - OBJECT_LOOKBACK)
+  for (let start = found.index; start >= stopAt; start--) {
+    if (buffer[start] !== "{") continue
+
+    const end = objectEnd(buffer, start)
+    if (end === -1) continue
+
+    try {
+      const parsed = JSON.parse(buffer.slice(start, end + 1)) as Record<string, unknown>
+      if (String(parsed.jobId) === jobId) return parsed
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+/** Số ký tự đầu dùng để nhận ra một giá trị là bản đầy đủ của đoạn đã bị cắt. */
+const PROBE_LENGTH = 60
+
+/**
+ * Bản đầy đủ của một khối HTML bị API cắt, chọn trong các giá trị của trang.
+ *
+ * Bắt buộc khớp phần đầu với bản cắt, KHÔNG chỉ lấy chuỗi dài nhất: trang còn
+ * chứa mô tả của những tin gợi ý khác, và lấy nhầm thì tin này mang mô tả của
+ * tin kia mà không có gì báo.
+ *
+ * So khớp sau khi đã bỏ thẻ và giải entity: API trả `&amp;` còn payload RSC
+ * trả `&`, nên so trên HTML thô sẽ trượt.
+ */
+export function fullerHtml(candidates: string[], truncated: string | undefined): string | null {
+  const wanted = htmlToText(truncated ?? "")
+    .replace(/(\.\.\.|…)\s*$/, "")
+    .trim()
+  if (!wanted) return null
+
+  const probe = wanted.slice(0, PROBE_LENGTH)
+  for (const candidate of candidates) {
+    const text = htmlToText(candidate)
+    if (text.length > wanted.length && text.startsWith(probe)) return candidate
+  }
+  return null
+}
 
 /**
  * Trích slug từ jobUrl.
@@ -272,6 +454,78 @@ export function toJobDetail(job: ApiJob): JobDetail | null {
   const card = toJobCard(job)
   if (!card) return null
   return { ...card, description: toDescription(job) }
+}
+
+/**
+ * Mô tả đầy đủ dựng từ HTML trang chi tiết.
+ *
+ * Trả null khi không dựng lại được đoạn nào dài hơn bản API - để phía gọi giữ
+ * nguyên bản cũ thay vì nhận một chuỗi tệ hơn.
+ */
+export function descriptionFromDetailHtml(html: string, job: ApiJob): string | null {
+  const buffer = flightBuffer(html)
+  const chunks = flightTextChunks(buffer)
+
+  const jobDescription = fullerHtml(
+    flightFieldValues(buffer, chunks, "jobDescription"),
+    job.jobDescription,
+  )
+  const jobRequirement = fullerHtml(
+    flightFieldValues(buffer, chunks, "jobRequirement"),
+    job.jobRequirement,
+  )
+  if (!jobDescription && !jobRequirement) return null
+
+  return toDescription({
+    ...job,
+    jobDescription: jobDescription ?? job.jobDescription,
+    jobRequirement: jobRequirement ?? job.jobRequirement,
+  })
+}
+
+/** Tham chiếu "$<id>" trỏ sang một dòng khác của payload. */
+const isRef = (value: unknown): value is string =>
+  typeof value === "string" && /^\$[0-9a-f]+$/.test(value)
+
+/**
+ * Bỏ những trường còn là tham chiếu chưa giải.
+ *
+ * `skills` và `workingLocations` trỏ sang các dòng JSON lồng nhau mà ta không
+ * giải; để nguyên thì `toJobCard` gọi `.map` trên một chuỗi và ném lỗi.
+ */
+function withoutRefs(job: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(job).filter(([, value]) => !isRef(value)))
+}
+
+/**
+ * Dựng tin CHỈ từ HTML trang chi tiết, không cần API.
+ *
+ * Thiếu `tags` và có thể thiếu địa điểm - hai trường đó nằm ở các dòng tham
+ * chiếu lồng nhau. Đủ dùng vì đây là đường dự phòng, và mô tả mới là thứ cần.
+ */
+export function jobFromDetailHtml(html: string, url: string): JobDetail | null {
+  const slug = slugFromUrl(url)
+  const jobId = slug ? idFromSlug(slug) : null
+  if (!slug || !jobId) return null
+
+  const buffer = flightBuffer(html)
+  const raw = flightJobObject(buffer, jobId)
+  if (!raw) return null
+
+  const chunks = flightTextChunks(buffer)
+  const resolve = (value: unknown): string | undefined =>
+    isRef(value) ? chunks.get(String(value).slice(1)) : (value as string | undefined)
+
+  const job: ApiJob = {
+    ...withoutRefs(raw),
+    jobId: Number(jobId),
+    jobUrl: url,
+    jobDescription: resolve(raw.jobDescription),
+    jobRequirement: resolve(raw.jobRequirement),
+  }
+
+  const card = toJobCard(job)
+  return card ? { ...card, description: toDescription(job) } : null
 }
 
 const slugify = (text: string): string =>

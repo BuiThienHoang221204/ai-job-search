@@ -3,8 +3,16 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   decodeEntities,
+  descriptionFromDetailHtml,
+  flightBuffer,
+  flightFieldValues,
+  flightJobObject,
+  flightTextChunks,
+  fullerHtml,
   htmlToText,
   idFromSlug,
+  isTruncated,
+  jobFromDetailHtml,
   matchesLocation,
   parseLocation,
   parseSalary,
@@ -22,6 +30,14 @@ const response = JSON.parse(
 ) as ApiResponse
 
 const jobs = response.data ?? []
+
+/** Trang chi tiết thật, đã lược còn các thẻ script chứa payload RSC. */
+const detailHtml = readFileSync(join(import.meta.dir, "fixtures", "detail.html"), "utf8")
+
+/** Chính tin đó trong API tìm kiếm, tức bản mô tả đã bị cắt. */
+const detailJob = JSON.parse(
+  readFileSync(join(import.meta.dir, "fixtures", "detail-job.json"), "utf8"),
+) as ApiJob
 
 describe("fixture", () => {
   test("có dữ liệu thật để test", () => {
@@ -160,12 +176,125 @@ describe("toDescription", () => {
 })
 
 describe("toJobDetail", () => {
-  test("mô tả nằm SẴN trong kết quả tìm kiếm", () => {
-    // Đây là điểm khác biệt lớn nhất so với itviec/topcv: không cần thêm một
-    // request cho mỗi tin.
+  test("kết quả tìm kiếm luôn có sẵn một mô tả", () => {
     for (const job of jobs) {
       expect(toJobDetail(job)!.description).not.toBeNull()
     }
+  })
+
+  test("nhưng mô tả đó bị API CẮT, không phải bản đầy đủ", () => {
+    // Đây là lỗi đã lưu 13/13 tin VietnamWorks với mô tả thiếu quá nửa: chuỗi
+    // cụt vẫn dài hơn ngưỡng 80 ký tự nên không nhánh nào chặn được.
+    for (const job of jobs) {
+      expect(isTruncated(job.jobDescription) || isTruncated(job.jobRequirement)).toBe(true)
+    }
+  })
+})
+
+describe("isTruncated", () => {
+  test("nhận cả ba chấm rời lẫn ký tự một ô", () => {
+    expect(isTruncated("<p>còn nữa...</p>")).toBe(true)
+    expect(isTruncated("<p>còn nữa…</p>")).toBe(true)
+  })
+
+  test("mô tả trọn vẹn thì không", () => {
+    expect(isTruncated("<p>Hết.</p>")).toBe(false)
+    expect(isTruncated(null)).toBe(false)
+  })
+})
+
+describe("trang chi tiết (payload RSC)", () => {
+  test("đọc được các đoạn văn bản rời", () => {
+    const chunks = flightTextChunks(flightBuffer(detailHtml))
+    expect(chunks.size).toBeGreaterThan(0)
+  })
+
+  test("cắt đoạn theo BYTE, không theo ký tự", () => {
+    // Đoạn mô tả đầy 1.103 byte nhưng chỉ 1.083 ký tự vì có dấu "•". Cắt theo
+    // ký tự sẽ nuốt luôn dấu mở đoạn sau.
+    const chunks = flightTextChunks(flightBuffer(detailHtml))
+    for (const text of chunks.values()) expect(text).not.toContain(":T")
+  })
+
+  test("giải được tham chiếu \"$<id>\" sang đoạn rời", () => {
+    const buffer = flightBuffer(detailHtml)
+    const values = flightFieldValues(buffer, flightTextChunks(buffer), "jobDescription")
+    expect(values.length).toBeGreaterThan(0)
+    for (const value of values) expect(value.startsWith("$")).toBe(false)
+  })
+
+  test("dựng lại mô tả dài hơn hẳn bản API và không còn dấu cắt", () => {
+    const fromApi = toDescription(detailJob)!
+    const full = descriptionFromDetailHtml(detailHtml, detailJob)!
+
+    expect(full.length).toBeGreaterThan(fromApi.length)
+    expect(isTruncated(full)).toBe(false)
+    expect(full).toContain("Mô tả công việc")
+    expect(full).toContain("Yêu cầu ứng viên")
+  })
+
+  test("giữ cả hai phần, không chỉ phần mô tả", () => {
+    // Phần mô tả là tham chiếu "$<id>", phần yêu cầu nằm thẳng trong JSON —
+    // sửa đúng một dạng thì nửa còn lại vẫn cụt.
+    const buffer = flightBuffer(detailHtml)
+    const chunks = flightTextChunks(buffer)
+
+    expect(fullerHtml(flightFieldValues(buffer, chunks, "jobDescription"), detailJob.jobDescription))
+      .not.toBeNull()
+    expect(fullerHtml(flightFieldValues(buffer, chunks, "jobRequirement"), detailJob.jobRequirement))
+      .not.toBeNull()
+  })
+
+  test("KHÔNG nhận một đoạn không khớp phần đầu", () => {
+    // Trang còn chứa mô tả của các tin gợi ý; lấy nhầm thì tin này mang mô tả
+    // của tin khác mà không có gì báo.
+    const buffer = flightBuffer(detailHtml)
+    const chunks = flightTextChunks(buffer)
+    const values = flightFieldValues(buffer, chunks, "jobDescription")
+
+    expect(fullerHtml(values, "<p>Một tin hoàn toàn khác, dài dòng cho đủ...</p>")).toBeNull()
+  })
+
+  test("HTML không phải Next.js thì trả null chứ không ném", () => {
+    expect(descriptionFromDetailHtml("<html><body>trống</body></html>", detailJob)).toBeNull()
+  })
+})
+
+describe("dựng tin chỉ từ HTML", () => {
+  const url = "https://www.vietnamworks.com/full-stack-developer-2096266-jv"
+
+  test("tìm được object JSON của tin theo jobId", () => {
+    const raw = flightJobObject(flightBuffer(detailHtml), "2096266")
+    expect(raw).not.toBeNull()
+    expect(String(raw!.jobTitle)).toBe("Full Stack Developer")
+  })
+
+  test("jobId không có trên trang thì trả null", () => {
+    expect(flightJobObject(flightBuffer(detailHtml), "999999")).toBeNull()
+  })
+
+  test("dựng được tin đầy đủ khi API không dò lại được", () => {
+    // API tìm lại tin bằng từ khoá trong alias, và tin đăng lâu thì không ra
+    // nữa — 6/16 tin của lần backfill đầu tiên rơi vào đúng cảnh này.
+    const job = jobFromDetailHtml(detailHtml, url)!
+
+    expect(job.id).toBe("2096266")
+    expect(job.title).toBe("Full Stack Developer")
+    expect(job.description!.length).toBeGreaterThan(toDescription(detailJob)!.length)
+    expect(isTruncated(job.description)).toBe(false)
+  })
+
+  test("KHÔNG để tham chiếu chưa giải lọt ra ngoài", () => {
+    // `skills` là "$<id>" trỏ sang dòng khác; giữ nguyên thì toJobCard gọi
+    // `.map` trên một chuỗi và ném lỗi.
+    const job = jobFromDetailHtml(detailHtml, url)!
+
+    expect(Array.isArray(job.tags)).toBe(true)
+    expect(JSON.stringify(job)).not.toMatch(/"\$[0-9a-f]+"/)
+  })
+
+  test("URL không có jobId thì trả null", () => {
+    expect(jobFromDetailHtml(detailHtml, "https://www.vietnamworks.com/viec-lam")).toBeNull()
   })
 })
 

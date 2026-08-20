@@ -19,10 +19,12 @@ export interface SearchOptions {
 const MAX_HITS_PER_PAGE = 50
 
 /**
- * Trả về JobDetail chứ không phải JobCard: API đã kèm sẵn jobDescription và
- * jobRequirement, nên gọi thêm `detail` cho từng tin vừa thừa vừa mong manh
- * (không có endpoint tra theo id, phải tìm lại bằng từ khoá alias và có thể
- * không thấy). Phía gọi thấy `description` khác null thì bỏ hẳn bước detail.
+ * Trả về JobDetail chứ không phải JobCard, nhưng `description` chỉ là bản TÓM
+ * TẮT: API cắt jobDescription và jobRequirement ở vài trăm ký tự rồi thêm dấu
+ * "...". Muốn mô tả đầy đủ thì phải gọi `detail`.
+ *
+ * Vẫn trả mô tả cụt thay vì bỏ trống, để phía gọi có cái dùng khi `detail`
+ * không tìm lại được tin (tra theo id không có, phải tìm bằng từ khoá alias).
  */
 export async function search(options: SearchOptions): Promise<JobDetail[]> {
   const response = await apiSearch({
