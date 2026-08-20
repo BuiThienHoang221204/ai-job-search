@@ -4,6 +4,8 @@ import { AiModule } from '../ai/ai.module.js';
 import { SandboxModule } from '../sandbox/sandbox.module.js';
 import { SANDBOX, type SandboxRunner } from '../sandbox/sandbox.interface.js';
 import { SkillsModule } from '../skills/skills.module.js';
+import { DocumentComposer } from './document-composer.service.js';
+import { DocumentRenderer } from './document-renderer.service.js';
 import { DocumentsController } from './documents.controller.js';
 import { DocumentsProcessor } from './documents.processor.js';
 import { DocumentsService } from './documents.service.js';
@@ -35,7 +37,13 @@ const latexCompilerProvider = {
 @Module({
   imports: [AiModule, SandboxModule, SkillsModule],
   controllers: [DocumentsController],
-  providers: [DocumentsService, DocumentsProcessor, latexCompilerProvider],
+  providers: [
+    DocumentsService,
+    DocumentComposer,
+    DocumentRenderer,
+    DocumentsProcessor,
+    latexCompilerProvider,
+  ],
   exports: [DocumentsService, LATEX_COMPILER],
 })
 export class DocumentsModule {}
