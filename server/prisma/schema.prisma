@@ -112,6 +112,14 @@ model Profile {
   certificates     Json?
   projects         Json?
 
+  /// Nhóm ngành DẪN XUẤT từ `headline` và `primarySkills`, dùng chung danh mục
+  /// với tin tuyển dụng. Lượt quét đêm gom từ khoá theo cột này, nhờ đó số truy
+  /// vấn bị chặn bởi số ngành chứ không tăng theo số người dùng.
+  ///
+  /// `null` = hồ sơ chưa đủ dữ liệu để suy. Cố ý không quy về `OTHER`: gộp mọi
+  /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
+  occupationCode String?
+
   completion Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -630,6 +638,25 @@ model ScrapeRun {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("scrape_runs")
+}
+
+/// Lần gần nhất một NGÀNH được quét trên một portal.
+///
+/// Khi số ngành vượt `SCRAPER_SYSTEM_QUERY_LIMIT`, lượt quét chọn những ngành
+/// cũ nhất thay vì luôn chọn cùng một nhóm đứng đầu bảng chữ cái. Độ phủ khi đó
+/// là một CHU KỲ nhiều đêm, và chu kỳ đó phải ngắn hơn `SCRAPER_MAX_AGE_DAYS`
+/// (7 ngày) - dài hơn thì tin đăng rồi hết hạn giữa hai lượt sẽ mất hẳn.
+///
+/// Khoá theo cả portal: mỗi portal xoay vòng riêng, nhờ đó một ngành lần lượt
+/// được quét ở mọi portal thay vì chỉ ở portal chạy đầu tiên.
+model OccupationCrawl {
+  portal         String
+  occupationCode String
+
+  lastCrawledAt DateTime @updatedAt
+
+  @@id([portal, occupationCode])
+  @@map("occupation_crawls")
 }
 
 // ---------------------------------------------------------------------------
