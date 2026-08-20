@@ -25,7 +25,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { DocumentsService } from './documents.service.js';
+import { DocumentsService } from './services/documents.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
 export class CreateCvDto {

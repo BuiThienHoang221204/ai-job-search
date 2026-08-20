@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Document, Profile } from '../../generated/prisma/client.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/services/ai.service.js';
-import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
+import type { Document, Profile } from '../../../generated/prisma/client.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
+import { AiService } from '../../ai/services/ai.service.js';
+import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
+import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
 import {
   applicationEmailSchema,
   coverLetterSchema,
@@ -13,9 +13,9 @@ import {
   type CoverLetterResult,
   type CvContentResult,
   type FormAnswerResult,
-} from './document.schema.js';
-import type { Identity } from './latex.js';
-import type { DocumentParams, LetterTarget } from './letter-target.js';
+} from '../document.schema.js';
+import type { Identity } from '../latex.js';
+import type { DocumentParams, LetterTarget } from '../letter-target.js';
 
 const SKILL_NAME = 'job-application-assistant';
 

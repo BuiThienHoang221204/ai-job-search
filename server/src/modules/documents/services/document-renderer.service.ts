@@ -5,21 +5,24 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Document, DocumentKind } from '../../generated/prisma/client.js';
+import type {
+  Document,
+  DocumentKind,
+} from '../../../generated/prisma/client.js';
 import {
   STORAGE,
   userKey,
   type Storage,
-} from '../storage/storage.interface.js';
-import type { CoverLetterResult, CvContentResult } from './document.schema.js';
-import { LATEX_COMPILER, type LatexCompiler } from './latex-compile.js';
+} from '../../storage/storage.interface.js';
+import type { CoverLetterResult, CvContentResult } from '../document.schema.js';
+import { LATEX_COMPILER, type LatexCompiler } from '../latex-compile.js';
 import {
   renderCoverLetter,
   renderCv,
   slugify,
   type Identity,
-} from './latex.js';
-import type { LetterTarget } from './letter-target.js';
+} from '../latex.js';
+import type { LetterTarget } from '../letter-target.js';
 
 /**
  * Loại tài liệu có bản LaTeX để in ra.

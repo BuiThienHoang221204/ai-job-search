@@ -10,7 +10,7 @@ import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { isUniqueViolation } from '../../prisma/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { DocumentsService } from '../documents/documents.service.js';
+import { DocumentsService } from '../documents/services/documents.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import {
   checkTransition,

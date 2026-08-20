@@ -9,18 +9,18 @@ import type {
   Document,
   DocumentKind,
   Prisma,
-} from '../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../common/pagination.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
+} from '../../../generated/prisma/client.js';
+import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../../common/pagination.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
 import { DocumentComposer } from './document-composer.service.js';
 import { DocumentRenderer, isPrintable } from './document-renderer.service.js';
-import type { Identity } from './latex.js';
+import type { Identity } from '../latex.js';
 import {
   emailTitle,
   letterTarget,
   type DocumentParams,
-} from './letter-target.js';
+} from '../letter-target.js';
 
 /**
  * Điều phối vòng đời một tài liệu, và không tự làm phần nào trong đó.

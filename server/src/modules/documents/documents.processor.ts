@@ -4,7 +4,7 @@ import {
   QueueService,
   type GenerateDocumentPayload,
 } from '../queue/queue.service.js';
-import { DocumentsService } from './documents.service.js';
+import { DocumentsService } from './services/documents.service.js';
 
 @Injectable()
 export class DocumentsProcessor implements OnModuleInit {
