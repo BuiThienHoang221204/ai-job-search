@@ -18,22 +18,21 @@ pnpm lint && pnpm test && pnpm test:e2e
 
 ### Tài khoản dùng cho bộ test
 
-```
-admin@aijob.local  /  MatKhauTest123!
-```
+**Mọi tài khoản do `pnpm db:seed` tạo ra đều dùng chung một mật khẩu: `Demo@12345`.** Cặp đăng nhập hay cần nhất là **`admin@aijob.local` / `Demo@12345`**.
 
-**Chỉ dành cho database DEV trên máy cá nhân.** Đây không phải bí mật — cặp này vốn đã nằm cứng trong `server/test/app.e2e-spec.ts` và cả 6 spec Playwright của `ui-ai-job-search/test/visual/`. Ghi lại ở đây vì nó **không được viết ở đâu cả**, và khi database dev bị seed lại thì mật khẩu lệch đi, làm **toàn bộ 6 spec Playwright hỏng ngay ở bước đăng nhập** — một triệu chứng trông y hệt như giao diện bị vỡ, mất khá lâu mới lần ra.
+| Tài khoản | Vai trò |
+|---|---|
+| `admin@aijob.local` | **ADMIN**. Sáu spec Playwright đăng nhập bằng tài khoản này, và `admin-refetch.spec.ts` cần nó để vào `/admin` |
+| `demo@aijob.local` | Hồ sơ backend developer, có sẵn tin, điểm phù hợp và đơn ứng tuyển |
+| `ketoan@`, `dieuduong@`, `giaovien@`, `kinhdoanh@`, `xuatnhapkhau@`, `cokhi@`, `mkt-fresher@` | Bảy hồ sơ NGOÀI ngành IT. Xem `scripts/demo-personas.mjs`, mỗi hồ sơ có trường `chamVao` ghi rõ nó kiểm nhánh nào |
 
-Đặt lại khi nó lệch (bcrypt cost **12**, phải khớp `BCRYPT_ROUNDS` trong `auth.service.ts`):
+**Chỉ dành cho database DEV trên máy cá nhân.** Đây không phải bí mật — mật khẩu vốn đã nằm cứng trong 6 spec Playwright của `ui-ai-job-search/test/visual/`. Ghi lại ở đây vì khi database dev bị seed lại hoặc tài khoản lệch đi thì **toàn bộ 6 spec Playwright hỏng ngay ở bước đăng nhập** — một triệu chứng trông y hệt như giao diện bị vỡ, mất khá lâu mới lần ra. Đã xảy ra thật: `admin@aijob.local` có lúc **không tồn tại** trong database dev, và không tài khoản nào mang role ADMIN.
 
-```bash
-cd server
-node -e "require('bcryptjs').hash('MatKhauTest123!',12).then(h=>process.stdout.write(h))" > /tmp/h.txt
-docker exec aijob-postgres psql -U aijob -d aijob \
-  -c "update users set \"passwordHash\"='$(cat /tmp/h.txt)' where email='admin@aijob.local';"
-```
+Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đặt lại mật khẩu và ép `role = 'ADMIN'` cho tài khoản admin, chạy bao nhiêu lần cũng được. Không cần sửa tay bằng psql nữa. (bcrypt cost **12**, khớp `BCRYPT_ROUNDS` trong `auth.service.ts`.)
 
-Tài khoản này là **ADMIN**, vì `test/visual/admin-refetch.spec.ts` cần vào `/admin`. **Đừng dùng lại mật khẩu này ở bất kỳ đâu có dữ liệu thật.**
+**Bộ e2e KHÔNG dùng những tài khoản này.** Nó tự đăng ký user với email sinh theo bộ đếm trên database `_test` riêng, và mật khẩu `MatKhauTest123!` trong `test/support/app-harness.ts` là hằng số nội bộ của nó — đổi mật khẩu seed không ảnh hưởng gì tới e2e, và ngược lại.
+
+**Đừng dùng lại mật khẩu này ở bất kỳ đâu có dữ liệu thật.**
 
 ## Ràng buộc cứng — đừng "sửa" chúng
 
@@ -127,11 +126,24 @@ Ba điều dễ làm sai ở adapter ATS:
 2. **Greenhouse cần `?content=true`**, thiếu nó thì `content` vắng và phải gọi thêm một request cho từng tin. Cả ba đều trả mô tả sẵn, nên `AtsSourceService.detail()` cố ý **ném lỗi** — nó không bao giờ được gọi tới.
 3. **Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ.
 
+### "Thẻ đã có mô tả" KHÔNG có nghĩa là mô tả đầy đủ
+
+API tìm kiếm của VietnamWorks **cắt** `jobDescription` và `jobRequirement` rồi thêm dấu ba chấm. Scraper cũ chỉ gọi `detail` khi thẻ **không** có mô tả, nên bản cụt được lưu thẳng: 16/16 tin VietnamWorks trong database có mô tả trung bình 771 ký tự, trong khi mọi nguồn khác là 2.600–11.000. Bản cụt vẫn dài hơn ngưỡng 80 nên không nhánh nào chặn được, và giao diện hiện đúng cái đã lưu — trông y như lỗi hiển thị.
+
+Nay `scraper.service.ts` gọi `detail` khi mô tả **trống HOẶC kết thúc bằng dấu ba chấm** (`looksTruncated`), và lỗi ở bước đó bị nuốt để tin vẫn được lưu với bản cụt thay vì mất hẳn. Sửa lại dữ liệu cũ bằng `node scripts/backfill-truncated-description.mjs`.
+
+Hai điều riêng của VietnamWorks:
+
+- **Trang chi tiết parse được, trang tìm kiếm thì không.** Trang `/viec-lam` render phía trình duyệt nên HTML rỗng, nhưng trang `/<slug>` nhúng payload RSC trong `self.__next_f`. Trong đó `jobRequirement` nằm thẳng dạng JSON còn `jobDescription` là tham chiếu `"$26"` trỏ sang một đoạn rời — **sửa đúng một dạng thì nửa còn lại vẫn cụt**. Độ dài đoạn rời đếm bằng **byte**, không phải ký tự.
+- **Phải khớp phần đầu với bản cắt trước khi nhận một đoạn**, đừng lấy chuỗi dài nhất: trang còn chứa mô tả của các tin gợi ý, và lấy nhầm thì tin này mang mô tả của tin kia mà không có gì báo.
+
+`detail` tìm lại tin bằng từ khoá trong alias, và **tin đăng lâu thì không tìm ra nữa** (6/16 tin ở lần backfill đầu). Nên có đường dự phòng `jobFromDetailHtml` dựng tin thẳng từ HTML; đường này thiếu `tags` vì chúng nằm ở các dòng tham chiếu lồng nhau chưa giải.
+
 ## Quét tin — đây là trợ lý tìm việc ĐA NGÀNH
 
 Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. Việc hệ thống từng chỉ mang về tin IT là hệ quả tình cờ của việc người dùng thử đầu tiên là dân IT, và nó đã được sửa ngày 2026-08-15. Đừng "sửa" ngược lại.
 
-**Ngôn ngữ từ khoá đi theo ngành, và đây là chỗ dễ làm hỏng nhất.** Chức danh IT/kỹ thuật ở Việt Nam đăng bằng tiếng Anh (`frontend developer`); mọi ngành còn lại đăng bằng tiếng Việt có dấu (`kế toán tổng hợp`, `nhân viên kinh doanh`). Chọn sai ngôn ngữ **không** trả về tin sai — nó trả về **không gì cả**, một triệu chứng trông y hệt portal hỏng. Quy tắc này nằm ở hai nơi và phải giữ khớp nhau: prompt trong `scraper.service.ts` và `.describe()` của trường `query` trong `scraper.schema.ts`. Mô tả zod đi thẳng vào JSON schema gửi cho model, nên nó là mệnh lệnh sống chứ không phải chú thích.
+**Ngôn ngữ từ khoá đi theo ngành, và đây là chỗ dễ làm hỏng nhất.** Chức danh IT/kỹ thuật ở Việt Nam đăng bằng tiếng Anh (`frontend developer`); mọi ngành còn lại đăng bằng tiếng Việt có dấu (`kế toán tổng hợp`, `nhân viên kinh doanh`). Chọn sai ngôn ngữ **không** trả về tin sai — nó trả về **không gì cả**, một triệu chứng trông y hệt portal hỏng. Quy tắc này nằm ở hai nơi và phải giữ khớp nhau: prompt trong `planning/query-planner.ts` và `.describe()` của trường `query` trong `planning/search-plan.schema.ts`. Mô tả zod đi thẳng vào JSON schema gửi cho model, nên nó là mệnh lệnh sống chứ không phải chú thích.
 
 **Truy vấn xếp theo CHỨC DANH trước, kỹ năng sau** (`query-plan.ts`). Với hồ sơ IT thì kỹ năng cũng là tên tin tuyển dụng nên xếp kiểu nào cũng chạy; với mọi ngành khác thì không — kỹ năng chính của một kế toán là `Excel`, `Misa`, `giao tiếp`. Lĩnh vực mục tiêu được **ghép** với chức danh, không bao giờ đứng một mình: `Ngân hàng` trả về mọi vị trí trong ngành từ giao dịch viên tới bảo vệ.
 
