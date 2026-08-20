@@ -180,6 +180,38 @@ describe('profileSummary', () => {
     );
   });
 
+  /**
+   * Dự án và chứng chỉ là bằng chứng ngang hàng với kinh nghiệm, và cả hai từng
+   * bị bỏ khỏi tóm tắt dù đã được đọc từ CV rồi lưu vào `Profile`.
+   *
+   * Đây là hàm DUY NHẤT mọi tác vụ AI đi qua để biết ứng viên là ai, nên thiếu
+   * một khối ở đây là thiếu ở chấm điểm, viết CV, viết thư, viết mail, chuẩn bị
+   * phỏng vấn và báo cáo lộ trình học - cùng một lúc, và không có gì báo lỗi.
+   */
+  test('đưa dự án và chứng chỉ vào tóm tắt', () => {
+    const output = service.profileSummary(
+      profileOf({
+        projects: [
+          { name: 'MCP Server', technologies: ['MongoDB Vector Search'] },
+        ],
+        certificates: [{ name: 'AWS Solutions Architect', year: '2025' }],
+      }),
+    );
+
+    expect(output).toContain('Dự án (JSON):');
+    expect(output).toContain('MCP Server');
+    expect(output).toContain('MongoDB Vector Search');
+    expect(output).toContain('Chứng chỉ (JSON):');
+    expect(output).toContain('AWS Solutions Architect');
+  });
+
+  test('hồ sơ không có dự án thì không in dòng rỗng', () => {
+    const output = service.profileSummary(profileOf({ projects: null }));
+
+    expect(output).not.toContain('Dự án');
+    expect(output).not.toContain('Chứng chỉ');
+  });
+
   test('luôn nêu rõ có sẵn sàng chuyển nơi ở hay không', () => {
     expect(
       service.profileSummary(profileOf({ willingToRelocate: false })),

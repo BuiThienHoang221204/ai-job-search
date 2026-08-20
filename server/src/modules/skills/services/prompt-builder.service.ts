@@ -134,8 +134,24 @@ export class PromptBuilderService {
         `- Kinh nghiệm làm việc (JSON): ${JSON.stringify(profile.experiences)}`,
       );
     }
+    /*
+     * Dự án và chứng chỉ là BẰNG CHỨNG ngang hàng với kinh nghiệm, không phải
+     * phần trang trí.
+     *
+     * Trước đây hai khối này bị bỏ khỏi tóm tắt dù đã được đọc từ CV và lưu vào
+     * `Profile`. Với hồ sơ lập trình viên, hậu quả đo được là model chỉ thấy một
+     * dòng "Full Stack Developer tại công ty X" trong khi toàn bộ phần chứng
+     * minh năng lực - RAG, MCP, xử lý 3.000 hóa đơn/tháng - nằm ở `projects`.
+     * Điểm phù hợp bị dìm và CV, thư, mail sinh ra chỉ nói chung chung được.
+     */
+    if (profile.projects) {
+      lines.push(`- Dự án (JSON): ${JSON.stringify(profile.projects)}`);
+    }
     if (profile.educations) {
       lines.push(`- Học vấn (JSON): ${JSON.stringify(profile.educations)}`);
+    }
+    if (profile.certificates) {
+      lines.push(`- Chứng chỉ (JSON): ${JSON.stringify(profile.certificates)}`);
     }
     if (profile.behavioralTraits) {
       lines.push(
