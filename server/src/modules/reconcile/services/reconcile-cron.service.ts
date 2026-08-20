@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
+import { appRole, runsBackgroundWork } from '../../../config/app-role.js';
 import { ReconcileService } from './reconcile.service.js';
 
 const JOB_NAME = 'reconcile.stuck-work';
@@ -19,6 +20,11 @@ export class ReconcileCronService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    if (!runsBackgroundWork()) {
+      this.logger.log(`Vai ${appRole()}: không chạy cron nhặt việc rơi`);
+      return;
+    }
+
     if (!this.config.get<boolean>('cron.reconcileEnabled')) {
       this.logger.log(
         'Cron nhặt việc rơi đang TẮT (RECONCILE_CRON_ENABLED=false)',

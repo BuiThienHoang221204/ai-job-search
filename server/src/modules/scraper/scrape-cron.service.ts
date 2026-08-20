@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
+import { appRole, runsBackgroundWork } from '../../config/app-role.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { JobSourceRouter } from './sources/job-source.router.js';
 import { ScraperService } from './scraper.service.js';
@@ -23,6 +24,11 @@ export class ScrapeCronService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    if (!runsBackgroundWork()) {
+      this.logger.log(`Vai ${appRole()}: không chạy cron quét tin`);
+      return;
+    }
+
     if (!this.config.get<boolean>('cron.scrapeEnabled')) {
       this.logger.log('Cron quét tin đang TẮT (SCRAPE_CRON_ENABLED=false)');
       return;
