@@ -19,8 +19,9 @@ import {
   type Storage,
 } from '../../storage/storage.interface.js';
 import { completionPercent } from '../../profile/completion.js';
+import { profileOccupation } from '../../profile/occupation.js';
 import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source.js';
-import type { Evidence } from '../evidence.js';
+import { parseEvidenceList, type Evidence } from '../evidence.js';
 import type { ProfileProposal } from '../profile-proposal.schema.js';
 
 @Injectable()
@@ -93,6 +94,45 @@ export class ProfileDraftService {
     return draft;
   }
 
+  /**
+   * Chạy lại lượt đọc CV từ bằng chứng ĐÃ LƯU, không bắt nộp lại file.
+   *
+   * Có mặt vì trên tier free, hỏng là chuyện thường: bản nháp FAILED mà không
+   * có đường này thì cách duy nhất là tải lên lại, kéo theo parse lại PDF, ghi
+   * trùng file vào storage, đẻ thêm một bản nháp rác, và vẫn tốn đúng một lượt
+   * gọi model như nhau.
+   *
+   * Chỉ nhận FAILED, và phải do người dùng bấm: tự xếp lại khi chưa có bộ đếm
+   * số lần thử sẽ thành vòng lặp đốt hạn mức.
+   */
+  async retry(userId: string, draftId: string): Promise<ProfileDraft> {
+    const draft = await this.get(userId, draftId);
+
+    if (draft.status !== 'FAILED') {
+      throw new BadRequestException(
+        `Bản nháp đang ở trạng thái ${draft.status}, chỉ chạy lại được bản đã FAILED.`,
+      );
+    }
+
+    if (parseEvidenceList(draft.evidence).length === 0) {
+      throw new BadRequestException(
+        'Bản nháp không có bằng chứng nào đọc được, chạy lại cũng hỏng như cũ. Hãy nộp lại file.',
+      );
+    }
+
+    const reset = await this.prisma.profileDraft.update({
+      where: { id: draftId },
+      data: { status: 'PENDING', error: null },
+    });
+
+    await this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
+      userId,
+      draftId,
+    });
+
+    return reset;
+  }
+
   async history(userId: string, query: PaginationQueryDto) {
     const where = { userId };
 
@@ -149,13 +189,17 @@ export class ProfileDraftService {
       update: data,
     });
 
-    // Phải tính lại completion Ở ĐÂY, giống ProfileService.update. Thiếu bước này
-    // thì hồ sơ dựng hoàn toàn từ CV giữ nguyên mặc định 0, nằm dưới
-    // MIN_COMPLETION_TO_SCORE, và người dùng đó không bao giờ được fan-out chấm
-    // điểm - một màn hình trống vĩnh viễn, không kèm lỗi nào.
+    // Phải tính lại completion và ngành Ở ĐÂY, giống ProfileService.update.
+    // Thiếu completion thì hồ sơ dựng hoàn toàn từ CV giữ nguyên mặc định 0, nằm
+    // dưới MIN_COMPLETION_TO_SCORE và không bao giờ được chấm điểm. Thiếu ngành
+    // thì hồ sơ đó không thuộc cụm nào, nên lượt quét đêm không sinh từ khoá cho
+    // nghề của họ - cả hai đều là màn hình trống, không kèm lỗi nào.
     await this.prisma.profile.update({
       where: { userId },
-      data: { completion: completionPercent(saved) },
+      data: {
+        completion: completionPercent(saved),
+        occupationCode: profileOccupation(saved),
+      },
     });
 
     return this.prisma.profileDraft.update({

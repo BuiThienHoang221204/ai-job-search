@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Put,
@@ -126,6 +127,14 @@ export class ProfileDraftController {
   @Get(':id')
   async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return withFailureKind(await this.drafts.get(user.id, id));
+  }
+
+  /** Chạy lại một bản nháp đã hỏng, dùng lại bằng chứng đã lưu. */
+  @ThrottleAi()
+  @Post(':id/retry')
+  @HttpCode(200)
+  async retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.drafts.retry(user.id, id));
   }
 
   /** Áp dụng những trường người dùng đã chọn vào hồ sơ thật. */
