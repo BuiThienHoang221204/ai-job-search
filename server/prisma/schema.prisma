@@ -560,6 +560,10 @@ model UpskillReport {
 enum DocumentKind {
   CV
   COVER_LETTER
+  /// Mail ứng tuyển gửi thẳng cho nhà tuyển dụng. Khác COVER_LETTER ở chỗ nó có
+  /// tiêu đề mail, ngắn hơn, và KHÔNG có bản LaTeX - người dùng sao chép rồi
+  /// dán vào hộp thư chứ không đính kèm PDF.
+  APPLICATION_EMAIL
   FORM_ANSWER
 }
 

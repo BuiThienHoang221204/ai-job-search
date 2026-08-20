@@ -15,9 +15,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Length,
   Max,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -32,6 +34,45 @@ export class CreateCvDto {
 
 export class CreateCoverLetterDto {
   @IsString() jobId!: string;
+}
+
+/**
+ * Mail ứng tuyển nhận MỘT trong hai nguồn tin tuyển dụng, và `@ValidateIf` là
+ * chỗ khai điều đó: có `jobId` thì ba trường còn lại bị bỏ qua, không có thì cả
+ * ba đều bắt buộc. Nửa bộ dữ liệu (JD nhưng thiếu tên công ty) bị chặn ngay ở
+ * đây thay vì để model tự bịa ra phần thiếu.
+ */
+export class CreateApplicationEmailDto {
+  @IsOptional() @IsString() jobId?: string;
+
+  /**
+   * Trần 60KB giống `CreateJobDto`: mô tả đi thẳng vào prompt. Sàn 50 ký tự cao
+   * hơn sàn 20 của tin tuyển dụng vì một JD ngắn hơn thế không đủ cho model
+   * viết mail mà không bịa - còn tin thì chỉ cần đủ để chấm điểm.
+   */
+  @ValidateIf((dto: CreateApplicationEmailDto) => !dto.jobId)
+  @IsString({ message: 'Thiếu mô tả công việc' })
+  @Length(50, 60_000, {
+    message: 'Mô tả công việc quá ngắn hoặc quá dài (cần 50 tới 60.000 ký tự)',
+  })
+  jobDescription?: string;
+
+  /*
+   * Ba trường này dùng `@Length` thay cho cặp `@MinLength` + `@MaxLength`, và
+   * mọi câu báo lỗi đều bằng tiếng Việt. Lý do: giao diện NỐI cả mảng `message`
+   * lại rồi hiện lên, mà khi giá trị VẮNG MẶT thì mọi decorator đều hỏng cùng
+   * lúc - cặp min/max sẽ nói "quá dài" về một trường còn chưa có gì, và
+   * decorator không đặt `message` sẽ chen một câu tiếng Anh vào giữa.
+   */
+  @ValidateIf((dto: CreateApplicationEmailDto) => !dto.jobId)
+  @IsString({ message: 'Thiếu tên công ty' })
+  @Length(1, 300, { message: 'Tên công ty phải từ 1 tới 300 ký tự' })
+  company?: string;
+
+  @ValidateIf((dto: CreateApplicationEmailDto) => !dto.jobId)
+  @IsString({ message: 'Thiếu tên vị trí ứng tuyển' })
+  @Length(1, 300, { message: 'Tên vị trí phải từ 1 tới 300 ký tự' })
+  title?: string;
 }
 
 export class CreateFormAnswerDto {
@@ -51,8 +92,8 @@ export class CreateFormAnswerDto {
 
 export class ListDocumentsDto extends PaginationQueryDto {
   @IsOptional()
-  @IsIn(['CV', 'COVER_LETTER', 'FORM_ANSWER'])
-  kind?: 'CV' | 'COVER_LETTER' | 'FORM_ANSWER';
+  @IsIn(['CV', 'COVER_LETTER', 'APPLICATION_EMAIL', 'FORM_ANSWER'])
+  kind?: 'CV' | 'COVER_LETTER' | 'APPLICATION_EMAIL' | 'FORM_ANSWER';
 
   /** Chỉ tài liệu đã tạo cho ĐÚNG tin này. */
   @IsOptional() @IsString() jobId?: string;
@@ -123,6 +164,24 @@ export class DocumentsController {
       'Thư xin việc',
       dto.jobId,
     );
+    await this.queue.send(QUEUE.GENERATE_DOCUMENT, {
+      userId: user.id,
+      documentId: document.id,
+    });
+    return { queued: true, documentId: document.id };
+  }
+
+  /**
+   * Mail ứng tuyển. Nhận `jobId` của một tin có sẵn, HOẶC một JD dán tay kèm
+   * tên công ty và vị trí - JD dán tay không được lưu thành tin tuyển dụng.
+   */
+  @ThrottleAi()
+  @Post('application-email')
+  async applicationEmail(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateApplicationEmailDto,
+  ) {
+    const document = await this.documents.createApplicationEmail(user.id, dto);
     await this.queue.send(QUEUE.GENERATE_DOCUMENT, {
       userId: user.id,
       documentId: document.id,

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -24,9 +25,11 @@ import {
   type Storage,
 } from '../storage/storage.interface.js';
 import {
+  applicationEmailSchema,
   coverLetterSchema,
   cvSchema,
   formAnswerSchema,
+  type ApplicationEmailResult,
   type CoverLetterResult,
   type CvContentResult,
   type FormAnswerResult,
@@ -43,6 +46,68 @@ const SKILL_NAME = 'job-application-assistant';
 
 /** Timeout cho việc soạn CV và thư xin việc. */
 const DOCUMENT_TIMEOUT_MS = 180_000;
+
+/**
+ * Đích của một lá thư: viết cho công ty nào, vị trí nào, theo mô tả nào.
+ *
+ * Khái niệm này tồn tại vì cùng một việc soạn thảo có HAI nguồn tin tuyển dụng:
+ * một tin đã nằm trong database, hoặc một JD người dùng dán tay mà hệ thống cố
+ * ý không lưu lại thành tin (xem `createApplicationEmail`). Phần soạn thảo chỉ
+ * cần ba trường dưới đây, nên nó không được phép biết nguồn nào - có vậy thêm
+ * nguồn thứ ba sau này mới không phải sửa chỗ viết prompt.
+ */
+export interface LetterTarget {
+  company: string;
+  title: string;
+  description: string;
+  /** Id tin trong database. `null` = JD dán tay, không có tin nào để tra cứu. */
+  jobId: string | null;
+}
+
+/**
+ * Tham số người dùng nhập lúc bấm nút, cất tạm trong `Document.content` cho tới
+ * khi worker chạy tới. Sinh xong thì `content` bị thay bằng kết quả của model.
+ */
+interface DocumentParams {
+  question?: string;
+  characterLimit?: number;
+  jobDescription?: string;
+  company?: string;
+  title?: string;
+}
+
+/**
+ * Tiêu đề dòng trong kho tài liệu. Cắt ngắn vì chức danh trên tin tuyển dụng có
+ * thể dài cả dòng và danh sách chỉ có một dòng cho mỗi bản ghi.
+ */
+const emailTitle = (title: string, company: string): string =>
+  `Mail ứng tuyển: ${title} - ${company}`.slice(0, 160);
+
+/** Dựng đích của thư từ tin có sẵn, nếu không có thì từ JD dán tay. */
+function letterTarget(
+  job: Job | null,
+  params: DocumentParams,
+): LetterTarget | null {
+  if (job) {
+    return {
+      company: job.company,
+      title: job.title,
+      description: job.description,
+      jobId: job.id,
+    };
+  }
+
+  if (params.jobDescription && params.company && params.title) {
+    return {
+      company: params.company,
+      title: params.title,
+      description: params.jobDescription,
+      jobId: null,
+    };
+  }
+
+  return null;
+}
 
 @Injectable()
 export class DocumentsService {
@@ -82,7 +147,7 @@ export class DocumentsService {
   private async generateCv(
     document: Document,
     profile: Profile | null,
-    job: Job | null,
+    target: LetterTarget | null,
   ) {
     const skill = this.skills.get(SKILL_NAME);
     const framework = this.prompts.render(
@@ -109,11 +174,11 @@ export class DocumentsService {
       '=== HỒ SƠ ỨNG VIÊN ===',
       this.prompts.profileSummary(profile),
       '',
-      job
+      target
         ? [
             '=== VỊ TRÍ NHẮM TỚI ===',
-            `${job.title} @ ${job.company}`,
-            job.description,
+            `${target.title} @ ${target.company}`,
+            target.description,
           ].join('\n')
         : '=== KHÔNG CÓ VỊ TRÍ CỤ THỂ: soạn CV tổng quát theo định hướng nghề nghiệp ===',
     ].join('\n');
@@ -129,7 +194,7 @@ export class DocumentsService {
     const storageKey = await this.renderAndStore(
       document,
       profile,
-      job,
+      target,
       object,
     );
     return { content: object, storageKey, modelId };
@@ -138,9 +203,9 @@ export class DocumentsService {
   private async generateCoverLetter(
     document: Document,
     profile: Profile | null,
-    job: Job | null,
+    target: LetterTarget | null,
   ) {
-    if (!job) {
+    if (!target) {
       throw new NotFoundException(
         'Thư xin việc bắt buộc phải gắn với một công việc',
       );
@@ -168,23 +233,14 @@ export class DocumentsService {
       this.writingRules(profile),
     ].join('\n');
 
-    const match = await this.prisma.jobMatch.findUnique({
-      where: { userId_jobId: { userId: document.userId, jobId: job.id } },
-    });
-
     const prompt = [
       '=== HỒ SƠ ỨNG VIÊN ===',
       this.prompts.profileSummary(profile),
-      match?.strengths.length
-        ? `\nThế mạnh đã xác định khi chấm điểm: ${match.strengths.join('; ')}`
-        : '',
-      match?.gaps.length
-        ? `Khoảng trống cần xử lý khéo trong thư: ${match.gaps.join('; ')}`
-        : '',
+      ...(await this.matchHints(document.userId, target)),
       '',
       '=== VỊ TRÍ ỨNG TUYỂN ===',
-      `${job.title} @ ${job.company}`,
-      job.description,
+      `${target.title} @ ${target.company}`,
+      target.description,
     ].join('\n');
 
     const { object, modelId } = await this.ai.generateObject<CoverLetterResult>(
@@ -200,17 +256,128 @@ export class DocumentsService {
     const storageKey = await this.renderAndStore(
       document,
       profile,
-      job,
+      target,
       object,
     );
     return { content: object, storageKey, modelId };
+  }
+
+  /**
+   * Thế mạnh và khoảng trống mà lượt chấm điểm đã tìm ra, để thư không phải suy
+   * lại từ đầu. JD dán tay không có tin nào để tra nên trả về mảng rỗng.
+   */
+  private async matchHints(
+    userId: string,
+    target: LetterTarget,
+  ): Promise<string[]> {
+    if (!target.jobId) return [];
+
+    const match = await this.prisma.jobMatch.findUnique({
+      where: { userId_jobId: { userId, jobId: target.jobId } },
+    });
+
+    return [
+      match?.strengths.length
+        ? `\nThế mạnh đã xác định khi chấm điểm: ${match.strengths.join('; ')}`
+        : '',
+      match?.gaps.length
+        ? `Khoảng trống cần xử lý khéo trong thư: ${match.gaps.join('; ')}`
+        : '',
+    ];
+  }
+
+  /**
+   * Mail ứng tuyển gửi thẳng cho nhà tuyển dụng.
+   *
+   * Khác thư xin việc ở ba chỗ, và cả ba đều nằm trong prompt chứ không phải
+   * trong cách trình bày: có tiêu đề mail, ngắn hơn một nửa, và chữ ký do CODE
+   * ghép từ hồ sơ chứ không để model viết.
+   */
+  private async generateApplicationEmail(
+    document: Document,
+    profile: Profile | null,
+    target: LetterTarget | null,
+  ) {
+    if (!target) {
+      throw new NotFoundException(
+        'Mail ứng tuyển cần một tin tuyển dụng hoặc một mô tả công việc dán tay',
+      );
+    }
+
+    const skill = this.skills.get(SKILL_NAME);
+    const framework = this.prompts.render(
+      this.prompts.keepSections(
+        skill.references.get('06-cover-letter-templates.md') ?? '',
+        ['tailoring guidelines', 'checklist before finalizing'],
+      ),
+      profile,
+    );
+
+    const identity = await this.identity(document.userId, profile);
+
+    const system = [
+      'Bạn soạn MAIL ỨNG TUYỂN để ứng viên gửi thẳng cho nhà tuyển dụng, không phải thư xin việc đính kèm PDF.',
+      '',
+      ...this.groundingRules(),
+      '- Mail được đọc trên điện thoại: tối đa 3 đoạn, tổng cộng 150-250 chữ. Dài hơn là hỏng, không phải là kỹ hơn.',
+      '- Không kể lại toàn bộ CV. Chọn đúng hai tới ba điểm khớp nhất với tin này, phần còn lại để CV nói.',
+      '- Không bịa tên người nhận, không bịa nguồn biết tin, không nêu mức lương nếu hồ sơ không có.',
+      '- KHÔNG viết tên, email hay số điện thoại vào bất kỳ trường nào. Hệ thống tự ghép chữ ký từ hồ sơ.',
+      '',
+      '--- HƯỚNG DẪN ---',
+      framework,
+      '',
+      '--- QUY TẮC VĂN PHONG ---',
+      this.writingRules(profile),
+    ].join('\n');
+
+    const prompt = [
+      '=== HỒ SƠ ỨNG VIÊN ===',
+      `Tên ứng viên (dùng cho tiêu đề mail): ${identity.name}`,
+      this.prompts.profileSummary(profile),
+      ...(await this.matchHints(document.userId, target)),
+      '',
+      '=== VỊ TRÍ ỨNG TUYỂN ===',
+      `${target.title} @ ${target.company}`,
+      target.description,
+    ].join('\n');
+
+    const { object, modelId } =
+      await this.ai.generateObject<ApplicationEmailResult>({
+        schema: applicationEmailSchema,
+        context: {
+          purpose: 'document.applicationEmail',
+          userId: document.userId,
+        },
+        system,
+        prompt,
+        timeoutMs: DOCUMENT_TIMEOUT_MS,
+      });
+
+    return {
+      content: {
+        ...object,
+        company: target.company,
+        position: target.title,
+        // Chữ ký KHÔNG đi qua model: một số điện thoại bịa trong mail đã gửi đi
+        // là thứ người dùng không có cách nào phát hiện.
+        signature: {
+          name: identity.name,
+          email: identity.email,
+          phone: identity.phone,
+          title: identity.title,
+        },
+      },
+      storageKey: null,
+      modelId,
+    };
   }
 
   /** Render `content` thành `.tex` rồi ghi vào Storage. **KHÔNG gọi AI.** */
   private async renderAndStore(
     document: Document,
     profile: Profile | null,
-    job: Job | null,
+    target: LetterTarget | null,
     content: unknown,
   ): Promise<string> {
     const identity = await this.identity(document.userId, profile);
@@ -233,29 +400,29 @@ export class DocumentsService {
       const key = userKey(
         document.userId,
         'cv',
-        `main_${slugify(job ? `${job.company}_${job.title}` : 'tong-quat')}.tex`,
+        `main_${slugify(target ? `${target.company}_${target.title}` : 'tong-quat')}.tex`,
       );
       await this.storage.write(key, tex);
       return key;
     }
 
     if (document.kind === 'COVER_LETTER') {
-      if (!job) {
+      if (!target) {
         throw new NotFoundException(
           'Thư xin việc bắt buộc phải gắn với một công việc',
         );
       }
       const tex = renderCoverLetter(
         identity,
-        job.company,
-        job.title,
+        target.company,
+        target.title,
         content as CoverLetterResult,
       );
 
       const key = userKey(
         document.userId,
         'cover_letters',
-        `cover_${slugify(`${job.company}_${job.title}`)}.tex`,
+        `cover_${slugify(`${target.company}_${target.title}`)}.tex`,
       );
       await this.storage.write(key, tex);
       return key;
@@ -286,7 +453,7 @@ export class DocumentsService {
     const storageKey = await this.renderAndStore(
       document,
       profile,
-      job,
+      letterTarget(job, {}),
       document.content,
     );
 
@@ -299,7 +466,7 @@ export class DocumentsService {
   private async generateFormAnswer(
     document: Document,
     profile: Profile | null,
-    job: Job | null,
+    target: LetterTarget | null,
     question: string,
     characterLimit?: number,
   ) {
@@ -334,8 +501,8 @@ export class DocumentsService {
       '=== HỒ SƠ ỨNG VIÊN ===',
       this.prompts.profileSummary(profile),
       '',
-      job
-        ? `=== VỊ TRÍ ===\n${job.title} @ ${job.company}\n${job.description}`
+      target
+        ? `=== VỊ TRÍ ===\n${target.title} @ ${target.company}\n${target.description}`
         : '',
       '',
       '=== CÂU HỎI TRONG FORM ===',
@@ -382,8 +549,35 @@ export class DocumentsService {
       email: user.email,
       location: profile?.location ?? null,
       title: profile?.headline ?? null,
-      phone: null,
+      // `Profile.phone` được thêm về sau, còn chỗ này thì kẹt ở `null` - nên CV
+      // và chữ ký mail đều thiếu số điện thoại dù hồ sơ đã khai.
+      phone: profile?.phone ?? null,
     };
+  }
+
+  /** Chọn cây bút theo loại tài liệu. Mỗi nhánh là một lời gọi model. */
+  private generateByKind(
+    document: Document,
+    profile: Profile | null,
+    target: LetterTarget | null,
+    params: DocumentParams,
+  ) {
+    switch (document.kind) {
+      case 'CV':
+        return this.generateCv(document, profile, target);
+      case 'COVER_LETTER':
+        return this.generateCoverLetter(document, profile, target);
+      case 'APPLICATION_EMAIL':
+        return this.generateApplicationEmail(document, profile, target);
+      case 'FORM_ANSWER':
+        return this.generateFormAnswer(
+          document,
+          profile,
+          target,
+          params.question ?? 'Hãy giới thiệu về bản thân.',
+          params.characterLimit,
+        );
+    }
   }
 
   /** Sinh nội dung cho một tài liệu đã tạo. */
@@ -407,23 +601,15 @@ export class DocumentsService {
           : Promise.resolve(null),
       ]);
 
-      const params = (document.content ?? {}) as {
-        question?: string;
-        characterLimit?: number;
-      };
+      const params = (document.content ?? {}) as DocumentParams;
+      const target = letterTarget(job, params);
 
-      const result =
-        document.kind === 'CV'
-          ? await this.generateCv(document, profile, job)
-          : document.kind === 'COVER_LETTER'
-            ? await this.generateCoverLetter(document, profile, job)
-            : await this.generateFormAnswer(
-                document,
-                profile,
-                job,
-                params.question ?? 'Hãy giới thiệu về bản thân.',
-                params.characterLimit,
-              );
+      const result = await this.generateByKind(
+        document,
+        profile,
+        target,
+        params,
+      );
 
       return await this.prisma.document.update({
         where: { id: documentId },
@@ -444,6 +630,60 @@ export class DocumentsService {
         data: { status: 'FAILED', error: message },
       });
     }
+  }
+
+  /**
+   * Tạo bản ghi mail ứng tuyển từ MỘT trong hai nguồn: một tin đã có trong hệ
+   * thống, hoặc một mô tả công việc người dùng dán tay.
+   *
+   * JD dán tay cố ý KHÔNG được lưu thành `Job`. Bảng đó là kho dùng chung và
+   * không có cột chủ sở hữu, nên một tin dán tay sẽ hiện trong danh sách việc
+   * làm của MỌI người dùng. Nó nằm tạm trong `Document.content` cho tới khi
+   * worker đọc ra, đúng cách `FORM_ANSWER` mang câu hỏi của mình.
+   */
+  async createApplicationEmail(
+    userId: string,
+    input: {
+      jobId?: string;
+      jobDescription?: string;
+      company?: string;
+      title?: string;
+    },
+  ): Promise<Document> {
+    if (input.jobId) {
+      const job = await this.prisma.job.findUnique({
+        where: { id: input.jobId },
+        select: { id: true, title: true, company: true },
+      });
+      if (!job) {
+        throw new NotFoundException(
+          `Không tìm thấy tin tuyển dụng: ${input.jobId}`,
+        );
+      }
+      return this.create(
+        userId,
+        'APPLICATION_EMAIL',
+        emailTitle(job.title, job.company),
+        job.id,
+      );
+    }
+
+    const { jobDescription, company, title } = input;
+    // DTO đã chặn trường hợp này; kiểm lại ở đây để service tự đứng vững khi có
+    // caller thứ hai, và để TypeScript thu hẹp được kiểu ngay bên dưới.
+    if (!jobDescription || !company || !title) {
+      throw new BadRequestException(
+        'Cần chọn một tin tuyển dụng, hoặc dán mô tả công việc kèm tên công ty và vị trí',
+      );
+    }
+
+    return this.create(
+      userId,
+      'APPLICATION_EMAIL',
+      emailTitle(title, company),
+      undefined,
+      { jobDescription, company, title },
+    );
   }
 
   create(

@@ -84,6 +84,46 @@ export const coverLetterSchema = z.object({
 });
 
 /**
+ * Mail ứng tuyển gửi thẳng cho nhà tuyển dụng.
+ *
+ * KHÔNG có trường nào cho tên, email hay số điện thoại: chữ ký được hệ thống
+ * ghép từ hồ sơ trong `documents.service.ts`. Để model tự viết thông tin liên hệ
+ * là mở đường cho một số điện thoại bịa nằm trong mail đã gửi đi, và người dùng
+ * không có cách nào biết.
+ */
+export const applicationEmailSchema = z.object({
+  subject: vn(
+    160,
+    'Tiêu đề mail, dạng "Ứng tuyển vị trí <chức danh> - <tên ứng viên>". Không viết hoa toàn bộ, không dấu chấm than.',
+  ),
+  greeting: vn(
+    120,
+    'Lời chào. Dùng tên người liên hệ nếu tin tuyển dụng có nêu, nếu không thì "Kính gửi Bộ phận Tuyển dụng <tên công ty>,".',
+  ),
+  paragraphs: z
+    .array(
+      vn(
+        700,
+        'Một đoạn thân mail, 2-4 câu. Đoạn đầu nói rõ ứng tuyển vị trí nào và biết tin từ đâu là không cần thiết; đi thẳng vào lý do phù hợp.',
+      ),
+    )
+    .min(2)
+    .max(3)
+    .describe(
+      'Toàn bộ thân mail. Mail được đọc trên điện thoại nên tổng cộng chỉ 150-250 chữ.',
+    ),
+  attachmentNote: vn(
+    300,
+    'Một câu nhắc tới CV đính kèm và mời nhà tuyển dụng đọc. Không liệt kê lại nội dung CV.',
+  ),
+  closing: vn(
+    300,
+    'Câu kết, hướng về bước tiếp theo. Cảm ơn ngắn gọn, không nài nỉ.',
+  ),
+  signOff: vn(60, 'Lời chào kết, ví dụ "Trân trọng,". Kết thúc bằng dấu phẩy.'),
+});
+
+/**
  * Câu trả lời cho ô văn bản tự do trong form ứng tuyển, dịch từ
  * 08-application-forms.md.
  */
@@ -120,4 +160,5 @@ export const formAnswerSchema = z.object({
 
 export type CvContentResult = z.infer<typeof cvSchema>;
 export type CoverLetterResult = z.infer<typeof coverLetterSchema>;
+export type ApplicationEmailResult = z.infer<typeof applicationEmailSchema>;
 export type FormAnswerResult = z.infer<typeof formAnswerSchema>;
