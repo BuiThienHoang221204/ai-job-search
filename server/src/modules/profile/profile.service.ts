@@ -3,6 +3,7 @@ import type { Profile } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { UpdateProfileDto } from './profile.dto.js';
 import { completionPercent } from './completion.js';
+import { profileOccupation } from './occupation.js';
 
 @Injectable()
 export class ProfileService {
@@ -26,7 +27,10 @@ export class ProfileService {
 
     return this.prisma.profile.update({
       where: { userId },
-      data: { completion: completionPercent(saved) },
+      data: {
+        completion: completionPercent(saved),
+        occupationCode: profileOccupation(saved),
+      },
     });
   }
 }
