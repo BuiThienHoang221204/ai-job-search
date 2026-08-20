@@ -5,7 +5,7 @@ import {
   parsePostedAt,
   unwrapList,
   withinDays,
-} from 'src/modules/scraper/normalize.js';
+} from 'src/modules/scraper/sources/normalize.js';
 
 /// Hình dạng thật của itviec / topcv / vietnamworks: mảng trần.
 const arrayShape = [

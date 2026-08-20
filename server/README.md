@@ -448,7 +448,7 @@ không tránh được cờ này — đừng thử lại.
 ### Test nằm ở đâu
 
 Unit test **không** nằm cạnh module mà ở `test/unit/**`, phản chiếu đúng cây
-`src/**`: `src/modules/scraper/normalize.ts` được kiểm bởi
+`src/**`: `src/modules/scraper/sources/normalize.ts` được kiểm bởi
 `test/unit/modules/scraper/normalize.spec.ts`. Nhờ vậy `src/` chỉ còn mã chạy
 thật, và `tsconfig.build.json` không phải lọc file test ra khỏi bản build.
 
@@ -460,7 +460,7 @@ và `moduleNameMapper` của Jest), giữ nguyên đường dẫn thật của m
 chuỗi `../../../`:
 
 ```ts
-import { normalizeJob } from 'src/modules/scraper/normalize.js';
+import { normalizeJob } from 'src/modules/scraper/sources/normalize.js';
 ```
 
 Test e2e vẫn ở `test/*.e2e-spec.ts`, chạy riêng bằng `pnpm test:e2e`.

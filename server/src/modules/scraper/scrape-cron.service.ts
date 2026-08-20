@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import { QUEUE, QueueService } from '../../queue/queue.service.js';
-import { JobSourceRouter } from '../job-source.router.js';
+import { QUEUE, QueueService } from '../queue/queue.service.js';
+import { JobSourceRouter } from './sources/job-source.router.js';
 import { ScraperService } from './scraper.service.js';
 
 const JOB_NAME = 'scrape.nightly';

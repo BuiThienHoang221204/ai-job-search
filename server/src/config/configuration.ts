@@ -117,6 +117,31 @@ const configuration = () => ({
 
     /** Tin không đọc được ngày đăng: mặc định GIỮ, bật cờ này thì loại. */
     requirePostedAt: process.env.SCRAPER_REQUIRE_POSTED_AT === 'true',
+
+    /**
+     * Trần số từ khoá cho một lần quét của HỆ THỐNG. Mỗi từ khoá là ít nhất
+     * một request, nên đây là tải đặt lên portal.
+     *
+     * Hiện từ khoá sinh theo TỪNG hồ sơ, nên con số này cũng đang giới hạn số
+     * người được phục vụ mỗi đêm. Khi từ khoá gom theo ngành thì nó quay về
+     * đúng vai trò trần tải, và không còn phải tăng theo số người dùng.
+     */
+    systemQueryLimit: parseInt(
+      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '10',
+      10,
+    ),
+
+    /**
+     * Có tự chấm điểm mọi tin mới với mọi hồ sơ sau mỗi lượt quét không.
+     *
+     * MẶC ĐỊNH TẮT. Đây là phép nhân `số người × số tin`, thứ chặn hệ thống ở
+     * khoảng 30 người dùng: hàng đợi chấm điểm chạy tuần tự, p50 33 giây, nên
+     * một đêm không đủ dài để rút hết. Nay điểm được chấm khi người dùng bấm,
+     * còn màn danh sách hiển thị mức khớp tính bằng code thuần.
+     *
+     * Bật lại khi đã có nhà cung cấp model trả tiền và hàng đợi chạy song song.
+     */
+    autoScore: process.env.SCRAPER_AUTO_SCORE === 'true',
   },
 
   cron: {

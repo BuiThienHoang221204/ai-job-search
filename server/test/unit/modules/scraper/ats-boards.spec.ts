@@ -4,8 +4,8 @@ import {
   normalizeAtsJobs,
   parseBoards,
   type AtsBoard,
-} from 'src/modules/scraper/ats-boards.js';
-import { filterByQuery } from 'src/modules/scraper/services/ats-source.service.js';
+} from 'src/modules/scraper/sources/ats-boards.js';
+import { filterByQuery } from 'src/modules/scraper/sources/ats-source.service.js';
 
 /*
  * Chuẩn hoá dữ liệu của ba hệ ATS. Dữ liệu mẫu dưới đây lấy từ phản hồi THẬT của

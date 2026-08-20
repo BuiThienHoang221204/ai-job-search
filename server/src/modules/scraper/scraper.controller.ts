@@ -15,8 +15,8 @@ import type { AuthUser } from '../../common/types/auth-user.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { JobSourceRouter } from './job-source.router.js';
-import { ScraperService } from './services/scraper.service.js';
+import { JobSourceRouter } from './sources/job-source.router.js';
+import { ScraperService } from './scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
 
 /**

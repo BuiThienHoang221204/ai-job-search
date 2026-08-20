@@ -4,7 +4,7 @@ import {
   QueueService,
   type ScrapeRunPayload,
 } from '../queue/queue.service.js';
-import { ScraperService } from './services/scraper.service.js';
+import { ScraperService } from './scraper.service.js';
 
 @Injectable()
 export class ScraperProcessor implements OnModuleInit {

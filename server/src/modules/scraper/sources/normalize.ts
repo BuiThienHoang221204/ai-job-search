@@ -1,7 +1,4 @@
-import type {
-  PortalJobCard,
-  PortalJobDetail,
-} from './services/portal-cli.service.js';
+import type { PortalJobCard, PortalJobDetail } from './portal-cli.service.js';
 
 /** Chuẩn hoá đầu ra của các portal CLI về một hình dạng duy nhất. */
 

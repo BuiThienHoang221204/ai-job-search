@@ -1,7 +1,7 @@
 import {
   evaluateCandidate,
   portalKeyFrom,
-} from 'src/modules/scraper/portal-registry.js';
+} from 'src/modules/scraper/sources/portal-registry.js';
 
 describe('portalKeyFrom', () => {
   test('bỏ hậu tố -search', () => {

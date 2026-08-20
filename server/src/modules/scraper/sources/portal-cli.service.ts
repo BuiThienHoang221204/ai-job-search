@@ -6,8 +6,8 @@ import type { Dirent } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { normalizeCards, normalizeDetail } from '../normalize.js';
-import { evaluateCandidate, type PortalEntry } from '../portal-registry.js';
+import { normalizeCards, normalizeDetail } from './normalize.js';
+import { evaluateCandidate, type PortalEntry } from './portal-registry.js';
 
 const run = promisify(execFile);
 

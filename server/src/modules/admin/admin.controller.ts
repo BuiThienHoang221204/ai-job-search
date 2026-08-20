@@ -13,7 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
 import { ReconcileService } from '../reconcile/services/reconcile.service.js';
-import { ScrapeCronService } from '../scraper/services/scrape-cron.service.js';
+import { ScrapeCronService } from '../scraper/scrape-cron.service.js';
 import { AdminService } from './admin.service.js';
 
 export class AiHealthQueryDto {

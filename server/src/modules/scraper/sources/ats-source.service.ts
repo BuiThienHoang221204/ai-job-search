@@ -5,15 +5,15 @@ import {
   normalizeAtsJobs,
   parseBoards,
   type AtsBoard,
-} from '../ats-boards.js';
+} from './ats-boards.js';
 import type {
   PortalJobCard,
   PortalJobDetail,
   SearchArgs,
 } from './portal-cli.service.js';
-import { withinDays } from '../normalize.js';
-import type { PortalEntry } from '../portal-registry.js';
-import type { JobSource } from '../job-source.interface.js';
+import { withinDays } from './normalize.js';
+import type { PortalEntry } from './portal-registry.js';
+import type { JobSource } from './job-source.interface.js';
 
 /**
  * Một board trả cả trăm tin (đo được: Lever demo 388, Ashby 59). Cắt để một lượt
