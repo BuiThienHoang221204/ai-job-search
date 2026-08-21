@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -35,6 +36,27 @@ export class AgentService {
     if (!input.jobUrl && !input.jobDescription) {
       throw new BadRequestException(
         'Cần một đường dẫn tin tuyển dụng hoặc nội dung tin dán tay',
+      );
+    }
+
+    /*
+     * MỘT lượt đang chạy cho mỗi người, và đây là hạn ngạch chứ không phải sự
+     * cẩn thận thừa.
+     *
+     * Một lượt tiêu 10-20 lời gọi model, mà hạn mức gateway tính theo model và
+     * dùng chung cho cả hệ thống. Không chặn thì một người bấm năm lần là năm
+     * lượt cùng chạy, cạn hạn mức, và MỌI người dùng khác nhận lỗi UPSTREAM cho
+     * tới khi hết giờ phạt.
+     *
+     * `WAITING_USER` KHÔNG bị chặn: lượt đó đang chờ người, không tiêu gì cả.
+     */
+    const running = await this.prisma.agentRun.findFirst({
+      where: { userId, status: { in: ['PENDING', 'RUNNING'] } },
+      select: { id: true },
+    });
+    if (running) {
+      throw new ConflictException(
+        'Bạn đang có một lượt chạy chưa xong. Đợi nó kết thúc rồi hãy chạy lượt mới.',
       );
     }
 

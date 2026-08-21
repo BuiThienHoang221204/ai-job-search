@@ -273,6 +273,40 @@ describe('Agent chạy kịch bản nhiều bước', () => {
     expect((response.body as { message: string }).message).toMatch(/DONE/);
   });
 
+  /**
+   * Hạn ngạch, không phải sự cẩn thận thừa: một lượt tiêu 10-20 lời gọi model,
+   * mà hạn mức gateway tính theo model và DÙNG CHUNG cho cả hệ thống. Một người
+   * bấm năm lần là năm lượt cùng chạy, cạn hạn mức, và mọi người dùng khác nhận
+   * lỗi UPSTREAM cho tới khi hết giờ phạt.
+   */
+  test('mỗi người chỉ được một lượt đang chạy', async () => {
+    await start().expect(201);
+
+    const second = await start().expect(409);
+    expect((second.body as { message: string }).message).toMatch(/chưa xong/);
+
+    // Người khác KHÔNG bị chặn theo.
+    const other = await harness.signUp();
+    await request(harness.server)
+      .post('/api/agent-runs')
+      .set(auth(other.token))
+      .send({ workflow: 'apply', jobDescription: JOB_DESCRIPTION })
+      .expect(201);
+  });
+
+  test('lượt đang CHỜ TRẢ LỜI không chặn lượt mới', async () => {
+    harness.ai.willRunAgent({
+      calls: [{ tool: 'ask_user', input: { question: 'Tiếp chứ?' } }],
+      text: '',
+    });
+    await start().expect(201);
+    await harness.queue.drain();
+
+    // Lượt kia đang chờ người, không tiêu gì cả - chặn nó là chặn nhầm.
+    harness.ai.willRunAgent({ text: 'Xong.' });
+    await start().expect(201);
+  });
+
   test('kịch bản không tồn tại thì báo 404 ngay, không tạo bản ghi', async () => {
     await start({ workflow: 'khong-co-that' }).expect(404);
     expect(await harness.prisma.agentRun.count()).toBe(0);
