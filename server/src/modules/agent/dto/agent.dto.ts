@@ -6,6 +6,12 @@ export class StartAgentDto {
   @Length(1, 60, { message: 'Tên kịch bản không hợp lệ' })
   workflow!: string;
 
+  /** Tin tuyển dụng đã lưu trong hệ thống. Kịch bản `/interview` cần nó. */
+  @IsOptional()
+  @IsString()
+  @Length(1, 40, { message: 'Mã công việc không hợp lệ' })
+  jobId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000, { message: 'Đường dẫn quá dài' })

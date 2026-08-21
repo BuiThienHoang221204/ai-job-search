@@ -4,6 +4,7 @@ import { DocumentsModule } from '../documents/documents.module.js';
 import { QueueModule } from '../queue/queue.module.js';
 import { SkillsModule } from '../skills/skills.module.js';
 import { StorageModule } from '../storage/storage.module.js';
+import { AgentContextService } from './agent-context.service.js';
 import { AgentController } from './agent.controller.js';
 import { AgentProcessor } from './agent.processor.js';
 import { AgentRunnerService } from './agent-runner.service.js';
@@ -30,6 +31,7 @@ import { CommandRegistryService } from './command-registry.service.js';
     AgentService,
     AgentRunnerService,
     AgentToolsService,
+    AgentContextService,
     CommandRegistryService,
     AgentProcessor,
   ],

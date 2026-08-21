@@ -1,5 +1,10 @@
 import type { ToolSet } from 'ai';
-import type { ArtifactRecord, ToolContext, ToolDeps } from '../agent.types.js';
+import type {
+  ArtifactRecord,
+  ReadLog,
+  ToolContext,
+  ToolDeps,
+} from '../agent.types.js';
 import { askUserTool } from './ask-user.tool.js';
 import { compilePdfTool } from './compile-pdf.tool.js';
 import { fetchUrlTool } from './fetch-url.tool.js';
@@ -25,10 +30,18 @@ export function buildToolSet(
 ): { tools: ToolSet; artifacts: ArtifactRecord[] } {
   const artifacts: ArtifactRecord[] = [];
 
+  /*
+   * Sổ dùng chung cho ba tool ĐỌC: đọc lần hai chỉ nhận một câu nhắc, không
+   * nhận lại nội dung. Dặn bằng system prompt đã thử và không ăn thua - lượt
+   * chạy thật vẫn đọc `03-writing-style.md` hai lần, mất 15 giây và một prompt
+   * phình ra vài nghìn token.
+   */
+  const seen: ReadLog = new Set();
+
   const tools: ToolSet = {
-    read_profile: readProfileTool(deps, context),
-    read_skill_reference: readSkillReferenceTool(deps),
-    read_template: readTemplateTool(deps),
+    read_profile: readProfileTool(deps, context, seen),
+    read_skill_reference: readSkillReferenceTool(deps, seen),
+    read_template: readTemplateTool(deps, seen),
     fetch_url: fetchUrlTool(deps),
     save_artifact: saveArtifactTool(deps, context, artifacts),
     spawn_reviewer: spawnReviewerTool(deps, context),

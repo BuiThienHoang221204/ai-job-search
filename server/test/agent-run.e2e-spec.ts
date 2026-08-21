@@ -177,6 +177,51 @@ describe('Agent chạy kịch bản nhiều bước', () => {
     expect(JSON.stringify(steps[1].toolResults)).toContain('error');
   });
 
+  /**
+   * Dặn bằng system prompt đã thử và KHÔNG ăn thua: một lượt chạy thật vẫn đọc
+   * `03-writing-style.md` hai lần rồi lưu cùng một CV dưới hai cái tên, hết 15
+   * giây và một prompt phình ra vài nghìn token. Nên chặn ở tool.
+   */
+  test('đọc lại một file thì chỉ nhận lời nhắc, không nhận lại nội dung', async () => {
+    harness.ai.willRunAgent({
+      calls: [
+        {
+          tool: 'read_skill_reference',
+          input: { file: '03-writing-style.md' },
+        },
+        {
+          tool: 'read_skill_reference',
+          input: { file: '03-writing-style.md' },
+        },
+        { tool: 'read_profile', input: {} },
+        { tool: 'read_profile', input: {} },
+      ],
+      text: 'Xong.',
+    });
+
+    const created = await start().expect(201);
+    const { runId } = created.body as { runId: string };
+    await harness.queue.drain();
+
+    const run = await request(harness.server)
+      .get(`/api/agent-runs/${runId}`)
+      .set(auth(user.token))
+      .expect(200);
+
+    const steps = (run.body as { steps: Array<{ toolResults: unknown }> })
+      .steps;
+    const output = (index: number) => JSON.stringify(steps[index].toolResults);
+
+    // Lần đầu có nội dung thật; lần hai chỉ còn một câu nhắc.
+    expect(output(0)).toContain('content');
+    expect(output(1)).not.toContain('content');
+    expect(output(1)).toContain('đã đọc file này');
+
+    expect(output(2)).toContain('summary');
+    expect(output(3)).not.toContain('summary');
+    expect(output(3)).toContain('đã đọc hồ sơ');
+  });
+
   test('lưu được file có một cấp thư mục, chặn đường dẫn đi ra ngoài', async () => {
     harness.ai.willRunAgent({
       calls: [

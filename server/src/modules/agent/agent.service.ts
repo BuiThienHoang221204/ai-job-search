@@ -12,6 +12,7 @@ import { CommandRegistryService } from './command-registry.service.js';
 
 export type StartAgentInput = {
   workflow: string;
+  jobId?: string;
   jobUrl?: string;
   jobDescription?: string;
   note?: string;
@@ -33,10 +34,25 @@ export class AgentService {
   async start(userId: string, input: StartAgentInput): Promise<AgentRun> {
     await this.commands.get(input.workflow);
 
-    if (!input.jobUrl && !input.jobDescription) {
+    if (!input.jobId && !input.jobUrl && !input.jobDescription) {
       throw new BadRequestException(
-        'Cần một đường dẫn tin tuyển dụng hoặc nội dung tin dán tay',
+        'Cần một tin tuyển dụng đã lưu, một đường dẫn, hoặc nội dung tin dán tay',
       );
+    }
+
+    /*
+     * Kiểm công việc có thật NGAY ở đây, cùng lý do với việc nạp kịch bản ở
+     * dòng trên: mã sai thì người dùng biết lúc bấm, chứ không phải nhìn khoá
+     * ngoại vỡ trong worker ba mươi giây sau.
+     */
+    if (input.jobId) {
+      const job = await this.prisma.job.findUnique({
+        where: { id: input.jobId },
+        select: { id: true },
+      });
+      if (!job) {
+        throw new NotFoundException(`Không tìm thấy công việc: ${input.jobId}`);
+      }
     }
 
     /*
@@ -56,6 +72,7 @@ export class AgentService {
       data: {
         userId,
         workflow: input.workflow,
+        jobId: input.jobId ?? null,
         input: {
           jobUrl: input.jobUrl ?? null,
           jobDescription: input.jobDescription ?? null,

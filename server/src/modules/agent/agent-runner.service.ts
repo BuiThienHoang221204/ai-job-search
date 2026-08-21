@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai';
 import type { AgentRun, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService, type AgentStepLog } from '../ai/services/ai.service.js';
+import { AgentContextService } from './agent-context.service.js';
 import { AgentToolsService } from './agent-tools.service.js';
 import type { AgentInput, ArtifactRecord } from './agent.types.js';
 import { CommandRegistryService } from './command-registry.service.js';
@@ -38,6 +39,7 @@ export class AgentRunnerService {
     private readonly ai: AiService,
     private readonly commands: CommandRegistryService,
     private readonly toolbox: AgentToolsService,
+    private readonly context: AgentContextService,
   ) {}
 
   /** Chạy hoặc chạy tiếp một lượt. Được gọi từ worker, không từ HTTP. */
@@ -77,8 +79,8 @@ export class AgentRunnerService {
 
       const startIndex = await this.nextStepIndex(runId);
       const result = await this.ai.runTools({
-        system: buildSystemPrompt(command.body, limits),
-        ...this.conversation(run, input),
+        system: buildSystemPrompt(command.body, limits, run.workflow),
+        ...(await this.conversation(run, input)),
         tools,
         stopOnTool: ASK_USER,
         context: { purpose: `agent.${run.workflow}`, userId: run.userId },
@@ -125,14 +127,24 @@ export class AgentRunnerService {
    *
    * Nạp lại nguyên văn thay vì kể lại tóm tắt: ngữ cảnh đó đã tốn tiền để dựng,
    * và một bản kể lại sẽ đánh mất đúng những chi tiết agent vừa tra được.
+   *
+   * Bối cảnh từ database chỉ dựng ở nhánh MỚI, và đó là chủ đích: một buổi
+   * luyện phỏng vấn dừng lại hỏi cả chục lần, mà từ lần thứ hai trở đi khối bối
+   * cảnh đã nằm sẵn trong `messages` rồi - dựng lại là năm truy vấn vô ích mỗi
+   * lượt, còn tệ hơn là chèn nó vào hội thoại lần thứ hai.
    */
-  private conversation(
+  private async conversation(
     run: AgentRun,
     input: AgentInput,
-  ): { prompt: string } | { messages: ModelMessage[] } {
+  ): Promise<{ prompt: string } | { messages: ModelMessage[] }> {
     const previous = run.messages as ModelMessage[] | null;
     if (!Array.isArray(previous) || previous.length === 0) {
-      return { prompt: buildOpeningPrompt(input) };
+      const context = await this.context.build({
+        userId: run.userId,
+        workflow: run.workflow,
+        jobId: run.jobId,
+      });
+      return { prompt: buildOpeningPrompt({ ...input, context }) };
     }
 
     // Chạy tiếp sau khi HỎNG thì không có câu trả lời nào để nối vào - chỉ cần

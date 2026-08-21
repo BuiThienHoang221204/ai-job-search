@@ -1,7 +1,7 @@
 import { tool, type ToolSet } from 'ai';
 import { Logger } from '@nestjs/common';
 import { z } from 'zod';
-import type { ToolContext, ToolDeps } from '../agent.types.js';
+import type { ReadLog, ToolContext, ToolDeps } from '../agent.types.js';
 import { readProfileTool } from './read-profile.tool.js';
 import { readSkillReferenceTool } from './read-skill-reference.tool.js';
 import { webSearchTool } from './web-search.tool.js';
@@ -54,9 +54,15 @@ export const spawnReviewerTool = (deps: ToolDeps, context: ToolContext) =>
         .describe('Toàn văn bản nháp cần phản biện: CV, thư, hoặc cả hai'),
     }),
     execute: async ({ company, role, jobPosting, draft }) => {
+      /*
+       * Sổ RIÊNG cho agent con: nó có ngữ cảnh sạch, chưa đọc gì cả. Dùng chung
+       * sổ với agent chính thì reviewer sẽ bị từ chối ngay lần đọc đầu tiên và
+       * phải phán xét bằng trí nhớ nó không có.
+       */
+      const seen: ReadLog = new Set();
       const tools: ToolSet = {
-        read_profile: readProfileTool(deps, context),
-        read_skill_reference: readSkillReferenceTool(deps),
+        read_profile: readProfileTool(deps, context, seen),
+        read_skill_reference: readSkillReferenceTool(deps, seen),
       };
       if (deps.limits.search.apiKey) {
         tools.web_search = webSearchTool(deps);

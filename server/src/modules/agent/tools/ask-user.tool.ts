@@ -11,9 +11,9 @@ import { z } from 'zod';
 export const askUserTool = () =>
   tool({
     description:
-      'Hỏi người dùng một câu rồi DỪNG. Chỉ dùng khi cần họ quyết định, ví dụ có nên soạn hồ sơ cho vị trí này không.',
+      'Hỏi người dùng MỘT câu rồi DỪNG. Dùng khi cần họ quyết định (có nên soạn hồ sơ cho vị trí này không) hoặc khi kịch bản yêu cầu đối thoại với họ (đặt một câu phỏng vấn và chờ trả lời). Đừng gộp nhiều câu vào một lần gọi.',
     inputSchema: z.object({
-      question: z.string().describe('Câu hỏi, viết bằng tiếng Việt'),
+      question: z.string().describe('MỘT câu hỏi, viết bằng tiếng Việt'),
     }),
     execute: ({ question }) => Promise.resolve({ asked: question }),
   });

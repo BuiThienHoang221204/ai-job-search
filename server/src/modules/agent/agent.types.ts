@@ -12,6 +12,12 @@ export type AgentInput = {
   note?: string;
 };
 
+/** Câu mở đầu gồm đầu vào của người dùng và bối cảnh gom từ database. */
+export type OpeningInput = AgentInput & {
+  /** Kết quả của `AgentContextService.build`. Rỗng khi không có gì để thêm. */
+  context?: string;
+};
+
 /** Ngữ cảnh của một lượt chạy, để tool biết nó đang làm việc cho ai. */
 export type ToolContext = {
   runId: string;
@@ -23,6 +29,20 @@ export type ToolContext = {
    */
   sourceUrl?: string;
 };
+
+/**
+ * Những nguồn agent ĐÃ đọc trong lượt chạy này.
+ *
+ * Tồn tại vì dặn bằng lời không ăn thua: system prompt đã có câu "đừng đọc lại
+ * thứ đã đọc", và ở lượt chạy thật model vẫn đọc `03-writing-style.md` hai lần
+ * rồi lưu cùng một CV dưới hai cái tên. Chặn ở tool thì nó không đọc lại được,
+ * chứ không phải được nhắc là đừng.
+ *
+ * Chỉ sống trong MỘT lượt gọi `runTools`. Lượt chạy tiếp bắt đầu với sổ trống -
+ * nội dung cũ vẫn nằm trong hội thoại nên vẫn hơi phí, nhưng dò lại nó từ
+ * `messages` là công việc của một bộ phân tích, không đáng cho hai ba bước.
+ */
+export type ReadLog = Set<string>;
 
 /** File agent đã ghi ra trong một lượt chạy. */
 export type ArtifactRecord = {
