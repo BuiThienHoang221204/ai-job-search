@@ -56,7 +56,7 @@ export function classifyFailure(input: unknown): FailureKind {
 
   if (name === AI_ERROR_NAMES.apiCall) return 'UPSTREAM';
 
-  if (isRateLimited(input)) return 'UPSTREAM';
+  if (isRateLimited(input) || isModelRetired(input)) return 'UPSTREAM';
 
   if (
     /upstream request failed|rate limit|429|50\d\s|service unavailable/i.test(
@@ -67,6 +67,25 @@ export function classifyFailure(input: unknown): FailureKind {
   }
 
   return 'OTHER';
+}
+
+/**
+ * Gateway từ chối HẲN model này, chứ không phải từ chối riêng lượt gọi này.
+ *
+ * Model free bị rút khuyến mãi **vẫn nằm trong `GET /models`**, nên
+ * `assertServed()` cho qua và mãi tới lúc gọi thật mới nhận 401 `ModelError:
+ * Free promotion has ended`. Đo ngày 2026-08-21 trên `deepseek-v4-flash-free` -
+ * mắt xích ĐẦU TIÊN của `MODEL_FALLBACK_IDS`.
+ *
+ * Không nhận ra tình huống này thì chuỗi dự phòng đứng lại ở đúng mắt xích đã
+ * chết thay vì đi tiếp: hết hạn mức ở model chính là cả tác vụ hỏng, dù còn
+ * mấy model free khác đang phục vụ bình thường.
+ */
+export function isModelRetired(input: unknown): boolean {
+  const message = messageOf(unwrap(input));
+  return /free promotion has ended|no longer available|subscrib(e|ing) to/i.test(
+    message,
+  );
 }
 
 /** Gateway từ chối vì HẾT HẠN MỨC, chứ không phải vì lỗi. */

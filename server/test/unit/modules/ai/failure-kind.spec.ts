@@ -1,5 +1,6 @@
 import {
   classifyFailure,
+  isModelRetired,
   isRateLimited,
   truncateError,
 } from 'src/modules/ai/failure-kind.js';
@@ -125,6 +126,43 @@ describe('truncateError', () => {
 
   test('xử lý được giá trị không phải Error', () => {
     expect(truncateError(42)).toBe('42');
+  });
+});
+
+describe('isModelRetired', () => {
+  /*
+   * Do that ngay 2026-08-21: gateway VAN liet ke deepseek-v4-flash-free trong
+   * GET /models nen assertServed cho qua, nhung goi that thi tra 401 kem cau
+   * duoi day. No la mat xich DAU TIEN cua MODEL_FALLBACK_IDS, nen khong nhan ra
+   * thi chuoi du phong dung lai o dung mat xich da chet.
+   */
+  test('nhan dang model bi rut khuyen mai', () => {
+    const error = Object.assign(
+      new Error(
+        'Free promotion has ended for DeepSeek V4 Flash Free. You can continue using the model by subscribing to OpenCode Go - https://opencode.ai/go',
+      ),
+      { name: 'AI_APICallError', statusCode: 401 },
+    );
+
+    expect(isModelRetired(error)).toBe(true);
+    expect(isRateLimited(error)).toBe(false);
+    expect(classifyFailure(error)).toBe('UPSTREAM');
+  });
+
+  test('nhan dang qua RetryError da boc', () => {
+    const wrapper = Object.assign(new Error('Failed after 3 attempts'), {
+      name: 'AI_RetryError',
+      lastError: new Error('This model is no longer available'),
+    });
+
+    expect(isModelRetired(wrapper)).toBe(true);
+  });
+
+  test('KHONG nham loi khac thanh model bi rut', () => {
+    expect(isModelRetired(new Error('response did not match schema'))).toBe(
+      false,
+    );
+    expect(isModelRetired(new Error('Rate limit exceeded'))).toBe(false);
   });
 });
 
