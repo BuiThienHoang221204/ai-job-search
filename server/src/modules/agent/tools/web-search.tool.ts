@@ -2,15 +2,48 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { ToolDeps } from '../agent.types.js';
 
-type SearchResponse = {
-  results?: Array<{ title?: string; url?: string; content?: string }>;
-};
+/** Một dòng kết quả sau khi đã bóc khỏi phản hồi của Serper. */
+export type SearchHit = { title: string; url: string; snippet: string };
+
+/**
+ * Bóc kết quả từ phản hồi của Serper (google.serper.dev).
+ *
+ * Tách khỏi phần gọi mạng vì đây mới là chỗ dễ vỡ âm thầm: Serper trả nhiều
+ * khối cạnh nhau (`organic`, `knowledgeGraph`, `answerBox`, `peopleAlsoAsk`),
+ * và đọc nhầm khối thì tool luôn trả về mảng rỗng mà không có lỗi nào — agent
+ * sẽ kết luận "không tìm thấy gì về công ty này" thay vì "tra cứu hỏng".
+ *
+ * Tên trường của Serper là `link` và `snippet`, KHÔNG phải `url` và `content`
+ * như Tavily.
+ */
+export function parseSerper(body: unknown): SearchHit[] {
+  if (typeof body !== 'object' || body === null) return [];
+
+  const organic = (body as { organic?: unknown }).organic;
+  if (!Array.isArray(organic)) return [];
+
+  return organic
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === 'object' && item !== null,
+    )
+    .map((item) => ({
+      title: typeof item.title === 'string' ? item.title : '',
+      url: typeof item.link === 'string' ? item.link : '',
+      snippet:
+        typeof item.snippet === 'string' ? item.snippet.slice(0, 600) : '',
+    }))
+    .filter((hit) => hit.url !== '');
+}
 
 /**
  * Tìm trên web, dùng cho bước nghiên cứu công ty của người phản biện.
  *
  * Chỉ được đăng ký khi có key: một tool luôn trả lỗi còn tệ hơn một tool vắng
  * mặt, vì model sẽ gọi lại nó nhiều lần và mỗi lần tốn một bước.
+ *
+ * `gl`/`hl` ghim về Việt Nam: tra "Công ty Cổ phần Thương mại Minh Long" trên
+ * kết quả tiếng Anh cho ra một danh sách hoàn toàn khác, thường là rỗng.
  */
 export const webSearchTool = (deps: ToolDeps) =>
   tool({
@@ -27,9 +60,15 @@ export const webSearchTool = (deps: ToolDeps) =>
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${search.apiKey}`,
+            // Serper dùng header riêng, KHÔNG phải `Authorization: Bearer`.
+            'X-API-KEY': search.apiKey,
           },
-          body: JSON.stringify({ query, max_results: search.maxResults }),
+          body: JSON.stringify({
+            q: query,
+            num: search.maxResults,
+            gl: 'vn',
+            hl: 'vi',
+          }),
           signal: AbortSignal.timeout(fetchTimeoutMs),
         });
 
@@ -37,14 +76,7 @@ export const webSearchTool = (deps: ToolDeps) =>
           return { error: `Dịch vụ tìm kiếm trả về HTTP ${response.status}` };
         }
 
-        const body = (await response.json()) as SearchResponse;
-        return {
-          results: (body.results ?? []).map((item) => ({
-            title: item.title ?? '',
-            url: item.url ?? '',
-            snippet: (item.content ?? '').slice(0, 600),
-          })),
-        };
+        return { results: parseSerper(await response.json()) };
       } catch (error) {
         return {
           error: error instanceof Error ? error.message : String(error),
