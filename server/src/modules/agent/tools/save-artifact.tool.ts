@@ -4,13 +4,21 @@ import { userKey } from '../../storage/storage.interface.js';
 import type { ArtifactRecord, ToolContext, ToolDeps } from '../agent.types.js';
 
 /**
- * Tên file hợp lệ: tuỳ chọn MỘT cấp thư mục, rồi tới tên file.
+ * Tên file hợp lệ: tối đa SÁU cấp, mỗi cấp chữ-số-gạch, không dấu chấm kép.
  *
- * Cho phép thư mục vì kịch bản dạy agent ghi vào `cv/` và `cover_letters/`; ở
- * lượt chạy thật nó đã mất nguyên một bước (60 giây) để thử lại sau khi bị từ
- * chối `cv/main_....tex`. Vẫn chặn `..` để không leo ra khỏi workspace.
+ * Độ sâu không phải thứ cần chặn: khoá luôn được ghép dưới
+ * `<userId>/agent_runs/<runId>/`, nên một đường dẫn dài chỉ tạo thêm thư mục
+ * bên trong workspace của chính lượt chạy đó. Thứ cần chặn là `..` để không leo
+ * ra ngoài, và tên rỗng.
+ *
+ * Trần một cấp ở bản đầu đã trả giá hai lần: lượt `/apply` mất một bước vì
+ * `cv/main_....tex`, rồi lượt `/interview` mất 39 giây vì
+ * `documents/applications/<công ty>/<vị trí>/interview_prep.md` - năm cấp, và
+ * đúng cách đặt tên mà kịch bản trong `.claude/commands/` dạy nó. Sáu cấp để
+ * còn chỗ thở.
  */
-const SAFE_NAME = /^(?:[a-z0-9_-]{1,40}\/)?[a-z0-9._-]{1,60}$/i;
+const SEGMENT = '[a-z0-9._-]{1,60}';
+const SAFE_NAME = new RegExp(`^(?:${SEGMENT}/){0,5}${SEGMENT}$`, 'i');
 
 /** Ghi một file kết quả vào workspace của lượt chạy. */
 export const saveArtifactTool = (
@@ -24,12 +32,16 @@ export const saveArtifactTool = (
     inputSchema: z.object({
       name: z
         .string()
-        .describe('Tên file, tối đa một cấp thư mục, ví dụ "cv/main.tex"'),
+        .describe(
+          'Đường dẫn tương đối trong workspace của lượt chạy, tối đa sáu cấp. Ví dụ "cv/main.tex".',
+        ),
       content: z.string().describe('Toàn bộ nội dung file'),
     }),
     execute: async ({ name, content }) => {
       if (!SAFE_NAME.test(name) || name.includes('..')) {
-        return { error: `Tên file không hợp lệ: ${name}` };
+        return {
+          error: `Tên file không hợp lệ: ${name}. Dùng chữ, số, gạch, dấu chấm và tối đa sáu cấp thư mục.`,
+        };
       }
 
       const key = userKey(context.userId, 'agent_runs', context.runId, name);

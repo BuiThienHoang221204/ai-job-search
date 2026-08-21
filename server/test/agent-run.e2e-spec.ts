@@ -222,12 +222,20 @@ describe('Agent chạy kịch bản nhiều bước', () => {
     expect(output(3)).toContain('đã đọc hồ sơ');
   });
 
-  test('lưu được file có một cấp thư mục, chặn đường dẫn đi ra ngoài', async () => {
+  test('lưu được file có thư mục lồng, chặn đường dẫn đi ra ngoài', async () => {
     harness.ai.willRunAgent({
       calls: [
         {
           tool: 'save_artifact',
           input: { name: 'cv/main_abc.tex', content: 'documentclass moderncv' },
+        },
+        {
+          tool: 'save_artifact',
+          input: {
+            // Đúng cách đặt tên mà kịch bản trong `.claude/commands/` dạy.
+            name: 'documents/applications/tin_hoc_dai_duong/pho_phong/prep.md',
+            content: '# Bộ đề',
+          },
         },
         {
           tool: 'save_artifact',
@@ -252,8 +260,9 @@ describe('Agent chạy kịch bản nhiều bước', () => {
     };
     expect(body.result.artifacts.map((item) => item.name)).toEqual([
       'cv/main_abc.tex',
+      'documents/applications/tin_hoc_dai_duong/pho_phong/prep.md',
     ]);
-    expect(JSON.stringify(body.steps[1].toolResults)).toContain('không hợp lệ');
+    expect(JSON.stringify(body.steps[2].toolResults)).toContain('không hợp lệ');
   });
 
   test('spawn_reviewer chạy một agent CON và mang nhận xét về', async () => {
