@@ -4,12 +4,34 @@
 #
 #   docker build -t aijob-latex -f latex-service/Dockerfile latex-service
 #
-# Không `apt-get` gì: image TeX Live đã có Python 3.14, và `server.py` chỉ dùng thư
-# viện chuẩn. Nhờ vậy build không cần mạng và không có phụ thuộc nào để hỏng về sau.
+# Không `apt-get` gì: image TeX Live đã có Python, và `server.py` chỉ dùng thư viện
+# chuẩn. Nhờ vậy build không cần mạng cho phần dịch vụ và không có phụ thuộc nào để
+# hỏng về sau.
 #
-# Image gốc nặng 8,92GB. Đó chính là lý do dịch vụ này tách khỏi image app: app giữ
-# nguyên kích thước nhỏ và deploy độc lập với bộ công cụ LaTeX.
-FROM texlive/texlive:latest
+# **`-medium` chứ không phải `latest`.** Đo trên Docker Hub ngày 2026-08-21:
+#
+#   latest / latest-full   2,70 GB nén   ~8,92 GB trên ổ
+#   latest-medium          0,94 GB nén   ~2,5-3 GB trên ổ
+#   latest-small           0,62 GB nén
+#
+# Bản đầy đủ mang theo mọi ngôn ngữ, ConTeXt và toàn bộ kho font — thứ mà hai
+# template của dự án không chạm tới. Đừng đổi ngược lên `latest` để "cho chắc": 6GB
+# đó rơi vào máy của mọi người vận hành và mọi lần build CI.
+#
+# Cách tự ghép từ Debian + apt đã được cân nhắc và BỎ: riêng `texlive-latex-extra`
+# (nơi có moderncv) đã hơn 1GB và còn kéo theo `texlive-fonts-extra` cho fontawesome,
+# tổng lại ngang scheme-medium nhưng phải tự dò gói qua nhiều vòng build.
+FROM texlive/texlive:latest-medium
+
+# Những gói này nằm trong `collection-latexextra`, thứ scheme-medium không kéo theo
+# đủ. Chúng chỉ vài MB. `|| true` vì gói nào có sẵn rồi thì tlmgr báo lỗi, mà đó
+# không phải chuyện đáng dừng build — thiếu thật thì bước hâm cache bên dưới sẽ đỏ,
+# và đó mới là phép kiểm đáng tin.
+#
+# **`fontawesome6`, KHÔNG phải `fontawesome5`.** moderncv 2.6.1 (bản trong TeX Live
+# 2026) nạp `fontawesome6.sty` qua `moderncviconssymbols`; cài nhầm bản 5 thì build
+# dừng ở đúng dòng `! LaTeX Error: File 'fontawesome6.sty' not found.`
+RUN tlmgr install moderncv tex-gyre fontawesome6 fontawesome5 || true
 
 # Chạy bằng người dùng không phải root. Compile là nơi nội dung do người ngoài kiểm
 # soát được xử lý, nên nó không được có quyền root ngay cả trong container.
@@ -42,8 +64,12 @@ RUN set -eu; \
       '\section{Kỹ năng}\cvitem{}{Trần Bá Mậu, Đà Nẵng, kỹ thuật máy tính}' \
       '\end{document}' \
       > warm-cv.tex; \
-    lualatex -no-shell-escape -interaction=nonstopmode warm-cv.tex > /dev/null 2>&1; \
-    test -f warm-cv.pdf; \
+    lualatex -no-shell-escape -interaction=nonstopmode warm-cv.tex > /dev/null 2>&1 || true; \
+    if [ ! -f warm-cv.pdf ]; then \
+      echo '=== HAM CACHE HONG, 60 dong log cuoi ==='; \
+      tail -60 warm-cv.log; \
+      exit 1; \
+    fi; \
     rm -rf /tmp/warm-*
 
 ENV PORT=8080

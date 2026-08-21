@@ -87,7 +87,13 @@ Bộ test đơn vị chạy qua **`test/run-unit.mjs`**, không phải `jest` tr
 
 Dịch vụ ở `latex-service/`: Python stdlib trong image TeX Live, nhận `.tex` qua POST, trả PDF. Chạy bằng `docker compose up -d latex` sau khi build. Đo được **nhanh hơn** `docker run`: 2,0–3,1 giây so với 5,1 giây, vì không khởi container mỗi lần.
 
-Máy chủ cần ảnh **`texlive/texlive` 8,92GB tải trước** cho cả hai đường (`DockerSandbox` đặt `--pull never`, nên thiếu ảnh là một lỗi nói rõ chứ không phải một lượt tải 8,92GB giữa request của người dùng).
+Máy chủ cần ảnh **`aijob-latex` build sẵn** cho cả hai đường (`DockerSandbox` đặt `--pull never`, nên thiếu ảnh là một lỗi nói rõ chứ không phải một lượt tải vài GB giữa request của người dùng):
+
+```bash
+docker build -t aijob-latex -f latex-service/Dockerfile latex-service
+```
+
+**Ảnh nền là `texlive/texlive:latest-medium`, KHÔNG phải `latest`.** Đo trên Docker Hub 2026-08-21: bản đầy đủ 2,70GB nén / 8,92GB trên ổ, bản medium 0,94GB nén / khoảng 2,5-3GB trên ổ. Bản đầy đủ mang theo mọi ngôn ngữ, ConTeXt và toàn bộ kho font mà hai template của dự án không chạm tới. Lý do đầy đủ nằm trong `latex-service/Dockerfile`.
 
 `/ready` báo `checks.latex` nhưng **cố ý không tính nó vào `ready`**: mất PDF thì người dùng vẫn chấm điểm, xem việc, soạn CV và ứng tuyển được, nên đừng để orchestrator khởi động lại cả app vì một tính năng phụ. Có test e2e ghim đúng điều đó.
 
