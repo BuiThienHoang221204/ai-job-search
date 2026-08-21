@@ -31,7 +31,11 @@ FROM texlive/texlive:latest-medium
 # **`fontawesome6`, KHÔNG phải `fontawesome5`.** moderncv 2.6.1 (bản trong TeX Live
 # 2026) nạp `fontawesome6.sty` qua `moderncviconssymbols`; cài nhầm bản 5 thì build
 # dừng ở đúng dòng `! LaTeX Error: File 'fontawesome6.sty' not found.`
-RUN tlmgr install moderncv tex-gyre fontawesome6 fontawesome5 || true
+# `import` không phải gói của template mà là gói MODEL tự thêm: một bản nháp CV
+# do agent sinh đã khai `\usepackage{import}` và bước tự kiểm hỏng với
+# `! LaTeX Error: File 'import.sty' not found.` Vài trăm KB để không mất một
+# bước compile vì một dòng model viết thêm theo thói quen.
+RUN tlmgr install moderncv tex-gyre fontawesome6 fontawesome5 import || true
 
 # Chạy bằng người dùng không phải root. Compile là nơi nội dung do người ngoài kiểm
 # soát được xử lý, nên nó không được có quyền root ngay cả trong container.
