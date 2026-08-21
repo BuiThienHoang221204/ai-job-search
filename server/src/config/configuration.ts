@@ -89,6 +89,40 @@ const configuration = () => ({
     dir: fromServerRoot(process.env.SKILLS_DIR ?? '../.claude/skills'),
   },
 
+  /**
+   * Agent nhiều bước. `commandsDir` là thư mục kịch bản `.claude/commands/` -
+   * cùng bộ file Claude Code chạy, để hai runtime không trôi khỏi nhau.
+   */
+  agent: {
+    commandsDir: fromServerRoot(
+      process.env.COMMANDS_DIR ?? '../.claude/commands',
+    ),
+    maxSteps: parseInt(process.env.AGENT_MAX_STEPS ?? '12', 10),
+    /**
+     * Gốc để đọc template LaTeX (`cv/`, `cover_letters/`). Chính là gốc repo,
+     * nơi kịch bản `apply.md` trỏ tới - agent phải đọc được đúng file mà
+     * Claude Code đọc, nếu không nó sẽ tự bịa ra một bản template.
+     */
+    templatesRoot: fromServerRoot(process.env.TEMPLATES_ROOT ?? '..'),
+    /**
+     * Trần bước cho agent PHẢN BIỆN. Thấp hơn hẳn agent chính vì việc của nó
+     * hẹp: đọc bản nháp, tra công ty, nêu vấn đề. Mỗi bước là một lượt gọi tính
+     * vào cùng hạn mức với agent chính.
+     */
+    reviewerMaxSteps: parseInt(process.env.AGENT_REVIEWER_MAX_STEPS ?? '6', 10),
+    timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS ?? '270000', 10),
+    /** Trần byte cho một lần `fetch_url`. Trang tuyển dụng thật xa mức này. */
+    fetchMaxBytes: parseInt(process.env.AGENT_FETCH_MAX_BYTES ?? '2000000', 10),
+    fetchTimeoutMs: parseInt(process.env.AGENT_FETCH_TIMEOUT_MS ?? '20000', 10),
+    /**
+     * Tavily. Không có key thì tool `web_search` KHÔNG được đăng ký - agent
+     * thấy nó vắng mặt và tự xoay xở, thay vì gọi rồi nhận lỗi ở mọi bước.
+     */
+    searchApiKey: process.env.WEB_SEARCH_API_KEY ?? '',
+    searchUrl: process.env.WEB_SEARCH_URL ?? 'https://api.tavily.com/search',
+    searchMaxResults: parseInt(process.env.WEB_SEARCH_MAX_RESULTS ?? '5', 10),
+  },
+
   scraper: {
     timeoutMs: parseInt(process.env.SCRAPER_TIMEOUT_MS ?? '60000', 10),
 

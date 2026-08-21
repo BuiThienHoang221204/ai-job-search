@@ -10,6 +10,7 @@ const GENERATE_DOCUMENT = 'document.generate';
 const SCRAPE_RUN = 'scrape.run';
 const PROFILE_SYNTHESIZE = 'profile.synthesize';
 const EXTRACT_REQUIREMENTS = 'job.requirements';
+const AGENT_RUN = 'agent.run';
 
 export const QUEUES_WITH_KEY_RULE = [
   EVALUATE_MATCH,
@@ -19,6 +20,7 @@ export const QUEUES_WITH_KEY_RULE = [
   SCRAPE_RUN,
   PROFILE_SYNTHESIZE,
   EXTRACT_REQUIREMENTS,
+  AGENT_RUN,
 ] as const;
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
@@ -68,6 +70,9 @@ export function singletonKeyFor(queue: string, data: object): string {
 
     case PROFILE_SYNTHESIZE:
       return requireField(queue, data, 'draftId');
+
+    case AGENT_RUN:
+      return requireField(queue, data, 'runId');
 
     /** Một tin chỉ cần rút một lần; `force` tách riêng như EVALUATE_MATCH. */
     case EXTRACT_REQUIREMENTS:

@@ -49,6 +49,7 @@ model User {
   aiCalls        AiCall[]
   applications   Application[]
   profileDrafts  ProfileDraft[]
+  agentRuns      AgentRun[]
 
   @@map("users")
 }
@@ -793,4 +794,87 @@ model ApplicationEvent {
 
   @@index([applicationId, createdAt])
   @@map("application_events")
+}
+
+// ---------------------------------------------------------------------------
+// Agent nhiều bước
+// ---------------------------------------------------------------------------
+
+/// Trạng thái một lượt chạy agent.
+///
+/// Có thêm `WAITING_USER` so với `MatchStatus`, và đó là khác biệt về BẢN CHẤT
+/// chứ không phải một giá trị thừa: tác vụ một-lượt chạy tới cùng rồi mới trả
+/// lời, còn agent được phép dừng giữa chừng để hỏi rồi chạy tiếp sau khi người
+/// dùng trả lời - có thể là vài giờ sau, ở một request khác.
+enum AgentRunStatus {
+  PENDING
+  RUNNING
+  WAITING_USER
+  DONE
+  FAILED
+}
+
+/// Một lượt chạy kịch bản trong `.claude/commands/`.
+///
+/// Bảng này là thứ khiến vòng lặp agent gỡ lỗi được. Một tác vụ một-lượt hỏng
+/// thì chỉ cần biết prompt vào và kết quả ra; agent hỏng thì gần như luôn hỏng ở
+/// GIỮA - gọi nhầm tool, nhận về rác rồi vẫn viết tiếp như thật - nên từng bước
+/// phải nằm lại trong `AgentStep`.
+model AgentRun {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Tên file kịch bản, ví dụ "apply" cho `.claude/commands/apply.md`.
+  workflow String
+  status   AgentRunStatus @default(PENDING)
+
+  /// Đầu vào người dùng đưa vào: URL tin tuyển dụng, hoặc JD dán tay.
+  input Json
+
+  /// Kết quả cuối cùng agent trả về.
+  result Json?
+
+  /// Câu hỏi agent đang chờ trả lời, và câu trả lời của người dùng. Có giá trị
+  /// khi và chỉ khi lượt chạy đi qua trạng thái WAITING_USER.
+  question String? @db.Text
+  answer   String? @db.Text
+
+  /// Lịch sử hội thoại đã tuần tự hoá, để nạp lại khi người dùng trả lời.
+  /// KHÔNG dựng lại từ `steps`: bước là bản tóm tắt để người đọc, còn cái này
+  /// là trạng thái máy, và hai thứ đó không được trộn.
+  messages Json?
+
+  modelId String?
+  error   String? @db.Text
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  steps AgentStep[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("agent_runs")
+}
+
+/// Một bước trong vòng lặp: model nói gì, gọi tool nào, tool trả về gì.
+model AgentStep {
+  id    String   @id @default(cuid())
+  runId String
+  run   AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  /// Thứ tự trong lượt chạy, bắt đầu từ 0.
+  index Int
+
+  text        String @db.Text
+  toolCalls   Json
+  toolResults Json
+  durationMs  Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([runId, index])
+  @@map("agent_steps")
 }

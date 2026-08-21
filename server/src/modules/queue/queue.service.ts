@@ -26,6 +26,8 @@ export const QUEUE = {
   PROFILE_SYNTHESIZE: 'profile.synthesize',
   /** Rút yêu cầu của MỘT tin, dùng chung cho mọi hồ sơ. Pha A. */
   EXTRACT_REQUIREMENTS: 'job.requirements',
+  /** Chạy một kịch bản nhiều bước trong `.claude/commands/`. */
+  AGENT_RUN: 'agent.run',
 } as const;
 
 /**
@@ -62,6 +64,11 @@ export type InterviewPrepPayload = {
   userId: string;
   jobId: string;
   force?: boolean;
+};
+
+export type AgentRunPayload = {
+  runId: string;
+  userId: string;
 };
 
 export type UpskillReportPayload = {

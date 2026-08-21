@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { AiModule } from './modules/ai/ai.module.js';
 import { ApplicationsModule } from './modules/applications/applications.module.js';
+import { AgentModule } from './modules/agent/agent.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
@@ -57,6 +58,7 @@ import { StorageModule } from './modules/storage/storage.module.js';
     UpskillModule,
     DocumentsModule,
     ApplicationsModule,
+    AgentModule,
     DashboardModule,
     ReconcileModule,
     AdminModule,
