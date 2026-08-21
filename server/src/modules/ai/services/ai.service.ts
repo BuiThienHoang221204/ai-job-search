@@ -377,6 +377,16 @@ export class AiService {
     ];
     const generated: ModelMessage[] = [];
 
+    /*
+     * Mốc để đo TỪNG bước, không phải tổng từ đầu.
+     *
+     * Bản đầu ghi `Date.now() - startedAt`, tức thời gian tích luỹ - và trên
+     * màn hình nó nói dối hai lần: bước cuối trông như tốn 390 giây trong khi
+     * thật ra chỉ 107, còn một lượt chạy TIẾP thì đếm lại từ 0 nên các con số
+     * không tăng dần, trông như dữ liệu hỏng.
+     */
+    let stepStartedAt = Date.now();
+
     try {
       const result = await generateText({
         model,
@@ -408,9 +418,10 @@ export class AiService {
               tool: entry.toolName,
               output: entry.output as unknown,
             })),
-            durationMs: Date.now() - startedAt,
+            durationMs: Date.now() - stepStartedAt,
             messages: [...base, ...generated],
           };
+          stepStartedAt = Date.now();
           steps.push(log);
           // Ghi tiến trình là việc PHỤ: nó hỏng thì vòng lặp vẫn phải chạy tiếp,
           // nếu không một lỗi ghi DB sẽ giết cả lượt chạy đã tốn tiền.
