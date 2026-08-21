@@ -99,6 +99,14 @@ export type AgentStepLog = {
   toolCalls: Array<{ tool: string; input: unknown }>;
   toolResults: Array<{ tool: string; output: unknown }>;
   durationMs: number;
+  /**
+   * Toàn bộ hội thoại TÍNH TỚI hết bước này, gồm cả câu hỏi mở đầu.
+   *
+   * Đây là điểm khôi phục: lượt chạy chết ở bước 5 vẫn còn nguyên trạng thái
+   * sau bước 4, nên chạy tiếp không phải làm lại từ đầu. Không có nó thì một
+   * lượt hết giờ mất trắng mọi thứ đã tốn tiền để dựng.
+   */
+  messages: ModelMessage[];
 };
 
 export type RunToolsOptions = {
@@ -357,6 +365,18 @@ export class AiService {
     const startedAt = Date.now();
     const steps: AgentStepLog[] = [];
 
+    /*
+     * `response.messages` của SDK chỉ chứa những gì MODEL sinh ra - không có
+     * câu hỏi mở đầu. Lưu mỗi phần đó rồi chạy tiếp là chạy tiếp mà KHÔNG CÒN
+     * mô tả công việc: agent phải đoán lại nó đang làm cho tin nào.
+     *
+     * Nên hội thoại lưu xuống luôn là câu vào + phần model sinh.
+     */
+    const base: ModelMessage[] = options.messages ?? [
+      { role: 'user', content: options.prompt ?? '' },
+    ];
+    const generated: ModelMessage[] = [];
+
     try {
       const result = await generateText({
         model,
@@ -376,6 +396,7 @@ export class AiService {
         ),
         maxRetries: 1,
         onStepFinish: (step) => {
+          generated.push(...step.response.messages);
           const log: AgentStepLog = {
             index: steps.length,
             text: step.text ?? '',
@@ -388,6 +409,7 @@ export class AiService {
               output: entry.output as unknown,
             })),
             durationMs: Date.now() - startedAt,
+            messages: [...base, ...generated],
           };
           steps.push(log);
           // Ghi tiến trình là việc PHỤ: nó hỏng thì vòng lặp vẫn phải chạy tiếp,
@@ -420,7 +442,7 @@ export class AiService {
         steps,
         finishReason: result.finishReason,
         modelId: id,
-        messages: result.response.messages,
+        messages: [...base, ...result.response.messages],
       };
     } catch (error) {
       const durationMs = Date.now() - startedAt;

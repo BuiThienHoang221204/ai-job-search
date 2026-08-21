@@ -258,6 +258,92 @@ describe('Agent chạy kịch bản nhiều bước', () => {
     ]);
   });
 
+  /**
+   * Một lượt hỏng giữa chừng KHÔNG được bắt người dùng dán lại mô tả công việc.
+   *
+   * Điểm khôi phục được ghi sau TỪNG bước, nên lượt chạy lại đi tiếp từ chỗ
+   * dừng: các bước cũ nằm nguyên và số thứ tự nối vào, không bắt đầu lại từ 0.
+   */
+  test('chạy lại một lượt đã hỏng thì đi tiếp, không làm lại từ đầu', async () => {
+    // Bước 0 chạy xong và ghi điểm khôi phục, rồi lượt chạy tiếp mới hỏng -
+    // đúng hình dạng của lỗi hết giờ đã gặp trên máy thật.
+    harness.ai.willRunAgent({
+      calls: [{ tool: 'ask_user', input: { question: 'Tiếp chứ?' } }],
+      text: '',
+    });
+
+    const created = await start().expect(201);
+    const { runId } = created.body as { runId: string };
+    await harness.queue.drain();
+
+    harness.ai.willFailAgent(
+      new Error('The operation was aborted due to timeout'),
+    );
+    await request(harness.server)
+      .post(`/api/agent-runs/${runId}/answer`)
+      .set(auth(user.token))
+      .send({ text: 'Có' })
+      .expect(201);
+    await harness.queue.drain();
+
+    const failed = await request(harness.server)
+      .get(`/api/agent-runs/${runId}`)
+      .set(auth(user.token))
+      .expect(200);
+    expect((failed.body as { status: string }).status).toBe('FAILED');
+
+    harness.ai.willRunAgent({ text: 'Đã đi tiếp và hoàn tất.' });
+    await request(harness.server)
+      .post(`/api/agent-runs/${runId}/retry`)
+      .set(auth(user.token))
+      .expect(201);
+    await harness.queue.drain();
+
+    const after = await request(harness.server)
+      .get(`/api/agent-runs/${runId}`)
+      .set(auth(user.token))
+      .expect(200);
+
+    const record = after.body as {
+      status: string;
+      steps: Array<{ index: number }>;
+    };
+    expect(record.status).toBe('DONE');
+    // Bước cũ còn nguyên và bước mới NỐI vào, không đè lên và không bắt đầu
+    // lại từ 0 - tức là nó đi tiếp chứ không làm lại.
+    expect(record.steps.map((step) => step.index)).toEqual([0, 1]);
+
+    // Và lượt chạy tiếp nhận được hội thoại cũ, không phải prompt mở đầu.
+    const last = harness.ai.calls.at(-1);
+    expect(last?.prompt).toContain('Tiếp chứ?');
+  });
+
+  test('không chạy lại được lượt chưa hỏng', async () => {
+    harness.ai.willRunAgent({ text: 'Xong.' });
+    const created = await start().expect(201);
+    const { runId } = created.body as { runId: string };
+    await harness.queue.drain();
+
+    const response = await request(harness.server)
+      .post(`/api/agent-runs/${runId}/retry`)
+      .set(auth(user.token))
+      .expect(400);
+    expect((response.body as { message: string }).message).toMatch(/DONE/);
+  });
+
+  test('không chạy lại được lượt của người khác', async () => {
+    harness.ai.willFailAgent(new Error('hỏng'));
+    const created = await start().expect(201);
+    const { runId } = created.body as { runId: string };
+    await harness.queue.drain();
+
+    const other = await harness.signUp();
+    await request(harness.server)
+      .post(`/api/agent-runs/${runId}/retry`)
+      .set(auth(other.token))
+      .expect(404);
+  });
+
   test('không trả lời được lượt chạy chưa hỏi gì', async () => {
     harness.ai.willRunAgent({ text: 'Xong.' });
     const created = await start().expect(201);

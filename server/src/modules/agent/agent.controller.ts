@@ -45,6 +45,18 @@ export class AgentController {
     return { queued: true, runId: run.id };
   }
 
+  /**
+   * Chạy lại một lượt đã hỏng. Tiếp từ chỗ dừng nếu còn điểm khôi phục, không
+   * thì bắt đầu lại từ chính đầu vào cũ - người dùng không phải dán lại JD.
+   */
+  @ThrottleAi()
+  @Post(':id/retry')
+  async retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const run = await this.agent.retry(user.id, id);
+    await this.queue.send(QUEUE.AGENT_RUN, { runId: run.id, userId: user.id });
+    return { queued: true, runId: run.id };
+  }
+
   /** Trả lời câu hỏi agent đang chờ, rồi cho nó chạy tiếp. */
   @ThrottleAi()
   @Post(':id/answer')

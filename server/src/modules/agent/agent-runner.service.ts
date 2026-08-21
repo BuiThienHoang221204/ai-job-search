@@ -135,15 +135,13 @@ export class AgentRunnerService {
       return { prompt: buildOpeningPrompt(input) };
     }
 
-    return {
-      messages: [
-        ...previous,
-        {
-          role: 'user',
-          content: `Người dùng trả lời: ${run.answer ?? '(không có nội dung)'}`,
-        },
-      ],
-    };
+    // Chạy tiếp sau khi HỎNG thì không có câu trả lời nào để nối vào - chỉ cần
+    // bảo agent đi tiếp từ chỗ nó dừng.
+    const nudge = run.answer
+      ? `Người dùng trả lời: ${run.answer}`
+      : 'Lượt chạy trước bị gián đoạn. Đọc lại những gì đã làm ở trên rồi ĐI TIẾP từ đó, đừng làm lại từ đầu.';
+
+    return { messages: [...previous, { role: 'user', content: nudge }] };
   }
 
   /**
@@ -161,21 +159,36 @@ export class AgentRunnerService {
     return last ? last.index + 1 : 0;
   }
 
+  /**
+   * Ghi một bước, và ĐỒNG THỜI lưu điểm khôi phục.
+   *
+   * Hội thoại được cập nhật sau từng bước chứ không đợi tới lúc xong: một lượt
+   * hết giờ ở bước 5 vẫn còn nguyên trạng thái sau bước 4, nên "chạy tiếp"
+   * không phải làm lại từ đầu. Trước đây `messages` chỉ được ghi khi lượt chạy
+   * kết thúc êm, tức là đúng những lượt hỏng - thứ cần khôi phục nhất - lại
+   * chẳng có gì để khôi phục.
+   */
   private async recordStep(
     runId: string,
     index: number,
     step: AgentStepLog,
   ): Promise<void> {
-    await this.prisma.agentStep.create({
-      data: {
-        runId,
-        index,
-        text: step.text,
-        toolCalls: step.toolCalls as unknown as Prisma.InputJsonValue,
-        toolResults: step.toolResults as unknown as Prisma.InputJsonValue,
-        durationMs: step.durationMs,
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.agentStep.create({
+        data: {
+          runId,
+          index,
+          text: step.text,
+          toolCalls: step.toolCalls as unknown as Prisma.InputJsonValue,
+          toolResults: step.toolResults as unknown as Prisma.InputJsonValue,
+          durationMs: step.durationMs,
+        },
+      }),
+      this.prisma.agentRun.update({
+        where: { id: runId },
+        data: { messages: step.messages },
+      }),
+    ]);
   }
 
   /** Agent có dừng lại để hỏi hay không, và hỏi gì. */

@@ -1,3 +1,4 @@
+import type { ModelMessage } from 'ai';
 import type {
   Ai,
   AgentStepLog,
@@ -140,6 +141,12 @@ export class FakeAi implements Ai {
     if ('error' in next) throw next.error;
 
     const steps: AgentStepLog[] = [];
+    // Bản giả cũng phải tích luỹ hội thoại, nếu không test không kiểm được
+    // đường chạy tiếp - vốn dựa hoàn toàn vào ảnh chụp này.
+    const conversation: ModelMessage[] = [
+      { role: 'user', content: options.prompt ?? '' },
+    ];
+
     for (const [index, call] of (next.run.calls ?? []).entries()) {
       const tool = options.tools[call.tool] as
         | { execute?: (input: unknown, extra: unknown) => Promise<unknown> }
@@ -155,12 +162,18 @@ export class FakeAi implements Ai {
         messages: [],
       });
 
+      conversation.push({
+        role: 'assistant',
+        content: `[tool ${call.tool}] ${JSON.stringify(output)}`,
+      });
+
       const step: AgentStepLog = {
         index,
         text: '',
         toolCalls: [{ tool: call.tool, input: call.input }],
         toolResults: [{ tool: call.tool, output }],
         durationMs: 0,
+        messages: [...conversation],
       };
       steps.push(step);
       await options.onStep?.(step);
@@ -178,10 +191,12 @@ export class FakeAi implements Ai {
           steps,
           finishReason: 'tool-calls',
           modelId: FAKE_MODEL_ID,
-          messages: [{ role: 'assistant', content: '' }],
+          messages: [...conversation],
         };
       }
     }
+
+    conversation.push({ role: 'assistant', content: next.run.text });
 
     const final: AgentStepLog = {
       index: steps.length,
@@ -189,6 +204,7 @@ export class FakeAi implements Ai {
       toolCalls: [],
       toolResults: [],
       durationMs: 0,
+      messages: [...conversation],
     };
     steps.push(final);
     await options.onStep?.(final);
@@ -198,7 +214,7 @@ export class FakeAi implements Ai {
       steps,
       finishReason: next.run.finishReason ?? 'stop',
       modelId: FAKE_MODEL_ID,
-      messages: [{ role: 'assistant', content: next.run.text }],
+      messages: [...conversation],
     };
   }
 }

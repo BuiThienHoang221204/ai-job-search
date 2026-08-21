@@ -50,15 +50,7 @@ export class AgentService {
      *
      * `WAITING_USER` KHÔNG bị chặn: lượt đó đang chờ người, không tiêu gì cả.
      */
-    const running = await this.prisma.agentRun.findFirst({
-      where: { userId, status: { in: ['PENDING', 'RUNNING'] } },
-      select: { id: true },
-    });
-    if (running) {
-      throw new ConflictException(
-        'Bạn đang có một lượt chạy chưa xong. Đợi nó kết thúc rồi hãy chạy lượt mới.',
-      );
-    }
+    await this.assertNoRunInFlight(userId);
 
     return this.prisma.agentRun.create({
       data: {
@@ -93,6 +85,49 @@ export class AgentService {
       where: { id: runId },
       data: { answer: text, status: 'PENDING', question: run.question },
     });
+  }
+
+  /**
+   * Chạy lại một lượt đã hỏng, TIẾP từ chỗ nó dừng nếu còn điểm khôi phục.
+   *
+   * Không tạo bản ghi mới: các bước cũ, file đã ghi và hội thoại đều thuộc về
+   * lượt này, và người dùng đang nhìn đúng nó. `AgentRunnerService` tự chọn
+   * đường - có `messages` thì đi tiếp, không có thì bắt đầu lại từ chính đầu
+   * vào cũ, nên người dùng không phải dán lại mô tả công việc.
+   *
+   * Chỉ nhận lượt FAILED. Đây là chỗ duy nhất xếp lại việc đã hỏng, và nó do
+   * NGƯỜI DÙNG bấm - hệ thống không bao giờ tự thử lại, vì chưa có bộ đếm số
+   * lần thử thì tự động thử lại là một vòng lặp tốn tiền.
+   */
+  async retry(userId: string, runId: string): Promise<AgentRun> {
+    const run = await this.get(userId, runId);
+
+    if (run.status !== 'FAILED') {
+      throw new BadRequestException(
+        `Lượt chạy đang ở trạng thái ${run.status}, chỉ chạy lại được lượt đã thất bại.`,
+      );
+    }
+
+    await this.assertNoRunInFlight(userId);
+
+    return this.prisma.agentRun.update({
+      where: { id: runId },
+      data: { status: 'PENDING', error: null, finishedAt: null },
+    });
+  }
+
+  /** Chặn người dùng mở lượt thứ hai khi lượt cũ còn đang chạy. */
+  private async assertNoRunInFlight(userId: string): Promise<void> {
+    const running = await this.prisma.agentRun.findFirst({
+      where: { userId, status: { in: ['PENDING', 'RUNNING'] } },
+      select: { id: true },
+    });
+
+    if (running) {
+      throw new ConflictException(
+        'Bạn đang có một lượt chạy chưa xong. Đợi nó kết thúc rồi hãy chạy lượt mới.',
+      );
+    }
   }
 
   async get(userId: string, runId: string) {
