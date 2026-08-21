@@ -92,6 +92,58 @@ describe('Nhặt việc nền bị rơi', () => {
       documentId: string;
     }[];
 
+  /// Lượt chạy agent bị bỏ rơi: tạo rồi lùi `updatedAt` như hai helper trên.
+  const agentRunAged = async (minutesAgo: number): Promise<string> => {
+    const run = await harness.prisma.agentRun.create({
+      data: {
+        userId: user.id,
+        workflow: 'apply',
+        status: 'RUNNING',
+        input: { jobDescription: 'Tuyển kế toán tổng hợp tại Hà Nội.' },
+      },
+    });
+    await harness.prisma.$executeRawUnsafe(
+      `UPDATE "agent_runs" SET "updatedAt" = now() - ($2 || ' minutes')::interval WHERE "id" = $1`,
+      run.id,
+      String(minutesAgo),
+    );
+    return run.id;
+  };
+
+  /**
+   * Bản ghi chỉ chuyển sang FAILED từ trong `catch` của worker, nên tiến trình
+   * chết giữa chừng để lại một lượt RUNNING vĩnh viễn - đã gặp thật: đứng im 17
+   * phút trong khi hàng đợi không còn việc nào.
+   */
+  test('lượt chạy agent bị bỏ rơi thì đánh dấu thất bại', async () => {
+    const runId = await agentRunAged(30);
+
+    const result = await reconcile.run();
+
+    expect(result.agentRuns).toBe(1);
+    const after = await harness.prisma.agentRun.findUniqueOrThrow({
+      where: { id: runId },
+    });
+    expect(after.status).toBe('FAILED');
+    expect(after.error).toMatch(/Chạy tiếp/);
+
+    // KHÔNG tự xếp lại: một lượt agent tiêu 10-20 lời gọi model, nên việc chạy
+    // tiếp phải do người dùng bấm.
+    expect(harness.queue.sentTo(QUEUE.AGENT_RUN)).toEqual([]);
+  });
+
+  test('lượt chạy agent còn mới thì để yên', async () => {
+    const runId = await agentRunAged(2);
+
+    const result = await reconcile.run();
+
+    expect(result.agentRuns).toBe(0);
+    const after = await harness.prisma.agentRun.findUniqueOrThrow({
+      where: { id: runId },
+    });
+    expect(after.status).toBe('RUNNING');
+  });
+
   test('tài liệu PENDING quá lâu được xếp lại', async () => {
     const documentId = await documentAged('PENDING', 30);
 

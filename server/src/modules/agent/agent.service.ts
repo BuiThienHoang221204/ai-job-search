@@ -8,6 +8,7 @@ import type { AgentRun } from '../../generated/prisma/client.js';
 import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { STUCK_AFTER_MS } from '../reconcile/services/reconcile.service.js';
 import { CommandRegistryService } from './command-registry.service.js';
 
 export type StartAgentInput = {
@@ -119,9 +120,17 @@ export class AgentService {
   async retry(userId: string, runId: string): Promise<AgentRun> {
     const run = await this.get(userId, runId);
 
-    if (run.status !== 'FAILED') {
+    /*
+     * Nhận cả lượt đang KẸT, không chỉ lượt FAILED.
+     *
+     * Bản ghi chỉ chuyển sang FAILED từ trong `catch` của worker; tiến trình
+     * chết giữa chừng thì không `catch` nào chạy và lượt chạy nằm RUNNING mãi.
+     * `ReconcileService` dọn chúng, nhưng nó chạy theo chu kỳ - trong lúc chờ,
+     * người dùng phải có đường thoát ngay chứ không bị khoá cứng.
+     */
+    if (run.status !== 'FAILED' && !this.isStale(run)) {
       throw new BadRequestException(
-        `Lượt chạy đang ở trạng thái ${run.status}, chỉ chạy lại được lượt đã thất bại.`,
+        `Lượt chạy đang ở trạng thái ${run.status}, chỉ chạy lại được lượt đã thất bại hoặc đã kẹt.`,
       );
     }
 
@@ -133,10 +142,29 @@ export class AgentService {
     });
   }
 
-  /** Chặn người dùng mở lượt thứ hai khi lượt cũ còn đang chạy. */
+  /**
+   * Lượt chạy đã im lặng quá lâu để còn coi là đang chạy.
+   *
+   * Dùng chung mốc với `ReconcileService` để hai nơi không nói khác nhau về
+   * cùng một bản ghi.
+   */
+  private isStale(run: { updatedAt: Date }): boolean {
+    return Date.now() - run.updatedAt.getTime() > STUCK_AFTER_MS;
+  }
+
+  /**
+   * Chặn người dùng mở lượt thứ hai khi lượt cũ còn đang chạy.
+   *
+   * Lượt KẸT không tính: nếu tính thì một tiến trình chết giữa chừng sẽ khoá
+   * người dùng ngoài tính năng cho tới lượt quét dọn kế tiếp.
+   */
   private async assertNoRunInFlight(userId: string): Promise<void> {
     const running = await this.prisma.agentRun.findFirst({
-      where: { userId, status: { in: ['PENDING', 'RUNNING'] } },
+      where: {
+        userId,
+        status: { in: ['PENDING', 'RUNNING'] },
+        updatedAt: { gte: new Date(Date.now() - STUCK_AFTER_MS) },
+      },
       select: { id: true },
     });
 
