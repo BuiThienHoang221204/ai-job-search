@@ -26,8 +26,21 @@ const unreachable = (name: string) => (): never => {
 };
 
 export const generateObject = unreachable('generateObject');
+export const generateText = unreachable('generateText');
 export const streamText = unreachable('streamText');
 export const createOpenAICompatible = unreachable('createOpenAICompatible');
+
+/// `tool()` của SDK thật chỉ là hàm ĐỒNG NHẤT có kiểu: nó trả về đúng object
+/// định nghĩa được truyền vào. Bản giả cũng phải làm vậy chứ KHÔNG được ném:
+/// `FakeAi.runTools` gọi thẳng `execute` của từng tool, nên đây là đường code
+/// thật đang được kiểm - phần duy nhất không được chạy là lời gọi model.
+export const tool = <T>(definition: T): T => definition;
+
+/// Hai điều kiện dừng chỉ có nghĩa bên trong vòng lặp của SDK thật. Bản giả trả
+/// về một hàm luôn `false` để nơi gọi vẫn dựng được tham số mà không cần biết
+/// vòng lặp có chạy hay không.
+export const stepCountIs = () => (): boolean => false;
+export const hasToolCall = () => (): boolean => false;
 
 export const NoObjectGeneratedError = {
   /// Trả `false` thay vì ném lỗi, khác với các hàm trên. Hàm này chỉ được gọi

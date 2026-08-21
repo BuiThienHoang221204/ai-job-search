@@ -1,12 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { NoObjectGeneratedError, generateObject, streamText } from 'ai';
+import {
+  NoObjectGeneratedError,
+  generateObject,
+  generateText,
+  hasToolCall,
+  stepCountIs,
+  streamText,
+  type ModelMessage,
+  type ToolSet,
+} from 'ai';
 import type { LanguageModel } from 'ai';
 import { z, type ZodType } from 'zod';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { ConfigService } from '@nestjs/config';
 import {
   classifyFailure,
+  isModelRetired,
   isRateLimited,
   isResponseFormatUnsupported,
   truncateError,
@@ -45,6 +55,22 @@ export type GenerateObjectOptions<T> = {
  */
 const DEFAULT_TIMEOUT_MS = 90_000;
 
+/**
+ * Trần bước mặc định cho một vòng lặp agent.
+ *
+ * 12 bước đủ cho kịch bản `/apply` (đọc hồ sơ, đọc khung, tra web, viết, tự
+ * kiểm) mà vẫn chặn được vòng lặp tự nuôi. Mỗi bước là MỘT lượt gọi tính vào
+ * hạn mức, nên đây là trần chi phí chứ không chỉ là trần thời gian.
+ */
+const DEFAULT_MAX_STEPS = 12;
+
+/**
+ * Hạn cho cả vòng lặp. Dài hơn hẳn `DEFAULT_TIMEOUT_MS` vì nó bao nhiều lượt
+ * gọi, nhưng vẫn phải nằm dưới `server.setTimeout` 5 phút và `STUCK_AFTER_MS`
+ * 10 phút - ba mốc đó là một chuỗi, nới một cái phải xem hai cái kia.
+ */
+const DEFAULT_AGENT_TIMEOUT_MS = 270_000;
+
 type StreamTextResult = ReturnType<typeof streamText>;
 
 export type StreamTextOptions = {
@@ -53,8 +79,59 @@ export type StreamTextOptions = {
   modelId?: string;
 };
 
+/**
+ * Một bước của vòng lặp agent: model nói gì, gọi tool nào, tool trả về gì.
+ *
+ * Ghi lại TỪNG bước chứ không chỉ kết quả cuối, vì một agent chạy sai thường
+ * sai ở giữa - gọi nhầm tool, hoặc nhận về rác rồi vẫn viết tiếp như thật.
+ * Không có nhật ký bước thì không có cách nào biết nó sai ở đâu.
+ */
+export type AgentStepLog = {
+  index: number;
+  text: string;
+  toolCalls: Array<{ tool: string; input: unknown }>;
+  toolResults: Array<{ tool: string; output: unknown }>;
+  durationMs: number;
+};
+
+export type RunToolsOptions = {
+  system: string;
+  /** Lượt chạy MỚI dùng `prompt`; lượt chạy TIẾP dùng `messages`. */
+  prompt?: string;
+  messages?: ModelMessage[];
+  tools: ToolSet;
+  context: AiCallContext;
+  modelId?: string;
+  /**
+   * Trần số bước. Đây là chặn cuối chống vòng lặp vô tận - model hoàn toàn có
+   * thể gọi đi gọi lại một tool mãi mãi, và mỗi bước là một lượt gọi tính tiền.
+   */
+  maxSteps?: number;
+  /** Hạn cho TOÀN BỘ vòng lặp, không phải cho một bước. */
+  timeoutMs?: number;
+  /**
+   * Dừng vòng lặp ngay sau khi model gọi tool này.
+   *
+   * Dùng cho `ask_user`: agent hỏi xong thì phải nhả worker ra chứ không được
+   * đứng chờ người dùng - câu trả lời có thể tới sau vài giờ, ở một request
+   * khác. Lịch sử hội thoại trả về trong `messages` để nạp lại lúc đó.
+   */
+  stopOnTool?: string;
+  /** Gọi sau mỗi bước, để nơi dùng ghi tiến trình xuống DB ngay lúc chạy. */
+  onStep?: (step: AgentStepLog) => Promise<void>;
+};
+
+export type RunToolsResult = {
+  text: string;
+  steps: AgentStepLog[];
+  finishReason: string;
+  modelId: string;
+  /** Toàn bộ hội thoại sau lượt chạy, để chạy tiếp về sau. */
+  messages: ModelMessage[];
+};
+
 /** Mặt tiếp xúc mà các module khác dùng để gọi model. */
-export type Ai = Pick<AiService, 'generateObject'>;
+export type Ai = Pick<AiService, 'generateObject' | 'runTools'>;
 
 @Injectable()
 export class AiService {
@@ -201,18 +278,38 @@ export class AiService {
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
-    const chain = this.modelChain(options.modelId);
+    return this.overChain(options.modelId, (modelId) =>
+      this.withFormatFallback({ ...options, modelId }),
+    );
+  }
+
+  /**
+   * Chạy `attempt` lần lượt trên chuỗi model cho tới khi có cái chạy được.
+   *
+   * Dùng chung cho `generateObject` và `runTools` để hai đường không thể lệch
+   * nhau về ý nghĩa của "bỏ qua mắt xích này".
+   */
+  private async overChain<T>(
+    requested: string | undefined,
+    attempt: (modelId: string | undefined) => Promise<T>,
+  ): Promise<T> {
+    const chain = this.modelChain(requested);
     let lastSkipped: unknown;
 
     for (const [index, modelId] of chain.entries()) {
       try {
-        return await this.withFormatFallback({ ...options, modelId });
+        return await attempt(modelId);
       } catch (error) {
         const unavailable = error instanceof ModelUnavailableError;
-        if (!unavailable && !isRateLimited(error)) throw error;
+        const retired = isModelRetired(error);
+        if (!unavailable && !isRateLimited(error) && !retired) throw error;
 
         lastSkipped = error;
-        const reason = unavailable ? error.message : 'hết hạn mức';
+        const reason = unavailable
+          ? error.message
+          : retired
+            ? 'gateway đã rút model này'
+            : 'hết hạn mức';
         const next = chain[index + 1];
         this.logger.warn(
           next
@@ -223,6 +320,114 @@ export class AiService {
     }
 
     throw lastSkipped;
+  }
+
+  /**
+   * Chạy một vòng lặp agent: model được cấp tool và tự quyết gọi cái nào, bao
+   * nhiêu lần, cho tới khi nó thôi gọi hoặc chạm trần số bước.
+   *
+   * Khác `generateObject` ở CHẤT chứ không chỉ ở lượng: `generateObject` là một
+   * lượt hỏi-đáp có hình dạng biết trước, còn ở đây model điều khiển luồng. Vì
+   * vậy mọi trần đều là bắt buộc chứ không phải tuỳ chọn - trần bước, hạn thời
+   * gian cho cả vòng, và tool nào được cấp thì do NƠI GỌI quyết định.
+   *
+   * Dùng lại đúng chuỗi dự phòng của `generateObject`: hết hạn mức hay model bị
+   * rút thì đổi mắt xích, lỗi khác thì ném ra ngay.
+   */
+  async runTools(options: RunToolsOptions): Promise<RunToolsResult> {
+    return this.overChain(options.modelId, (modelId) =>
+      this.attemptTools({ ...options, modelId }),
+    );
+  }
+
+  private async attemptTools(
+    options: RunToolsOptions,
+  ): Promise<RunToolsResult> {
+    const { model, id, provider, ref } = await this.languageModel(
+      options.modelId,
+      this.structuredOutputs,
+    );
+    const startedAt = Date.now();
+    const steps: AgentStepLog[] = [];
+
+    try {
+      const result = await generateText({
+        model,
+        system: options.system,
+        ...(options.messages
+          ? { messages: options.messages }
+          : { prompt: options.prompt ?? '' }),
+        tools: options.tools,
+        stopWhen: options.stopOnTool
+          ? [
+              stepCountIs(options.maxSteps ?? DEFAULT_MAX_STEPS),
+              hasToolCall(options.stopOnTool),
+            ]
+          : stepCountIs(options.maxSteps ?? DEFAULT_MAX_STEPS),
+        abortSignal: AbortSignal.timeout(
+          options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
+        ),
+        maxRetries: 1,
+        onStepFinish: (step) => {
+          const log: AgentStepLog = {
+            index: steps.length,
+            text: step.text ?? '',
+            toolCalls: (step.toolCalls ?? []).map((call) => ({
+              tool: call.toolName,
+              input: call.input as unknown,
+            })),
+            toolResults: (step.toolResults ?? []).map((entry) => ({
+              tool: entry.toolName,
+              output: entry.output as unknown,
+            })),
+            durationMs: Date.now() - startedAt,
+          };
+          steps.push(log);
+          // Ghi tiến trình là việc PHỤ: nó hỏng thì vòng lặp vẫn phải chạy tiếp,
+          // nếu không một lỗi ghi DB sẽ giết cả lượt chạy đã tốn tiền.
+          void options.onStep?.(log).catch((error: unknown) => {
+            this.logger.warn(
+              `Không ghi được bước agent: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+        },
+      });
+
+      const durationMs = Date.now() - startedAt;
+      this.logger.log(
+        `runTools ${ref} xong sau ${durationMs}ms, ${steps.length} bước`,
+      );
+
+      await this.record({
+        context: options.context,
+        provider,
+        modelId: id,
+        ok: true,
+        durationMs,
+        inputTokens: result.usage?.inputTokens,
+        outputTokens: result.usage?.outputTokens,
+      });
+
+      return {
+        text: result.text,
+        steps,
+        finishReason: result.finishReason,
+        modelId: id,
+        messages: result.response.messages,
+      };
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      await this.record({
+        context: options.context,
+        provider,
+        modelId: id,
+        ok: false,
+        durationMs,
+        failureKind: classifyFailure(error),
+        errorMessage: truncateError(error),
+      });
+      throw error;
+    }
   }
 
   /** Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng. */
