@@ -4,7 +4,7 @@ import type { AgentRun, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService, type AgentStepLog } from '../ai/services/ai.service.js';
 import { AgentToolsService } from './agent-tools.service.js';
-import type { AgentInput } from './agent.types.js';
+import type { AgentInput, ArtifactRecord } from './agent.types.js';
 import { CommandRegistryService } from './command-registry.service.js';
 import {
   buildOpeningPrompt,
@@ -46,6 +46,15 @@ export class AgentRunnerService {
       where: { id: runId },
     });
 
+    /*
+     * Giữ tham chiếu ra ngoài khối `try` để nhánh hỏng vẫn thấy được.
+     *
+     * File agent đã ghi nằm sẵn trong Storage rồi; mất chúng khỏi bản ghi chỉ là
+     * mất đường tìm lại. Đã xảy ra thật: một lượt hết giờ ở bước cuối, CV và thư
+     * đều đã soạn xong, nhưng màn hình chỉ hiện "thất bại" và trắng trơn.
+     */
+    let collected: ArtifactRecord[] = [];
+
     await this.prisma.agentRun.update({
       where: { id: runId },
       data: {
@@ -64,6 +73,7 @@ export class AgentRunnerService {
         userId: run.userId,
         sourceUrl: input.jobUrl,
       });
+      collected = artifacts;
 
       const startIndex = await this.nextStepIndex(runId);
       const result = await this.ai.runTools({
@@ -100,7 +110,12 @@ export class AgentRunnerService {
       this.logger.error(`Lượt chạy agent ${runId} thất bại: ${message}`);
       return this.prisma.agentRun.update({
         where: { id: runId },
-        data: { status: 'FAILED', error: message, finishedAt: new Date() },
+        data: {
+          status: 'FAILED',
+          error: message,
+          finishedAt: new Date(),
+          result: { artifacts: collected },
+        },
       });
     }
   }

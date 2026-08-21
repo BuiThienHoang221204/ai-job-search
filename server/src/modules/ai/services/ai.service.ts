@@ -65,11 +65,18 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_STEPS = 12;
 
 /**
- * Hạn cho cả vòng lặp. Dài hơn hẳn `DEFAULT_TIMEOUT_MS` vì nó bao nhiều lượt
- * gọi, nhưng vẫn phải nằm dưới `server.setTimeout` 5 phút và `STUCK_AFTER_MS`
- * 10 phút - ba mốc đó là một chuỗi, nới một cái phải xem hai cái kia.
+ * Hạn cho CẢ vòng lặp, không phải cho một bước.
+ *
+ * KHÔNG bị chặn bởi `server.setTimeout` 5 phút như tác vụ một-lượt: vòng lặp
+ * agent chạy trong worker của hàng đợi, không nằm trong một HTTP request nào.
+ * Bản đầu đặt 270s vì nhầm điều đó, và đã trả giá - đo được một bước
+ * `save_artifact` viết file `.tex` hết **261 giây**, gần trọn ngân sách, nên cả
+ * lượt chạy hỏng dù CV đã soạn xong.
+ *
+ * Trần thật là hạn của pg-boss (mặc định 15 phút). Giữ dưới 10 phút để cùng một
+ * mô hình với `STUCK_AFTER_MS` của reconcile.
  */
-const DEFAULT_AGENT_TIMEOUT_MS = 270_000;
+const DEFAULT_AGENT_TIMEOUT_MS = 540_000;
 
 type StreamTextResult = ReturnType<typeof streamText>;
 

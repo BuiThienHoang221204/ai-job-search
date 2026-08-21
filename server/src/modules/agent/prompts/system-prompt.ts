@@ -15,6 +15,14 @@ const guardrails = (maxSteps: number): string[] => [
   'Không bịa tên người, số điện thoại, con số kết quả hay tên công ty.',
   'Viết tiếng Việt có dấu.',
   `Bạn có tối đa ${maxSteps} bước. Dùng tool có mục đích, đừng gọi lại một tool với cùng tham số.`,
+  /*
+   * Hai dòng dưới đây sinh ra từ một lượt chạy thật: agent đọc
+   * `03-writing-style.md` hai lần, lưu file hai lượt trước khi nhờ phản biện, và
+   * dùng hết 11/12 bước. Một lượt khác hết giờ vì MỘT bước `save_artifact` viết
+   * file .tex mất 261 giây.
+   */
+  'Đã đọc file nào rồi thì nội dung đó nằm sẵn trong hội thoại - ĐỪNG đọc lại.',
+  'Soạn xong một tài liệu thì lưu MỘT lần, đừng lưu bản nháp rồi lưu lại bản sửa ở bước sau.',
 ];
 
 /**

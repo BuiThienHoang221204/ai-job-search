@@ -110,7 +110,7 @@ const configuration = () => ({
      * vào cùng hạn mức với agent chính.
      */
     reviewerMaxSteps: parseInt(process.env.AGENT_REVIEWER_MAX_STEPS ?? '6', 10),
-    timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS ?? '270000', 10),
+    timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS ?? '540000', 10),
     /** Trần byte cho một lần `fetch_url`. Trang tuyển dụng thật xa mức này. */
     fetchMaxBytes: parseInt(process.env.AGENT_FETCH_MAX_BYTES ?? '2000000', 10),
     fetchTimeoutMs: parseInt(process.env.AGENT_FETCH_TIMEOUT_MS ?? '20000', 10),
