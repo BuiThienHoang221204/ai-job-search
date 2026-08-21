@@ -186,7 +186,9 @@ export class AgentRunnerService {
       }),
       this.prisma.agentRun.update({
         where: { id: runId },
-        data: { messages: step.messages },
+        data: {
+          messages: step.messages as unknown as Prisma.InputJsonValue,
+        },
       }),
     ]);
   }
