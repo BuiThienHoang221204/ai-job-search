@@ -112,6 +112,10 @@ function build(options?: {
         model: { id: modelId ?? 'model-mac-dinh', name: modelId ?? 'mặc định' },
         baseURL: 'https://gateway.test/v1',
         apiKey: 'public',
+        // `languageModel` đọc `headers['User-Agent']`. Thiếu khoá này thì cả
+        // suite đỏ với `Cannot read properties of undefined`, và bản thật của
+        // `ModelCatalogService` luôn trả về ít nhất `{}`.
+        headers: {},
       }),
   } as unknown as ModelCatalogService;
 
