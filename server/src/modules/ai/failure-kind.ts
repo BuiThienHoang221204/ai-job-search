@@ -101,6 +101,32 @@ export function isRateLimited(input: unknown): boolean {
   );
 }
 
+/**
+ * Lõi đang ỐM, chứ không phải request của ta sai.
+ *
+ * Đo ngày 2026-08-22 trên `agent.reviewer`: gateway trả 500 hai lần liên tiếp,
+ * mỗi lần ~48 giây, trong khi đúng model đó với đúng tool đó chạy xong trong 51
+ * giây ở lượt trước. Payload chỉ 8,4KB, xa mức trần - không có gì để sửa ở phía
+ * ta, chỉ có một máy chủ đang quá tải.
+ *
+ * Tách khỏi `classifyFailure` vì hai câu hỏi khác nhau: mọi `AI_APICallError`
+ * đều là `UPSTREAM` khi ghi nhật ký, nhưng chỉ 5xx mới đáng đổi sang model
+ * khác. Một request 400 thì model nào cũng từ chối, và chạy hết chuỗi dự phòng
+ * chỉ là nhân số lần chờ lên sáu.
+ */
+export function isTransientUpstream(input: unknown): boolean {
+  const error = unwrap(input);
+  const status = (error as { statusCode?: unknown })?.statusCode;
+
+  // Có mã trạng thái thì tin mã, đừng dò chữ nữa: 400 kèm câu "internal server
+  // error" trong thân phản hồi vẫn là lỗi của request, không phải của lõi.
+  if (typeof status === 'number') return status >= 500;
+
+  return /internal server error|bad gateway|service unavailable|overloaded/i.test(
+    messageOf(error),
+  );
+}
+
 /** Gateway có chấp nhận `response_format` kèm JSON schema hay không. */
 export function isResponseFormatUnsupported(input: unknown): boolean {
   return /response_format[^.]{0,40}(unavailable|not supported|unsupported)|unsupported.{0,20}response_format/i.test(

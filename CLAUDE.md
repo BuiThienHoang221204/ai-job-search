@@ -208,7 +208,9 @@ Gateway **không có model embedding nào**, nên vector search ở Pha 4 sẽ c
 
 Chuỗi dự phòng đi xuyên lõi qua chuỗi `lõi/model`, tách ở dấu `/` **đầu tiên** (91/91 model id của OpenCode không có `/`, 351/351 của OpenRouter thì có — nên không nhập nhằng). Không có tiền tố hợp lệ thì cả chuỗi là model id của lõi mặc định, nhờ vậy `.env` cũ vẫn chạy.
 
-**Chuỗi đi tiếp trong đúng hai trường hợp**: hết hạn mức, hoặc `ModelUnavailableError` (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là hỏng schema). Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
+**Chuỗi đi tiếp trong đúng bốn trường hợp**: hết hạn mức, `ModelUnavailableError` (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là hỏng schema), gateway đã rút model (`isModelRetired`), hoặc **lõi trả 5xx** (`isTransientUpstream`). Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
+
+**Nhánh 5xx có thêm một phanh: chỉ đổi mắt xích khi lượt hỏng CHƯA đi được bước agent nào.** `runTools` chạy lại là chạy lại từ bước 0, nên bỏ mắt xích ở bước thứ chín là trả tiền lần hai cho chín bước đã xong — mà nhánh `FAILED` của `AgentRunnerService` lại không lưu `messages` nên cũng không có đường chạy tiếp. Lý do nhánh này tồn tại nằm ở một lượt hỏng thật ngày 2026-08-22: `agent.reviewer` nhận HTTP 500 hai lần liên tiếp (96 giây, payload chỉ 8,4KB) và cả tác vụ hỏng, trong khi **không một model dự phòng nào được thử** vì 5xx không nằm trong danh sách lý do đổi mắt xích.
 
 **Hai ràng buộc về tiền:** `resolve()` **không bao giờ tự thay model khác** (bản cũ lấy `models[0]`; OpenRouter có 413 model gồm loại đắt, và hàng đợi chấm điểm chạy theo cron), và `AI_ALLOW_PAID_MODELS` mặc định `false` với model **không khai giá bị coi là trả tiền**.
 

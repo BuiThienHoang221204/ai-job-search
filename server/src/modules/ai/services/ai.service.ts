@@ -20,6 +20,7 @@ import {
   isModelRetired,
   isRateLimited,
   isResponseFormatUnsupported,
+  isTransientUpstream,
   schemaIssues,
   truncateError,
   type FailureKind,
@@ -163,6 +164,19 @@ export type RunToolsResult = {
 /** Mặt tiếp xúc mà các module khác dùng để gọi model. */
 export type Ai = Pick<AiService, 'generateObject' | 'runTools'>;
 
+/**
+ * Mắt xích đang thử đã tốn bước agent nào chưa.
+ *
+ * Đây là phanh cho một cái giá không thấy được từ `overChain`: đổi model nghĩa
+ * là gọi lại `attempt` từ đầu, mà `runTools` chạy lại là chạy lại TỪ BƯỚC 0.
+ * Bỏ mắt xích sau bước thứ chín là trả tiền lần hai cho chín bước đã xong, và
+ * nhánh FAILED của `AgentRunnerService` không lưu `messages` nên cũng không có
+ * đường chạy tiếp. Một lượt CHƯA đi được bước nào thì không mất gì cả.
+ *
+ * `generateObject` là một lượt hỏi-đáp, không bao giờ chạm vào cờ này.
+ */
+type ChainProgress = { spent: boolean };
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -298,12 +312,12 @@ export class AiService {
   /**
    * Sinh dữ liệu có cấu trúc theo schema Zod.
    *
-   * Chuỗi đi tiếp trong đúng HAI trường hợp, và cả hai đều là "mắt xích này
-   * không dùng được" chứ không phải "tác vụ này hỏng": hết hạn mức, hoặc model
-   * không khả dụng (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là
-   * không giữ nổi structured output). Mọi lỗi khác ném ra ngay — đặc biệt là lỗi
-   * schema, vì đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model
-   * này quá yếu cho tác vụ".
+   * Chuỗi đi tiếp trong đúng BA trường hợp, và cả ba đều là "mắt xích này không
+   * dùng được" chứ không phải "tác vụ này hỏng": hết hạn mức, model không khả
+   * dụng (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là không giữ
+   * nổi structured output), hoặc lõi trả 5xx. Mọi lỗi khác ném ra ngay — đặc
+   * biệt là lỗi schema, vì đổi model khi model trả sai định dạng sẽ giấu mất tín
+   * hiệu "model này quá yếu cho tác vụ".
    */
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
@@ -321,25 +335,33 @@ export class AiService {
    */
   private async overChain<T>(
     requested: string | undefined,
-    attempt: (modelId: string | undefined) => Promise<T>,
+    attempt: (
+      modelId: string | undefined,
+      progress: ChainProgress,
+    ) => Promise<T>,
   ): Promise<T> {
     const chain = this.modelChain(requested);
     let lastSkipped: unknown;
 
     for (const [index, modelId] of chain.entries()) {
+      const progress: ChainProgress = { spent: false };
       try {
-        return await attempt(modelId);
+        return await attempt(modelId, progress);
       } catch (error) {
         const unavailable = error instanceof ModelUnavailableError;
         const retired = isModelRetired(error);
-        if (!unavailable && !isRateLimited(error) && !retired) throw error;
+        const limited = isRateLimited(error);
+        const sick = isTransientUpstream(error) && !progress.spent;
+        if (!unavailable && !limited && !retired && !sick) throw error;
 
         lastSkipped = error;
         const reason = unavailable
           ? error.message
           : retired
             ? 'gateway đã rút model này'
-            : 'hết hạn mức';
+            : limited
+              ? 'hết hạn mức'
+              : 'lõi trả 5xx';
         const next = chain[index + 1];
         this.logger.warn(
           next
@@ -361,17 +383,19 @@ export class AiService {
    * vậy mọi trần đều là bắt buộc chứ không phải tuỳ chọn - trần bước, hạn thời
    * gian cho cả vòng, và tool nào được cấp thì do NƠI GỌI quyết định.
    *
-   * Dùng lại đúng chuỗi dự phòng của `generateObject`: hết hạn mức hay model bị
-   * rút thì đổi mắt xích, lỗi khác thì ném ra ngay.
+   * Dùng lại đúng chuỗi dự phòng của `generateObject`: hết hạn mức, model bị
+   * rút, hay lõi trả 5xx lúc chưa đi được bước nào thì đổi mắt xích; lỗi khác
+   * thì ném ra ngay.
    */
   async runTools(options: RunToolsOptions): Promise<RunToolsResult> {
-    return this.overChain(options.modelId, (modelId) =>
-      this.attemptTools({ ...options, modelId }),
+    return this.overChain(options.modelId, (modelId, progress) =>
+      this.attemptTools({ ...options, modelId }, progress),
     );
   }
 
   private async attemptTools(
     options: RunToolsOptions,
+    progress: ChainProgress,
   ): Promise<RunToolsResult> {
     const { model, id, provider, ref } = await this.languageModel(
       options.modelId,
@@ -438,6 +462,7 @@ export class AiService {
           };
           stepStartedAt = Date.now();
           steps.push(log);
+          progress.spent = true;
           // Ghi tiến trình là việc PHỤ: nó hỏng thì vòng lặp vẫn phải chạy tiếp,
           // nếu không một lỗi ghi DB sẽ giết cả lượt chạy đã tốn tiền.
           void options.onStep?.(log).catch((error: unknown) => {

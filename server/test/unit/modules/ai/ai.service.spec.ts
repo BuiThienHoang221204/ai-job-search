@@ -28,8 +28,30 @@ type GenerateObjectArgs = {
 /// đó `mock.calls[i][0]` là `any` — eslint đỏ, còn kiểm tra kiểu thì mất.
 const generateObjectMock = jest.fn<Promise<unknown>, [GenerateObjectArgs]>();
 
+/// Một bước của vòng lặp agent, đúng những trường mà `attemptTools` đọc tới.
+type AgentStep = {
+  text: string;
+  toolCalls: unknown[];
+  toolResults: unknown[];
+  response: { messages: unknown[] };
+};
+
+type GenerateTextArgs = {
+  model: { id: string };
+  maxRetries: number;
+  onStepFinish?: (step: AgentStep) => void;
+};
+
+const generateTextMock = jest.fn<Promise<unknown>, [GenerateTextArgs]>();
+
 jest.mock('ai', () => ({
   generateObject: (args: GenerateObjectArgs) => generateObjectMock(args),
+  generateText: (args: GenerateTextArgs) => generateTextMock(args),
+  /// Hai hàm này chỉ dựng điều kiện dừng rồi đưa thẳng cho SDK, nên trả về gì
+  /// cũng được — miễn là CÓ, vì thiếu export thì `stepCountIs(...)` ném TypeError
+  /// trước khi chạm tới nhánh đang kiểm.
+  stepCountIs: () => 'stop-when',
+  hasToolCall: () => 'stop-on-tool',
   streamText: jest.fn(),
   NoObjectGeneratedError: actualAi.NoObjectGeneratedError,
 }));
@@ -137,6 +159,7 @@ const argsOf = (index: number): GenerateObjectArgs =>
 
 beforeEach(() => {
   generateObjectMock.mockReset();
+  generateTextMock.mockReset();
   providerCalls.length = 0;
 });
 
@@ -239,6 +262,111 @@ describe('AiService.generateObject - chuỗi dự phòng khi hết hạn mức',
       ['b-free', true],
     ]);
     expect(recorded[0].failureKind).toBe('UPSTREAM');
+  });
+});
+
+describe('AiService - lõi trả 5xx', () => {
+  /*
+   * Nhánh này sinh ra từ một lượt hỏng thật ngày 2026-08-22: `agent.reviewer`
+   * nhận 500 hai lần liên tiếp và cả tác vụ hỏng, trong khi năm model dự phòng
+   * KHÔNG cái nào được thử — vì 5xx không nằm trong danh sách lý do đổi mắt
+   * xích. Nghịch lý là 5xx mới là loại hỏng nhất thời nhất trong cả nhóm.
+   */
+  const serverError = () =>
+    Object.assign(
+      new Error(
+        'Failed after 2 attempts. Last error: AI_APICallError: Internal server error',
+      ),
+      {
+        name: 'AI_RetryError',
+        lastError: Object.assign(new Error('Internal server error'), {
+          name: 'AI_APICallError',
+          statusCode: 500,
+        }),
+      },
+    );
+
+  const runToolsCall = (modelId?: string) => ({
+    system: 'Bạn là nhà tuyển dụng.',
+    prompt: 'Đọc bản nháp này.',
+    tools: {},
+    context: { purpose: 'agent.reviewer', userId: 'u1' },
+    modelId,
+  });
+
+  const finished = {
+    text: 'Hồ sơ này yếu ở phần số liệu.',
+    finishReason: 'stop',
+    usage: {},
+    response: { messages: [] },
+  };
+
+  const oneStep: AgentStep = {
+    text: 'đã đọc hồ sơ',
+    toolCalls: [],
+    toolResults: [],
+    response: { messages: [] },
+  };
+
+  test('generateObject: 500 thì ĐỔI MODEL', () => {
+    generateObjectMock
+      .mockRejectedValueOnce(serverError())
+      .mockResolvedValueOnce({ object: { diem: 8 }, usage: {} });
+
+    const { service } = build({ fallbackModelIds: ['b-free'] });
+
+    return service.generateObject(call('a-free')).then((result) => {
+      expect(result).toEqual({ object: { diem: 8 }, modelId: 'b-free' });
+    });
+  });
+
+  test('runTools: 500 khi CHƯA đi bước nào thì đổi model', async () => {
+    generateTextMock
+      .mockRejectedValueOnce(serverError())
+      .mockResolvedValueOnce(finished);
+
+    const { service, recorded } = build({ fallbackModelIds: ['b-free'] });
+
+    const result = await service.runTools(runToolsCall('a-free'));
+
+    expect(result.modelId).toBe('b-free');
+    expect(generateTextMock).toHaveBeenCalledTimes(2);
+    // Cả hai lượt phải nằm trong nhật ký, nếu không màn Admin không cho biết
+    // model nào đang ốm.
+    expect(recorded.map((row) => [row.modelId, row.ok])).toEqual([
+      ['a-free', false],
+      ['b-free', true],
+    ]);
+    expect(recorded[0].failureKind).toBe('UPSTREAM');
+  });
+
+  test('runTools: 500 SAU khi đã đi được một bước thì ném NGAY', async () => {
+    /*
+     * Phanh chi phí. Đổi model nghĩa là chạy lại vòng lặp TỪ BƯỚC 0, nên bỏ mắt
+     * xích ở giữa chừng là trả tiền lần hai cho mọi bước đã xong — và một bước
+     * agent có thể là một lượt soạn CV kéo dài vài phút.
+     */
+    const loi = serverError();
+    generateTextMock.mockImplementationOnce((args) => {
+      args.onStepFinish?.(oneStep);
+      return Promise.reject(loi);
+    });
+
+    const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
+
+    await expect(service.runTools(runToolsCall('a-free'))).rejects.toBe(loi);
+    expect(generateTextMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('runTools: lỗi KHÔNG phải 5xx vẫn ném ngay như cũ', async () => {
+    // 400 thì model nào cũng từ chối; chạy hết chuỗi chỉ nhân số lần chờ lên.
+    const loi = Object.assign(new Error('bad request'), { statusCode: 400 });
+    generateTextMock.mockRejectedValue(loi);
+
+    const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
+
+    await expect(service.runTools(runToolsCall('a-free'))).rejects.toBe(loi);
+    expect(generateTextMock).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -2,6 +2,7 @@ import {
   classifyFailure,
   isModelRetired,
   isRateLimited,
+  isTransientUpstream,
   schemaIssues,
   truncateError,
 } from 'src/modules/ai/failure-kind.js';
@@ -205,6 +206,73 @@ describe('isRateLimited', () => {
     expect(isRateLimited(new Error('Model xyz is not supported'))).toBe(false);
     expect(isRateLimited(undefined)).toBe(false);
     expect(isRateLimited('chuoi la')).toBe(false);
+  });
+});
+
+describe('isTransientUpstream', () => {
+  test('nhận dạng nguyên văn lượt hỏng ngày 2026-08-22 của agent.reviewer', () => {
+    // Hình dạng thật: RetryError bọc APICallError mang mã 500.
+    const wrapper = Object.assign(
+      new Error(
+        'Failed after 2 attempts. Last error: AI_APICallError: Internal server error',
+      ),
+      {
+        name: 'AI_RetryError',
+        lastError: Object.assign(new Error('Internal server error'), {
+          name: 'AI_APICallError',
+          statusCode: 500,
+        }),
+      },
+    );
+    expect(isTransientUpstream(wrapper)).toBe(true);
+  });
+
+  test('không có mã trạng thái thì dò chữ', () => {
+    // Không phải lõi nào cũng để lộ `statusCode` sau khi SDK bọc lỗi lại.
+    expect(isTransientUpstream(new Error('Bad gateway'))).toBe(true);
+    expect(isTransientUpstream(new Error('Service Unavailable'))).toBe(true);
+    expect(isTransientUpstream(new Error('Model is overloaded'))).toBe(true);
+  });
+
+  test('mã trạng thái ĐÈ chữ trong thông báo', () => {
+    /*
+     * Một request sai mà thân phản hồi có nhắc "internal server error" vẫn là
+     * lỗi của ta. Đổi model không cứu được gì, chỉ nhân số lần chờ lên sáu.
+     */
+    const error = Object.assign(
+      new Error('bad request: internal server error'),
+      {
+        statusCode: 400,
+      },
+    );
+    expect(isTransientUpstream(error)).toBe(false);
+  });
+
+  test('KHÔNG nhầm các loại hỏng khác thành lõi ốm', () => {
+    // 429 có đường xử lý riêng và nhãn log riêng ("hết hạn mức").
+    expect(
+      isTransientUpstream(
+        Object.assign(new Error('Rate limit exceeded'), { statusCode: 429 }),
+      ),
+    ).toBe(false);
+    expect(isTransientUpstream(new Error('did not match schema'))).toBe(false);
+    expect(
+      isTransientUpstream(
+        new Error('The operation was aborted due to timeout'),
+      ),
+    ).toBe(false);
+    expect(isTransientUpstream(undefined)).toBe(false);
+    expect(isTransientUpstream('chuoi la')).toBe(false);
+  });
+
+  test('lõi ốm vẫn được ghi nhật ký là UPSTREAM', () => {
+    // Hai hàm đọc cùng một lỗi thì không được bất đồng, xem describe dưới đây.
+    const error = Object.assign(new Error('Internal server error'), {
+      name: 'AI_APICallError',
+      statusCode: 500,
+    });
+    expect(isTransientUpstream(error)).toBe(true);
+    expect(classifyFailure(error)).toBe('UPSTREAM');
   });
 });
 
