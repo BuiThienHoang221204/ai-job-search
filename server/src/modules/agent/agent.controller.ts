@@ -1,11 +1,14 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
 import { AgentService } from './agent.service.js';
-import { AnswerAgentDto, StartAgentDto } from './dto/agent.dto.js';
+import {
+  AnswerAgentDto,
+  ListAgentRunsDto,
+  StartAgentDto,
+} from './dto/agent.dto.js';
 
 @Controller('agent-runs')
 export class AgentController {
@@ -15,7 +18,7 @@ export class AgentController {
   ) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
+  list(@CurrentUser() user: AuthUser, @Query() query: ListAgentRunsDto) {
     return this.agent.list(user.id, query);
   }
 

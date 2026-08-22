@@ -4,12 +4,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { AgentRun } from '../../generated/prisma/client.js';
+import type { AgentRun, Prisma } from '../../generated/prisma/client.js';
 import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { STUCK_AFTER_MS } from '../reconcile/services/reconcile.service.js';
 import { CommandRegistryService } from './command-registry.service.js';
+import { ASK_USER_TOOL } from './tools/ask-user.tool.js';
+
+/** Bộ lọc của đường đọc danh sách. Rỗng thì trả về mọi lượt chạy của người dùng. */
+export type ListAgentRunsQuery = PaginationQueryDto & {
+  jobId?: string;
+  workflow?: string;
+};
 
 export type StartAgentInput = {
   workflow: string;
@@ -99,9 +106,48 @@ export class AgentService {
       );
     }
 
+    await this.recordAnswerOnStep(runId, text);
+
     return this.prisma.agentRun.update({
       where: { id: runId },
       data: { answer: text, status: 'PENDING', question: run.question },
+    });
+  }
+
+  /**
+   * Ghi câu trả lời vào chính bước đã hỏi, chứ không chỉ vào `AgentRun.answer`.
+   *
+   * `answer` giữ ĐÚNG MỘT câu - lượt sau ghi đè lượt trước. Với `/apply` thì đủ
+   * (agent hỏi một lần), nhưng một buổi luyện phỏng vấn hỏi cả chục lần và giá
+   * trị của nó nằm ở chỗ đọc lại được cả buổi. Không lưu thì tải lại trang là
+   * mất sạch phần người dùng đã nói.
+   *
+   * Chỗ lưu là `toolResults` của bước `ask_user`, không phải một bảng mới hay
+   * một bước mới: câu trả lời CHÍNH LÀ kết quả của lời gọi tool đó, chỉ là nó
+   * về muộn vài phút. `messages` không dùng được cho việc này - đó là trạng thái
+   * máy, cố ý không trộn với nhật ký cho người đọc.
+   */
+  private async recordAnswerOnStep(runId: string, text: string): Promise<void> {
+    const step = await this.prisma.agentStep.findFirst({
+      where: { runId },
+      orderBy: { index: 'desc' },
+      select: { id: true, toolResults: true },
+    });
+
+    if (!step || !Array.isArray(step.toolResults)) return;
+
+    const results = step.toolResults as Array<{
+      tool?: string;
+      output?: Record<string, unknown>;
+    }>;
+    const asked = results.find((result) => result?.tool === ASK_USER_TOOL);
+    if (!asked) return;
+
+    asked.output = { ...(asked.output ?? {}), answer: text };
+
+    await this.prisma.agentStep.update({
+      where: { id: step.id },
+      data: { toolResults: results as Prisma.InputJsonValue },
     });
   }
 
@@ -184,8 +230,12 @@ export class AgentService {
     return run;
   }
 
-  async list(userId: string, query: PaginationQueryDto) {
-    const where = { userId };
+  async list(userId: string, query: ListAgentRunsQuery) {
+    const where = {
+      userId,
+      ...(query.jobId ? { jobId: query.jobId } : {}),
+      ...(query.workflow ? { workflow: query.workflow } : {}),
+    };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.agentRun.findMany({
@@ -201,6 +251,14 @@ export class AgentService {
           error: true,
           createdAt: true,
           finishedAt: true,
+          /*
+           * Kèm tên vị trí, không chỉ `jobId`: danh sách buổi luyện phải đọc
+           * được bằng mắt ("Backend Engineer - Nexa Software"), mà bắt giao diện
+           * gọi thêm một request cho mỗi dòng là N+1 ngay trên đường đọc.
+           * `job` có thể null - tin tuyển dụng bị dọn đi thì buổi luyện vẫn còn.
+           */
+          jobId: true,
+          job: { select: { title: true, company: true } },
           _count: { select: { steps: true } },
         },
       }),

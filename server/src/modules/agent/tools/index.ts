@@ -5,7 +5,7 @@ import type {
   ToolContext,
   ToolDeps,
 } from '../agent.types.js';
-import { askUserTool } from './ask-user.tool.js';
+import { ASK_USER_TOOL, askUserTool } from './ask-user.tool.js';
 import { compilePdfTool } from './compile-pdf.tool.js';
 import { fetchUrlTool } from './fetch-url.tool.js';
 import { readProfileTool } from './read-profile.tool.js';
@@ -46,7 +46,7 @@ export function buildToolSet(
     save_artifact: saveArtifactTool(deps, context, artifacts),
     spawn_reviewer: spawnReviewerTool(deps, context),
     compile_pdf: compilePdfTool(deps, context),
-    ask_user: askUserTool(),
+    [ASK_USER_TOOL]: askUserTool(),
   };
 
   // Không có key thì KHÔNG đăng ký: agent thấy tool vắng mặt và tự xoay xở, còn

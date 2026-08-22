@@ -35,7 +35,7 @@ FROM texlive/texlive:latest-medium
 # do agent sinh đã khai `\usepackage{import}` và bước tự kiểm hỏng với
 # `! LaTeX Error: File 'import.sty' not found.` Vài trăm KB để không mất một
 # bước compile vì một dòng model viết thêm theo thói quen.
-RUN tlmgr install moderncv tex-gyre fontawesome6 fontawesome5 import || true
+RUN tlmgr install moderncv tex-gyre fontawesome6 fontawesome5 needspace import || true
 
 # Chạy bằng người dùng không phải root. Compile là nơi nội dung do người ngoài kiểm
 # soát được xử lý, nên nó không được có quyền root ngay cả trong container.
@@ -54,14 +54,24 @@ WORKDIR /home/latex
 # chỉ 2,7–3,3 giây. Không hâm thì 24,5 giây đó rơi vào đúng người dùng đầu tiên sau
 # mỗi lần deploy.
 #
-# Tài liệu hâm phải dùng CÙNG document class và font với thật, nếu không nó dựng cache
-# cho font khác và chẳng giúp gì. Chữ tiếng Việt trong đó là có chủ đích: nó buộc cache
-# phủ luôn các glyph có dấu.
+# Tài liệu hâm phải dùng CÙNG document class, CÙNG bộ gói và CÙNG font với template
+# thật - xem `renderCv` trong `documents/latex.ts`. Không thì nó dựng cache cho font
+# khác, và tệ hơn: nó không phát hiện được gói thiếu.
+#
+# Đã trả giá hai lần vì điều đó. `fontawesome6` và `needspace` đều chỉ lộ ra khi có
+# người bấm tải PDF, mà `needspace` thì nằm ngay trong template CV của dự án - tức là
+# nút tải PDF hỏng cho MỌI người dùng chứ không riêng agent.
+#
+# Chữ tiếng Việt trong tài liệu hâm là có chủ đích: nó buộc cache phủ luôn glyph có dấu.
 RUN set -eu; \
     cd /tmp; \
     printf '%s\n' \
       '\documentclass[11pt,a4paper,sans]{moderncv}' \
       '\moderncvstyle{banking}' \
+      '\usepackage[utf8]{inputenc}' \
+      '\usepackage[scale=0.82]{geometry}' \
+      '\usepackage{needspace}' \
+      '\usepackage{hyperref}' \
       '\moderncvcolor{blue}' \
       '\name{Hâm}{Cache}' \
       '\begin{document}\makecvtitle' \

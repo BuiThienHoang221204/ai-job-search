@@ -1,4 +1,5 @@
 import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 
 export class StartAgentDto {
   /** Tên kịch bản trong `.claude/commands/`, ví dụ "apply". */
@@ -27,6 +28,23 @@ export class StartAgentDto {
   @IsString()
   @MaxLength(2000, { message: 'Ghi chú quá dài' })
   note?: string;
+}
+
+/**
+ * Lọc danh sách lượt chạy. Màn Phỏng vấn thử dùng nó để tìm lại buổi đang dở
+ * của đúng công việc này sau khi người dùng tải lại trang - một buổi luyện kéo
+ * dài hàng chục phút, mất nó vì một lần F5 là mất cả buổi.
+ */
+export class ListAgentRunsDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 40, { message: 'Mã công việc không hợp lệ' })
+  jobId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 60, { message: 'Tên kịch bản không hợp lệ' })
+  workflow?: string;
 }
 
 export class AnswerAgentDto {

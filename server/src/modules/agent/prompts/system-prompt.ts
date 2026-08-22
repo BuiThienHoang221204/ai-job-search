@@ -27,6 +27,15 @@ const guardrails = (maxSteps: number): string[] => [
 
 /** Đúng cho MỌI kịch bản: những tool có và không có ở runtime này. */
 const commonNotes: string[] = [
+  /*
+   * Đứng ĐẦU danh sách vì nó là lỗi tốn nhất, và đã xảy ra ở CẢ HAI kịch bản.
+   *
+   * `/interview` viết câu hỏi phỏng vấn ra văn bản; `/apply` gặp TopCV chặn rồi
+   * viết "bạn hãy paste nội dung vào đây" cũng dạng văn bản. Cả hai lượt kết
+   * thúc `stop`, trạng thái DONE, và người dùng không có ô nào để trả lời - nhìn
+   * vào thì tưởng thành công, thực ra chết ở giữa đường.
+   */
+  'MỌI câu hỏi dành cho người dùng PHẢI đi qua tool `ask_user`. Viết câu hỏi ra văn bản thường là kết thúc lượt chạy: người dùng sẽ KHÔNG có chỗ nào để trả lời.',
   'Không có Bash, không có Read/Write file tuỳ ý. Chỉ dùng đúng những tool được cấp.',
   'Hồ sơ ứng viên lấy bằng `read_profile`, KHÔNG phải đọc file 01-candidate-profile.md. Đã gọi `read_profile` rồi thì cũng đừng đọc file đó qua `read_skill_reference` - hai thứ đó là một.',
   'Khung đặc tả trong `.claude/skills/` đọc bằng `read_skill_reference`.',
@@ -73,13 +82,20 @@ const workflowNotes: Record<string, string[]> = {
    *    và 12 giây cho đúng dữ liệu đã có trong hội thoại.
    * 6. Chèn chữ Hán vào giữa câu tiếng Việt ("📱模拟 Phỏng vấn điện thoại").
    *    Kiểu hỏng này của model free đã ghi trong CLAUDE.md, mục "Đo trước khi đoán".
+   * 7. **Step 3 soạn bộ đề là lời gọi ĐẮT NHẤT của cả buổi.** Số từ `ai_calls`:
+   *    ba lượt viết bộ đề mất 60,5s / 65,1s / 84,9s với 3.564-5.522 token đầu
+   *    ra, trong khi một lượt hỏi-đáp bình thường chỉ 7-17s với 323-568 token.
+   *    Tệ hơn phần chờ: nội dung bộ đề đi vào `messages` rồi được gửi LẠI ở mọi
+   *    lượt sau - `inputTokens` leo 11k → 19k → 26k → 79k trong cùng một buổi.
+   *    Bộ đề đã có đường sinh riêng ở module `interview`, nên buổi luyện không
+   *    có lý do gì viết lại nó.
    */
   interview: [
-    'MỌI câu hỏi dành cho người dùng - kể cả câu hỏi phỏng vấn - PHẢI đi qua tool `ask_user`. Viết câu hỏi ra văn bản thường là kết thúc lượt chạy: người dùng sẽ KHÔNG có chỗ nào để trả lời và cả buổi luyện hỏng.',
+    'Luật `ask_user` ở trên áp cho CẢ câu hỏi phỏng vấn: hỏi bằng văn bản thường là cả buổi luyện chết ngay ở câu đầu.',
     'KHÔNG có `job_search_tracker.csv`, KHÔNG có thư mục `documents/applications/`. Bỏ hẳn Step 0 và Step 1.1-1.2: mọi thứ hai bước đó đi tìm đã nằm trong khối BỐI CẢNH ĐƠN ỨNG TUYỂN ở đầu hội thoại.',
     'Step 1.4 chỉ đọc `07-interview-prep.md` và `02-behavioral-profile.md`. ĐỪNG đọc `01-candidate-profile.md` - `read_profile` đã trả về đúng nội dung đó.',
     'CV và thư đã nộp nếu có thì đã được liệt kê trong khối bối cảnh. ĐỪNG bảo người dùng dán nội dung vào.',
-    'Khối bối cảnh nói rõ bộ đề chuẩn bị đã có sẵn hay chưa. Có rồi thì bỏ Step 3, đi thẳng tới Step 4.',
+    'BỎ HẲN Step 3. Không soạn và không lưu bộ đề chuẩn bị - việc đó thuộc màn Chuẩn bị phỏng vấn riêng, có đường chạy của nó. Đọc xong bối cảnh thì đi thẳng tới Step 4.',
     'Step 2 (nghiên cứu công ty): tối đa HAI lần gọi `web_search`/`fetch_url` rồi đi tiếp, tìm được gì dùng nấy.',
     'Mỗi lần gọi `ask_user` chỉ hỏi ĐÚNG MỘT câu: một dấu hỏi, không có "và", không đánh số. Cần ba thông tin thì hỏi ba lượt.',
     'Step 4 KHÔNG phải tuỳ chọn và KHÔNG cần hỏi xin phép - người dùng vào đây để luyện. Lưu bộ đề xong thì gọi ngay `ask_user` với câu hỏi phỏng vấn đầu tiên.',

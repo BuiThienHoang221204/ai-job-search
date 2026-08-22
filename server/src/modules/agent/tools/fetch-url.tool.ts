@@ -23,7 +23,22 @@ export const fetchUrlTool = (deps: ToolDeps) =>
         });
 
         if (!response.ok) {
-          return { error: `Máy chủ trả về HTTP ${response.status}` };
+          /*
+           * 403/401/429 từ portal tuyển dụng là CHẶN, không phải hỏng.
+           *
+           * Đo trên TopCV: curl vào được 200, `fetch` của Node luôn 403 dù đổi
+           * User-Agent, Accept hay Accept-Encoding - họ nhận diện theo dấu vân
+           * tay TLS, nên không header nào cứu được. Câu trả lời đúng là xin
+           * người dùng dán nội dung, và tool phải NÓI RA điều đó: một lượt chạy
+           * thật đã kết thúc bằng câu "bạn hãy paste nội dung vào đây" viết
+           * dạng văn bản thường, nên người dùng không có ô nào để trả lời.
+           */
+          const blocked = [401, 403, 429].includes(response.status);
+          return {
+            error: blocked
+              ? `Trang này chặn truy cập từ máy chủ (HTTP ${response.status}). Đừng thử lại URL đó. Hãy gọi tool \`ask_user\` để xin người dùng dán nội dung tin tuyển dụng.`
+              : `Máy chủ trả về HTTP ${response.status}`,
+          };
         }
 
         const raw = await response.text();

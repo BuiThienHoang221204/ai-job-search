@@ -4,6 +4,7 @@ import type { AgentRun, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService, type AgentStepLog } from '../ai/services/ai.service.js';
 import { AgentContextService } from './agent-context.service.js';
+import { ASK_USER_TOOL } from './tools/ask-user.tool.js';
 import { AgentToolsService } from './agent-tools.service.js';
 import type { AgentInput, ArtifactRecord } from './agent.types.js';
 import { CommandRegistryService } from './command-registry.service.js';
@@ -11,10 +12,6 @@ import {
   buildOpeningPrompt,
   buildSystemPrompt,
 } from './prompts/system-prompt.js';
-
-/** Tool mà agent gọi khi nó muốn dừng lại hỏi người dùng. */
-const ASK_USER = 'ask_user';
-
 /**
  * Chạy một kịch bản `.claude/commands/` từ đầu tới cuối.
  *
@@ -82,7 +79,7 @@ export class AgentRunnerService {
         system: buildSystemPrompt(command.body, limits, run.workflow),
         ...(await this.conversation(run, input)),
         tools,
-        stopOnTool: ASK_USER,
+        stopOnTool: ASK_USER_TOOL,
         context: { purpose: `agent.${run.workflow}`, userId: run.userId },
         maxSteps: limits.maxSteps,
         timeoutMs: limits.timeoutMs,
@@ -209,7 +206,7 @@ export class AgentRunnerService {
   private pendingQuestion(steps: AgentStepLog[]): string | null {
     const call = steps
       .at(-1)
-      ?.toolCalls.find((entry) => entry.tool === ASK_USER);
+      ?.toolCalls.find((entry) => entry.tool === ASK_USER_TOOL);
     if (!call) return null;
 
     const input = call.input as { question?: unknown };
