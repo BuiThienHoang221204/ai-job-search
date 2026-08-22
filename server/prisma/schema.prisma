@@ -194,6 +194,7 @@ model Job {
   interviewPreps InterviewPrep[]
   documents      Document[]
   applications   Application[]
+  agentRuns      AgentRun[]
   embedding      JobEmbedding?
   requirements   JobRequirement?
 
@@ -829,6 +830,18 @@ model AgentRun {
   workflow String
   status   AgentRunStatus @default(PENDING)
 
+  /// Công việc mà lượt chạy này nhắm tới, khi nó bắt đầu từ một tin đã lưu.
+  ///
+  /// Là CỘT chứ không phải một khoá trong `input`, khác với `jobUrl` và
+  /// `jobDescription` bên cạnh: hai thứ đó chỉ đi vào prompt rồi thôi, còn cái
+  /// này phải truy vấn ngược được - màn Phỏng vấn thử hỏi "job này đã luyện
+  /// mấy lượt rồi". Lọc theo một khoá JSON thì không có index để mà dùng.
+  ///
+  /// `SetNull` chứ không `Cascade`: dọn một tin tuyển dụng hết hạn không có lý
+  /// do gì xoá luôn buổi luyện phỏng vấn mà người dùng đã bỏ công làm.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
   /// Đầu vào người dùng đưa vào: URL tin tuyển dụng, hoặc JD dán tay.
   input Json
 
@@ -856,6 +869,7 @@ model AgentRun {
   steps AgentStep[]
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, jobId, createdAt(sort: Desc)])
   @@map("agent_runs")
 }
 
