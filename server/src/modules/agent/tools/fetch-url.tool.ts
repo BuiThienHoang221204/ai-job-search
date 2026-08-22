@@ -1,11 +1,14 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import type { ToolDeps } from '../agent.types.js';
-import { htmlToText } from '../utils/html-text.js';
+import { pageToText } from '../utils/html-text.js';
 import { fetchPage } from '../utils/http-get.js';
 
 /** Trần chữ trả về cho model sau khi bóc HTML. */
 const TEXT_LIMIT = 20_000;
+
+/** Dưới mốc này thì trang không có nội dung thật, chỉ có khung. */
+const THIN_PAGE = 800;
 
 /** Tải một trang web. Chống SSRF và lý do dùng curl nằm ở `http-get.ts`. */
 export const fetchUrlTool = (deps: ToolDeps) =>
@@ -38,10 +41,20 @@ export const fetchUrlTool = (deps: ToolDeps) =>
           };
         }
 
-        return {
-          url: page.url,
-          text: htmlToText(page.body).slice(0, TEXT_LIMIT),
-        };
+        const text = pageToText(page.body);
+        if (text.length < THIN_PAGE) {
+          /*
+           * Trang render phía trình duyệt thì HTML về gần như rỗng - đúng cái
+           * `.claude` đã ghi về trang tìm kiếm của VietnamWorks. Nói thẳng ra
+           * để model đừng đoán, vì lần trước nó đoán NHẦM theo chiều ngược lại:
+           * nội dung có đủ mà nó kết luận trang là SPA.
+           */
+          return {
+            error: `Trang này gần như không có chữ trong HTML (${text.length} ký tự), nhiều khả năng nội dung được render phía trình duyệt. Hãy gọi tool \`ask_user\` để xin người dùng dán nội dung tin tuyển dụng.`,
+          };
+        }
+
+        return { url: page.url, text: text.slice(0, TEXT_LIMIT) };
       } catch (error) {
         return {
           error: error instanceof Error ? error.message : String(error),
