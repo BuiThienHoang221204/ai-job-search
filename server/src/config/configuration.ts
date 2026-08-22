@@ -14,7 +14,15 @@ const configuration = () => ({
 
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? '',
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+
+    /**
+     * Access token đi kèm MỌI request, nên nó là thứ lộ ra nhiều nhất: log,
+     * reverse proxy, báo cáo lỗi. Giữ ngắn để một lần rò rỉ chỉ dùng được
+     * trong chốc lát. Refresh token bù lại phần tiện: nó nằm ở cookie riêng
+     * `path=/api/auth/refresh` nên chỉ đi qua mạng vài lần một ngày.
+     */
+    jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
+    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
 
   ai: {

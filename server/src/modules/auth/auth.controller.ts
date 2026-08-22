@@ -1,7 +1,21 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
-import type { Response } from 'express';
-import { AuthService } from './auth.service.js';
-import { clearAuthCookie, setAuthCookie } from './auth.cookie.js';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { AuthService, type AuthResult } from './auth.service.js';
+import {
+  REFRESH_COOKIE,
+  clearAuthCookies,
+  setAccessCookie,
+  setRefreshCookie,
+  setSessionHintCookie,
+} from './auth.cookie.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
 import { LoginDto, RegisterDto } from './auth.dto.js';
@@ -20,9 +34,7 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.auth.register(dto);
-    setAuthCookie(response, result.accessToken);
-    return result;
+    return issue(response, await this.auth.register(dto));
   }
 
   @Public()
@@ -33,9 +45,32 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.auth.login(dto);
-    setAuthCookie(response, result.accessToken);
-    return result;
+    return issue(response, await this.auth.login(dto));
+  }
+
+  /**
+   * Đổi refresh token lấy cặp token mới. `@Public()` vì access token đã hết
+   * hạn khi giao diện gọi tới đây - đó chính là lý do nó gọi.
+   *
+   * Route này KHÔNG nhận token qua body hay header: refresh token chỉ tồn tại
+   * ở cookie httpOnly, nên nhận thêm đường khác là mở lại đúng lối mà cookie
+   * httpOnly dựng lên để chặn. Bị chặn tần suất như đăng nhập vì nó cũng là
+   * một cửa thử-sai không cần đăng nhập trước.
+   */
+  @Public()
+  @ThrottleAuth()
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookies = (request as { cookies?: Record<string, unknown> }).cookies;
+    const token = cookies?.[REFRESH_COOKIE];
+    return issue(
+      response,
+      await this.auth.refresh(typeof token === 'string' ? token : undefined),
+    );
   }
 
   /**
@@ -47,7 +82,26 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   logout(@Res({ passthrough: true }) response: Response) {
-    clearAuthCookie(response);
+    clearAuthCookies(response);
+    return { ok: true };
+  }
+
+  /**
+   * Đăng xuất trên MỌI thiết bị. Khác `logout` ở chỗ nó chạm vào server:
+   * `logout` chỉ xoá cookie của đúng trình duyệt đang gọi, còn route này tăng
+   * `tokenVersion` nên mọi token đã phát chết ngay ở lượt dùng kế tiếp.
+   *
+   * Cố ý KHÔNG `@Public()`: đây là thao tác thay đổi dữ liệu, phải biết chắc
+   * ai gọi. Người dùng có token chết thì đã không còn phiên nào để đăng xuất.
+   */
+  @Post('logout-all')
+  @HttpCode(200)
+  async logoutAll(
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.auth.revokeAllSessions(user.id);
+    clearAuthCookies(response);
     return { ok: true };
   }
 
@@ -56,3 +110,15 @@ export class AuthController {
     return user;
   }
 }
+
+/**
+ * Đặt cả ba cookie rồi trả nguyên kết quả về body. Gom lại một chỗ vì ba route
+ * phát token phải đặt ĐỦ ba: thiếu cookie gợi ý phiên thì middleware của Next
+ * đá người dùng về /login, mà lỗi đó chỉ lộ ra sau 15 phút.
+ */
+const issue = (response: Response, result: AuthResult): AuthResult => {
+  setAccessCookie(response, result.accessToken);
+  setRefreshCookie(response, result.refreshToken);
+  setSessionHintCookie(response);
+  return result;
+};

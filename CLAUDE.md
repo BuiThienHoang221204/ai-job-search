@@ -44,6 +44,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 ## Quy tắc dễ vi phạm nhất
 
+- **Phiên đăng nhập chết thì phải gọi `AuthService.revokeAllSessions`.** Token là JWT stateless, nên chữ ký hợp lệ KHÔNG chứng minh token chưa bị rút lại — `users.tokenVersion` là chỗ duy nhất thu hồi được. Thêm route đổi mật khẩu hoặc khoá tài khoản mà quên gọi nó thì người đổi mật khẩu vì nghi bị lộ vẫn để kẻ kia dùng tiếp 7 ngày, và không có gì báo. Chi tiết ba cookie và claim `typ` ở `server/README.md`.
 - **Route mới phải có kiểm tra quyền sở hữu VÀ test cho chính nó.** `JwtAuthGuard` là guard toàn cục theo chiều mặc-định-đóng; mở một route bằng `@Public()`. Đừng gắn lại `@UseGuards(JwtAuthGuard)` ở controller — làm vậy khiến người đọc tưởng những controller không gắn là công khai.
 - **Truy vấn dữ liệu người dùng luôn khoá theo `userId`**, và tốt nhất để `userId` thành tham số **bắt buộc** trong chữ ký hàm service (xem `DocumentsService.generate`) để caller thêm sau không thể quên.
 - **Đường ĐỌC không bao giờ gọi AI.** Dashboard, danh sách match, chi tiết job chỉ truy vấn SQL; kết quả chấm điểm cache theo `promptHash`.

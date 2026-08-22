@@ -35,6 +35,12 @@ model User {
   role         UserRole @default(USER)
   email        String   @unique
   passwordHash String
+  /// Tăng số này để VÔ HIỆU mọi token đã phát cho người dùng. Cả access lẫn
+  /// refresh token đều mang `ver` trong payload; lệch với cột này thì bị từ
+  /// chối, nên "đăng xuất mọi thiết bị" có hiệu lực NGAY chứ không phải chờ
+  /// token hết hạn. Đây là thứ chữ ký JWT không tự làm được: token hợp lệ chỉ
+  /// chứng minh nó được ký, không chứng minh nó chưa bị rút lại.
+  tokenVersion Int      @default(0)
   name         String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

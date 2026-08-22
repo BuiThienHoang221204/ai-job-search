@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from 'src/app.module.js';
 import { configureApp } from 'src/bootstrap.js';
 import { AiService } from 'src/modules/ai/services/ai.service.js';
-import { AUTH_COOKIE } from 'src/modules/auth/auth.cookie.js';
+import { AUTH_COOKIE, REFRESH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
@@ -30,6 +30,12 @@ export type TestUser = {
   /// frontend thật đi, và nó là đường có rủi ro bảo mật cao hơn - phải có ít
   /// nhất một test đi qua nó chứ không chỉ test đường Bearer.
   cookie: string;
+  /// Refresh token thô, để test dựng được cả hai đường: cặp `aijob_refresh=...`
+  /// cho `POST /api/auth/refresh`, và một Bearer sai loại để kiểm rằng refresh
+  /// token KHÔNG gọi được API thường.
+  refreshToken: string;
+  /// Cặp `aijob_refresh=...` để gắn vào header Cookie khi gọi route refresh.
+  refreshCookie: string;
 };
 
 export type TestApp = {
@@ -136,6 +142,7 @@ export async function createTestApp(
     // còn lại của hàm không phải làm việc với any.
     const body = response.body as {
       accessToken: string;
+      refreshToken: string;
       user: { id: string };
     };
 
@@ -150,23 +157,26 @@ export async function createTestApp(
         ? [rawHeader]
         : [];
 
-    const authCookie = cookies.find((value) =>
-      value.startsWith(`${AUTH_COOKIE}=`),
-    );
-    if (!authCookie) {
-      throw new Error(
-        `Đăng ký không đặt cookie ${AUTH_COOKIE}. Nhận được: ${cookies.join(' | ')}`,
-      );
-    }
+    const pick = (name: string): string => {
+      const found = cookies.find((value) => value.startsWith(`${name}=`));
+      if (!found) {
+        throw new Error(
+          `Đăng ký không đặt cookie ${name}. Nhận được: ${cookies.join(' | ')}`,
+        );
+      }
+      // Bỏ phần thuộc tính (Path, HttpOnly...); header Cookie chỉ nhận cặp
+      // tên=giá trị.
+      return found.split(';')[0];
+    };
 
     return {
       id: body.user.id,
       email: address,
       password: TEST_PASSWORD,
       token: body.accessToken,
-      // Bỏ phần thuộc tính (Path, HttpOnly...); header Cookie chỉ nhận cặp
-      // tên=giá trị.
-      cookie: authCookie.split(';')[0],
+      cookie: pick(AUTH_COOKIE),
+      refreshToken: body.refreshToken,
+      refreshCookie: pick(REFRESH_COOKIE),
     };
   };
 

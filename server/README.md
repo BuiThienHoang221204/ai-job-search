@@ -361,16 +361,65 @@ Chiều lỗi này mới là điều đáng giá. Quên bảo vệ một route t
 biết - nó cứ chạy đúng cho tới ngày có người tìm ra. Quên mở một route thì người
 dùng nhận 401 và báo trong vòng một phút.
 
-Toàn bộ bề mặt công khai của máy chủ là ba route, tìm bằng `grep -rn "@Public()" src`:
+Toàn bộ bề mặt công khai của máy chủ là bốn route, tìm bằng `grep -rn "@Public()" src`:
 
 | Route | Vì sao công khai |
 |---|---|
 | `POST /api/auth/register` | chưa có tài khoản |
 | `POST /api/auth/login` | chưa có token |
 | `POST /api/auth/logout` | phải xoá được cookie kể cả khi token đã hết hạn, nếu không người dùng mắc kẹt với cookie chết |
+| `POST /api/auth/refresh` | access token đã hết hạn khi giao diện gọi tới - đó chính là lý do nó gọi |
 
 Đã kiểm trên máy chủ chạy thật: 12 route của 12 controller đều trả 401 khi không
-có token, ba route trên vẫn đi qua.
+có token, bốn route trên vẫn đi qua.
+
+## Access token 15 phút, refresh token 7 ngày, và ba cookie
+
+| Cookie | Sống | Path | httpOnly | Chứa gì |
+|---|---|---|---|---|
+| `aijob_token` | 15 phút | `/` | có | access token |
+| `aijob_refresh` | 7 ngày | `/api/auth/refresh` | có | refresh token |
+| `aijob_session` | 7 ngày | `/` | **không** | chuỗi `'1'`, không phải bí mật |
+
+**Vì sao tách hai token.** Access token đi kèm MỌI request nên nó lộ ra nhiều
+nhất: log, reverse proxy, báo cáo lỗi. Refresh token bị giới hạn path nên trình
+duyệt chỉ đính nó vào đúng route đổi token, vài lần một ngày. Rút ngắn cửa sổ
+rò rỉ của thứ đi qua mạng liên tục, đổi lại thêm một vòng gọi mỗi 15 phút.
+
+**Vì sao có cookie thứ ba.** `middleware.ts` của frontend gác `/dashboard` và
+`/admin` bằng cách xem cookie có tồn tại không. Nó không dùng được `aijob_token`
+(chết sau 15 phút, người đang đăng nhập hợp lệ bị đá về `/login`) lẫn
+`aijob_refresh` (giới hạn path nên không gửi tới frontend). Cookie này chỉ nói
+"có phiên hay không"; giả mạo nó đổi lấy quyền nhìn thấy khung trang rồi nhận
+401 ở mọi lời gọi dữ liệu - đúng bằng mức bảo vệ middleware vốn có, vì nó chưa
+bao giờ xác thực chữ ký JWT.
+
+**Claim `typ` phải kiểm ở CẢ HAI đầu.** Hai token ký bằng cùng một bí mật nên
+chữ ký của chúng thay thế cho nhau được. Không kiểm thì refresh token thành một
+Bearer sống 7 ngày, và access token tự gia hạn được vô thời hạn - tức là xoá
+sạch lợi ích của việc tách. `JwtStrategy` từ chối `typ !== 'access'`,
+`AuthService.refresh` từ chối `typ !== 'refresh'`.
+
+**KHÔNG xoay vòng refresh token.** Không có bảng lưu token đã phát thì việc phát
+cái mới không vô hiệu được cái cũ, nên xoay vòng chỉ tạo cảm giác an toàn mà
+không phát hiện được tái sử dụng. Hạn 7 ngày tính từ lúc đăng nhập.
+
+### Thu hồi: `users.tokenVersion`
+
+Chữ ký JWT chỉ chứng minh token được ký, không chứng minh nó chưa bị rút lại.
+Cả hai token mang `ver` là ảnh chụp `tokenVersion` lúc phát; tăng cột đó lên
+là mọi token đã phát chết.
+
+Hiệu lực **tức thì kể cả với access token đang còn hạn**, vì
+`JwtStrategy.validate()` vốn đã đọc DB mỗi request để lấy `role` - thêm một cột
+vào `select` là đủ, không tốn thêm truy vấn nào.
+
+`POST /api/auth/logout-all` là chỗ duy nhất hiện gọi tới nó. Khi thêm route đổi
+mật khẩu hay khoá tài khoản, **gọi `AuthService.revokeAllSessions` ở đó** - nếu
+không, người đổi mật khẩu vì nghi bị lộ vẫn để kẻ kia dùng tiếp 7 ngày.
+
+`POST /api/auth/logout` thì ngược lại, cố ý chỉ xoá cookie tại chỗ: đăng xuất
+trên máy này không nên đá người dùng ra khỏi điện thoại của chính họ.
 
 ## Phân quyền
 

@@ -433,7 +433,7 @@
           <li>Kiểm email đã tồn tại chưa → <code>409 Conflict</code>.</li>
           <li>bcrypt 12 vòng.</li>
           <li><code>user.create</code> với <code>profile: { create: {} }</code> lồng nhau — tạo sẵn hồ sơ rỗng để các màn hình sau không phải xử lý trường hợp null.</li>
-          <li>Ký JWT <code>{ sub, email }</code>, hạn theo <code>JWT_EXPIRES_IN</code>.</li>
+          <li>Ký CẶP token <code>{ sub, email, typ, ver }</code>: access hạn theo <code>JWT_ACCESS_EXPIRES_IN</code> (15 phút), refresh theo <code>JWT_REFRESH_EXPIRES_IN</code> (7 ngày). Đặt ba cookie: <code>aijob_token</code>, <code>aijob_refresh</code> (<code>path=/api/auth/refresh</code>) và <code>aijob_session</code>.</li>
         </ol>
       </div>
     </div>
