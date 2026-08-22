@@ -12,6 +12,9 @@ import { DocumentsService } from './services/documents.service.js';
 import { HttpLatexCompiler } from './compilers/http-latex.compiler.js';
 import { LATEX_COMPILER, type LatexCompiler } from './latex-compile.js';
 import { SandboxLatexCompiler } from './compilers/sandbox-latex.compiler.js';
+import { PDF_RENDERER, type PdfRenderer } from './pdf-render.js';
+import { HttpPdfRenderer } from './renderers/http-pdf.renderer.js';
+import { SandboxPdfRenderer } from './renderers/sandbox-pdf.renderer.js';
 
 /** Chọn cách compile LaTeX theo môi trường. */
 const latexCompilerProvider = {
@@ -34,6 +37,24 @@ const latexCompilerProvider = {
   },
 };
 
+/** Chọn cách in HTML ra PDF theo môi trường. Song song với `latexCompilerProvider`. */
+const pdfRendererProvider = {
+  provide: PDF_RENDERER,
+  inject: [ConfigService, SANDBOX],
+  useFactory: (config: ConfigService, sandbox: SandboxRunner): PdfRenderer => {
+    const logger = new Logger('PdfRenderer');
+    const serviceUrl = config.get<string | null>('pdf.serviceUrl');
+
+    if (serviceUrl) {
+      logger.log(`In PDF qua dịch vụ HTTP: ${serviceUrl}`);
+      return new HttpPdfRenderer(serviceUrl);
+    }
+
+    logger.log('In PDF bằng docker run (không có PDF_SERVICE_URL)');
+    return new SandboxPdfRenderer(sandbox);
+  },
+};
+
 @Module({
   imports: [AiModule, SandboxModule, SkillsModule],
   controllers: [DocumentsController],
@@ -43,7 +64,8 @@ const latexCompilerProvider = {
     DocumentRenderer,
     DocumentsProcessor,
     latexCompilerProvider,
+    pdfRendererProvider,
   ],
-  exports: [DocumentsService, LATEX_COMPILER],
+  exports: [DocumentsService, LATEX_COMPILER, PDF_RENDERER],
 })
 export class DocumentsModule {}

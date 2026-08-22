@@ -205,6 +205,15 @@ const configuration = () => ({
     serviceUrl: process.env.LATEX_SERVICE_URL?.replace(/\/$/, '') ?? null,
   },
 
+  pdf: {
+    /**
+     * URL của dịch vụ in HTML ra PDF. Có giá trị thì dùng `HttpPdfRenderer`
+     * (production), bỏ trống thì dùng `SandboxPdfRenderer` gọi `docker run` (máy
+     * phát triển). Cùng cách chọn với `latex.serviceUrl` ngay trên.
+     */
+    serviceUrl: process.env.PDF_SERVICE_URL?.replace(/\/$/, '') ?? null,
+  },
+
   storage: {
     driver: process.env.STORAGE_DRIVER ?? 'local',
     localRoot: fromServerRoot(

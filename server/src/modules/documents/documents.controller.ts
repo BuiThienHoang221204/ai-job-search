@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   StreamableFile,
   Param,
   Post,
@@ -13,9 +14,11 @@ import { Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Length,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -25,11 +28,62 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { DocumentsService } from './services/documents.service.js';
+import {
+  DocumentsService,
+  type PdfEngine,
+} from './services/documents.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
+import { CV_TEMPLATES } from './templates/registry.js';
 
 export class CreateCvDto {
   @IsOptional() @IsString() jobId?: string;
+}
+
+/** Chọn đường sinh PDF. `@IsIn` để chuỗi lạ bị báo lỗi thay vì rơi về mặc định. */
+export class PdfQueryDto {
+  @IsOptional() @IsIn(['latex', 'html']) engine?: PdfEngine;
+}
+
+/**
+ * Bản CV người dùng vừa sửa.
+ *
+ * `content` và `layout` để `unknown` ở đây rồi cho zod kiểm trong service, thay vì
+ * dựng lại cả cây DTO bằng class-validator: hình dạng đã khai một lần ở
+ * `cvEditSchema` và `resolveLayout`, khai lần hai là hai bản sẽ trôi khỏi nhau.
+ */
+export class UpdateCvDto {
+  @IsOptional() @IsObject() content?: unknown;
+  @IsOptional() @IsObject() layout?: unknown;
+}
+
+/** Xem trước bản nháp CHƯA lưu. Thiếu trường nào thì lấy bản đã lưu cho trường đó. */
+export class PreviewBodyDto extends UpdateCvDto {
+  @IsOptional() @IsString() @Length(1, 40) templateId?: string;
+
+  @IsOptional()
+  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'accent phải có dạng #rrggbb' })
+  accent?: string;
+}
+
+/** Xem trước một mẫu mà KHÔNG lưu. Bỏ trống thì xem đúng mẫu đang lưu. */
+export class PreviewQueryDto {
+  @IsOptional() @IsString() @Length(1, 40) templateId?: string;
+
+  @IsOptional()
+  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'accent phải có dạng #rrggbb' })
+  accent?: string;
+}
+
+/**
+ * Đổi mẫu trình bày của CV. `templateId` do service tra trong `templates/registry.ts`,
+ * không chép danh sách vào đây; `accent` chặn bằng regex vì nó đi thẳng vào CSS.
+ */
+export class SetTemplateDto {
+  @IsString() @Length(1, 40) templateId!: string;
+
+  @IsOptional()
+  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'accent phải có dạng #rrggbb' })
+  accent?: string;
 }
 
 export class CreateCoverLetterDto {
@@ -111,6 +165,15 @@ export class DocumentsController {
     return this.documents.list(user.id, query.kind, query.jobId, query);
   }
 
+  /**
+   * Danh mục mẫu CV. Phải đứng TRƯỚC `@Get(':id')`, nếu không Nest khớp
+   * "cv-templates" vào `:id` và trả 404 "không tìm thấy tài liệu".
+   */
+  @Get('cv-templates')
+  templates() {
+    return { items: CV_TEMPLATES };
+  }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.documents.get(user.id, id);
@@ -123,13 +186,68 @@ export class DocumentsController {
     return this.documents.source(user.id, id);
   }
 
-  /** Compile ra PDF rồi trả về bytes. */
+  /** Đổi mẫu trình bày của CV. Không `@ThrottleAi()` vì route này không gọi model. */
+  @Put(':id/template')
+  setTemplate(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: SetTemplateDto,
+  ) {
+    return this.documents.setTemplate(user.id, id, dto.templateId, dto.accent);
+  }
+
+  /**
+   * Bản HTML của CV để nhúng vào khung xem trước. Hai header bảo mật là lớp chặn
+   * thứ hai sau `escapeHtml`: CSP `sandbox` không kèm `allow-scripts`.
+   */
+  @Get(':id/preview')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @Header('Content-Security-Policy', 'sandbox')
+  @Header('X-Frame-Options', 'SAMEORIGIN')
+  preview(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query() query: PreviewQueryDto,
+  ) {
+    return this.documents.previewHtml(user.id, id, query);
+  }
+
+  /**
+   * Xem trước bản nháp chưa lưu. POST vì nội dung CV không nhét vừa query string,
+   * nhưng vẫn KHÔNG ghi gì vào database.
+   */
+  @Post(':id/preview')
+  // 200 chứ không phải 201 mặc định của Nest: route này KHÔNG tạo ra gì.
+  @HttpCode(200)
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @Header('Content-Security-Policy', 'sandbox')
+  @Header('X-Frame-Options', 'SAMEORIGIN')
+  previewDraft(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: PreviewBodyDto,
+  ) {
+    return this.documents.previewHtml(user.id, id, dto);
+  }
+
+  /** Lưu bản CV người dùng đã sửa. Không gọi model. */
+  @Put(':id/cv')
+  updateCv(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateCvDto,
+  ) {
+    return this.documents.updateCv(user.id, id, dto);
+  }
+
+  /** Tạo PDF rồi trả về bytes. `engine=html` đi đường mẫu HTML, mặc định là LaTeX. */
   @Get(':id/pdf')
   async pdf(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
+    @Query() query: PdfQueryDto,
   ): Promise<StreamableFile> {
-    const pdf = await this.documents.pdf(user.id, id);
+    const pdf = await this.documents.pdf(user.id, id, query.engine ?? 'latex');
     return new StreamableFile(pdf, {
       type: 'application/pdf',
       disposition: 'inline; filename="document.pdf"',

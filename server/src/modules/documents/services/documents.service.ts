@@ -15,12 +15,39 @@ import { pageArgs, pageOf } from '../../../common/pagination.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { DocumentComposer } from './document-composer.service.js';
 import { DocumentRenderer, isPrintable } from './document-renderer.service.js';
-import type { Identity } from '../latex.js';
+import type { Identity } from '../content.types.js';
 import {
   emailTitle,
   letterTarget,
   type DocumentParams,
 } from '../letter-target.js';
+import { cvEditSchema, type CvEditResult } from '../document.schema.js';
+import { resolveLayout } from '../templates/cv-layout.js';
+import { isTemplateId, resolveTemplateOptions } from '../templates/registry.js';
+
+/**
+ * Đường sinh PDF. `latex` đi qua file `.tex` đã lưu, `html` dựng thẳng từ
+ * `Document.content`. Xem `DocumentsService.pdf` để biết vì sao có hai đường.
+ */
+export type PdfEngine = 'latex' | 'html';
+
+/**
+ * Kiểm nội dung CV người dùng gửi lên, đổi lỗi zod thành 400 kèm câu tiếng Việt.
+ *
+ * Để `parse` ném thẳng thì Nest trả 500 - một lỗi nhập liệu bình thường bị báo như
+ * sự cố máy chủ, và giao diện không có gì để hiện cho người dùng sửa.
+ */
+const parseCvEdit = (raw: unknown): CvEditResult => {
+  const parsed = cvEditSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+
+  const detail = parsed.error.issues
+    .slice(0, 3)
+    .map((issue) => `${issue.path.join('.') || 'nội dung'}: ${issue.message}`)
+    .join('; ');
+
+  throw new BadRequestException(`Nội dung CV không hợp lệ — ${detail}`);
+};
 
 /**
  * Điều phối vòng đời một tài liệu, và không tự làm phần nào trong đó.
@@ -281,8 +308,156 @@ export class DocumentsService {
     return this.renderer.readSource(document.storageKey);
   }
 
-  /** Compile tài liệu ra PDF và trả về bytes. */
-  async pdf(userId: string, id: string): Promise<Buffer> {
+  /**
+   * Đổi mẫu trình bày của một CV. KHÔNG gọi model. `templateId` lạ bị từ chối ở đây
+   * vì người dùng đang chốt lựa chọn, khác với đường đọc của `registry`.
+   */
+  async setTemplate(
+    userId: string,
+    id: string,
+    templateId: string,
+    accent?: string,
+  ): Promise<Document> {
+    const document = await this.get(userId, id);
+
+    if (document.kind !== 'CV') {
+      throw new UnprocessableEntityException(
+        `Tài liệu loại ${document.kind} không có mẫu trình bày để đổi.`,
+      );
+    }
+
+    if (!isTemplateId(templateId)) {
+      throw new BadRequestException(`Không có mẫu CV nào tên "${templateId}"`);
+    }
+
+    return this.prisma.document.update({
+      where: { id },
+      data: {
+        templateId,
+        templateOptions: resolveTemplateOptions(templateId, { accent }),
+      },
+    });
+  }
+
+  /**
+   * Lưu bản CV người dùng đã sửa: chữ, thứ tự mục, mục bị ẩn.
+   *
+   * KHÔNG gọi model. Bấm "Tạo CV bằng AI" lần nữa sinh ra một tài liệu MỚI chứ
+   * không đè lên đây, nên công sửa tay không bao giờ bị mất.
+   */
+  async updateCv(
+    userId: string,
+    id: string,
+    input: { content?: unknown; layout?: unknown },
+  ): Promise<Document> {
+    const document = await this.get(userId, id);
+
+    if (document.kind !== 'CV') {
+      throw new UnprocessableEntityException(
+        `Tài liệu loại ${document.kind} chưa sửa được bằng đường này.`,
+      );
+    }
+    if (document.status !== 'DONE') {
+      throw new UnprocessableEntityException(
+        `Tài liệu đang ở trạng thái ${document.status} và chưa có nội dung để sửa.`,
+      );
+    }
+
+    const content =
+      input.content === undefined
+        ? document.content
+        : parseCvEdit(input.content);
+
+    const layout =
+      input.layout === undefined
+        ? document.layout
+        : resolveLayout(input.layout);
+
+    const updated = await this.prisma.document.update({
+      where: { id },
+      data: {
+        content: content as Prisma.InputJsonValue,
+        layout: layout as Prisma.InputJsonValue,
+      },
+    });
+
+    // Sửa chữ xong mà không render lại thì file `.tex` đã lưu thành cũ, trong khi
+    // nút "Xem mã .tex" và đường PDF LaTeX vẫn đọc đúng file đó.
+    const { target, identity } = await this.context(updated);
+    const storageKey = await this.renderer.render(
+      updated,
+      target,
+      content,
+      identity,
+    );
+
+    return this.prisma.document.update({
+      where: { id },
+      data: { storageKey },
+    });
+  }
+
+  /**
+   * Bản HTML của một CV để nhúng vào khung xem trước. Sinh lại từ `content` mỗi lần
+   * gọi và KHÔNG gọi model. `override` cho xem thử mẫu khác mà không ghi database.
+   */
+  async previewHtml(
+    userId: string,
+    id: string,
+    override?: {
+      templateId?: string;
+      accent?: string;
+      content?: unknown;
+      layout?: unknown;
+    },
+  ): Promise<string> {
+    const document = await this.get(userId, id);
+
+    if (document.status !== 'DONE' || !document.content) {
+      throw new UnprocessableEntityException(
+        `Tài liệu đang ở trạng thái ${document.status} và chưa có nội dung để xem trước.`,
+      );
+    }
+
+    const { identity } = await this.context(document);
+
+    // Bản nháp CHƯA lưu vẫn xem trước được: đây là thứ cho phép vừa gõ vừa thấy
+    // kết quả mà không ghi database sau mỗi phím.
+    const previewed = {
+      ...document,
+      templateId: override?.templateId ?? document.templateId,
+      templateOptions: override?.templateId
+        ? { accent: override.accent }
+        : document.templateOptions,
+      layout: override?.layout ?? document.layout,
+    };
+
+    const content =
+      override?.content === undefined
+        ? document.content
+        : parseCvEdit(override.content);
+
+    const html = this.renderer.toHtml(previewed, content, identity);
+
+    if (!html) {
+      throw new UnprocessableEntityException(
+        `Tài liệu loại ${document.kind} chưa có mẫu HTML để xem trước.`,
+      );
+    }
+
+    return html;
+  }
+
+  /**
+   * Tạo PDF và trả về bytes. `latex` đi qua file `.tex` đã lưu, `html` dựng thẳng từ
+   * `content`. Hai đường cùng tồn tại là TẠM THỜI, để đối chiếu trong lúc chuyển đổi.
+   */
+  async pdf(userId: string, id: string, engine: PdfEngine = 'latex') {
+    if (engine === 'html') {
+      const html = await this.previewHtml(userId, id);
+      return this.renderer.htmlToPdf(html, id);
+    }
+
     const tex = await this.source(userId, id);
     return this.renderer.toPdf(tex, id);
   }

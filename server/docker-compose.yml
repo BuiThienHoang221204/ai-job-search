@@ -69,6 +69,37 @@ services:
       start_period: 10s
       retries: 3
 
+  # Dịch vụ in HTML ra PDF bằng Chromium. Đường sinh CV mới.
+  #
+  # Cùng lý lẽ tách dịch vụ như `latex` ở trên. Khác một điểm về tài nguyên: Chromium
+  # ngốn bộ nhớ hơn lualatex hẳn một bậc, và nó coi việc hết chỗ là crash chứ không
+  # phải lỗi in — nên trần 1GB thay vì 512M.
+  #
+  # Build trước khi chạy:
+  #   docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
+  pdf:
+    image: aijob-pdf
+    container_name: aijob-pdf
+    restart: unless-stopped
+    # KHÔNG mở cổng ra host. App gọi qua network nội bộ bằng tên `pdf`.
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
 volumes:
   # Volume CU (postgres_data) co y giu lai de quay ve duoc.
   postgres_data:

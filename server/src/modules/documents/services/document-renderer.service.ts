@@ -14,15 +14,17 @@ import {
   userKey,
   type Storage,
 } from '../../storage/storage.interface.js';
+import type { CvContent, Identity } from '../content.types.js';
 import type { CoverLetterResult, CvContentResult } from '../document.schema.js';
 import { LATEX_COMPILER, type LatexCompiler } from '../latex-compile.js';
-import {
-  renderCoverLetter,
-  renderCv,
-  slugify,
-  type Identity,
-} from '../latex.js';
+import { renderCoverLetter, renderCv, slugify } from '../latex.js';
 import type { LetterTarget } from '../letter-target.js';
+import {
+  EXPECTED_MAX_PAGES,
+  PDF_RENDERER,
+  type PdfRenderer,
+} from '../pdf-render.js';
+import { renderCvHtml } from '../templates/registry.js';
 
 /**
  * Loại tài liệu có bản LaTeX để in ra.
@@ -36,6 +38,45 @@ const PRINTABLE: readonly DocumentKind[] = ['CV', 'COVER_LETTER'];
 export const isPrintable = (kind: DocumentKind): boolean =>
   PRINTABLE.includes(kind);
 
+const hasText = (...parts: Array<string | null | undefined>): boolean =>
+  parts.some((part) => (part ?? '').trim().length > 0);
+
+/**
+ * Điền trường tuỳ chọn model được phép bỏ trống, và BỎ QUA dòng chưa có gì.
+ *
+ * Dòng rỗng là chuyện bình thường: bấm "Thêm kinh nghiệm" sinh ra một dòng trống
+ * chờ người dùng gõ vào. Nó được LƯU (để họ quay lại vẫn thấy) nhưng không được vẽ
+ * ra CV - một khối kinh nghiệm không có chữ nào đọc như lỗi trình bày.
+ *
+ * Lọc ở đây chứ không ở từng mẫu: cả đường HTML lẫn đường LaTeX đều đi qua hàm này.
+ */
+const cvContent = (content: unknown): CvContent => {
+  const cv = content as CvContentResult;
+  return {
+    ...cv,
+    experiences: cv.experiences
+      .map((experience) => ({
+        ...experience,
+        location: experience.location ?? '',
+      }))
+      .filter(
+        (experience) =>
+          hasText(experience.position, experience.company) ||
+          experience.bullets.length > 0,
+      ),
+    educations: cv.educations
+      .map((education) => ({
+        ...education,
+        period: education.period ?? '',
+        detail: education.detail ?? '',
+      }))
+      .filter((education) => hasText(education.degree, education.institution)),
+    skillGroups: cv.skillGroups.filter(
+      (group) => hasText(group.label) || group.items.length > 0,
+    ),
+  };
+};
+
 /**
  * Biến nội dung đã soạn thành file `.tex` trong Storage, và thành PDF khi được
  * hỏi tới. **KHÔNG gọi model** - mọi hàm ở đây chạy lại bao nhiêu lần cũng
@@ -48,6 +89,7 @@ export class DocumentRenderer {
   constructor(
     @Inject(STORAGE) private readonly storage: Storage,
     @Inject(LATEX_COMPILER) private readonly latex: LatexCompiler,
+    @Inject(PDF_RENDERER) private readonly pdfRenderer: PdfRenderer,
   ) {}
 
   /**
@@ -65,19 +107,7 @@ export class DocumentRenderer {
     identity: Identity,
   ): Promise<string | null> {
     if (document.kind === 'CV') {
-      const cv = content as CvContentResult;
-      const tex = renderCv(identity, {
-        ...cv,
-        experiences: cv.experiences.map((experience) => ({
-          ...experience,
-          location: experience.location ?? '',
-        })),
-        educations: cv.educations.map((education) => ({
-          ...education,
-          period: education.period ?? '',
-          detail: education.detail ?? '',
-        })),
-      });
+      const tex = renderCv(identity, cvContent(content));
 
       const key = userKey(
         document.userId,
@@ -132,6 +162,43 @@ export class DocumentRenderer {
     if (result.warnings.length > 0) {
       this.logger.warn(
         `PDF ${label} thiếu ${result.warnings.length} ký tự font: ${result.warnings.join(', ')}`,
+      );
+    }
+
+    return result.pdf;
+  }
+
+  /**
+   * Render CV thành HTML tự chứa. KHÔNG ghi Storage: sinh lại từ `content` trong
+   * vài mili giây. Trả `null` với loại chưa có mẫu HTML (thư xin việc).
+   */
+  toHtml(
+    document: Document,
+    content: unknown,
+    identity: Identity,
+  ): string | null {
+    if (document.kind !== 'CV') return null;
+    return renderCvHtml(
+      identity,
+      cvContent(content),
+      document.templateId,
+      document.templateOptions,
+      document.layout,
+    );
+  }
+
+  /** In HTML ra PDF. `label` chỉ dùng để ghi log, không vào file. */
+  async htmlToPdf(html: string, label: string): Promise<Buffer> {
+    const result = await this.pdfRenderer.render(html);
+
+    if (!result.ok) {
+      this.logger.error(`In PDF ${label} thất bại: ${result.log}`);
+      throw new UnprocessableEntityException(result.reason);
+    }
+
+    if (result.pages > EXPECTED_MAX_PAGES) {
+      this.logger.warn(
+        `PDF ${label} dài ${result.pages} trang, vượt mức ${EXPECTED_MAX_PAGES} trang thường gặp - nhiều khả năng mẫu để chữ tràn khung.`,
       );
     }
 

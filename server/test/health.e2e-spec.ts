@@ -75,13 +75,18 @@ describe('Probe sức khoẻ', () => {
 
       const body = response.body as {
         ready: boolean;
-        checks: { latex: { ok: boolean } };
+        checks: { latex: { ok: boolean }; pdf: { ok: boolean } };
       };
 
-      // Tren may CI khong co Docker thi `latex.ok` la false — va do chinh la tinh
+      // Tren may CI khong co Docker thi ca hai deu false — va do chinh la tinh
       // huong dang kiem: 200 va ready:true bat chap no.
+      //
+      // CA HAI duong deu phai duoc ghim: `latex` in thu xin viec, `pdf` in CV. Ghim
+      // mot cai thi duong con lai co the len tieng chan `ready` ma khong ai biet,
+      // va trieu chung la ca app bi khoi dong lai vong quanh.
       expect(body.ready).toBe(true);
       expect(typeof body.checks.latex.ok).toBe('boolean');
+      expect(typeof body.checks.pdf.ok).toBe('boolean');
     });
 
     /// Phải là 503, không phải 200 kèm cờ: orchestrator đọc mã trạng thái chứ
@@ -126,6 +131,9 @@ describe('Probe sức khoẻ', () => {
       expect(Object.keys(body.checks).sort()).toEqual([
         'database',
         'latex',
+        // `pdf` la duong in CV tu HTML. KHONG tinh vao `ready`, cung ly do voi
+        // `latex` - xem test ngay tren.
+        'pdf',
         'queue',
       ]);
     });

@@ -590,6 +590,30 @@ model Document {
   /// Không lưu nội dung file vào DB: lên S3 sau này chỉ cần đổi driver.
   storageKey String?
 
+  /// Mẫu trình bày đang chọn. Chỉ có nghĩa với `kind = CV`.
+  ///
+  /// CỘT RIÊNG chứ không nhét vào `content`, và đây là ranh giới quan trọng nhất
+  /// của tính năng chọn mẫu: `content` là output của model đã qua zod, còn cái này
+  /// là lựa chọn của NGƯỜI DÙNG. Trộn chung thì mỗi lần sinh lại CV sẽ ghi đè và
+  /// xoá mất mẫu họ đã chọn.
+  ///
+  /// Không dùng enum: thêm mẫu sẽ phải chạy migration, trong khi mẫu chỉ là CSS.
+  /// Id lạ (mẫu đã gỡ ở bản sau) được `templates/registry.ts` đưa về mẫu mặc định
+  /// thay vì làm CV cũ không mở được nữa.
+  templateId String @default("classic")
+
+  /// Tuỳ chọn trình bày của mẫu, hiện chỉ có `{ accent: "#rrggbb" }`.
+  /// Hình dạng do `resolveTemplateOptions` kiểm lại lúc đọc, vì cột Json không
+  /// đảm bảo gì.
+  templateOptions Json?
+
+  /// Thứ tự và mục bị ẩn, dạng `{ order: string[], hidden: string[] }`.
+  ///
+  /// Tách khỏi `content` vì đây là BỐ CỤC, không phải nội dung: `content` giữ chữ,
+  /// còn cái này chỉ giữ danh sách khoá mục. `resolveLayout` kiểm lại lúc đọc và
+  /// tự nối khoá còn thiếu vào cuối, nên thêm mục mới không làm CV cũ mất mục.
+  layout Json?
+
   modelId     String?
   generatedAt DateTime?
   error       String?   @db.Text

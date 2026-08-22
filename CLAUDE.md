@@ -76,6 +76,69 @@ Bộ test đơn vị chạy qua **`test/run-unit.mjs`**, không phải `jest` tr
 
 **`ai.service.spec.ts` đòi Node ≥ 24.9 và sẽ không nạp được trên bản thấp hơn.** Nó gọi `jest.requireActual('ai')` trên một package ESM thuần, mà `require(ESM)` đồng bộ của jest 30 cần API vm mới. Trên Node 22 nó báo *"Jest's require(ESM) requires Node v24.9+"* và cả suite đỏ dù code không sai. Chạy cả bộ 460 test thì dùng Node ≥ 24.9; các suite còn lại chạy được từ Node 22.12.
 
+## CV đi đường HTML, thư xin việc vẫn đi đường LaTeX
+
+**Hai bộ máy sinh PDF, không phải một.** `latex-service/` in `.tex`, `pdf-service/` in HTML bằng Chromium. Chọn bằng `LATEX_SERVICE_URL` và `PDF_SERVICE_URL`, mỗi cái có bản `docker run` dự phòng cho máy phát triển. Cả hai đều báo trong `/ready` và **cả hai đều cố ý không tính vào `ready`** — có test e2e ghim.
+
+Lý do có đường thứ hai: **CV cần xem trước**, mà LaTeX chỉ ra PDF sau vài giây nên không có cách nào cho người dùng thấy mẫu trước khi tải. Bản HTML thì chính nó vừa là bản in vừa là bản nhúng vào iframe, nên xem trước là miễn phí và luôn khớp file tải về. Đây là nền cho kho mẫu CV (chọn mẫu, đổi màu) — thứ TopCV và ITviec đều có.
+
+**Đổi mẫu KHÔNG tốn lượt gọi model.** `Document.content` là nguồn sự thật, mẫu chỉ là hàm trình bày chạy trên nó. `DocumentRenderer.toHtml` sinh lại trong vài mili giây.
+
+Build ảnh trước khi chạy:
+
+```bash
+docker build -t aijob-pdf -f pdf-service/Dockerfile pdf-service
+```
+
+Đo ngày 2026-08-22, cùng một CV tiếng Việt 1 trang: **aijob-latex 3,27GB / 3,59 giây** so với **aijob-pdf 1,20GB / 0,61–0,70 giây**.
+
+**Đối chiếu hai bản PDF bằng `GET /api/documents/:id/pdf?engine=html`.** Tham số `engine` là tạm thời, có mặt để đặt hai bản cạnh nhau trong lúc chuyển đổi; mặc định vẫn là `latex`. Kết quả đối chiếu trên CV thật: 284 từ (LaTeX) so với 282 (HTML), **không mất mục nào**. Toàn bộ khác biệt là tiêu đề mục viết hoa, và **12 token rác chỉ có ở bản LaTeX**: `MOBILE-ANDROID-ALT`, `🖂`, tám ký tự bullet `🟤`. Đó chính là thứ ATS đọc phải — bản HTML sạch hơn ở đúng chỗ quan trọng nhất.
+
+**`python3-minimal` KHÔNG có thư viện chuẩn.** Đã làm build đỏ: `import json` báo `ModuleNotFoundError: No module named 'json'`, và `http.server` cũng vắng. Phải là `python3`.
+
+**Bước tự kiểm lúc build là bắt buộc, đừng gỡ.** Nó hỏi `fc-list :lang=vi` (có font nào phủ tiếng Việt không) rồi `pdftotext` bản in thử (PDF có tầng chữ không). Cả hai làm build ĐỎ. Đây là bản HTML của bài học `fontawesome6`/`needspace` ở `latex-service`: thiếu font thì CV in ra đầy ô vuông mà **không có lỗi nào báo**, và chỉ lộ ra khi người dùng bấm tải.
+
+**Chromium chạy với mọi tên miền bị chặn phân giải** (`--host-resolver-rules=MAP * ~NOTFOUND`) và `--no-sandbox`. Hai cờ này mất đi thì bản in **vẫn ra bình thường** — không có gì báo — nên có test đơn vị canh chúng trong bản chép ở `SandboxPdfRenderer`. Hệ quả cho người viết mẫu: **template phải tự chứa hoàn toàn**, một `<link>` hay webfont trỏ ra ngoài sẽ âm thầm rơi về font thay thế.
+
+### Kho mẫu CV
+
+**Sáu mẫu, khác nhau HOÀN TOÀN bằng CSS.** `templates/body.ts` dựng markup dùng chung, `templates/themes.ts` giữ sáu bộ CSS, `templates/registry.ts` là chỗ duy nhất biết `templateId` là chuỗi gì. **Thêm mẫu = thêm một mục trong `themes.ts`**, không sửa controller, service hay migration.
+
+Dùng chung một bộ markup là để **đổi mẫu không đổi thứ tự chữ mà ATS đọc** — có test đơn vị so tầng chữ của cả sáu mẫu phải giống hệt nhau. Cả sáu đều một cột: đo trên các hệ ATS 2026, một cột parse 100/100 còn hai cột tụt xuống 85/100.
+
+**`Document.templateId` và `templateOptions` là CỘT RIÊNG, không nhét vào `content`.** `content` là output của model đã qua zod, còn mẫu là lựa chọn của người dùng — trộn chung thì mỗi lần sinh lại CV sẽ xoá mất mẫu họ đã chọn.
+
+**Đổi mẫu và xem trước đều KHÔNG gọi model.** `GET :id/preview?templateId=` render thử mà không ghi database (đó là cách kho mẫu bấm thử được); `PUT :id/template` mới lưu.
+
+**`@Get('cv-templates')` phải đứng TRƯỚC `@Get(':id')`.** Đã hỏng thật: khai sau thì Nest khớp "cv-templates" vào `:id` và trả 404 *"Không tìm thấy tài liệu: cv-templates"*. Typecheck và unit test đều không bắt được vì lỗi nằm ở THỨ TỰ khai báo. Có test e2e ghim.
+
+**Hai lỗi CSS chỉ lộ ra khi dựng ảnh trang giấy, số đo toạ độ chữ vẫn đúng:**
+
+- `position: fixed; left: 0` neo vào mép **vùng nội dung**, không phải mép giấy. Mẫu `thanh-mau` để lề trái 22mm thì dải màu đè lên đầu mỗi dòng — "Kế toán tổng hợp" in ra thành "oán tổng hợp". Bù bằng `left: -22mm` cũng không được: Chromium cắt phần fixed nằm ngoài vùng nội dung. Cách chạy được: lề trái bằng 0, chữ tự thụt vào bằng padding trên **từng khối** (padding của body chỉ có tác dụng ở trang đầu và trang cuối).
+- Mẫu `modern` bỏ lề trên cho MỌI trang thì dòng đầu trang 2 dí sát mép giấy. `@page :first { margin-top: 0 }` tách hai chuyện đó ra — Chromium có hỗ trợ, đã đo.
+
+### Người dùng sửa CV
+
+**`content` giữ chữ, `layout` giữ bố cục, và hai thứ đó là hai cột riêng.** `Document.layout` là `{ order: string[], hidden: string[] }` chứa khoá mục (`profile`, `competencies`, `experience`, `education`, `skills`). `resolveLayout` kiểm lại lúc đọc và **nối khoá còn thiếu vào cuối**, nên thêm mục thứ sáu ở bản sau không làm CV cũ mất mục.
+
+**Mục ẩn KHÔNG được vẽ rồi giấu bằng `display: none`.** ATS đọc tầng chữ chứ không đọc CSS, nên giấu bằng CSS vẫn để nội dung lọt vào bản máy đọc. `buildCvSections` không vẽ mục ẩn ra ngay từ đầu; có test đơn vị ghim.
+
+**Dòng RỖNG là trạng thái hợp lệ, đừng đặt `min(1)` cho chức danh hay bằng cấp.** Bấm "Thêm kinh nghiệm" sinh ra `{ position: '', company: '', ... }` và bản xem trước gọi ngay sau đó — đặt sàn thì vừa bấm Thêm là preview đứng im kèm 400 *"Too small: expected string to have >=1 characters"*, người dùng phải gõ xong mới thấy lại CV. Dòng rỗng được **lưu** (để quay lại còn thấy) nhưng **không được vẽ**: `cvContent` trong `document-renderer.service.ts` lọc chúng đi, và lọc ở đó vì cả đường HTML lẫn LaTeX đều đi qua hàm này.
+
+**`cvEditSchema` tách khỏi `cvSchema`, và đừng gộp lại.** `cvSchema` ép MODEL viết đủ (tối thiểu 3 năng lực, mỗi kinh nghiệm ít nhất 1 gạch đầu dòng); `cvEditSchema` cho NGƯỜI DÙNG xoá tới rỗng. Dùng chung một schema thì thao tác xoá dòng cuối cùng bị từ chối mà người dùng không hiểu vì sao. Trần độ dài thì giữ nguyên ở cả hai — chữ này đi thẳng vào PDF và database.
+
+**Sửa `content` xong PHẢI render lại `.tex`.** Không thì file đã lưu thành cũ, trong khi nút "Xem mã .tex" và đường PDF LaTeX vẫn đọc đúng file đó — người dùng thấy chữ cũ trong bản tải về dù màn hình đã hiện chữ mới. `updateCv` gọi `renderer.render()`; không tốn lượt gọi model nào.
+
+**Sinh lại KHÔNG bao giờ đè lên bản đã sửa.** `POST /documents/cv` tạo một `Document` MỚI mỗi lần bấm, nên công sửa tay nằm nguyên ở bản cũ. Đừng "tối ưu" thành cập nhật tại chỗ.
+
+`POST :id/preview` xem trước bản nháp CHƯA lưu — đây là thứ cho phép vừa gõ vừa thấy kết quả mà không ghi database sau mỗi phím. Nó khai `@HttpCode(200)` vì mặc định 201 của Nest sai nghĩa: route này không tạo ra gì.
+
+**Lỗi zod phải đổi thành 400.** Để `parse` ném thẳng thì Nest trả 500 — một lỗi nhập liệu bình thường bị báo như sự cố máy chủ, và giao diện không có gì hiện cho người dùng sửa. Xem `parseCvEdit`.
+
+Giao diện sửa bằng FORM chứ không sửa thẳng trên bản xem trước: iframe chạy `sandbox=""` không cho script, và mở `allow-scripts` để làm WYSIWYG là tháo đúng lớp chặn XSS đang có.
+
+**`escapeHtml` là ranh giới an toàn, gắt hơn `escapeLatex` một bậc.** Bản HTML không chỉ đi vào PDF mà còn được nhúng vào iframe trong phiên đăng nhập của người dùng, trong khi nội dung do model sinh từ mô tả công việc người lạ đăng lên. Route `/preview` gửi kèm `Content-Security-Policy: sandbox` làm lớp chặn thứ hai.
+
 ## Xuất PDF (Pha 3) — ba điều đã trả giá để biết
 
 **Hai đường, chọn bằng `LATEX_SERVICE_URL`.** Có giá trị → `HttpLatexCompiler` gọi dịch vụ riêng (production). Bỏ trống → `SandboxLatexCompiler` gọi `docker run` qua SEAM 2 (máy phát triển, app chạy trực tiếp trên host). App ghi ra log lúc khởi động nó đang dùng đường nào.

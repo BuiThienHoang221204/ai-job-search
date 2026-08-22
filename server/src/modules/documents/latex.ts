@@ -1,3 +1,9 @@
+import type {
+  CoverLetterContent,
+  CvContent,
+  Identity,
+} from './content.types.js';
+
 /** Escape văn bản trước khi nhúng vào LaTeX. */
 export const escapeLatex = (input: string): string =>
   input
@@ -21,40 +27,14 @@ export const slugify = (input: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 
-export type CvContent = {
-  profileStatement: string;
-  coreCompetencies: string[];
-  experiences: Array<{
-    position: string;
-    company: string;
-    location: string;
-    period: string;
-    bullets: string[];
-  }>;
-  educations: Array<{
-    degree: string;
-    institution: string;
-    period: string;
-    detail: string;
-  }>;
-  skillGroups: Array<{ label: string; items: string[] }>;
-};
-
-export type CoverLetterContent = {
-  salutation: string;
-  opening: string;
-  bodyParagraphs: string[];
-  motivation: string;
-  closing: string;
-};
-
-export type Identity = {
-  name: string;
-  email: string;
-  phone?: string | null;
-  location?: string | null;
-  title?: string | null;
-};
+// Các type nội dung đã chuyển sang `content.types.ts` để module HTML dùng chung mà
+// không phải import từ module LaTeX. Xuất lại ở đây để chỗ nào đang import từ
+// `latex.js` vẫn chạy nguyên.
+export type {
+  CoverLetterContent,
+  CvContent,
+  Identity,
+} from './content.types.js';
 
 const item = (text: string) => `  \\item ${escapeLatex(text)}`;
 

@@ -57,6 +57,60 @@ export const cvSchema = z.object({
     .max(6),
 });
 
+/**
+ * CV sau khi NGƯỜI DÙNG sửa. Nới sàn của `cvSchema`, giữ nguyên trần.
+ *
+ * Phải là schema riêng vì hai bên ràng buộc hai thứ khác nhau: `cvSchema` ép model
+ * viết đủ (tối thiểu 3 năng lực, mỗi kinh nghiệm ít nhất 1 gạch đầu dòng), còn ở
+ * đây người dùng có quyền xoá bớt tới rỗng - dùng lại `cvSchema` thì thao tác xoá
+ * dòng cuối cùng sẽ bị từ chối mà họ không hiểu vì sao.
+ *
+ * KHÔNG trường nào đặt `min(1)`, kể cả chức danh và bằng cấp: bấm "Thêm kinh
+ * nghiệm" sinh ra một dòng RỖNG, và dòng đang nhập dở là trạng thái hợp lệ. Đặt sàn
+ * ở đây thì vừa bấm Thêm là bản xem trước đứng im kèm lỗi 400. Dòng rỗng được
+ * `cvContent` trong `document-renderer.service.ts` bỏ qua lúc vẽ.
+ *
+ * Trần độ dài thì GIỮ NGUYÊN: chữ này đi thẳng vào PDF và database.
+ */
+export const cvEditSchema = z.object({
+  profileStatement: z.string().max(600).default(''),
+  coreCompetencies: z.array(z.string().min(1).max(160)).max(12).default([]),
+  experiences: z
+    .array(
+      z.object({
+        position: z.string().max(120).default(''),
+        company: z.string().max(120).default(''),
+        location: z.string().max(120).default(''),
+        period: z.string().max(60).default(''),
+        bullets: z.array(z.string().min(1).max(300)).max(10).default([]),
+      }),
+    )
+    .max(12)
+    .default([]),
+  educations: z
+    .array(
+      z.object({
+        degree: z.string().max(160).default(''),
+        institution: z.string().max(160).default(''),
+        period: z.string().max(60).default(''),
+        detail: z.string().max(300).default(''),
+      }),
+    )
+    .max(8)
+    .default([]),
+  skillGroups: z
+    .array(
+      z.object({
+        label: z.string().max(80).default(''),
+        items: z.array(z.string().min(1).max(60)).max(20).default([]),
+      }),
+    )
+    .max(10)
+    .default([]),
+});
+
+export type CvEditResult = z.infer<typeof cvEditSchema>;
+
 /** Thư xin việc, dịch từ 06-cover-letter-templates.md và 03-writing-style.md. */
 export const coverLetterSchema = z.object({
   salutation: vn(

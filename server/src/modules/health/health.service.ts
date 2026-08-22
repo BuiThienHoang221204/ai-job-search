@@ -4,6 +4,7 @@ import {
   LATEX_COMPILER,
   type LatexCompiler,
 } from '../documents/latex-compile.js';
+import { PDF_RENDERER, type PdfRenderer } from '../documents/pdf-render.js';
 import { QueueService } from '../queue/queue.service.js';
 
 /** Hạn cho từng phép kiểm tra. */
@@ -16,8 +17,10 @@ export type ReadinessReport = {
   checks: {
     database: CheckResult;
     queue: CheckResult;
-    /** Môi trường tạo PDF. */
+    /** Môi trường tạo PDF từ LaTeX (thư xin việc). */
     latex: CheckResult;
+    /** Môi trường in PDF từ HTML (CV). */
+    pdf: CheckResult;
   };
 };
 
@@ -56,6 +59,7 @@ export class HealthService {
     private readonly prisma: PrismaService,
     private readonly queue: QueueService,
     @Inject(LATEX_COMPILER) private readonly latex: LatexCompiler,
+    @Inject(PDF_RENDERER) private readonly pdf: PdfRenderer,
   ) {}
 
   /** Các phụ thuộc đã sẵn sàng nhận việc hay chưa. */
@@ -77,9 +81,19 @@ export class HealthService {
       'latex',
     );
 
+    const pdf = await withTimeout(
+      this.pdf.available().then((ok) => {
+        if (!ok) throw new Error('môi trường in PDF không phản hồi');
+      }),
+      'pdf',
+    );
+
+    // `latex` và `pdf` cố ý KHÔNG tính vào `ready`, cùng một lý do: mất PDF thì
+    // người dùng vẫn chấm điểm, xem việc, soạn CV và ứng tuyển được, nên đừng để
+    // orchestrator khởi động lại cả app vì một tính năng phụ.
     return {
       ready: database.ok && queue.ok,
-      checks: { database, queue, latex },
+      checks: { database, queue, latex, pdf },
     };
   }
 }
