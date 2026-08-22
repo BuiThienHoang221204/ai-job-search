@@ -36,7 +36,17 @@ export function isBlockedAddress(address: string): boolean {
   return BLOCKED_V4.some((pattern) => pattern.test(address));
 }
 
-export async function assertPublicUrl(raw: string): Promise<URL> {
+/**
+ * Kiểm URL và TRẢ LUÔN địa chỉ đã phân giải.
+ *
+ * Trả địa chỉ ra ngoài để người gọi ghim nó lại (`curl --resolve`). Không ghim
+ * thì giữa lúc ta phân giải và lúc client phân giải lại còn một khe: cùng một
+ * tên miền có thể trả IP công khai cho lượt hỏi đầu rồi 127.0.0.1 cho lượt sau
+ * - đúng kiểu tấn công DNS rebinding, và mọi thứ vừa kiểm thành vô nghĩa.
+ */
+export async function resolvePublicUrl(
+  raw: string,
+): Promise<{ url: URL; address: string }> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -62,5 +72,10 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
     );
   }
 
-  return url;
+  return { url, address: addresses[0] };
+}
+
+/** Kiểm URL, bỏ phần địa chỉ đi. Dành cho người gọi không cần ghim. */
+export async function assertPublicUrl(raw: string): Promise<URL> {
+  return (await resolvePublicUrl(raw)).url;
 }

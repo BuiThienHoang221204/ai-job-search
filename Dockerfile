@@ -42,6 +42,8 @@ FROM node:22-slim AS runtime
 # curl: TopCV chặn TLS fingerprint của bun, nên portal CLI của nó gọi qua curl.
 #   Thiếu curl thì việc quét TopCV hỏng LÚC CHẠY, không phải lúc build - đúng kiểu
 #   thiếu sót chỉ lộ ra khi đã lên môi trường thật.
+#   Nay tool `fetch_url` của agent cũng đi qua curl vì đúng lý do đó (xem
+#   `agent/utils/http-get.ts`), nên gỡ curl ra sẽ làm hỏng HAI tính năng.
 # ca-certificates: cần cho mọi request HTTPS ra portal và ra gateway model.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
