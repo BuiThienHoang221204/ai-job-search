@@ -113,3 +113,33 @@ export function truncateError(error: unknown, max = 800): string {
   const message = error instanceof Error ? error.message : String(error);
   return message.length > max ? `${message.slice(0, max)}...` : message;
 }
+
+/** Một chỗ object của model lệch khỏi schema. */
+export type SchemaIssue = { path: string; code: string; message: string };
+
+/** Chi tiết lệch schema mà `NoObjectGeneratedError` giấu ở `cause.cause.issues`. */
+export function schemaIssues(input: unknown): SchemaIssue[] {
+  const nested = (unwrap(input) as { cause?: { cause?: { issues?: unknown } } })
+    ?.cause?.cause?.issues;
+  if (!Array.isArray(nested)) return [];
+
+  return nested.map((entry) => {
+    const issue = entry as {
+      path?: unknown;
+      code?: unknown;
+      message?: unknown;
+    };
+    return {
+      path:
+        Array.isArray(issue.path) && issue.path.length
+          ? issue.path.join('.')
+          : '(gốc)',
+      code: typeof issue.code === 'string' ? issue.code : 'invalid',
+      message: typeof issue.message === 'string' ? issue.message : '',
+    };
+  });
+}
+
+/** Một chỗ lệch trên một dòng. Dùng chung cho log và cột `errorMessage`. */
+export const formatIssue = (issue: SchemaIssue): string =>
+  `${issue.path}: ${issue.code} — ${issue.message}`;

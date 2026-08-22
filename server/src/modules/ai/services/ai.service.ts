@@ -16,9 +16,11 @@ import { PrismaService } from '../../../prisma/prisma.service.js';
 import { ConfigService } from '@nestjs/config';
 import {
   classifyFailure,
+  formatIssue,
   isModelRetired,
   isRateLimited,
   isResponseFormatUnsupported,
+  schemaIssues,
   truncateError,
   type FailureKind,
 } from '../failure-kind.js';
@@ -64,6 +66,19 @@ const DEFAULT_TIMEOUT_MS = 90_000;
  */
 const DEFAULT_MAX_STEPS = 12;
 
+/** Trần ký tự khi in nguyên văn thứ model trả về. */
+const LOG_TEXT_LIMIT = 4000;
+
+/** Cắt giữa chứ không cắt đuôi: trường bị thiếu thường nằm ở cuối JSON. */
+const clipMiddle = (text: string, limit: number): string => {
+  if (text.length <= limit) return text;
+  const half = Math.floor(limit / 2);
+  return [
+    text.slice(0, half),
+    `… [bỏ ${text.length - limit} ký tự ở giữa] …`,
+    text.slice(-half),
+  ].join('\n');
+};
 /**
  * Hạn cho CẢ vòng lặp, không phải cho một bước.
  *
@@ -554,6 +569,7 @@ export class AiService {
       return { object: result.object, modelId: id };
     } catch (error) {
       const durationMs = Date.now() - startedAt;
+      const issues = schemaIssues(error);
 
       await this.record({
         context: options.context,
@@ -562,16 +578,25 @@ export class AiService {
         ok: false,
         durationMs,
         failureKind: classifyFailure(error),
-        errorMessage: truncateError(error),
+        errorMessage: issues.length
+          ? `${truncateError(error, 200)} | ${issues.map(formatIssue).join(' | ')}`
+          : truncateError(error),
       });
 
       if (NoObjectGeneratedError.isInstance(error)) {
+        const text = error.text ?? '';
         this.logger.error(
           [
             `generateObject ${ref} thất bại sau ${durationMs}ms`,
             `finishReason=${error.finishReason} outputTokens=${error.usage?.outputTokens}`,
-            `--- model trả về ---`,
-            (error.text ?? '(rỗng)').slice(0, 4000),
+            issues.length
+              ? [
+                  `--- lệch schema (${issues.length}) ---`,
+                  ...issues.map(formatIssue),
+                ].join('\n')
+              : '--- không bóc được chi tiết lệch schema (nhiều khả năng JSON hỏng, không phải sai kiểu) ---',
+            `--- model trả về (${text.length} ký tự) ---`,
+            text ? clipMiddle(text, LOG_TEXT_LIMIT) : '(rỗng)',
           ].join('\n'),
         );
       }

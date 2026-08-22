@@ -2,6 +2,7 @@ import {
   classifyFailure,
   isModelRetired,
   isRateLimited,
+  schemaIssues,
   truncateError,
 } from 'src/modules/ai/failure-kind.js';
 
@@ -243,5 +244,68 @@ describe('hai ham phan loai khong duoc bat dong', () => {
       statusCode: 429,
     });
     expect(classifyFailure(error)).toBe('SCHEMA');
+  });
+});
+
+describe('schemaIssues', () => {
+  /// Hình dạng thật đã đo trên ai@7.0.58: NoObjectGeneratedError bọc
+  /// AI_TypeValidationError, và ZodError nằm thêm một tầng nữa bên dưới.
+  const noObjectGenerated = (issues: unknown): Error =>
+    Object.assign(aiError('AI_NoObjectGeneratedError'), {
+      cause: Object.assign(aiError('AI_TypeValidationError'), {
+        cause: { issues },
+      }),
+    });
+
+  test('bóc được path, code và message của từng chỗ lệch', () => {
+    const error = noObjectGenerated([
+      {
+        path: ['starAnswers', 0, 'result'],
+        code: 'too_big',
+        message: 'Too big: expected string to have <=400 characters',
+      },
+      {
+        path: ['likelyProbes'],
+        code: 'invalid_type',
+        message: 'Invalid input: expected array, received undefined',
+      },
+    ]);
+
+    expect(schemaIssues(error)).toEqual([
+      {
+        path: 'starAnswers.0.result',
+        code: 'too_big',
+        message: 'Too big: expected string to have <=400 characters',
+      },
+      {
+        path: 'likelyProbes',
+        code: 'invalid_type',
+        message: 'Invalid input: expected array, received undefined',
+      },
+    ]);
+  });
+
+  test('lệch ở gốc thì path rỗng, phải nói ra chứ không để trống', () => {
+    const error = noObjectGenerated([
+      { path: [], code: 'invalid_type', message: 'expected object' },
+    ]);
+    expect(schemaIssues(error)[0]?.path).toBe('(gốc)');
+  });
+
+  test('bóc được cả khi lỗi bị RetryError bọc ngoài', () => {
+    const error = Object.assign(aiError('AI_RetryError'), {
+      lastError: noObjectGenerated([
+        { path: ['a'], code: 'too_small', message: 'quá ngắn' },
+      ]),
+    });
+    expect(schemaIssues(error)).toEqual([
+      { path: 'a', code: 'too_small', message: 'quá ngắn' },
+    ]);
+  });
+
+  test('JSON hỏng hẳn thì không có issues, trả mảng rỗng thay vì ném', () => {
+    expect(schemaIssues(aiError('AI_NoObjectGeneratedError'))).toEqual([]);
+    expect(schemaIssues(new Error('lỗi thường'))).toEqual([]);
+    expect(schemaIssues(undefined)).toEqual([]);
   });
 });
