@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import {
   NoObjectGeneratedError,
   generateObject,
@@ -8,48 +7,30 @@ import {
   stepCountIs,
   streamText,
   type ModelMessage,
-  type ToolSet,
 } from 'ai';
-import type { LanguageModel } from 'ai';
 import { z, type ZodType } from 'zod';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { ConfigService } from '@nestjs/config';
 import {
   classifyFailure,
   formatIssue,
-  isModelRetired,
-  isRateLimited,
   isResponseFormatUnsupported,
-  isTransientUpstream,
   schemaIssues,
   truncateError,
-  type FailureKind,
 } from '../failure-kind.js';
-import { formatModelRef, parseModelRef } from '../model-ref.js';
-import { providerIds } from '../providers/index.js';
-import {
-  ModelCatalogService,
-  ModelUnavailableError,
-} from './model-catalog.service.js';
-
-/**
- * Ai gọi và gọi để làm gì. Bắt buộc: không có nó thì nhật ký chỉ cho biết
- * "có lỗi" mà không cho biết tác vụ nào đang hỏng.
- */
-export type AiCallContext = {
-  purpose: string;
-  userId?: string;
-};
-
-export type GenerateObjectOptions<T> = {
-  schema: ZodType<T>;
-  system: string;
-  prompt: string;
-  context: AiCallContext;
-  modelId?: string;
-  maxRetries?: number;
-  timeoutMs?: number;
-};
+import { AiCallLog } from './ai-call-log.js';
+import { LanguageModelFactory } from './language-model.js';
+import { ModelCatalogService } from './model-catalog.service.js';
+import { ModelChain, type ChainProgress } from './model-chain.js';
+import type {
+  Ai,
+  AgentStepLog,
+  GenerateObjectOptions,
+  RunToolsOptions,
+  RunToolsResult,
+  StreamTextOptions,
+  StreamTextResult,
+} from './ai.types.js';
 
 /**
  * Gateway free của OpenCode không trả 429 khi bị quá tải - nó chỉ chậm dần.
@@ -80,6 +61,7 @@ const clipMiddle = (text: string, limit: number): string => {
     text.slice(-half),
   ].join('\n');
 };
+
 /**
  * Hạn cho CẢ vòng lặp, không phải cho một bước.
  *
@@ -94,284 +76,55 @@ const clipMiddle = (text: string, limit: number): string => {
  */
 const DEFAULT_AGENT_TIMEOUT_MS = 540_000;
 
-type StreamTextResult = ReturnType<typeof streamText>;
-
-export type StreamTextOptions = {
-  system: string;
-  prompt: string;
-  modelId?: string;
-};
-
 /**
- * Một bước của vòng lặp agent: model nói gì, gọi tool nào, tool trả về gì.
+ * Mọi lời gọi model của cả hệ thống đi qua đây.
  *
- * Ghi lại TỪNG bước chứ không chỉ kết quả cuối, vì một agent chạy sai thường
- * sai ở giữa - gọi nhầm tool, hoặc nhận về rác rồi vẫn viết tiếp như thật.
- * Không có nhật ký bước thì không có cách nào biết nó sai ở đâu.
+ * Ba cộng tác viên bên dưới là seam NỘI BỘ - chúng không xuất hiện trong `Ai`,
+ * và không module nào ngoài file này được dựng chúng: `ModelChain` giữ chính
+ * sách dự phòng, `AiCallLog` giữ sổ, `LanguageModelFactory` dựng đối tượng
+ * model. Tách ra để mỗi thứ đọc được một mình, không phải để mở rộng mặt tiếp
+ * xúc - caller vẫn chỉ cần biết ba method dưới đây.
  */
-export type AgentStepLog = {
-  index: number;
-  text: string;
-  toolCalls: Array<{ tool: string; input: unknown }>;
-  toolResults: Array<{ tool: string; output: unknown }>;
-  durationMs: number;
-  /**
-   * Toàn bộ hội thoại TÍNH TỚI hết bước này, gồm cả câu hỏi mở đầu.
-   *
-   * Đây là điểm khôi phục: lượt chạy chết ở bước 5 vẫn còn nguyên trạng thái
-   * sau bước 4, nên chạy tiếp không phải làm lại từ đầu. Không có nó thì một
-   * lượt hết giờ mất trắng mọi thứ đã tốn tiền để dựng.
-   */
-  messages: ModelMessage[];
-};
-
-export type RunToolsOptions = {
-  system: string;
-  /** Lượt chạy MỚI dùng `prompt`; lượt chạy TIẾP dùng `messages`. */
-  prompt?: string;
-  messages?: ModelMessage[];
-  tools: ToolSet;
-  context: AiCallContext;
-  modelId?: string;
-  /**
-   * Trần số bước. Đây là chặn cuối chống vòng lặp vô tận - model hoàn toàn có
-   * thể gọi đi gọi lại một tool mãi mãi, và mỗi bước là một lượt gọi tính tiền.
-   */
-  maxSteps?: number;
-  /** Hạn cho TOÀN BỘ vòng lặp, không phải cho một bước. */
-  timeoutMs?: number;
-  /**
-   * Dừng vòng lặp ngay sau khi model gọi tool này.
-   *
-   * Dùng cho `ask_user`: agent hỏi xong thì phải nhả worker ra chứ không được
-   * đứng chờ người dùng - câu trả lời có thể tới sau vài giờ, ở một request
-   * khác. Lịch sử hội thoại trả về trong `messages` để nạp lại lúc đó.
-   */
-  stopOnTool?: string;
-  /** Gọi sau mỗi bước, để nơi dùng ghi tiến trình xuống DB ngay lúc chạy. */
-  onStep?: (step: AgentStepLog) => Promise<void>;
-};
-
-export type RunToolsResult = {
-  text: string;
-  steps: AgentStepLog[];
-  finishReason: string;
-  modelId: string;
-  /** Toàn bộ hội thoại sau lượt chạy, để chạy tiếp về sau. */
-  messages: ModelMessage[];
-};
-
-/** Mặt tiếp xúc mà các module khác dùng để gọi model. */
-export type Ai = Pick<AiService, 'generateObject' | 'runTools'>;
-
-/**
- * Mắt xích đang thử đã tốn bước agent nào chưa.
- *
- * Đây là phanh cho một cái giá không thấy được từ `overChain`: đổi model nghĩa
- * là gọi lại `attempt` từ đầu, mà `runTools` chạy lại là chạy lại TỪ BƯỚC 0.
- * Bỏ mắt xích sau bước thứ chín là trả tiền lần hai cho chín bước đã xong, và
- * nhánh FAILED của `AgentRunnerService` không lưu `messages` nên cũng không có
- * đường chạy tiếp. Một lượt CHƯA đi được bước nào thì không mất gì cả.
- *
- * `generateObject` là một lượt hỏi-đáp, không bao giờ chạm vào cờ này.
- */
-type ChainProgress = { spent: boolean };
-
 @Injectable()
-export class AiService {
+export class AiService implements Ai {
   private readonly logger = new Logger(AiService.name);
-  private readonly fallbackModelIds: string[];
-  private readonly defaultModelId: string;
-  private readonly defaultProviderId: string;
+  private readonly chain: ModelChain;
+  private readonly callLog: AiCallLog;
+  private readonly models: LanguageModelFactory;
 
   constructor(
-    private readonly catalog: ModelCatalogService,
-    private readonly prisma: PrismaService,
+    catalog: ModelCatalogService,
+    prisma: PrismaService,
     config: ConfigService,
   ) {
     this.structuredOutputs =
       config.get<boolean>('ai.structuredOutputs') ?? false;
-    this.fallbackModelIds = config.get<string[]>('ai.fallbackModelIds') ?? [];
-    this.defaultModelId = config.get<string>('ai.modelId') ?? '';
-    this.defaultProviderId = config.get<string>('ai.provider') ?? '';
-  }
-
-  /** Dạng đầy đủ `lõi/model`, để so trùng không phụ thuộc cách viết tắt. */
-  private canonical(ref: string): string {
-    return formatModelRef(
-      parseModelRef(ref, providerIds(), this.defaultProviderId),
-    );
-  }
-
-  /**
-   * Thứ tự mắt xích sẽ thử cho MỘT lời gọi. So trùng theo dạng đầy đủ, nếu
-   * không thì `deepseek-v4-flash-free` và `opencode/deepseek-v4-flash-free`
-   * thành hai mắt xích và model vừa hết hạn mức sẽ được thử lại ngay lập tức.
-   */
-  private modelChain(requested?: string): Array<string | undefined> {
-    // Giữ `undefined` khi không cấu hình model mặc định, để catalog dùng mặc
-    // định của chính nó thay vì đi hỏi một model tên rỗng.
-    const first = requested ?? (this.defaultModelId || undefined);
-    const chain: Array<string | undefined> = [first];
-    const seen = new Set([this.canonical(first ?? this.defaultModelId)]);
-
-    for (const id of this.fallbackModelIds) {
-      const key = this.canonical(id);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      chain.push(id);
-    }
-    return chain;
-  }
-
-  /** Ghi lại một lần gọi. KHÔNG bao giờ được làm hỏng lần gọi thật. */
-  private async record(entry: {
-    context: AiCallContext;
-    provider: string;
-    modelId: string;
-    ok: boolean;
-    durationMs: number;
-    failureKind?: FailureKind;
-    errorMessage?: string;
-    inputTokens?: number;
-    outputTokens?: number;
-  }): Promise<void> {
-    try {
-      await this.prisma.aiCall.create({
-        data: {
-          userId: entry.context.userId ?? null,
-          purpose: entry.context.purpose,
-          provider: entry.provider,
-          modelId: entry.modelId,
-          ok: entry.ok,
-          durationMs: entry.durationMs,
-          failureKind: entry.failureKind ?? null,
-          errorMessage: entry.errorMessage ?? null,
-          inputTokens: entry.inputTokens ?? null,
-          outputTokens: entry.outputTokens ?? null,
-        },
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Không ghi được nhật ký AiCall: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+    this.chain = new ModelChain({
+      defaultModelId: config.get<string>('ai.modelId') ?? '',
+      defaultProviderId: config.get<string>('ai.provider') ?? '',
+      fallbackModelIds: config.get<string[]>('ai.fallbackModelIds') ?? [],
+      logger: this.logger,
+    });
+    this.callLog = new AiCallLog(prisma, this.logger);
+    this.models = new LanguageModelFactory(catalog, this.logger);
   }
 
   /** Chế độ đang dùng để ép định dạng đầu ra. */
   private structuredOutputs: boolean;
 
   /**
-   * Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó
-   * là OpenAI-compatible nên không cần adapter thứ hai. Cái thay đổi theo lõi
-   * chỉ là `baseURL` và `apiKey`, và cả hai đến từ `catalog.resolve()`.
-   */
-  private async languageModel(
-    modelId: string | undefined,
-    structuredOutputs: boolean,
-  ): Promise<{
-    model: LanguageModel;
-    id: string;
-    provider: string;
-    ref: string;
-  }> {
-    const resolved = await this.catalog.resolve(modelId);
-    const userAgent = resolved.headers['User-Agent'];
-    this.logger.debug(
-      `AI headers cho ${resolved.model.id}: ${JSON.stringify(resolved.headers)}`,
-    );
-
-    const originalFetch = globalThis.fetch;
-    const forceUserAgentFetch: typeof globalThis.fetch = (input, init) => {
-      const headers = new Headers(init?.headers);
-      if (userAgent) {
-        headers.set('User-Agent', userAgent);
-      }
-      return originalFetch(input, { ...init, headers });
-    };
-
-    const provider = createOpenAICompatible({
-      name: resolved.providerId,
-      baseURL: resolved.baseURL,
-      apiKey: resolved.apiKey,
-      supportsStructuredOutputs: structuredOutputs,
-      headers: resolved.headers,
-      fetch: forceUserAgentFetch,
-    });
-    return {
-      model: provider(resolved.model.id),
-      id: resolved.model.id,
-      provider: resolved.providerId,
-      ref: formatModelRef({
-        providerId: resolved.providerId,
-        modelId: resolved.model.id,
-      }),
-    };
-  }
-
-  /**
    * Sinh dữ liệu có cấu trúc theo schema Zod.
    *
-   * Chuỗi đi tiếp trong đúng BA trường hợp, và cả ba đều là "mắt xích này không
-   * dùng được" chứ không phải "tác vụ này hỏng": hết hạn mức, model không khả
-   * dụng (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là không giữ
-   * nổi structured output), hoặc lõi trả 5xx. Mọi lỗi khác ném ra ngay — đặc
-   * biệt là lỗi schema, vì đổi model khi model trả sai định dạng sẽ giấu mất tín
-   * hiệu "model này quá yếu cho tác vụ".
+   * Hỏng ở một model thì `ModelChain` quyết định có đi tiếp mắt xích hay không
+   * - luật nằm ở `ModelChain.run`, cố ý dùng chung với `runTools` để hai đường
+   * không thể lệch nhau về ý nghĩa của "bỏ qua mắt xích này".
    */
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
-    return this.overChain(options.modelId, (modelId) =>
+    return this.chain.run(options.modelId, (modelId) =>
       this.withFormatFallback({ ...options, modelId }),
     );
-  }
-
-  /**
-   * Chạy `attempt` lần lượt trên chuỗi model cho tới khi có cái chạy được.
-   *
-   * Dùng chung cho `generateObject` và `runTools` để hai đường không thể lệch
-   * nhau về ý nghĩa của "bỏ qua mắt xích này".
-   */
-  private async overChain<T>(
-    requested: string | undefined,
-    attempt: (
-      modelId: string | undefined,
-      progress: ChainProgress,
-    ) => Promise<T>,
-  ): Promise<T> {
-    const chain = this.modelChain(requested);
-    let lastSkipped: unknown;
-
-    for (const [index, modelId] of chain.entries()) {
-      const progress: ChainProgress = { spent: false };
-      try {
-        return await attempt(modelId, progress);
-      } catch (error) {
-        const unavailable = error instanceof ModelUnavailableError;
-        const retired = isModelRetired(error);
-        const limited = isRateLimited(error);
-        const sick = isTransientUpstream(error) && !progress.spent;
-        if (!unavailable && !limited && !retired && !sick) throw error;
-
-        lastSkipped = error;
-        const reason = unavailable
-          ? error.message
-          : retired
-            ? 'gateway đã rút model này'
-            : limited
-              ? 'hết hạn mức'
-              : 'lõi trả 5xx';
-        const next = chain[index + 1];
-        this.logger.warn(
-          next
-            ? `Bỏ qua ${modelId ?? '(mặc định)'} (${reason}), thử ${next}`
-            : `Bỏ qua ${modelId ?? '(mặc định)'} (${reason}) và không còn mắt xích dự phòng`,
-        );
-      }
-    }
-
-    throw lastSkipped;
   }
 
   /**
@@ -383,12 +136,11 @@ export class AiService {
    * vậy mọi trần đều là bắt buộc chứ không phải tuỳ chọn - trần bước, hạn thời
    * gian cho cả vòng, và tool nào được cấp thì do NƠI GỌI quyết định.
    *
-   * Dùng lại đúng chuỗi dự phòng của `generateObject`: hết hạn mức, model bị
-   * rút, hay lõi trả 5xx lúc chưa đi được bước nào thì đổi mắt xích; lỗi khác
-   * thì ném ra ngay.
+   * Dùng lại đúng chuỗi dự phòng của `generateObject`, kể cả cái phanh "chưa
+   * đi được bước nào mới được đổi model" - xem `ModelChain`.
    */
   async runTools(options: RunToolsOptions): Promise<RunToolsResult> {
-    return this.overChain(options.modelId, (modelId, progress) =>
+    return this.chain.run(options.modelId, (modelId, progress) =>
       this.attemptTools({ ...options, modelId }, progress),
     );
   }
@@ -397,7 +149,7 @@ export class AiService {
     options: RunToolsOptions,
     progress: ChainProgress,
   ): Promise<RunToolsResult> {
-    const { model, id, provider, ref } = await this.languageModel(
+    const { model, id, provider, ref } = await this.models.create(
       options.modelId,
       this.structuredOutputs,
     );
@@ -478,7 +230,7 @@ export class AiService {
         `runTools ${ref} xong sau ${durationMs}ms, ${steps.length} bước`,
       );
 
-      await this.record({
+      await this.callLog.record({
         context: options.context,
         provider,
         modelId: id,
@@ -497,7 +249,7 @@ export class AiService {
       };
     } catch (error) {
       const durationMs = Date.now() - startedAt;
-      await this.record({
+      await this.callLog.record({
         context: options.context,
         provider,
         modelId: id,
@@ -558,7 +310,7 @@ export class AiService {
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<{ object: T; modelId: string }> {
-    const { model, id, provider, ref } = await this.languageModel(
+    const { model, id, provider, ref } = await this.models.create(
       options.modelId,
       structuredOutputs,
     );
@@ -581,7 +333,7 @@ export class AiService {
       const durationMs = Date.now() - startedAt;
       this.logger.log(`generateObject ${ref} xong sau ${durationMs}ms`);
 
-      await this.record({
+      await this.callLog.record({
         context: options.context,
         provider,
         modelId: id,
@@ -596,7 +348,7 @@ export class AiService {
       const durationMs = Date.now() - startedAt;
       const issues = schemaIssues(error);
 
-      await this.record({
+      await this.callLog.record({
         context: options.context,
         provider,
         modelId: id,
@@ -633,7 +385,7 @@ export class AiService {
   async streamText(
     options: StreamTextOptions,
   ): Promise<{ modelId: string; result: StreamTextResult }> {
-    const { model, id } = await this.languageModel(options.modelId, false);
+    const { model, id } = await this.models.create(options.modelId, false);
     return {
       modelId: id,
       result: streamText({

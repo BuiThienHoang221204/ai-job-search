@@ -5,7 +5,7 @@ import type {
   GenerateObjectOptions,
   RunToolsOptions,
   RunToolsResult,
-} from '../modules/ai/services/ai.service.js';
+} from '../modules/ai/services/ai.types.js';
 
 /**
  * Kết quả xếp sẵn cho một lần gọi: hoặc object mà model "trả về", hoặc lỗi để

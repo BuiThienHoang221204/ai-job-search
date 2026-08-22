@@ -1,4 +1,4 @@
-import type { Ai } from '../ai/services/ai.service.js';
+import type { Ai } from '../ai/services/ai.types.js';
 import type { LatexCompiler } from '../documents/latex-compile.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
