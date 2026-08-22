@@ -245,7 +245,12 @@ describe('Nhặt việc nền bị rơi', () => {
   test('không có việc rơi thì không xếp gì', async () => {
     const result = await reconcile.run();
 
-    expect(result).toEqual({ documents: 0, matches: 0, deferred: 0 });
+    expect(result).toEqual({
+      documents: 0,
+      matches: 0,
+      deferred: 0,
+      agentRuns: 0,
+    });
     expect(harness.queue.sent).toEqual([]);
   });
 });

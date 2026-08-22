@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
 import { missingFields } from '../profile/completion.js';
+import { jobCardSelect } from '../jobs/job-card.select.js';
 import { buildSuggestions, type SuggestionInput } from './suggestions.js';
 import { recurringGaps } from './skill-gaps.js';
 
@@ -51,11 +52,8 @@ export class DashboardService {
         where: eligible,
         orderBy: { overallScore: 'desc' },
         take: 3,
-        include: {
-          job: {
-            include: { saves: { where: { userId }, select: { id: true } } },
-          },
-        },
+        // Thẻ công việc, không phải cả tin: `include` kéo về cả `description`.
+        include: { job: { select: jobCardSelect(userId) } },
       }),
       this.prisma.jobMatch.findMany({
         where: eligible,

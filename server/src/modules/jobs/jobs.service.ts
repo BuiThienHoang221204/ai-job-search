@@ -15,6 +15,7 @@ import {
 } from '../matching/requirement-match.js';
 import { keywordOverlap } from '../scraper/fan-out.js';
 import { derivedFields } from './taxonomy/derived.js';
+import { jobCardSelect } from './job-card.select.js';
 import { OCCUPATIONS } from './taxonomy/occupations.js';
 import { PROVINCES, REMOTE_CODE } from './taxonomy/provinces.js';
 import { normalizeText } from './taxonomy/resolve.js';
@@ -240,25 +241,7 @@ export class JobsService {
    */
   private readonly cardSelect = (userId: string) =>
     ({
-      id: true,
-      source: true,
-      externalId: true,
-      url: true,
-      title: true,
-      company: true,
-      companyLogo: true,
-      location: true,
-      workMode: true,
-      salaryRaw: true,
-      salaryMin: true,
-      salaryMax: true,
-      currency: true,
-      tags: true,
-      postedAt: true,
-      scrapedAt: true,
-      provinceCode: true,
-      occupationCode: true,
-      saves: { where: { userId }, select: { id: true } },
+      ...jobCardSelect(userId),
       matches: {
         where: { userId },
         select: { status: true, overallScore: true, verdict: true },

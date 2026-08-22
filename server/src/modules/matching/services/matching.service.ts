@@ -9,6 +9,7 @@ import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../../common/pagination.js';
 import { isUniqueViolation } from '../../../prisma/prisma-errors.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { jobCardSelect } from '../../jobs/job-card.select.js';
 import { AiService } from '../../ai/services/ai.service.js';
 import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
@@ -242,6 +243,34 @@ export class MatchingService {
     return profile?.updatedAt ?? null;
   }
 
+  /**
+   * DANH SÁCH thì không mang theo văn xuôi dài — đó là việc của `getMatch`.
+   *
+   * Bảy trường `*Note` cộng `recommendation` là những đoạn model viết cho trang
+   * chi tiết đọc; đo ngày 2026-08-22 chúng chiếm 21.608 byte trong một phản hồi
+   * 20 dòng, và **không màn danh sách nào vẽ chúng ra**. `promptHash`/`modelId`
+   * thì là dấu vết nội bộ của lượt gọi model.
+   */
+  private static readonly LIST_FIELDS = {
+    id: true,
+    userId: true,
+    jobId: true,
+    status: true,
+    eligibility: true,
+    overallScore: true,
+    verdict: true,
+    technicalScore: true,
+    experienceScore: true,
+    behavioralScore: true,
+    careerScore: true,
+    locationPass: true,
+    strengths: true,
+    gaps: true,
+    evaluatedAt: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
+
   async listMatches(userId: string, query: PaginationQueryDto = {}) {
     const where = { userId, status: 'DONE' as const };
 
@@ -250,10 +279,11 @@ export class MatchingService {
         where,
         orderBy: { overallScore: 'desc' },
         ...pageArgs(query),
-        include: {
-          job: {
-            include: { saves: { where: { userId }, select: { id: true } } },
-          },
+        // `select` chứ không `include`: `include` kéo về cả `description`, và
+        // riêng cột đó là 42,7% dung lượng phản hồi này. Xem `job-card.select`.
+        select: {
+          ...MatchingService.LIST_FIELDS,
+          job: { select: jobCardSelect(userId) },
         },
       }),
       this.prisma.jobMatch.count({ where }),
