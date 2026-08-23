@@ -381,17 +381,58 @@ export class AiService implements Ai {
     }
   }
 
-  /** Stream văn bản cho các màn hình người dùng ngồi chờ (CV, cover letter). */
+  /**
+   * Stream văn bản cho các màn hình người dùng ngồi chờ.
+   *
+   * KHÔNG có chuỗi model dự phòng, và đó là chủ đích: khi token đầu tiên đã rời
+   * đi thì không còn đường lùi sang model khác - trình duyệt đã vẽ nửa câu rồi.
+   * Hỏng thì hỏng hẳn, và người gọi quyết định nói gì với người dùng.
+   *
+   * `onFinish` ghi `ai_calls` khi stream chạy xong. Ghi ở đây chứ không để
+   * người gọi tự ghi: đây là chỗ duy nhất biết provider và số token thật, mà
+   * một lượt gọi vô hình với màn quản trị thì mọi con số p50 sau này đều sai.
+   */
   async streamText(
     options: StreamTextOptions,
   ): Promise<{ modelId: string; result: StreamTextResult }> {
-    const { model, id } = await this.models.create(options.modelId, false);
+    const { model, id, provider } = await this.models.create(
+      options.modelId,
+      false,
+    );
+    const startedAt = Date.now();
+
     return {
       modelId: id,
       result: streamText({
         model,
         system: options.system,
-        prompt: options.prompt,
+        ...(options.messages
+          ? { messages: options.messages }
+          : { prompt: options.prompt ?? '' }),
+        onFinish: ({ usage }) => {
+          if (!options.context) return;
+          void this.callLog.record({
+            context: options.context,
+            provider,
+            modelId: id,
+            ok: true,
+            durationMs: Date.now() - startedAt,
+            inputTokens: usage?.inputTokens,
+            outputTokens: usage?.outputTokens,
+          });
+        },
+        onError: ({ error }) => {
+          if (!options.context) return;
+          void this.callLog.record({
+            context: options.context,
+            provider,
+            modelId: id,
+            ok: false,
+            durationMs: Date.now() - startedAt,
+            failureKind: classifyFailure(error),
+            errorMessage: truncateError(error),
+          });
+        },
       }),
     };
   }

@@ -24,8 +24,13 @@ export type StreamTextResult = ReturnType<typeof streamText>;
 
 export type StreamTextOptions = {
   system: string;
-  prompt: string;
+  /** Một lượt hỏi rời. Loại trừ lẫn nhau với `messages`. */
+  prompt?: string;
+  /** Hội thoại nhiều lượt — buổi luyện phỏng vấn đi đường này. */
+  messages?: ModelMessage[];
   modelId?: string;
+  /** Để ghi vào `ai_calls`; thiếu nó thì lượt stream vô hình với màn quản trị. */
+  context?: AiCallContext;
 };
 
 /**

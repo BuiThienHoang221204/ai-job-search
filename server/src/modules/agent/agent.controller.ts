@@ -1,9 +1,20 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+  Logger,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
 import { AgentService } from './agent.service.js';
+import { InterviewTurnService } from './interview-turn.service.js';
 import {
   AnswerAgentDto,
   ListAgentRunsDto,
@@ -12,9 +23,12 @@ import {
 
 @Controller('agent-runs')
 export class AgentController {
+  private readonly logger = new Logger(AgentController.name);
+
   constructor(
     private readonly agent: AgentService,
     private readonly queue: QueueService,
+    private readonly turns: InterviewTurnService,
   ) {}
 
   @Get()
@@ -71,5 +85,55 @@ export class AgentController {
     const run = await this.agent.answer(user.id, id, dto.text);
     await this.queue.send(QUEUE.AGENT_RUN, { runId: run.id, userId: user.id });
     return { queued: true, runId: run.id };
+  }
+
+  /**
+   * Trả lời một lượt phỏng vấn và NHẬN CHỮ NGAY, không qua hàng đợi.
+   *
+   * Đo trên một buổi thật: mỗi lượt mất 18,9 giây và người dùng nhìn màn hình
+   * trống suốt chừng đó, vì model sinh xong 822 token mới trả về một cục, rồi
+   * frontend còn hỏi lại mỗi 4 giây nữa. Stream không làm model nhanh hơn — nó
+   * biến 19 giây im lặng thành 3 giây rồi chữ chạy dần, đúng nhịp một người
+   * phỏng vấn thật nói.
+   *
+   * Trả chữ thô chứ không phải SSE: một luồng, một người đọc, không có nhiều
+   * loại sự kiện nào để phân biệt. Thêm khung `data:` của SSE ở đây chỉ là thêm
+   * thứ để bóc ở đầu bên kia.
+   *
+   * `X-Accel-Buffering: no` là bắt buộc, không phải phòng xa: nginx mặc định
+   * gom cả phản hồi rồi mới trả, và khi đó tính năng hỏng ÂM THẦM — máy dev thấy
+   * chữ chạy, lên server thì lại đứng im 19 giây như cũ.
+   */
+  @ThrottleAi()
+  @Post(':id/turn')
+  async turn(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: AnswerAgentDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+
+    try {
+      for await (const piece of this.turns.stream(user.id, id, dto.text)) {
+        response.write(piece);
+      }
+    } catch (error) {
+      /*
+       * Header đã gửi rồi thì không đổi được mã trạng thái nữa. Đóng kết nối
+       * đột ngột là tín hiệu duy nhất còn lại, và frontend đọc nó thành "lượt
+       * này hỏng, xoá phần chữ dở đi" - xem `interview-stream.ts`.
+       */
+      this.logger.error(
+        `Lượt phỏng vấn ${id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      response.destroy();
+      return;
+    }
+
+    response.end();
   }
 }

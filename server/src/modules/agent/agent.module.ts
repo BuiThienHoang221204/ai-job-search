@@ -11,6 +11,7 @@ import { AgentRunnerService } from './agent-runner.service.js';
 import { AgentService } from './agent.service.js';
 import { AgentToolsService } from './agent-tools.service.js';
 import { CommandRegistryService } from './command-registry.service.js';
+import { InterviewTurnService } from './interview-turn.service.js';
 
 /**
  * Agent nhiều bước: thi hành kịch bản trong `.claude/commands/`.
@@ -34,6 +35,7 @@ import { CommandRegistryService } from './command-registry.service.js';
     AgentContextService,
     CommandRegistryService,
     AgentProcessor,
+    InterviewTurnService,
   ],
   exports: [AgentService],
 })
