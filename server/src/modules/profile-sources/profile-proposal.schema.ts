@@ -6,13 +6,33 @@ const line = (max: number, hint: string) =>
   z.string().min(1).max(max).describe(hint);
 
 /**
+ * Trường MÔ TẢ mà CV có quyền không ghi.
+ *
+ * `.default('')` chứ không `.min(1)`: ép một thứ bằng chứng không có thì model
+ * chỉ còn hai đường — bịa ra, hoặc trả chuỗi rỗng rồi làm hỏng cả lượt đọc. Đã
+ * hỏng thật ngày 2026-08-23: một CV ghi "Industrial University of Ho Chi Minh
+ * City (IUH), Software Engineering, GPA 3.31/4.0" mà không ghi bậc bằng. Model
+ * điền `degree: ""` cho đúng sự thật, zod chặn, và TOÀN BỘ bản đọc CV mất trắng
+ * sau 19 giây cùng một lượt gọi model — vì một trường phụ.
+ *
+ * Chỗ để nói "cái này CV không có" là mảng `missing`, không phải một lỗi schema.
+ * `cvEditSchema` đã chọn đúng cách này cho đúng những trường đó.
+ *
+ * Ranh giới: thứ làm nên DANH TÍNH của một mục (`school`, `company`,
+ * `position`, tên dự án) vẫn dùng `line()` — thiếu chúng thì cả mục vô nghĩa,
+ * và từ chối mới là đúng.
+ */
+const optionalText = (max: number, hint: string) =>
+  z.string().max(max).default('').describe(hint);
+
+/**
  * Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh khi người
  * dùng áp dụng bản nháp. Model không được đặt id.
  */
 const experienceItem = z.object({
   company: line(160, 'Tên công ty, ghi đúng như trong CV.'),
   position: line(160, 'Chức danh.'),
-  period: line(60, 'Khoảng thời gian, ví dụ "03/2022 – nay".'),
+  period: optionalText(60, 'Khoảng thời gian, ví dụ "03/2022 – nay".'),
   location: z
     .string()
     .max(160)
@@ -28,8 +48,11 @@ const experienceItem = z.object({
 
 const educationItem = z.object({
   school: line(200, 'Tên trường.'),
-  degree: line(160, 'Bậc/loại bằng, ví dụ "Cử nhân".'),
-  field: line(160, 'Ngành học.'),
+  degree: optionalText(
+    160,
+    'Bậc/loại bằng, ví dụ "Cử nhân". Để trống nếu CV không ghi.',
+  ),
+  field: optionalText(160, 'Ngành học. Để trống nếu CV không ghi.'),
   period: z.string().max(60).optional(),
   gpa: z
     .string()
