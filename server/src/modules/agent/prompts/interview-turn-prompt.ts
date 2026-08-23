@@ -41,6 +41,44 @@ export const QUESTION_MARK = '@@HOI@@';
 /** Rác model hay bịa ra: nó tự viết cú pháp gọi tool dù không được cho tool nào. */
 const TOOL_CALL_BLOCK = /<tool_call>[\s\S]*?<\/tool_call>/g;
 
+/**
+ * Chữ Hán, Nhật, Hàn, Ả Rập lọt vào giữa câu tiếng Việt.
+ *
+ * Không phải rủi ro giả định: CLAUDE.md đã ghi đây là kiểu hỏng đặc trưng của
+ * các model free, và một lượt thật ngày 2026-08-23 trả về "Ví dụ:定义
+ * `PaymentService`" — nghĩa là model nghĩ ra chữ "định nghĩa" rồi phát ra bằng
+ * tiếng Hán. Prompt đã dặn thẳng "chỉ viết chữ Latin có dấu" và nó vẫn làm.
+ *
+ * XOÁ chứ không thay bằng gì: chỗ đó vốn đã hỏng, và không có cách nào đoán
+ * đúng từ tiếng Việt mà model định viết. Bỏ đi thì câu trên thành "Ví dụ:
+ * `PaymentService`" — đọc được. Giữ lại thì người dùng đọc phải chữ Hán giữa
+ * một buổi phỏng vấn tiếng Việt.
+ *
+ * KHÔNG chặn Cyrillic hay Hy Lạp: `α`, `β`, `Δ` xuất hiện hợp lệ trong nội dung
+ * kỹ thuật, và chúng chưa bao giờ là kiểu hỏng đã đo được.
+ */
+const FOREIGN_SCRIPT =
+  /[\u3000-\u303F\u3040-\u30FF\u4E00-\u9FFF\u1100-\u11FF\uAC00-\uD7AF\u0600-\u06FF]+/g;
+
+/**
+ * Dọn mọi thứ không được phép tới tay người đọc.
+ *
+ * Dùng chung cho luồng chữ đang chảy và cho bản lưu vào database. Hai đường mà
+ * dọn khác nhau thì màn hình sạch còn bản ghi bẩn — tải lại trang là chữ Hán
+ * hiện về, và không ai hiểu vì sao.
+ */
+export function scrubText(input: string): string {
+  return input
+    .split(QUESTION_MARK)
+    .join('\n\n')
+    .replace(TOOL_CALL_BLOCK, '')
+    .replace(FOREIGN_SCRIPT, '');
+}
+
+/** Đếm ký tự ngoài bảng Latin, để ghi log chứ không để chặn. */
+export const countForeign = (input: string): number =>
+  (input.match(FOREIGN_SCRIPT) ?? []).join('').length;
+
 const RULES = [
   'Bạn là người phỏng vấn trong một buổi luyện tập. Chỉ nói phần của người phỏng vấn.',
   '',
@@ -117,7 +155,10 @@ export interface TurnParts {
  * cắt) sẽ cắt nhầm giữa câu.
  */
 export function splitTurnParts(body: string): TurnParts {
-  const clean = body.replace(TOOL_CALL_BLOCK, '').trim();
+  const clean = body
+    .replace(TOOL_CALL_BLOCK, '')
+    .replace(FOREIGN_SCRIPT, '')
+    .trim();
   const at = clean.indexOf(QUESTION_MARK);
 
   if (at === -1) return { feedback: '', question: clean };
@@ -149,9 +190,6 @@ export function createStreamScrubber(): {
 } {
   let pending = '';
 
-  const clean = (input: string): string =>
-    input.split(QUESTION_MARK).join('\n\n').replace(TOOL_CALL_BLOCK, '');
-
   return {
     push(piece) {
       pending += piece;
@@ -161,7 +199,7 @@ export function createStreamScrubber(): {
       const closed = pending.lastIndexOf('</tool_call>');
       if (open !== -1 && open > closed) return '';
 
-      const ready = clean(pending);
+      const ready = scrubText(pending);
       if (ready.length <= HOLD) return '';
 
       const out = ready.slice(0, ready.length - HOLD);
@@ -169,7 +207,7 @@ export function createStreamScrubber(): {
       return out;
     },
     flush() {
-      const out = clean(pending);
+      const out = scrubText(pending);
       pending = '';
       return out;
     },

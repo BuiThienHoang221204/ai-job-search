@@ -6,6 +6,7 @@ import { AiService } from '../ai/services/ai.service.js';
 import { AgentService } from './agent.service.js';
 import { ASK_USER_TOOL } from './tools/ask-user.tool.js';
 import {
+  countForeign,
   createStreamScrubber,
   interviewTurnSystem,
   splitTurnMarker,
@@ -143,6 +144,21 @@ export class InterviewTurnService {
     this.logger.log(
       `Lượt phỏng vấn ${runId} xong sau ${Date.now() - startedAt}ms, ${done ? 'kết thúc buổi' : 'còn hỏi tiếp'}`,
     );
+
+    /*
+     * Đã xoá chữ ngoài bảng Latin thì NÓI RA, đừng dọn im lặng.
+     *
+     * Cùng lý do `LatexCompiler` gom các dòng `Missing character` thay vì bỏ
+     * qua: dọn cho người dùng đọc được là đúng, nhưng nó cũng là thước đo model
+     * này còn dùng được hay không. Dọn im lặng thì tín hiệu đó biến mất, và
+     * không ai biết chất lượng đang trôi.
+     */
+    const foreign = countForeign(body);
+    if (foreign > 0) {
+      this.logger.warn(
+        `Model chèn ${foreign} ký tự ngoài bảng Latin vào câu tiếng Việt, đã xoá. Đây là dấu hiệu model yếu cho tác vụ này - xem AI_INTERVIEW_MODEL_ID.`,
+      );
+    }
   }
 
   /**

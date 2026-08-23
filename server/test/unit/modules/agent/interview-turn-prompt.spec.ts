@@ -1,4 +1,5 @@
 import {
+  countForeign,
   createStreamScrubber,
   QUESTION_MARK,
   splitTurnMarker,
@@ -189,5 +190,43 @@ describe('splitTurnMarker — model viết không dấu', () => {
       done: false,
       rest: 'TIẾN\nNội dung.',
     });
+  });
+});
+
+/**
+ * Chữ Hán lọt vào giữa câu tiếng Việt — kiểu hỏng CLAUDE.md đã ghi cho các
+ * model free, và đã thấy thật ngày 2026-08-23: "Ví dụ:定义 `PaymentService`".
+ *
+ * Phải dọn ở CẢ HAI đường. Dọn mỗi luồng chữ thì màn hình sạch nhưng bản ghi
+ * bẩn, và tải lại trang là chữ Hán hiện về.
+ */
+describe('dọn chữ ngoài bảng Latin', () => {
+  const RAW = 'Ví dụ:定义 `PaymentService` interface';
+
+  it('xoá khỏi luồng chữ đang chảy', () => {
+    const scrub = createStreamScrubber();
+    const out = scrub.push(RAW) + scrub.flush();
+
+    expect(out).toBe('Ví dụ: `PaymentService` interface');
+  });
+
+  it('xoá khỏi bản lưu vào database', () => {
+    expect(splitTurnParts(`${QUESTION_MARK}\n${RAW}?`).question).toBe(
+      'Ví dụ: `PaymentService` interface?',
+    );
+  });
+
+  it('đếm được để ghi log, không dọn im lặng', () => {
+    expect(countForeign(RAW)).toBe(2);
+    expect(countForeign('Không có chữ lạ nào.')).toBe(0);
+  });
+
+  /// Tiếng Việt có dấu và ký hiệu kỹ thuật KHÔNG được đụng tới.
+  it('giữ nguyên tiếng Việt và ký hiệu kỹ thuật', () => {
+    const keep = 'Độ trễ giảm từ 3s xuống 300ms — α = 0.5, Δt < 1s. Ổn chứ?';
+
+    expect(countForeign(keep)).toBe(0);
+    const scrub = createStreamScrubber();
+    expect(scrub.push(keep) + scrub.flush()).toBe(keep);
   });
 });
