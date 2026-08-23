@@ -6,8 +6,11 @@ import { AiService } from '../ai/services/ai.service.js';
 import { AgentService } from './agent.service.js';
 import { ASK_USER_TOOL } from './tools/ask-user.tool.js';
 import {
+  createStreamScrubber,
   interviewTurnSystem,
   splitTurnMarker,
+  splitTurnParts,
+  type TurnParts,
 } from './prompts/interview-turn-prompt.js';
 
 /**
@@ -92,6 +95,13 @@ export class InterviewTurnService {
     let resolved = false;
     let done = false;
     let body = '';
+    const scrub = createStreamScrubber();
+
+    /** Gom vào bản LƯU nguyên văn, phát ra ngoài bản ĐÃ LỌC. */
+    const emit = (raw: string): string => {
+      body += raw;
+      return scrub.push(raw);
+    };
 
     for await (const piece of result.textStream) {
       if (!resolved) {
@@ -101,32 +111,33 @@ export class InterviewTurnService {
         const split = splitTurnMarker(head);
         resolved = true;
         done = split.done;
-        if (split.rest) {
-          body += split.rest;
-          yield split.rest;
-        }
+        const out = emit(split.rest);
+        if (out) yield out;
         continue;
       }
 
-      body += piece;
-      yield piece;
+      const out = emit(piece);
+      if (out) yield out;
     }
 
     if (!resolved && head) {
       const split = splitTurnMarker(head);
       done = split.done;
-      body = split.rest;
-      if (split.rest) yield split.rest;
+      const out = emit(split.rest);
+      if (out) yield out;
     }
 
-    const question = body.trim();
-    if (!question) {
+    const tail = scrub.flush();
+    if (tail) yield tail;
+
+    const parts = splitTurnParts(body);
+    if (!parts.question) {
       throw new BadRequestException('Model không trả về nội dung nào.');
     }
 
-    await this.persist(runId, answer, question, done, Date.now() - startedAt, [
+    await this.persist(runId, answer, parts, done, Date.now() - startedAt, [
       ...messages,
-      { role: 'assistant', content: question },
+      { role: 'assistant', content: body.trim() },
     ]);
 
     this.logger.log(
@@ -149,7 +160,7 @@ export class InterviewTurnService {
   private async persist(
     runId: string,
     answer: string,
-    question: string,
+    parts: TurnParts,
     done: boolean,
     durationMs: number,
     messages: ModelMessage[],
@@ -182,9 +193,15 @@ export class InterviewTurnService {
         data: {
           runId,
           index: (last?.index ?? -1) + 1,
-          text: '',
-          toolCalls: [{ tool: ASK_USER_TOOL, input: { question } }],
-          toolResults: [{ tool: ASK_USER_TOOL, output: { asked: question } }],
+          // `text` là nơi `buildTranscript` đọc NHẬN XÉT ra, và nó gắn vào lượt
+          // TRƯỚC - đúng ngữ nghĩa: nhận xét là dành cho câu vừa trả lời.
+          text: parts.feedback,
+          toolCalls: [
+            { tool: ASK_USER_TOOL, input: { question: parts.question } },
+          ],
+          toolResults: [
+            { tool: ASK_USER_TOOL, output: { asked: parts.question } },
+          ],
           durationMs,
         },
       }),
@@ -192,7 +209,7 @@ export class InterviewTurnService {
         where: { id: runId },
         data: {
           status: done ? 'DONE' : 'WAITING_USER',
-          question: done ? null : question,
+          question: done ? null : parts.question,
           answer: null,
           messages: messages as unknown as Prisma.InputJsonValue,
         },
