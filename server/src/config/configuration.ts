@@ -115,12 +115,15 @@ const configuration = () => ({
     fetchMaxBytes: parseInt(process.env.AGENT_FETCH_MAX_BYTES ?? '2000000', 10),
     fetchTimeoutMs: parseInt(process.env.AGENT_FETCH_TIMEOUT_MS ?? '20000', 10),
     /**
-     * Tavily. Không có key thì tool `web_search` KHÔNG được đăng ký - agent
+     * Serper. Không có key thì tool `web_search` KHÔNG được đăng ký - agent
      * thấy nó vắng mặt và tự xoay xở, thay vì gọi rồi nhận lỗi ở mọi bước.
+     *
+     * Tên biến phải là `SERPER_*`: `parseSerper` đọc định dạng của
+     * google.serper.dev, còn `.env` và `.env.example` vốn đã khai bằng tên đó.
      */
-    searchApiKey: process.env.WEB_SEARCH_API_KEY ?? '',
-    searchUrl: process.env.WEB_SEARCH_URL ?? 'https://api.tavily.com/search',
-    searchMaxResults: parseInt(process.env.WEB_SEARCH_MAX_RESULTS ?? '5', 10),
+    searchApiKey: process.env.SERPER_API_KEY ?? '',
+    searchUrl: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
+    searchMaxResults: parseInt(process.env.SERPER_MAX_RESULTS ?? '5', 10),
   },
 
   scraper: {
