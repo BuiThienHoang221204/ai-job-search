@@ -26,6 +26,8 @@ export const QUEUE = {
   PROFILE_SYNTHESIZE: 'profile.synthesize',
   /** Rút yêu cầu của MỘT tin, dùng chung cho mọi hồ sơ. Pha A. */
   EXTRACT_REQUIREMENTS: 'job.requirements',
+  /** Tìm hiểu một công ty từ các trang đánh giá công khai. Khoá theo công ty, không theo người dùng. */
+  COMPANY_BRIEF: 'company.brief',
   /** Chạy một kịch bản nhiều bước trong `.claude/commands/`. */
   AGENT_RUN: 'agent.run',
 } as const;
@@ -69,6 +71,13 @@ export type InterviewPrepPayload = {
 export type AgentRunPayload = {
   runId: string;
   userId: string;
+};
+
+/** Không có `userId`: bản tìm hiểu công ty dùng chung cho mọi người dùng. */
+export type CompanyBriefPayload = {
+  nameKey: string;
+  company: string;
+  force?: boolean;
 };
 
 export type UpskillReportPayload = {

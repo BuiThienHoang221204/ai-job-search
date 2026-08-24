@@ -15,6 +15,7 @@ import { DocumentsModule } from './modules/documents/documents.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { InterviewModule } from './modules/interview/interview.module.js';
 import { JobsModule } from './modules/jobs/jobs.module.js';
+import { CompaniesModule } from './modules/companies/companies.module.js';
 import { UpskillModule } from './modules/upskill/upskill.module.js';
 import { MatchingModule } from './modules/matching/matching.module.js';
 import { ProfileModule } from './modules/profile/profile.module.js';
@@ -56,6 +57,7 @@ import { StorageModule } from './modules/storage/storage.module.js';
     MatchingModule,
     InterviewModule,
     UpskillModule,
+    CompaniesModule,
     DocumentsModule,
     ApplicationsModule,
     AgentModule,

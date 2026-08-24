@@ -27,7 +27,7 @@ const NOISE_PHRASES = [
 ];
 
 /** Tên công ty vô danh. Gộp mọi tin ẩn danh cùng tỉnh vào một là sai nặng. */
-const ANONYMOUS_COMPANIES = [
+export const ANONYMOUS_COMPANIES = [
   'khong ro',
   'cong ty bao mat',
   'confidential',

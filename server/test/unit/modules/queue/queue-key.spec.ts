@@ -33,6 +33,28 @@ describe('singletonKeyFor', () => {
       }),
     ).toBe('d1');
     expect(singletonKeyFor(QUEUE.SCRAPE_RUN, { runId: 'run1' })).toBe('run1');
+    expect(
+      singletonKeyFor(QUEUE.COMPANY_BRIEF, {
+        nameKey: 'fpt software',
+        company: 'FPT Software',
+      }),
+    ).toBe('fpt software:cache');
+  });
+
+  /// Bản tìm hiểu công ty dùng chung cho mọi người, nên hai người mở cùng một
+  /// tin phải gộp làm một lượt. Lọt `userId` vào khoá là trả tiền hai lần cho
+  /// cùng một kết quả.
+  test('khoá tìm hiểu công ty không phụ thuộc người dùng', () => {
+    const first = singletonKeyFor(QUEUE.COMPANY_BRIEF, {
+      nameKey: 'fpt software',
+      company: 'Công ty TNHH FPT Software',
+    });
+    const second = singletonKeyFor(QUEUE.COMPANY_BRIEF, {
+      nameKey: 'fpt software',
+      company: 'FPT Software',
+    });
+
+    expect(first).toBe(second);
   });
 
   /// `force` phải nằm trong khoá, nếu không một yêu cầu chấm LẠI sẽ bị gộp vào

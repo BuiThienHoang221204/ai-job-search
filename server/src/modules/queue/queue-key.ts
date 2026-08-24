@@ -11,6 +11,7 @@ const SCRAPE_RUN = 'scrape.run';
 const PROFILE_SYNTHESIZE = 'profile.synthesize';
 const EXTRACT_REQUIREMENTS = 'job.requirements';
 const AGENT_RUN = 'agent.run';
+const COMPANY_BRIEF = 'company.brief';
 
 export const QUEUES_WITH_KEY_RULE = [
   EVALUATE_MATCH,
@@ -21,6 +22,7 @@ export const QUEUES_WITH_KEY_RULE = [
   PROFILE_SYNTHESIZE,
   EXTRACT_REQUIREMENTS,
   AGENT_RUN,
+  COMPANY_BRIEF,
 ] as const;
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
@@ -73,6 +75,14 @@ export function singletonKeyFor(queue: string, data: object): string {
 
     case AGENT_RUN:
       return requireField(queue, data, 'runId');
+
+    /** Khoá theo CÔNG TY, không theo người dùng: hai người mở cùng một tin thì
+     * lượt thứ hai gộp vào lượt đầu thay vì trả tiền hai lần. */
+    case COMPANY_BRIEF:
+      return [
+        requireField(queue, data, 'nameKey'),
+        isForced(data) ? 'force' : 'cache',
+      ].join(':');
 
     /** Một tin chỉ cần rút một lần; `force` tách riêng như EVALUATE_MATCH. */
     case EXTRACT_REQUIREMENTS:

@@ -154,19 +154,19 @@ model Job {
   ///
   /// Mã tỉnh/thành chuẩn hoá từ `location`. `null` = không suy ra được, và tin
   /// đó sẽ không xuất hiện khi lọc theo tỉnh - cố ý, vì đoán bừa còn tệ hơn.
-  provinceCode String?
+  provinceCode   String?
   /// Mã nhóm ngành, suy từ `title` và `tags`.
   occupationCode String?
   /// `title`, `company` và `tags` gộp lại, đã hạ chữ thường và bỏ dấu. Ô tìm
   /// kiếm chạy `LIKE` trên đúng cột này để ăn được index trigram - `ILIKE` trên
   /// `title` thì không index nào đỡ nổi.
-  searchText String?
+  searchText     String?
   /// Vân tay "công ty | chức danh đã bỏ nhiễu | tỉnh", dùng để nhận ra cùng một
   /// tin đăng trên nhiều portal. `null` = không đủ dữ liệu để gộp.
   ///
   /// KHÔNG đặt @@unique: hai tin thật sự khác nhau vẫn có thể đụng khoá, và lúc
   /// đó upsert sẽ ghi đè mất một tin. Kiểm tra bằng truy vấn lúc ghi.
-  dedupeKey String?
+  dedupeKey      String?
 
   /// Trỏ về bản GỐC khi tin này là bản sao lấy từ portal khác.
   ///
@@ -915,4 +915,54 @@ model AgentStep {
 
   @@unique([runId, index])
   @@map("agent_steps")
+}
+
+enum BriefConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum CompanyVerdict {
+  POSITIVE
+  MIXED
+  NEGATIVE
+  NO_REVIEWS_YET
+  UNKNOWN
+}
+
+/// Bản tìm hiểu một công ty với tư cách NƠI LÀM VIỆC, tổng hợp từ các trang
+/// đánh giá công khai. Không lưu nguyên văn đánh giá của người khác - chỉ lưu
+/// bản phân tích kèm đường dẫn về nguồn.
+model CompanyBrief {
+  id String @id @default(cuid())
+
+  /// Tên công ty đã chuẩn hoá bởi `companyKeyOf`. Nhiều tin của cùng một công
+  /// ty dùng chung một bản, nên đây là khoá tra cứu chứ không phải `Job.id`.
+  nameKey String @unique
+  /// Tên hiển thị, lấy từ tin tuyển dụng đầu tiên gặp được.
+  name    String
+
+  verdict    CompanyVerdict
+  summary    String          @db.Text
+  pros       String[]        @default([])
+  cons       String[]        @default([])
+  confidence BriefConfidence
+
+  /// Chỉ điền khi trang nguồn ghi rõ con số.
+  rating      Float?
+  reviewCount Int?
+
+  /// `[{ url, title, usedFor }]` - những nguồn thật sự dùng để viết bản này.
+  sources Json
+
+  modelId String?
+
+  /// Quá hạn thì vẫn hiện bản cũ kèm nhãn, không tự chạy lại: người dùng quyết
+  /// định có đáng tốn một lượt gọi model hay không.
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company_briefs")
 }
