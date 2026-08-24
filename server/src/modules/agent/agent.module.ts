@@ -4,14 +4,14 @@ import { DocumentsModule } from '../documents/documents.module.js';
 import { QueueModule } from '../queue/queue.module.js';
 import { SkillsModule } from '../skills/skills.module.js';
 import { StorageModule } from '../storage/storage.module.js';
-import { AgentContextService } from './agent-context.service.js';
+import { AgentContextService } from './services/agent-context.service.js';
 import { AgentController } from './agent.controller.js';
 import { AgentProcessor } from './agent.processor.js';
-import { AgentRunnerService } from './agent-runner.service.js';
-import { AgentService } from './agent.service.js';
-import { AgentToolsService } from './agent-tools.service.js';
-import { CommandRegistryService } from './command-registry.service.js';
-import { InterviewTurnService } from './interview-turn.service.js';
+import { AgentRunnerService } from './services/agent-runner.service.js';
+import { AgentService } from './services/agent.service.js';
+import { AgentToolsService } from './services/agent-tools.service.js';
+import { CommandRegistryService } from './services/command-registry.service.js';
+import { InterviewTurnService } from './services/interview-turn.service.js';
 
 /**
  * Agent nhiều bước: thi hành kịch bản trong `.claude/commands/`.

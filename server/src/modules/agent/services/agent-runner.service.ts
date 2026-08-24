@@ -1,18 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { ModelMessage } from 'ai';
-import type { AgentRun, Prisma } from '../../generated/prisma/client.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/services/ai.service.js';
-import type { AgentStepLog } from '../ai/services/ai.types.js';
+import type { AgentRun, Prisma } from '../../../generated/prisma/client.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
+import { AiService } from '../../ai/services/ai.service.js';
+import type { AgentStepLog } from '../../ai/services/ai.types.js';
 import { AgentContextService } from './agent-context.service.js';
-import { ASK_USER_TOOL } from './tools/ask-user.tool.js';
+import { ASK_USER_TOOL } from '../tools/ask-user.tool.js';
 import { AgentToolsService } from './agent-tools.service.js';
-import type { AgentInput, ArtifactRecord } from './agent.types.js';
+import type { AgentInput, ArtifactRecord } from '../agent.types.js';
 import { CommandRegistryService } from './command-registry.service.js';
 import {
   buildOpeningPrompt,
   buildSystemPrompt,
-} from './prompts/system-prompt.js';
+} from '../prompts/system-prompt.js';
 /**
  * Chạy một kịch bản `.claude/commands/` từ đầu tới cuối.
  *

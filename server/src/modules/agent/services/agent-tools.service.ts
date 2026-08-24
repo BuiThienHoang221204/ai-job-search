@@ -1,22 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ToolSet } from 'ai';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/services/ai.service.js';
-import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
-import { STORAGE, type Storage } from '../storage/storage.interface.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
+import { AiService } from '../../ai/services/ai.service.js';
+import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
+import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
+import { STORAGE, type Storage } from '../../storage/storage.interface.js';
 import {
   LATEX_COMPILER,
   type LatexCompiler,
-} from '../documents/latex-compile.js';
+} from '../../documents/latex-compile.js';
 import type {
   AgentLimits,
   ArtifactRecord,
   ToolContext,
   ToolDeps,
-} from './agent.types.js';
-import { buildToolSet } from './tools/index.js';
+} from '../agent.types.js';
+import { buildToolSet } from '../tools/index.js';
 
 /**
  * Cầu nối giữa DI của Nest và các tool - vốn là hàm thuần nhận phụ thuộc.

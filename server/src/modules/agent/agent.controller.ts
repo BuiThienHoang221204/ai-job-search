@@ -13,8 +13,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
-import { AgentService } from './agent.service.js';
-import { InterviewTurnService } from './interview-turn.service.js';
+import { AgentService } from './services/agent.service.js';
+import { InterviewTurnService } from './services/interview-turn.service.js';
 import {
   AnswerAgentDto,
   ListAgentRunsDto,

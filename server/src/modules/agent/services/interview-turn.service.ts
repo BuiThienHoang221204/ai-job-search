@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import type { ModelMessage } from 'ai';
-import type { Prisma } from '../../generated/prisma/client.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/services/ai.service.js';
+import type { Prisma } from '../../../generated/prisma/client.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
+import { AiService } from '../../ai/services/ai.service.js';
 import { AgentService } from './agent.service.js';
-import { ASK_USER_TOOL } from './tools/ask-user.tool.js';
+import { ASK_USER_TOOL } from '../tools/ask-user.tool.js';
 import {
   countForeign,
   createStreamScrubber,
@@ -12,7 +12,7 @@ import {
   splitTurnMarker,
   splitTurnParts,
   type TurnParts,
-} from './prompts/interview-turn-prompt.js';
+} from '../prompts/interview-turn-prompt.js';
 
 /**
  * MỘT lượt đối đáp trong buổi luyện phỏng vấn, chạy thẳng trong request HTTP.

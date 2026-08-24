@@ -4,7 +4,7 @@ import {
   QueueService,
   type AgentRunPayload,
 } from '../queue/queue.service.js';
-import { AgentRunnerService } from './agent-runner.service.js';
+import { AgentRunnerService } from './services/agent-runner.service.js';
 
 @Injectable()
 export class AgentProcessor implements OnModuleInit {

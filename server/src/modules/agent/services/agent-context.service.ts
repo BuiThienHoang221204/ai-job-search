@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaService } from '../../../prisma/prisma.service.js';
 import {
   formatInterviewDossier,
   type InterviewDossier,
-} from './utils/interview-dossier.js';
+} from '../utils/interview-dossier.js';
 
 /** Một mục trong `InterviewPrep.toughQuestions`, phần duy nhất ta đọc tới. */
 type ToughQuestion = { question?: unknown };
