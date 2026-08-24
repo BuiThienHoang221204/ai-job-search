@@ -1,5 +1,6 @@
 import { OCCUPATIONS, OTHER_CODE } from './occupations.js';
 import { PROVINCES, REMOTE_CODE } from './provinces.js';
+import { SUB_OCCUPATIONS } from './sub-occupations.js';
 
 /**
  * Hạ chữ thường, bỏ dấu tiếng Việt, gộp mọi thứ không phải chữ và số về một dấu
@@ -77,19 +78,40 @@ export function resolveOccupation(title: string, tags: string[]): string {
 const PREFIX_MIN_LENGTH = 4;
 
 function matchOccupation(haystack: string): string | null {
+  return firstMatch(haystack, OCCUPATIONS);
+}
+
+function firstMatch(
+  haystack: string,
+  entries: { code: string; keywords: string[] }[],
+): string | null {
   const tokens = haystack.trim().split(' ');
 
-  for (const occupation of OCCUPATIONS) {
-    const hit = occupation.keywords.some(
+  for (const entry of entries) {
+    const hit = entry.keywords.some(
       (word) =>
         haystack.includes(padded(word)) ||
         (word.length >= PREFIX_MIN_LENGTH &&
           !word.includes(' ') &&
           tokens.some((token) => token.startsWith(word))),
     );
-    if (hit) return occupation.code;
+    if (hit) return entry.code;
   }
   return null;
+}
+
+export function resolveSubOccupation(
+  occupationCode: string,
+  title: string,
+  tags: string[],
+): string | null {
+  const subs = SUB_OCCUPATIONS[occupationCode];
+  if (!subs?.length) return null;
+
+  const fromTitle = firstMatch(padded(normalizeText(title)), subs);
+  if (fromTitle) return fromTitle;
+
+  return firstMatch(padded(normalizeText(tags.join(' '))), subs);
 }
 
 /**

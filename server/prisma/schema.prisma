@@ -162,6 +162,12 @@ model Job {
   provinceCode   String?
   /// Mã nhóm ngành, suy từ `title` và `tags`.
   occupationCode String?
+  /// Nghề cụ thể bên trong nhóm, ví dụ `IT_QA` trong nhóm `IT`. `null` khi
+  /// không đủ căn cứ — lọc theo nghề sẽ bỏ qua tin đó thay vì đoán bừa.
+  ///
+  /// Có mặt vì tầng nhóm một mình KHÔNG thu hẹp được: đo 2026-08-24, riêng
+  /// `IT` ôm 235/386 tin.
+  subOccupationCode String?
   /// `title`, `company` và `tags` gộp lại, đã hạ chữ thường và bỏ dấu. Ô tìm
   /// kiếm chạy `LIKE` trên đúng cột này để ăn được index trigram - `ILIKE` trên
   /// `title` thì không index nào đỡ nổi.
@@ -216,6 +222,7 @@ model Job {
   @@index([scrapedAt(sort: Desc), id(sort: Desc)])
   @@index([provinceCode, scrapedAt(sort: Desc), id(sort: Desc)])
   @@index([occupationCode, scrapedAt(sort: Desc), id(sort: Desc)])
+  @@index([subOccupationCode, scrapedAt(sort: Desc), id(sort: Desc)])
   @@index([postedAt])
   @@index([dedupeKey])
   @@index([duplicateOfId])

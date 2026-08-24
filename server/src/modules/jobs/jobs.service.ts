@@ -20,6 +20,7 @@ import { keywordOverlap } from '../scraper/fan-out.js';
 import { derivedFields } from './taxonomy/derived.js';
 import { jobCardSelect } from './job-card.select.js';
 import { OCCUPATIONS } from './taxonomy/occupations.js';
+import { SUB_OCCUPATIONS } from './taxonomy/sub-occupations.js';
 import { PROVINCES, REMOTE_CODE } from './taxonomy/provinces.js';
 import { normalizeText } from './taxonomy/resolve.js';
 import type { CreateJobDto, JobSort, ListJobsQueryDto } from './job.dto.js';
@@ -31,13 +32,9 @@ export class JobsService {
     private readonly config: ConfigService,
     private readonly dictionary: SkillDictionaryService,
   ) {}
-
-  /** Ngưỡng "khớp bao nhiêu phần trăm yêu cầu" của trang Việc làm phù hợp. */
   private get minPercent(): number {
     return this.config.get<number>('matching.minPercent') ?? 50;
   }
-
-  /** Tạo hoặc cập nhật tin tuyển dụng. */
   async upsert(dto: CreateJobDto) {
     const data = {
       title: dto.title,
@@ -67,23 +64,10 @@ export class JobsService {
       update: data,
     });
   }
-
-  /**
-   * Quan hệ `saves` đã được lọc sẵn theo userId, nên chỉ cần biết mảng có
-   * rỗng hay không. Tách ra thành hàm riêng để logic này chỉ tồn tại ở một
-   * chỗ.
-   */
   private withSavedFlag<T extends { saves: unknown[] }>(job: T) {
     const { saves, ...rest } = job;
     return { ...rest, saved: saves.length > 0 };
   }
-
-  /**
-   * Gắn trạng thái chấm điểm của CHÍNH người dùng đang hỏi vào mỗi tin.
-   *
-   * Thiếu trường này thì giao diện không có cách nào biết một tin đã có điểm,
-   * nên nó luôn mời bấm "Chấm điểm" kể cả khi điểm đã nằm sẵn trong database.
-   */
   private withMatchState<
     T extends {
       matches: {
@@ -96,8 +80,6 @@ export class JobsService {
     const { matches, ...rest } = job;
     return { ...rest, match: matches[0] ?? null };
   }
-
-  /** `matches` được lọc theo userId nên nhiều nhất một phần tử. */
   private readonly relations = (userId: string) => ({
     saves: { where: { userId }, select: { id: true } },
     matches: {
@@ -106,8 +88,6 @@ export class JobsService {
     },
     requirements: true,
   });
-
-  /** Hồ sơ rút về đúng những trường việc đối chiếu cần. */
   private async matchProfileOf(userId: string): Promise<MatchProfile | null> {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
@@ -124,12 +104,6 @@ export class JobsService {
     });
     return profile ? JobRequirementsService.toMatchProfile(profile) : null;
   }
-
-  /**
-   * Đối chiếu hồ sơ với yêu cầu của tin, hoặc lùi về đếm từ khoá khi tin chưa
-   * được rút trích. Cùng hàm với bản đã lưu ở `job_requirement_matches` nên
-   * hai con số luôn khớp nhau.
-   */
   private withSystemMatch<
     T extends {
       title: string;
@@ -177,12 +151,6 @@ export class JobsService {
       },
     };
   }
-
-  /**
-   * Điều kiện lọc, dựng thành MỘT `where` để Postgres lọc, đếm và cắt trang
-   * trong cùng một truy vấn. Trước đây bộ lọc chạy trong bộ nhớ trên 300 tin
-   * mới nhất, nên tin thứ 301 trở đi không tồn tại với người đi tìm.
-   */
   private whereFrom(
     query: ListJobsQueryDto,
     userId: string,
@@ -193,8 +161,6 @@ export class JobsService {
       : null;
 
     return {
-      // Bản sao của tin đã có ở portal khác không bao giờ vào danh sách: nó
-      // không mang thông tin mới, chỉ đẩy tin khác xuống dưới.
       duplicateOfId: null,
       ...(needle ? { searchText: { contains: needle } } : {}),
       ...(query.province?.length
@@ -203,14 +169,12 @@ export class JobsService {
       ...(query.occupation?.length
         ? { occupationCode: { in: query.occupation } }
         : {}),
+      ...(query.subOccupation?.length
+        ? { subOccupationCode: { in: query.subOccupation } }
+        : {}),
       ...(query.workMode?.length ? { workMode: { in: query.workMode } } : {}),
-      // So với `salaryMax`: câu hỏi là "tin này trả tới mức tôi cần không",
-      // không phải "sàn của tin có cao hơn mức tôi cần không".
       ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
       ...(since ? { postedAt: { gte: since } } : {}),
-      // "Phù hợp" đo bằng tỉ lệ yêu cầu của tin mà hồ sơ đáp ứng, KHÔNG phải
-      // bằng việc đã chấm AI hay chưa: chấm AI phủ chưa tới 1% số tin, nên lấy
-      // nó làm điều kiện thì trang này gần như luôn trống.
       ...(query.scored
         ? {
             skillMatches: {
@@ -218,35 +182,16 @@ export class JobsService {
             },
           }
         : {}),
+      ...(query.saved ? { saves: { some: { userId } } } : {}),
+      ...(query.applied ? { applications: { some: { userId } } } : {}),
     };
   }
-
-  /**
-   * Thứ tự luôn kết bằng `id`: hai tin cùng mốc thời gian mà không có khoá phụ
-   * thì Postgres được phép trả chúng theo thứ tự khác nhau ở mỗi truy vấn, và
-   * khi đó lật trang sẽ vừa lặp vừa bỏ sót bản ghi.
-   *
-   * "Mới nhất" đo bằng `scrapedAt` chứ không phải `postedAt`, và đó là một
-   * đánh đổi có chủ đích: `postedAt` nullable nên phải sắp `DESC NULLS LAST`,
-   * mà thứ tự đó không index được - đo trên 50.000 tin thì mỗi lần mở danh
-   * sách là một lần quét toàn bảng. `scrapedAt` không null nên index đỡ được.
-   */
   private orderFor(sort: JobSort): Prisma.JobOrderByWithRelationInput[] {
     if (sort === 'salary') {
-      // Tin không công bố lương xuống cuối, thay vì bị coi là lương 0 rồi trộn
-      // lẫn với những tin lương thật sự thấp. Chế độ này CHẤP NHẬN phải sắp
-      // lại kết quả: nó ít được chọn hơn hẳn thứ tự mặc định.
       return [{ salaryMax: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }];
     }
     return [{ scrapedAt: 'desc' }, { id: 'desc' }];
   }
-
-  /**
-   * Trường của một thẻ việc làm.
-   *
-   * CỐ Ý không có `description`: nó có trần 60KB và không thẻ nào hiển thị nó,
-   * nên trả về là kéo hàng megabyte qua dây cho mỗi lần lật trang.
-   */
   private readonly cardSelect = (userId: string) =>
     ({
       ...jobCardSelect(userId),
@@ -287,15 +232,6 @@ export class JobsService {
       query,
     );
   }
-
-  /**
-   * Sắp theo tỉ lệ khớp yêu cầu. Truy vấn đi từ `job_requirement_matches` chứ
-   * không phải `jobs`: tỉ lệ nằm ở bảng đó và index `[userId, percent desc]`
-   * chỉ dùng được khi nó là bảng dẫn đầu.
-   *
-   * Hệ quả cố ý: chế độ này CHỈ trả tin đã đối chiếu được. Trộn tin chưa rút
-   * xong yêu cầu vào một danh sách sắp theo tỉ lệ thì không biết đặt chúng đâu.
-   */
   private async listByMatchScore(
     jobWhere: Prisma.JobWhereInput,
     query: ListJobsQueryDto,
@@ -327,16 +263,8 @@ export class JobsService {
       query,
     );
   }
-
-  /**
-   * Danh mục cho thanh bộ lọc, kèm số tin mỗi mục.
-   *
-   * Đếm trên TOÀN BỘ bảng chứ không theo bộ lọc đang chọn: đếm động phải chạy
-   * lại một `groupBy` cho mỗi lần người dùng tích một ô, và với quy mô của đề
-   * tài thì lợi ích không bù được chi phí đó.
-   */
   async filters() {
-    const [byProvince, byOccupation] = await Promise.all([
+    const [byProvince, byOccupation, bySubOccupation] = await Promise.all([
       this.prisma.job.groupBy({
         by: ['provinceCode'],
         orderBy: { provinceCode: 'asc' },
@@ -347,6 +275,11 @@ export class JobsService {
         orderBy: { occupationCode: 'asc' },
         _count: true,
       }),
+      this.prisma.job.groupBy({
+        by: ['subOccupationCode'],
+        orderBy: { subOccupationCode: 'asc' },
+        _count: true,
+      }),
     ]);
 
     const provinceCounts = new Map(
@@ -354,6 +287,9 @@ export class JobsService {
     );
     const occupationCounts = new Map(
       byOccupation.map((row) => [row.occupationCode, row._count]),
+    );
+    const subCounts = new Map(
+      bySubOccupation.map((row) => [row.subOccupationCode, row._count]),
     );
 
     return {
@@ -366,8 +302,13 @@ export class JobsService {
         code: occupation.code,
         name: occupation.name,
         count: occupationCounts.get(occupation.code) ?? 0,
+        subs: (SUB_OCCUPATIONS[occupation.code] ?? []).map((sub) => ({
+          code: sub.code,
+          name: sub.name,
+          count: subCounts.get(sub.code) ?? 0,
+        })),
       })),
-      /// Tin làm từ xa không thuộc tỉnh nào nên không nằm trong `PROVINCES`.
+
       remote: {
         code: REMOTE_CODE,
         name: 'Làm việc từ xa',
@@ -392,11 +333,6 @@ export class JobsService {
       dictionary,
     );
   }
-
-  /**
-   * Lưu tin. Bấm nút hai lần không được sinh lỗi - dùng upsert thay vì
-   * create.
-   */
   async save(userId: string, jobId: string) {
     await this.get(jobId, userId);
     await this.prisma.savedJob.upsert({
@@ -406,11 +342,6 @@ export class JobsService {
     });
     return { saved: true };
   }
-
-  /**
-   * Bỏ lưu. Bỏ một tin chưa từng lưu cũng trả về bình thường: nút bấm là một
-   * công tắc, không phải một giao dịch.
-   */
   async unsave(userId: string, jobId: string) {
     await this.prisma.savedJob.deleteMany({ where: { userId, jobId } });
     return { saved: false };

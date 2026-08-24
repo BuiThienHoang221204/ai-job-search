@@ -4,14 +4,6 @@ import {
   type TestApp,
   type TestUser,
 } from './support/app-harness.js';
-
-/// Bộ lọc, sắp xếp và phân trang của `GET /jobs`, kiểm ở tầng HTTP.
-///
-/// Trước tệp này, cả ba đều chạy TRONG BỘ NHỚ trên 300 tin mới nhất: `total`
-/// tối đa là 300 dù bảng có bao nhiêu tin, tin thứ 301 trở đi không bao giờ vào
-/// kết quả, và ô tìm kiếm chỉ tìm trong những tin đã tải về trình duyệt. Đó là
-/// những lỗi chỉ lộ ra khi dữ liệu vượt ngưỡng, nên chúng cần một test cố tình
-/// nạp nhiều hơn một trang.
 describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
   let harness: TestApp;
   let user: TestUser;
@@ -45,9 +37,6 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
     await harness.reset();
     user = await harness.signUp();
   });
-
-  /// 120 tin: nhiều hơn hai trang mặc định, đủ để lộ mọi lỗi "chỉ đúng ở trang
-  /// đầu". Ba tỉnh và hai ngành trộn đều nhau bằng phép chia lấy dư.
   const seedJobs = async (count: number) => {
     const cities = ['Hà Nội', 'TP.HCM', 'Đà Nẵng'];
     const titles = ['Backend Developer', 'Nhân viên Kế toán'];
@@ -65,9 +54,6 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
         salaryMax: 10_000_000 + index * 100_000,
         tags: [],
         postedAt: new Date(now - index * 60_000),
-        // Thứ tự mặc định đo bằng `scrapedAt`, không phải `postedAt` - xem
-        // `orderFor` trong jobs.service. Không đặt tay thì mọi hàng của một
-        // `createMany` dùng chung `now()` và test không nói được gì về thứ tự.
         scrapedAt: new Date(now - index * 60_000),
         provinceCode: ['HN', 'HCM', 'DN'][index % 3],
         occupationCode: index % 2 === 0 ? 'IT' : 'FINANCE',
@@ -86,9 +72,6 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       expect(page.items).toHaveLength(20);
       expect(page.total).toBe(120);
     });
-
-    /// Chính là thứ cửa sổ 300 không bảo đảm được: tin ngoài cửa sổ vẫn phải
-    /// tới được bằng cách lật trang.
     test('lật hết mọi trang thì thu đủ 120 tin, không trùng không sót', async () => {
       const ids: string[] = [];
 
@@ -176,9 +159,6 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
     test('gõ CÓ dấu vẫn khớp', async () => {
       expect((await pageOf({ q: 'Kỹ sư' })).total).toBe(1);
     });
-
-    /// Cột `searchText` lưu bản đã bỏ dấu, và chuỗi người dùng gõ phải đi qua
-    /// cùng hàm chuẩn hoá. Lệch nhau thì đây là test đỏ đầu tiên.
     test('gõ KHÔNG dấu vẫn khớp', async () => {
       expect((await pageOf({ q: 'ky su' })).total).toBe(1);
     });
@@ -198,9 +178,6 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
 
   describe('sắp xếp', () => {
     beforeEach(() => seedJobs(30));
-
-    /// "Mới nhất" đo bằng `scrapedAt` chứ không phải `postedAt`: chỉ cột đó
-    /// không null nên chỉ nó index được. Xem `orderFor` trong jobs.service.
     test('mặc định là tin vào hệ thống gần nhất trước', async () => {
       const page = await pageOf({ limit: 5 });
       const titles = page.items.map((item) => item.title);
@@ -218,9 +195,6 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
 
       expect(values).toEqual([...values].sort((a, b) => b - a));
     });
-
-    /// Chế độ này CỐ Ý chỉ trả tin đã đối chiếu được: không có chỗ nào đặt tin
-    /// chưa rút xong yêu cầu cho đúng trong một danh sách sắp theo tỉ lệ khớp.
     test('sort=match chỉ trả tin đã đối chiếu được yêu cầu', async () => {
       const all = await pageOf({ limit: 100 });
       const scored = all.items.slice(0, 3);
@@ -264,8 +238,70 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
     });
   });
 
-  /// `description` có trần 60KB và không thẻ việc làm nào hiển thị nó. Trả về ở
-  /// danh sách là kéo hàng megabyte qua dây cho mỗi lần lật trang.
+  describe('lọc theo nghề', () => {
+    beforeEach(() => seedJobs(30));
+
+    test('subOccupation thu hẹp hơn occupation', async () => {
+      const group = await pageOf({ occupation: 'IT', limit: 100 });
+      const sub = await pageOf({ subOccupation: 'IT_BACKEND', limit: 100 });
+
+      expect(group.total).toBeGreaterThan(0);
+      expect(sub.total).toBeLessThanOrEqual(group.total);
+      for (const item of sub.items) {
+        expect(group.items.map((row) => row.id)).toContain(item.id);
+      }
+    });
+
+    test('mã nghề không có thật thì trả rỗng, không phải trả tất cả', async () => {
+      expect((await pageOf({ subOccupation: 'KHONG_CO_THAT' })).total).toBe(0);
+    });
+
+    test('tham số rỗng KHÔNG được biến thành bộ lọc', async () => {
+      const all = await pageOf({ limit: 100 });
+      expect((await pageOf({ subOccupation: '', limit: 100 })).total).toBe(
+        all.total,
+      );
+    });
+  });
+
+  describe('lọc bật/tắt', () => {
+    beforeEach(() => seedJobs(30));
+
+    test('saved=true chỉ trả tin người dùng đã lưu', async () => {
+      const all = await pageOf({ limit: 100 });
+      await harness.prisma.savedJob.create({
+        data: { userId: user.id, jobId: all.items[0].id },
+      });
+
+      const page = await pageOf({ saved: true, limit: 100 });
+
+      expect(page.total).toBe(1);
+      expect(page.items[0].id).toBe(all.items[0].id);
+    });
+
+    test('applied=true chỉ trả tin đã có đơn', async () => {
+      const all = await pageOf({ limit: 100 });
+      await harness.prisma.application.create({
+        data: { userId: user.id, jobId: all.items[1].id },
+      });
+
+      const page = await pageOf({ applied: true, limit: 100 });
+
+      expect(page.total).toBe(1);
+      expect(page.items[0].id).toBe(all.items[1].id);
+    });
+    test('không thấy tin người khác lưu', async () => {
+      const all = await pageOf({ limit: 100 });
+      const other = await harness.signUp();
+      await harness.prisma.savedJob.create({
+        data: { userId: other.id, jobId: all.items[2].id },
+      });
+
+      const page = await pageOf({ saved: true, limit: 100 });
+
+      expect(page.items.map((item) => item.id)).not.toContain(all.items[2].id);
+    });
+  });
   test('danh sách KHÔNG trả về description', async () => {
     await seedJobs(1);
     const response = await get({ limit: 1 }).expect(200);
@@ -277,6 +313,24 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
 
   describe('GET /jobs/filters', () => {
     beforeEach(() => seedJobs(120));
+
+    test('mỗi nhóm ngành mang theo danh sách nghề con', async () => {
+      const response = await request(harness.server)
+        .get('/api/jobs/filters')
+        .set(auth())
+        .expect(200);
+
+      const body = response.body as {
+        occupations: {
+          code: string;
+          subs: { code: string; count: number }[];
+        }[];
+      };
+      const it = body.occupations.find((row) => row.code === 'IT');
+
+      expect(it?.subs.length).toBeGreaterThan(0);
+      expect(it?.subs.map((row) => row.code)).toContain('IT_BACKEND');
+    });
 
     test('trả danh mục kèm số tin mỗi mục', async () => {
       const response = await request(harness.server)

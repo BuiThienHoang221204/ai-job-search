@@ -67,6 +67,9 @@ export const OCCUPATIONS: Occupation[] = [
       'quan tri he thong',
       'blockchain',
       'nhung',
+      'an toan thong tin',
+      'bao mat',
+      'devops',
     ],
   },
   {
