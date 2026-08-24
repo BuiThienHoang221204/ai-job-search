@@ -347,3 +347,13 @@ Chạy trên "Công ty TNHH Smartbooks" — công ty nhỏ, và đó là ca đá
 **Nguồn không tải được vẫn có đoạn trích, và đã trả tiền cho Serper rồi.** Bài Facebook *"Có ai đã phỏng vấn ở công ty smartbooks chưa ạ?"* là tín hiệu người-thật DUY NHẤT tồn tại về công ty này, mà tường đăng nhập chặn `fetchPage`. `pickSnippetSources` giữ chúng lại, prompt ghi rõ "chỉ là đoạn trích ngắn" để model không tin quá mức.
 
 **Chọn đoạn theo MẬT ĐỘ từ khoá, không theo thứ tự trang.** Đã thử chặn theo từ khoá (`stripChrome`) trước và **không đủ**: trên trang TopCV nó chỉ cắt 415/9.267 ký tự, vì chuỗi giao diện là một tập vô hạn ("Lưu tin thành công", "Chat Zalo", "Gửi góp ý thành công") không danh sách đen nào phủ hết. Nguyên nhân thật là từ khoá gợi ý quá chung: `đồng nghiệp` nằm ngay trong khẩu hiệu đầu trang TopCV, nên cửa sổ bị kéo về đó và chiếm ngân sách trước khi tới nội dung. `trimToReviewText` nay xếp cửa sổ theo số từ khoá rơi vào rồi mới cắt, và in ra theo thứ tự trang. `stripChrome` vẫn giữ vì rẻ, nhưng nó là phần phụ chứ không phải cơ chế chính.
+
+### `.max()` trên chuỗi model sinh là bẫy — CẮT, đừng từ chối
+
+Hỏng thật 2026-08-24 trên "ZIGExN VeNtura": model trả về bản tóm tắt **dùng được hoàn toàn** (verdict, 5 pros, 3 cons, rating 4.5, 59 lượt), nhưng một `usedFor` dài 250 ký tự trên trần 160. Zod từ chối, và vì **lỗi schema cố ý không đi tiếp chuỗi dự phòng**, cả 518 token đầu ra bị vứt. Người dùng mất trắng một lượt chạy vì 90 ký tự thừa.
+
+**Đổi sang model "có structured output" KHÔNG chữa được chỗ này.** Structured output ép **hình dạng** JSON, gần như không ép `maxLength` — `muse-spark-1.2` cũng viết dài y hệt. Đã tra catalog: trường tên là `structured_output` (số ít); `muse-spark-1.2` khai `true` nhưng **trả tiền** ($1.25/$4.25 mỗi triệu token) nên `AI_ALLOW_PAID_MODELS=false` sẽ từ chối nó; `mimo-v2.5-free` **không khai trường này** — đúng model mà lượt hỏng rơi vào.
+
+Cách làm nay: `.describe()` mang trần vào prompt để model biết viết ngắn, còn `.transform()` cắt lúc parse. Nhãn enum lạ dùng `.catch('unknown')`, số ngoài thang thành `null`, mảng thừa mục thì cắt và bỏ mục rỗng. Giữ nghiêm ngặt cho thứ mà cắt bừa sẽ sai nghĩa; nới cho chữ tự do.
+
+**Kèm theo đó là một cái bẫy thứ hai, và nó im lặng:** `z.toJSONSchema(schema)` **ném** `Transforms cannot be represented in JSON Schema`, mà `withSchemaInstruction` lại bắt lỗi rồi trả về system prompt gốc — model sẽ mất sạch phần nhắc schema và không có gì báo. Nên nó gọi `z.toJSONSchema(schema, { io: 'input' })`: bản đầu vào cũng đúng là thứ cần mô tả cho model, vì model sinh ra bản TRƯỚC transform. Có test đơn vị ghim điều này.

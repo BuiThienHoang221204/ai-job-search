@@ -281,11 +281,18 @@ export class AiService implements Ai {
     }
   }
 
-  /** Bơm JSON Schema thẳng vào system prompt. */
+  /**
+   * Bơm JSON Schema thẳng vào system prompt.
+   *
+   * `io: 'input'` là BẮT BUỘC: schema nào có `.transform()` thì bản mặc định
+   * ném "Transforms cannot be represented in JSON Schema", và nhánh catch bên
+   * dưới nuốt lỗi — model mất sạch phần nhắc mà không ai thấy. Đầu vào cũng là
+   * đúng thứ cần mô tả cho model: nó sinh ra bản TRƯỚC transform.
+   */
   private withSchemaInstruction<T>(system: string, schema: ZodType<T>): string {
     let json: unknown;
     try {
-      json = z.toJSONSchema(schema);
+      json = z.toJSONSchema(schema, { io: 'input' });
     } catch (error) {
       this.logger.warn(
         `Không dựng được JSON Schema để nhắc model: ${
