@@ -66,6 +66,17 @@ export class MatchingController {
   }
 
   /**
+   * Dựng danh bạ kỹ năng cho toàn bộ kho. Trả về ngay: việc chạy theo từng lô ở
+   * hàng đợi nền, mỗi lô tự xếp lô kế cho tới khi hết cách viết chưa biết.
+   */
+  @Roles('ADMIN')
+  @Post('dictionary/rebuild')
+  async rebuildDictionary() {
+    const id = await this.queue.send(QUEUE.SKILL_CANONICALIZE, { round: 0 });
+    return { queued: true, queueJobId: id };
+  }
+
+  /**
    * Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model.
    * Không dùng cho giao diện: một lần gọi mất vài giây.
    */

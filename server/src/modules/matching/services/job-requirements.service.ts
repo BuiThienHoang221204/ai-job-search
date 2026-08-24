@@ -8,6 +8,7 @@ import {
   type JobRequirements,
 } from '../schemas/job-requirements.schema.js';
 import type { MatchProfile } from '../requirement-match.js';
+import { yearsOfExperience } from '../../profile/experience-years.js';
 
 const SYSTEM = [
   'Bạn rút trích YÊU CẦU từ một tin tuyển dụng. Không đánh giá ứng viên nào - tin này sẽ được đối chiếu với nhiều hồ sơ khác nhau.',
@@ -145,6 +146,7 @@ export class JobRequirementsService {
     workPermit: string | null;
     location: string | null;
     willingToRelocate: boolean;
+    experiences?: unknown;
   }): MatchProfile {
     return {
       skills: [
@@ -156,7 +158,7 @@ export class JobRequirementsService {
       workPermit: profile.workPermit,
       location: profile.location,
       willingToRelocate: profile.willingToRelocate,
-      years: null,
+      years: yearsOfExperience(profile.experiences),
     };
   }
 }

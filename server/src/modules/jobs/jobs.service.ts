@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type {
   FitVerdict,
   MatchStatus,
@@ -9,9 +10,11 @@ import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { JobRequirement } from '../../generated/prisma/client.js';
 import { JobRequirementsService } from '../matching/services/job-requirements.service.js';
+import { SkillDictionaryService } from '../matching/services/skill-dictionary.service.js';
 import {
   matchRequirements,
   type MatchProfile,
+  type SkillDictionary,
 } from '../matching/requirement-match.js';
 import { keywordOverlap } from '../scraper/fan-out.js';
 import { derivedFields } from './taxonomy/derived.js';
@@ -23,7 +26,16 @@ import type { CreateJobDto, JobSort, ListJobsQueryDto } from './job.dto.js';
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+    private readonly dictionary: SkillDictionaryService,
+  ) {}
+
+  /** Ngưỡng "khớp bao nhiêu phần trăm yêu cầu" của trang Việc làm phù hợp. */
+  private get minPercent(): number {
+    return this.config.get<number>('matching.minPercent') ?? 50;
+  }
 
   /** Tạo hoặc cập nhật tin tuyển dụng. */
   async upsert(dto: CreateJobDto) {
@@ -107,6 +119,7 @@ export class JobsService {
         workPermit: true,
         location: true,
         willingToRelocate: true,
+        experiences: true,
       },
     });
     return profile ? JobRequirementsService.toMatchProfile(profile) : null;
@@ -114,10 +127,8 @@ export class JobsService {
 
   /**
    * Đối chiếu hồ sơ với yêu cầu của tin, hoặc lùi về đếm từ khoá khi tin chưa
-   * được rút trích.
-   *
-   * KHÔNG đổi ra phần trăm. Tin liệt kê mọi thứ họ muốn còn hồ sơ chỉ khai vài
-   * thứ, nên tỉ lệ luôn bị dìm - đã đo: 2/10 trên một tin AI chấm 80.
+   * được rút trích. Cùng hàm với bản đã lưu ở `job_requirement_matches` nên
+   * hai con số luôn khớp nhau.
    */
   private withSystemMatch<
     T extends {
@@ -125,7 +136,7 @@ export class JobsService {
       tags: string[];
       requirements: JobRequirement | null;
     },
-  >(job: T, profile: MatchProfile | null) {
+  >(job: T, profile: MatchProfile | null, dictionary: SkillDictionary) {
     const { requirements, ...rest } = job;
 
     if (!profile) {
@@ -136,6 +147,7 @@ export class JobsService {
       const result = matchRequirements(
         JobRequirementsService.toRequirements(requirements),
         profile,
+        dictionary,
       );
       return {
         ...rest,
@@ -196,17 +208,13 @@ export class JobsService {
       // không phải "sàn của tin có cao hơn mức tôi cần không".
       ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
       ...(since ? { postedAt: { gte: since } } : {}),
-      // "Đã chấm xong" KHÔNG phải "phù hợp". Không loại POOR ra thì màn hình
-      // "Việc làm phù hợp" xếp một tin 2 điểm ngang một tin 82 điểm - đã thấy
-      // thật: hồ sơ kế toán mở màn đó ra và chỉ toàn tin IT bị chấm POOR.
+      // "Phù hợp" đo bằng tỉ lệ yêu cầu của tin mà hồ sơ đáp ứng, KHÔNG phải
+      // bằng việc đã chấm AI hay chưa: chấm AI phủ chưa tới 1% số tin, nên lấy
+      // nó làm điều kiện thì trang này gần như luôn trống.
       ...(query.scored
         ? {
-            matches: {
-              some: {
-                userId,
-                status: 'DONE' as const,
-                verdict: { not: 'POOR' as const },
-              },
+            skillMatches: {
+              some: { userId, percent: { gte: this.minPercent } },
             },
           }
         : {}),
@@ -255,7 +263,7 @@ export class JobsService {
 
     if (sort === 'match') return this.listByMatchScore(where, query, userId);
 
-    const [rows, total, profile] = await Promise.all([
+    const [rows, total, profile, dictionary] = await Promise.all([
       this.prisma.job.findMany({
         where,
         orderBy: this.orderFor(sort),
@@ -264,6 +272,7 @@ export class JobsService {
       }),
       this.prisma.job.count({ where }),
       this.matchProfileOf(userId),
+      this.dictionary.lookup(),
     ]);
 
     return pageOf(
@@ -271,6 +280,7 @@ export class JobsService {
         this.withSystemMatch(
           this.withMatchState(this.withSavedFlag(job)),
           profile,
+          dictionary,
         ),
       ),
       total,
@@ -279,33 +289,30 @@ export class JobsService {
   }
 
   /**
-   * Sắp theo điểm AI. Truy vấn đi từ phía `job_matches` chứ không phải `jobs`:
-   * điểm nằm ở bảng đó, và index `[userId, overallScore desc]` chỉ dùng được
-   * khi nó là bảng dẫn đầu.
+   * Sắp theo tỉ lệ khớp yêu cầu. Truy vấn đi từ `job_requirement_matches` chứ
+   * không phải `jobs`: tỉ lệ nằm ở bảng đó và index `[userId, percent desc]`
+   * chỉ dùng được khi nó là bảng dẫn đầu.
    *
-   * Hệ quả cố ý: chế độ này CHỈ trả tin đã chấm điểm. Trộn tin chưa chấm vào
-   * một danh sách sắp theo điểm thì không có chỗ nào đặt chúng cho đúng.
+   * Hệ quả cố ý: chế độ này CHỈ trả tin đã đối chiếu được. Trộn tin chưa rút
+   * xong yêu cầu vào một danh sách sắp theo tỉ lệ thì không biết đặt chúng đâu.
    */
   private async listByMatchScore(
     jobWhere: Prisma.JobWhereInput,
     query: ListJobsQueryDto,
     userId: string,
   ) {
-    const where = {
-      userId,
-      status: 'DONE' as const,
-      job: jobWhere,
-    };
+    const where = { userId, job: jobWhere };
 
-    const [rows, total, profile] = await Promise.all([
-      this.prisma.jobMatch.findMany({
+    const [rows, total, profile, dictionary] = await Promise.all([
+      this.prisma.jobRequirementMatch.findMany({
         where,
-        orderBy: [{ overallScore: 'desc' }, { jobId: 'desc' }],
+        orderBy: [{ percent: 'desc' }, { jobId: 'desc' }],
         ...pageArgs(query),
         select: { job: { select: this.cardSelect(userId) } },
       }),
-      this.prisma.jobMatch.count({ where }),
+      this.prisma.jobRequirementMatch.count({ where }),
       this.matchProfileOf(userId),
+      this.dictionary.lookup(),
     ]);
 
     return pageOf(
@@ -313,6 +320,7 @@ export class JobsService {
         this.withSystemMatch(
           this.withMatchState(this.withSavedFlag(row.job)),
           profile,
+          dictionary,
         ),
       ),
       total,
@@ -369,17 +377,19 @@ export class JobsService {
   }
 
   async get(id: string, userId: string) {
-    const [job, skills] = await Promise.all([
+    const [job, skills, dictionary] = await Promise.all([
       this.prisma.job.findUnique({
         where: { id },
         include: this.relations(userId),
       }),
       this.matchProfileOf(userId),
+      this.dictionary.lookup(),
     ]);
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
     return this.withSystemMatch(
       this.withMatchState(this.withSavedFlag(job)),
       skills,
+      dictionary,
     );
   }
 

@@ -12,6 +12,8 @@ const PROFILE_SYNTHESIZE = 'profile.synthesize';
 const EXTRACT_REQUIREMENTS = 'job.requirements';
 const AGENT_RUN = 'agent.run';
 const COMPANY_BRIEF = 'company.brief';
+const REQUIREMENT_MATCH = 'match.requirements';
+const SKILL_CANONICALIZE = 'skill.canonicalize';
 
 export const QUEUES_WITH_KEY_RULE = [
   EVALUATE_MATCH,
@@ -23,6 +25,8 @@ export const QUEUES_WITH_KEY_RULE = [
   EXTRACT_REQUIREMENTS,
   AGENT_RUN,
   COMPANY_BRIEF,
+  REQUIREMENT_MATCH,
+  SKILL_CANONICALIZE,
 ] as const;
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
@@ -90,6 +94,30 @@ export function singletonKeyFor(queue: string, data: object): string {
         requireField(queue, data, 'jobId'),
         isForced(data) ? 'force' : 'cache',
       ].join(':');
+
+    /**
+     * Đối chiếu KHÔNG gọi model nên trùng lặp chỉ tốn vài mili giây CPU, nhưng
+     * khoá vẫn phải riêng cho từng phía: một lượt tính lại theo tin và một lượt
+     * tính lại theo hồ sơ là hai việc khác nhau, gộp lại là mất một trong hai.
+     */
+    /**
+     * Ba hình dạng payload, ba khoá. `round` phải nằm trong khoá vì lượt quét
+     * toàn kho tự xếp lượt kế trước khi nó kết thúc, mà policy `exclusive` sẽ
+     * nuốt mất lượt kế nếu hai lượt trùng khoá. Payload rỗng nghĩa là làm lại
+     * tất cả, và hai yêu cầu như vậy gộp làm một là đúng.
+     */
+    case SKILL_CANONICALIZE:
+    case REQUIREMENT_MATCH: {
+      const payload = data as {
+        round?: unknown;
+        jobId?: unknown;
+        userId?: unknown;
+      };
+      if (typeof payload.round === 'number') return `sweep:${payload.round}`;
+      if (payload.jobId) return `job:${requireField(queue, data, 'jobId')}`;
+      if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
+      return 'all';
+    }
 
     default:
       /**

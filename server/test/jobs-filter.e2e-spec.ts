@@ -219,19 +219,21 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       expect(values).toEqual([...values].sort((a, b) => b - a));
     });
 
-    /// Chế độ này CỐ Ý chỉ trả tin đã chấm điểm: không có chỗ nào đặt tin chưa
-    /// chấm cho đúng trong một danh sách sắp theo điểm.
-    test('sort=match chỉ trả tin đã có điểm AI', async () => {
+    /// Chế độ này CỐ Ý chỉ trả tin đã đối chiếu được: không có chỗ nào đặt tin
+    /// chưa rút xong yêu cầu cho đúng trong một danh sách sắp theo tỉ lệ khớp.
+    test('sort=match chỉ trả tin đã đối chiếu được yêu cầu', async () => {
       const all = await pageOf({ limit: 100 });
       const scored = all.items.slice(0, 3);
 
       for (const [index, job] of scored.entries()) {
-        await harness.prisma.jobMatch.create({
+        await harness.prisma.jobRequirementMatch.create({
           data: {
             userId: user.id,
             jobId: job.id,
-            status: 'DONE',
-            overallScore: 50 + index * 10,
+            met: 1 + index,
+            total: 4,
+            percent: 50 + index * 10,
+            hash: `seed-${index}`,
           },
         });
       }
@@ -246,12 +248,14 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
 
     test('sort=match vẫn tôn trọng bộ lọc tỉnh', async () => {
       const hanoi = await pageOf({ province: 'HN', limit: 100 });
-      await harness.prisma.jobMatch.create({
+      await harness.prisma.jobRequirementMatch.create({
         data: {
           userId: user.id,
           jobId: hanoi.items[0].id,
-          status: 'DONE',
-          overallScore: 80,
+          met: 4,
+          total: 5,
+          percent: 80,
+          hash: 'seed-hn',
         },
       });
 

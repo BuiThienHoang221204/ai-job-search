@@ -181,6 +181,24 @@ const configuration = () => ({
     autoScore: process.env.SCRAPER_AUTO_SCORE === 'true',
   },
 
+  matching: {
+    /**
+     * Tin phải khớp bao nhiêu phần trăm yêu cầu mới vào "Việc làm phù hợp".
+     *
+     * Tính trên yêu cầu NĂNG LỰC, bắt buộc tính 1 và ưu tiên tính 0,5. Đo trên
+     * 322 tin ngày 2026-08-24: mốc 50 cho 0-13 tin mỗi hồ sơ, mốc 30 cho 1-70.
+     */
+    minPercent: parseInt(process.env.MATCH_MIN_PERCENT ?? '50', 10),
+
+    /**
+     * Model phân loại kỹ năng cho danh bạ. GHIM riêng, không dùng model mặc
+     * định: đo trên 8 cặp biết trước đáp án, `hy3-free` đúng 8/8 còn
+     * `mimo-v2.5-free` đúng 7/8 và gộp `manual testing` vào `QA`. Một lần gộp
+     * sai tạo ra một mã hút mọi thứ liên quan vào nó.
+     */
+    dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID ?? 'hy3-free',
+  },
+
   cron: {
     scrapeEnabled: process.env.SCRAPE_CRON_ENABLED !== 'false',
     scrapeSchedule: process.env.SCRAPE_CRON_SCHEDULE ?? '0 23 * * *',

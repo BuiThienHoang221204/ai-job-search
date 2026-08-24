@@ -1,3 +1,5 @@
+import { containsTerm, foldTerm } from '../matching/skill-term.js';
+
 /** Hồ sơ tối thiểu cần có để việc chấm điểm còn có nghĩa. */
 export const MIN_COMPLETION_TO_SCORE = 30;
 
@@ -45,33 +47,6 @@ export type FanOutResult = {
   skippedNoOverlap: number;
 };
 
-/** Chữ và số của MỌI bảng mã. `\b` của JS chỉ biết ASCII nên vô dụng với tiếng Việt. */
-const WORDISH = String.raw`[\p{L}\p{N}]`;
-
-const patterns = new Map<string, RegExp>();
-
-/**
- * Biên từ chỉ áp ở phía mà chính từ khoá kết thúc bằng chữ hoặc số.
- *
- * Nhờ vậy `.NET` vẫn khớp trong "ASP.NET" và `C++` vẫn khớp "C++ developer",
- * còn `Excel` thì KHÔNG khớp "excellence" và `SAP` không khớp "Sapphire".
- */
-function patternFor(needle: string): RegExp {
-  const cached = patterns.get(needle);
-  if (cached) return cached;
-
-  const edge = new RegExp(WORDISH, 'u');
-  const left = edge.test(needle[0]) ? `(?<!${WORDISH})` : '';
-  const right = edge.test(needle[needle.length - 1]) ? `(?!${WORDISH})` : '';
-  const body = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`${left}${body}${right}`, 'iu');
-
-  // Kỹ năng là chữ người dùng tự gõ nên tập khoá không có trần tự nhiên.
-  if (patterns.size > 2000) patterns.clear();
-  patterns.set(needle, pattern);
-  return pattern;
-}
-
 /**
  * Số kỹ năng của hồ sơ xuất hiện trong tin, khớp theo TỪ chứ không phải chuỗi con.
  *
@@ -82,9 +57,9 @@ function patternFor(needle: string): RegExp {
 export function keywordOverlap(text: string, skills: string[]): number {
   const matched = new Set<string>();
   for (const skill of skills) {
-    const needle = skill.trim().toLowerCase();
+    const needle = foldTerm(skill);
     if (needle.length < 2 || matched.has(needle)) continue;
-    if (patternFor(needle).test(text)) matched.add(needle);
+    if (containsTerm(text, skill)) matched.add(needle);
   }
   return matched.size;
 }

@@ -30,6 +30,10 @@ export const QUEUE = {
   COMPANY_BRIEF: 'company.brief',
   /** Chạy một kịch bản nhiều bước trong `.claude/commands/`. */
   AGENT_RUN: 'agent.run',
+  /** Đối chiếu hồ sơ với yêu cầu đã rút. Thuần CPU, KHÔNG gọi model. */
+  REQUIREMENT_MATCH: 'match.requirements',
+  /** Quy các cách viết kỹ năng về một mã chuẩn. Chạy TRƯỚC bước đối chiếu. */
+  SKILL_CANONICALIZE: 'skill.canonicalize',
 } as const;
 
 /**
@@ -54,6 +58,17 @@ export function concurrencyFor(queue: string, configured: number): number {
 export type ExtractRequirementsPayload = {
   jobId: string;
   force?: boolean;
+};
+
+/** Một phía là đủ: có `jobId` thì tính lại theo tin, có `userId` thì theo hồ sơ. */
+export type RequirementMatchPayload = {
+  jobId?: string;
+  userId?: string;
+};
+
+/** `round` = quét toàn kho, mỗi lượt một lô rồi tự xếp lượt kế. */
+export type SkillCanonicalizePayload = RequirementMatchPayload & {
+  round?: number;
 };
 
 export type EvaluateMatchPayload = {

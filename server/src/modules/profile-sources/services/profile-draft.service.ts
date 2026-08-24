@@ -202,6 +202,8 @@ export class ProfileDraftService {
       },
     });
 
+    await this.queue.send(QUEUE.SKILL_CANONICALIZE, { userId });
+
     return this.prisma.profileDraft.update({
       where: { id: draftId },
       data: { appliedAt: new Date() },

@@ -1,4 +1,5 @@
 import type { JobRequirements } from './schemas/job-requirements.schema.js';
+import { containsTerm, foldTerm } from './skill-term.js';
 
 /** Kỹ năng phụ đáng ít điểm hơn kỹ năng bắt buộc, nhưng không phải không đáng gì. */
 const NICE_TO_HAVE_WEIGHT = 0.5;
@@ -11,6 +12,12 @@ export type RequirementCheck = {
   /** `null` khi hồ sơ thiếu dữ liệu để kết luận - không tính vào mẫu số. */
   met: boolean | null;
   note?: string;
+  /**
+   * Kỹ năng của hồ sơ đã đáp ứng dòng này NHỜ danh bạ từ tương đương, chứ không
+   * nhờ trùng chữ. Giao diện phải hiện ra: model gộp sai thì người dùng thấy
+   * ngay, thay vì tin một con số không giải thích được.
+   */
+  via?: string;
 };
 
 export type MatchProfile = {
@@ -34,15 +41,47 @@ export type RequirementMatch = {
 
 const normalise = (value: string) => value.trim().toLowerCase();
 
-/** Khớp hai chiều: "AWS" khớp hồ sơ ghi "AWS Lambda", và ngược lại. */
-function hasSkill(profileSkills: string[], required: string): boolean {
-  const needle = normalise(required);
-  if (needle.length < 2) return false;
-  return profileSkills.some((skill) => {
-    const own = normalise(skill);
-    if (own.length < 2) return false;
-    return own.includes(needle) || needle.includes(own);
-  });
+/**
+ * Chỉ yêu cầu về NĂNG LỰC vào mẫu số. Địa điểm và quốc tịch là điều kiện lọc,
+ * để chúng trong mẫu số thì người ở tỉnh khác bị trừ vào tỉ lệ khớp kỹ năng.
+ */
+const SCORED_KINDS: ReadonlySet<CheckKind> = new Set<CheckKind>([
+  'SKILL',
+  'NICE',
+  'YEARS',
+]);
+
+/**
+ * Dạng đã bỏ dấu -> mã kỹ năng chuẩn. Cùng mã nghĩa là cùng một kỹ năng, kể cả
+ * khi hai chuỗi không chung một ký tự nào (`Y tá` và `Điều dưỡng`).
+ */
+export type SkillDictionary = ReadonlyMap<string, string>;
+
+/** Kỹ năng của hồ sơ đáp ứng được một yêu cầu, kèm lý do vì sao. */
+type SkillHit = { skill: string; viaDictionary: boolean } | null;
+
+/**
+ * Khớp hai chiều theo TỪ ("AWS" khớp hồ sơ ghi "AWS Lambda"), rồi mới tra danh
+ * bạ. Thứ tự đó là cố ý: so chữ không tốn gì và không bao giờ sai kiểu gộp nghề.
+ */
+function findSkill(
+  profileSkills: string[],
+  required: string,
+  dictionary?: SkillDictionary,
+): SkillHit {
+  const literal = profileSkills.find(
+    (skill) => containsTerm(skill, required) || containsTerm(required, skill),
+  );
+  if (literal) return { skill: literal, viaDictionary: false };
+
+  if (!dictionary) return null;
+  const wanted = dictionary.get(foldTerm(required));
+  if (!wanted) return null;
+
+  const synonym = profileSkills.find(
+    (skill) => dictionary.get(foldTerm(skill)) === wanted,
+  );
+  return synonym ? { skill: synonym, viaDictionary: true } : null;
 }
 
 /**
@@ -89,23 +128,26 @@ function checkLocation(
 export function matchRequirements(
   requirements: JobRequirements,
   profile: MatchProfile,
+  dictionary?: SkillDictionary,
 ): RequirementMatch {
   const checks: RequirementCheck[] = [];
 
-  for (const skill of requirements.requiredSkills) {
-    checks.push({
+  const skillCheck = (skill: string, kind: 'SKILL' | 'NICE') => {
+    const hit = findSkill(profile.skills, skill, dictionary);
+    return {
       label: skill,
-      kind: 'SKILL',
-      met: hasSkill(profile.skills, skill),
-    });
+      kind,
+      met: hit !== null,
+      via: hit?.viaDictionary ? hit.skill : undefined,
+    } satisfies RequirementCheck;
+  };
+
+  for (const skill of requirements.requiredSkills) {
+    checks.push(skillCheck(skill, 'SKILL'));
   }
 
   for (const skill of requirements.niceToHaveSkills) {
-    checks.push({
-      label: skill,
-      kind: 'NICE',
-      met: hasSkill(profile.skills, skill),
-    });
+    checks.push(skillCheck(skill, 'NICE'));
   }
 
   if (requirements.minYears !== null) {
@@ -149,7 +191,7 @@ export function matchRequirements(
   let total = 0;
 
   for (const check of checks) {
-    if (check.met === null) continue;
+    if (check.met === null || !SCORED_KINDS.has(check.kind)) continue;
     total += 1;
     totalWeight += weightOf(check);
     if (check.met) {

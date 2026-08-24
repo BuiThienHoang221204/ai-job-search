@@ -179,3 +179,144 @@ describe('chức danh tham gia đối chiếu', () => {
     expect(result.score).toBe(100);
   });
 });
+
+describe('không khớp bừa theo chuỗi con', () => {
+  /// Đo ngày 2026-08-24 trên bản cũ: một hồ sơ khai đúng kỹ năng "IT" khớp
+  /// 4/4 yêu cầu của một tin marketing, tức 100%, và đứng đầu danh sách.
+  test('hồ sơ khai "IT" KHÔNG khớp "Digital Marketing"', () => {
+    const result = matchRequirements(
+      requirements({
+        requiredSkills: ['Digital Marketing', 'Quality Control', 'Security'],
+      }),
+      profile({ skills: ['IT'] }),
+    );
+
+    expect(result.met).toBe(0);
+    expect(result.score).toBe(0);
+  });
+
+  test('"Excel" không khớp "technical excellence", "SAP" không khớp "Sapphire"', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Technical excellence', 'Sapphire'] }),
+      profile({ skills: ['Excel', 'SAP'] }),
+    );
+
+    expect(result.met).toBe(0);
+  });
+
+  test('ký hiệu vẫn khớp: ".NET" trong "ASP.NET Core"', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['.NET'] }),
+      profile({ skills: ['ASP.NET Core'] }),
+    );
+
+    expect(result.score).toBe(100);
+  });
+
+  test('hồ sơ gõ không dấu vẫn khớp tin có dấu', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Kế toán'] }),
+      profile({ skills: ['Ke toan tong hop'] }),
+    );
+
+    expect(result.score).toBe(100);
+  });
+});
+
+describe('mẫu số chỉ chứa yêu cầu về năng lực', () => {
+  /// Địa điểm là điều kiện lọc, không phải thứ đáp ứng được "một phần". Tính
+  /// nó vào mẫu số thì người ở tỉnh khác bị trừ thẳng vào tỉ lệ khớp kỹ năng.
+  test('địa điểm không đạt KHÔNG kéo tỉ lệ khớp xuống', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Kubernetes'], city: 'Hồ Chí Minh' }),
+      profile({ location: 'Hà Nội' }),
+    );
+
+    expect(result.score).toBe(100);
+    expect(result.total).toBe(1);
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({ kind: 'LOCATION', met: false }),
+    );
+  });
+
+  test('dòng quốc tịch vẫn hiện ra nhưng không nằm trong mẫu số', () => {
+    const result = matchRequirements(
+      requirements({
+        requiredSkills: ['Kubernetes'],
+        citizenshipRequired: 'Việt Nam',
+      }),
+      profile({ citizenship: 'Việt Nam' }),
+    );
+
+    expect(result.total).toBe(1);
+    expect(result.checks).toContainEqual(
+      expect.objectContaining({ kind: 'ELIGIBILITY' }),
+    );
+  });
+});
+
+describe('danh bạ kỹ năng', () => {
+  /// `Y tá` và `Điều dưỡng` không chung một ký tự nào, nên không phép so chuỗi
+  /// nào bắc cầu được. Đây là lý do danh bạ tồn tại.
+  const dictionary = new Map([
+    ['y ta', 'skill-nurse'],
+    ['dieu duong', 'skill-nurse'],
+    ['nurse', 'skill-nurse'],
+    ['java', 'skill-java'],
+    ['javascript', 'skill-javascript'],
+  ]);
+
+  test('cùng mã thì khớp dù chữ khác hẳn nhau', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Y tá'] }),
+      profile({ skills: ['Điều dưỡng'] }),
+      dictionary,
+    );
+
+    expect(result.score).toBe(100);
+  });
+
+  test('dòng khớp qua danh bạ phải NÓI RÕ là khớp nhờ từ tương đương', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Y tá'] }),
+      profile({ skills: ['Điều dưỡng'] }),
+      dictionary,
+    );
+
+    expect(result.checks).toContainEqual({
+      label: 'Y tá',
+      kind: 'SKILL',
+      met: true,
+      via: 'Điều dưỡng',
+    });
+  });
+
+  test('khác mã thì KHÔNG khớp: Java không phải JavaScript', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['JavaScript'] }),
+      profile({ skills: ['Java'] }),
+      dictionary,
+    );
+
+    expect(result.met).toBe(0);
+  });
+
+  test('không truyền danh bạ thì hành vi y như cũ', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Y tá'] }),
+      profile({ skills: ['Điều dưỡng'] }),
+    );
+
+    expect(result.met).toBe(0);
+  });
+
+  test('chuỗi chưa có trong danh bạ không làm hỏng gì', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['Hộ lý'] }),
+      profile({ skills: ['Điều dưỡng'] }),
+      dictionary,
+    );
+
+    expect(result.met).toBe(0);
+  });
+});

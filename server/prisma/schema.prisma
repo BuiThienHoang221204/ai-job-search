@@ -36,11 +36,16 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
+  /// Di tích của một tính năng thu hồi token đã bị revert: cột còn trong
+  /// database (một tài khoản mang giá trị 1) nhưng KHÔNG code nào đọc. Khai ở
+  /// đây để schema khớp database, đừng dựa vào nó.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   profile        Profile?
   matches        JobMatch[]
+  skillMatches   JobRequirementMatch[]
   savedJobs      SavedJob[]
   interviewPreps InterviewPrep[]
   upskillReports UpskillReport[]
@@ -190,6 +195,7 @@ model Job {
   scrapedAt DateTime  @default(now())
 
   matches        JobMatch[]
+  skillMatches   JobRequirementMatch[]
   saves          SavedJob[]
   interviewPreps InterviewPrep[]
   documents      Document[]
@@ -255,6 +261,38 @@ model JobRequirement {
   @@map("job_requirements")
 }
 
+/// Đối chiếu hồ sơ một người với yêu cầu một tin. Thuần CPU, không gọi model.
+///
+/// Bảng RIÊNG chứ không thêm cột vào `job_matches`: `reconcile` gom mọi
+/// `JobMatch` đang `PENDING` quá lâu rồi xếp lại hàng đợi chấm bằng AI, nên
+/// hàng chỉ có điểm đối chiếu sẽ kéo theo hàng nghìn lượt gọi model.
+model JobRequirementMatch {
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// Yêu cầu về NĂNG LỰC đáp ứng được / đối chiếu được. Địa điểm và quốc tịch
+  /// cố ý nằm ngoài: chúng là điều kiện lọc.
+  met   Int
+  total Int
+
+  /// 0-100, bắt buộc tính 1 và ưu tiên tính 0,5. Cột LỌC và SẮP XẾP nên có index.
+  percent Int
+
+  eligibility  EligibilityVerdict?
+  locationPass Boolean?
+
+  /// `JobRequirement.sourceHash` + mốc sửa hồ sơ. Trùng thì khỏi tính lại.
+  hash     String
+  scoredAt DateTime @default(now())
+
+  @@id([userId, jobId])
+  @@index([userId, percent(sort: Desc)])
+  @@map("job_requirement_matches")
+}
+
 enum JobSeniority {
   INTERN
   FRESHER
@@ -282,6 +320,59 @@ enum RemotePolicy {
 ///    `Unsupported` thì Prisma Client KHÔNG đọc được, mọi truy vấn phải qua
 ///    `$queryRaw`. Giữ nó tách biệt để phần còn lại của `jobs` vẫn dùng client
 ///    bình thường.
+/// Một kỹ năng CHUẨN: mọi cách gọi khác nhau của cùng một thứ đều trỏ về đây.
+///
+/// Cùng ý tưởng với `PROVINCES.aliases` trong taxonomy — tin viết `Hà Nội`,
+/// `HN` hay `hanoi` đều quy về mã `HN`. Khác ở chỗ kỹ năng không liệt kê tay
+/// được: 322 tin đã sinh ra 1.616 cách viết, và mỗi tin mới lại thêm.
+model CanonicalSkill {
+  id   String @id @default(cuid())
+  /// Tên hiển thị, lấy từ cách viết đầu tiên gặp được.
+  name String
+
+  /// Model sinh vector. Đổi model thì vector cũ không so được với vector mới.
+  model String
+
+  /// Dùng để tìm ứng viên gần nhất cho một chuỗi CHƯA có trong danh bạ. Không
+  /// đụng tới ở đường đọc — tra cứu hằng ngày chỉ cần `SkillAlias.key`.
+  embedding Unsupported("vector(768)")
+
+  aliases SkillAlias[]
+
+  createdAt DateTime @default(now())
+
+  @@index([model])
+  @@map("canonical_skills")
+}
+
+/// Nguồn của một liên kết: máy suy hay người chốt.
+enum AliasSource {
+  /// Trùng chữ sau khi bỏ dấu — không tốn lượt gọi model nào.
+  EXACT
+  /// Model đã chọn trong danh sách rút gọn do embedding đề cử.
+  LLM
+  /// Người sửa tay, và bản sửa tay KHÔNG bao giờ bị máy ghi đè.
+  MANUAL
+}
+
+/// Một cách viết cụ thể trỏ về một kỹ năng chuẩn. Đây là bảng đường ĐỌC tra.
+model SkillAlias {
+  /// Dạng đã bỏ dấu và hạ chữ thường, ví dụ `y ta`. Khoá chính luôn.
+  key String @id
+  /// Nguyên văn lần đầu gặp, để hiển thị và để lần lại nguồn.
+  raw String
+
+  skillId String
+  skill   CanonicalSkill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  source AliasSource
+
+  createdAt DateTime @default(now())
+
+  @@index([skillId])
+  @@map("skill_aliases")
+}
+
 model JobEmbedding {
   jobId String @id
   job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
