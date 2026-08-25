@@ -195,7 +195,7 @@ jobs:
               docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
             fi
             docker compose up -d --remove-orphans
-            docker compose exec app npx prisma migrate deploy --skip-generate
+            docker compose exec app pnpm exec prisma migrate deploy --skip-generate
 
   deploy-prod:
     name: Deploy to Production
@@ -252,4 +252,4 @@ jobs:
               docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
             fi
             docker compose up -d --remove-orphans
-            docker compose exec app npx prisma migrate deploy --skip-generate
+            docker compose exec app pnpm exec prisma migrate deploy --skip-generate
