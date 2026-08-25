@@ -186,6 +186,14 @@ jobs:
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull app postgres
+            if ! docker image inspect aijob-latex >/dev/null 2>&1; then
+              echo "Local image aijob-latex not found. Building it..."
+              docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
+            fi
+            if ! docker image inspect aijob-pdf >/dev/null 2>&1; then
+              echo "Local image aijob-pdf not found. Building it..."
+              docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
+            fi
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
 
@@ -235,5 +243,13 @@ jobs:
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull app postgres
+            if ! docker image inspect aijob-latex >/dev/null 2>&1; then
+              echo "Local image aijob-latex not found. Building it..."
+              docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
+            fi
+            if ! docker image inspect aijob-pdf >/dev/null 2>&1; then
+              echo "Local image aijob-pdf not found. Building it..."
+              docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
+            fi
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
