@@ -32,7 +32,12 @@ export class ApplicationsService {
   ) {}
 
   /** Tạo đơn ứng tuyển cho một công việc. */
-  async create(userId: string, jobId: string, skipDocuments = false, cvDocumentId?: string) {
+  async create(
+    userId: string,
+    jobId: string,
+    skipDocuments = false,
+    cvDocumentId?: string,
+  ) {
     const match = await this.prisma.jobMatch.findUnique({
       where: { userId_jobId: { userId, jobId } },
       include: { job: true },

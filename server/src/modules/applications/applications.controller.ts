@@ -60,7 +60,12 @@ export class ApplicationsController {
    */
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
-    return this.applications.create(user.id, dto.jobId, dto.skipDocuments, dto.cvDocumentId);
+    return this.applications.create(
+      user.id,
+      dto.jobId,
+      dto.skipDocuments,
+      dto.cvDocumentId,
+    );
   }
 
   /**

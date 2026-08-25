@@ -33,7 +33,6 @@
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.27",
     "@aws-sdk/client-s3": "^3.1117.0",
-    "@aws-sdk/s3-request-presigner": "^3.1117.0",
     "@huggingface/transformers": "^4.2.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
