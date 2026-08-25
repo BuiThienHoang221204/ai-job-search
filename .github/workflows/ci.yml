@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
@@ -20,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -53,7 +53,7 @@ jobs:
           pnpm run check
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        uses: oven-sh/setup-bun@v2
 
       - name: Type-check and test every portal CLI
         run: |
@@ -75,7 +75,7 @@ jobs:
             )
             echo "::endgroup::"
           done
-          test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào - cây thư mục đã đổi chỗ."; exit 1; }
+          test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào."; exit 1; }
 
       - name: Backend - build and unit tests
         working-directory: server
@@ -92,7 +92,7 @@ jobs:
     needs: test-and-build
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.36.0
@@ -108,7 +108,7 @@ jobs:
     name: Build and push Docker image
     runs-on: ubuntu-latest
     needs: security-scan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -130,16 +130,53 @@ jobs:
           file: ./server/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/server:latest
+            ghcr.io/${{ github.repository }}/server:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}/server:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to DigitalOcean
+  deploy-dev:
+    name: Deploy to Development
     runs-on: ubuntu-latest
     needs: docker-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/dev'
+    environment: development
+    steps:
+      - name: Validate deployment configuration
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_PASSWORD: ${{ secrets.DO_PASSWORD }}
+          DO_DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+        run: |
+          test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
+          test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
+          test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
+          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
+
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+          IMAGE: ghcr.io/${{ github.repository }}/server:dev
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          password: ${{ secrets.DO_PASSWORD }}
+          envs: DEPLOY_PATH,IMAGE
+          script: |
+            set -euo pipefail
+            cd "$DEPLOY_PATH/server"
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose exec app npx prisma migrate deploy --skip-generate
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main'
     environment: production
     steps:
       - name: Validate deployment configuration
@@ -152,13 +189,13 @@ jobs:
           test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
           test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
           test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
-          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH repository variable."; exit 1; }
+          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
 
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE: ghcr.io/${{ github.repository }}/server:latest
+          IMAGE: ghcr.io/${{ github.repository }}/server:main
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -169,3 +206,4 @@ jobs:
             cd "$DEPLOY_PATH/server"
             docker compose pull
             docker compose up -d --remove-orphans
+            docker compose exec app npx prisma migrate deploy --skip-generate
