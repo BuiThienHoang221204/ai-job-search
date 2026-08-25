@@ -140,7 +140,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy-dev:
+   deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
     needs: docker-build
@@ -159,16 +159,21 @@ jobs:
           test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
           test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
 
+      - name: Set lowercase image name
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE: ghcr.io/${{ github.repository_owner }}/ai-job-search/server:dev
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: dev
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           password: ${{ secrets.DO_PASSWORD }}
-          envs: DEPLOY_PATH,IMAGE
+          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
@@ -178,6 +183,8 @@ jobs:
               echo "Warning: .env.development not found. Copying .env.example as fallback..."
               cp .env.example .env
             fi
+            export GITHUB_REPOSITORY="$IMAGE_NAME"
+            export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
@@ -201,16 +208,21 @@ jobs:
           test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
           test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
 
+      - name: Set lowercase image name
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE: ghcr.io/${{ github.repository_owner }}/ai-job-search/server:main
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: main
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           password: ${{ secrets.DO_PASSWORD }}
-          envs: DEPLOY_PATH,IMAGE
+          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
@@ -220,6 +232,8 @@ jobs:
               echo "Warning: .env.production not found. Copying .env.example as fallback..."
               cp .env.example .env
             fi
+            export GITHUB_REPOSITORY="$IMAGE_NAME"
+            export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
