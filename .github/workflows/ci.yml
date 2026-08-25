@@ -129,9 +129,9 @@ jobs:
           file: ./server/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/server:${{ github.ref_name }}
-            ghcr.io/${{ github.repository }}/server:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/server:latest
+            ghcr.io/${{ github.repository_owner }}/ai-job-search/server:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/ai-job-search/server:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/ai-job-search/server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -158,7 +158,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE: ghcr.io/${{ github.repository }}/server:dev
+          IMAGE: ghcr.io/${{ github.repository_owner }}/ai-job-search/server:dev
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -195,7 +195,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE: ghcr.io/${{ github.repository }}/server:main
+          IMAGE: ghcr.io/${{ github.repository_owner }}/ai-job-search/server:main
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
