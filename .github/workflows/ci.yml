@@ -172,7 +172,12 @@ jobs:
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
-            cp .env.development .env
+            if [ -f .env.development ]; then
+              cp .env.development .env
+            elif [ ! -f .env ]; then
+              echo "Warning: .env.development not found. Copying .env.example as fallback..."
+              cp .env.example .env
+            fi
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
@@ -209,7 +214,12 @@ jobs:
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
-            cp .env.production .env
+            if [ -f .env.production ]; then
+              cp .env.production .env
+            elif [ ! -f .env ]; then
+              echo "Warning: .env.production not found. Copying .env.example as fallback..."
+              cp .env.example .env
+            fi
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
