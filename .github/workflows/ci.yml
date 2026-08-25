@@ -185,7 +185,7 @@ jobs:
             fi
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
-            docker compose pull
+            docker compose pull app postgres
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
 
@@ -234,6 +234,6 @@ jobs:
             fi
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
-            docker compose pull
+            docker compose pull app postgres
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
