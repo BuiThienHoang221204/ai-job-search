@@ -140,7 +140,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-   deploy-dev:
+  deploy-dev:
     name: Deploy to Development
     runs-on: ubuntu-latest
     needs: docker-build
