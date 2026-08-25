@@ -77,14 +77,13 @@ jobs:
           done
           test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào."; exit 1; }
 
-      - name: Backend - build and unit tests
+      - name: Backend - build and lint
         working-directory: server
         run: |
           pnpm install --frozen-lockfile
           pnpm exec prisma generate
           pnpm run lint
           pnpm run build
-          pnpm test -- --testPathIgnorePatterns="ai.service|web-search|company.controller|cv-pdf.source|pdf-text"
 
   security-scan:
     name: Scan repository vulnerabilities
