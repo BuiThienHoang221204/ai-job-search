@@ -177,12 +177,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
-            if [ -f .env.development ]; then
-              cp .env.development .env
-            elif [ ! -f .env ]; then
-              echo "Warning: .env.development not found. Copying .env.example as fallback..."
-              cp .env.example .env
-            fi
+            cp .env.development .env
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull app postgres
@@ -234,12 +229,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
-            if [ -f .env.production ]; then
-              cp .env.production .env
-            elif [ ! -f .env ]; then
-              echo "Warning: .env.production not found. Copying .env.example as fallback..."
-              cp .env.example .env
-            fi
+            cp .env.production .env
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull app postgres
