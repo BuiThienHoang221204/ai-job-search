@@ -8,7 +8,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY:-anhphamngocphu/ai-job-search}/server:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-BuiThienHoang221204/ai-job-search}/server:latest
     container_name: aijob-app
     restart: unless-stopped
     ports:
