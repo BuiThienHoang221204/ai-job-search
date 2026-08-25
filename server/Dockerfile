@@ -32,8 +32,9 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy built app
 COPY --from=builder /app/dist ./dist
 
-# Copy Prisma schema
+# Copy Prisma schema and config (needed for migrations at deploy time)
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 # Copy generated Prisma Client
 COPY --from=builder /app/src/generated/prisma ./src/generated/prisma
