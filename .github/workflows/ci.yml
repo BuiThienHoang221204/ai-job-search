@@ -6,10 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
-# The workflow only reads repository content.  No images are published and no
-# deployment target is configured for this repository.
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: ai-job-search-${{ github.workflow }}-${{ github.ref }}
@@ -56,8 +55,6 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
-      # Duyệt mọi portal CLI thay vì liệt kê từng cái: thêm portal mới bằng
-      # /add-portal sẽ được kiểm tra mà không phải sửa workflow này.
       - name: Type-check and test every portal CLI
         run: |
           set -euo pipefail
@@ -107,12 +104,42 @@ jobs:
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: "0"
 
+  docker-build:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/server:latest
+            ghcr.io/${{ github.repository }}/server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   deploy:
     name: Deploy to DigitalOcean
     runs-on: ubuntu-latest
-    needs: security-scan
-    # Deploy production only after a successful push to the main branch.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
     steps:
       - name: Validate deployment configuration
@@ -127,29 +154,18 @@ jobs:
           test -n "$DO_SSH_KEY" || { echo "::error::Missing DO_SSH_KEY secret."; exit 1; }
           test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH repository variable."; exit 1; }
 
-      - name: Sync source code to DigitalOcean
+      - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          REPOSITORY: ${{ github.repository }}
-          COMMIT_SHA: ${{ github.sha }}
-          GITHUB_TOKEN: ${{ github.token }}
+          IMAGE: ghcr.io/${{ github.repository }}/server:latest
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
-          envs: DEPLOY_PATH,REPOSITORY,COMMIT_SHA,GITHUB_TOKEN
+          envs: DEPLOY_PATH,IMAGE
           script: |
             set -euo pipefail
-            case "$DEPLOY_PATH" in
-              /*) ;;
-              *) echo "DEPLOY_PATH must be an absolute path."; exit 1 ;;
-            esac
-            AUTH_REPOSITORY="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPOSITORY}.git"
-            if [ ! -d "$DEPLOY_PATH/.git" ]; then
-              mkdir -p "$(dirname "$DEPLOY_PATH")"
-              git clone --depth 1 "$AUTH_REPOSITORY" "$DEPLOY_PATH"
-            fi
-            git -C "$DEPLOY_PATH" fetch --depth 1 "$AUTH_REPOSITORY" "$COMMIT_SHA"
-            git -C "$DEPLOY_PATH" checkout --detach --force FETCH_HEAD
-            git -C "$DEPLOY_PATH" remote set-url origin "https://github.com/${REPOSITORY}.git"
+            cd "$DEPLOY_PATH/server"
+            docker compose pull
+            docker compose up -d --remove-orphans
