@@ -236,10 +236,10 @@ const configuration = () => ({
   },
 
   storage: {
-    driver: process.env.STORAGE_DRIVER ?? 'local',
-    localRoot: fromServerRoot(
-      process.env.STORAGE_LOCAL_ROOT ?? '../workspaces',
-    ),
+    r2Endpoint: process.env.R2_ENDPOINT ?? '',
+    r2Bucket: process.env.R2_BUCKET ?? '',
+    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
   },
 });
 
