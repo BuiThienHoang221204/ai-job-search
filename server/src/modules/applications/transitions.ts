@@ -15,6 +15,7 @@ export const FINAL_STATUSES = [
 
 /** Đơn còn đang chạy. */
 export const OPEN_STATUSES = [
+  'VIEWED',
   'RANKED',
   'APPLIED',
   'INTERVIEW',

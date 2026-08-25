@@ -9,6 +9,13 @@ import { ALL_STATUSES, type StatusGroup } from './transitions.js';
 
 export class CreateApplicationDto {
   @IsString() jobId!: string;
+
+  @IsOptional()
+  skipDocuments?: boolean;
+
+  @IsOptional()
+  @IsString()
+  cvDocumentId?: string;
 }
 
 export class ListApplicationsDto extends PaginationQueryDto {
@@ -47,11 +54,13 @@ export class ApplicationsController {
 
   /**
    * Tạo đơn. Chặn nếu công việc chưa chấm điểm hoặc eligibility = FAIL.
-   * Tự xếp hàng đợi sinh CV và thư xin việc (bước 2-3 của SKILL.md).
+   * `skipDocuments=true` chỉ lưu lịch sử, không tự sinh CV/thư — dùng khi
+   * người dùng tự nộp trên trang tuyển dụng.
+   * `cvDocumentId` ghi nhận CV nào được chọn để nộp.
    */
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
-    return this.applications.create(user.id, dto.jobId);
+    return this.applications.create(user.id, dto.jobId, dto.skipDocuments, dto.cvDocumentId);
   }
 
   /**

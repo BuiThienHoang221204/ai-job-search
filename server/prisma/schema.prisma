@@ -843,6 +843,8 @@ model AiCall {
 /// liệu trong job_search_tracker.csv của bản CLI nói cùng một ngôn ngữ, và
 /// /outcome, /gmail-sync, /html-report vẫn hiểu được nếu sau này bắc cầu sang.
 enum ApplicationStatus {
+  /// Đã xem tin, nhưng chưa nộp (user bấm "Ứng tuyển ngay" từ trang job).
+  VIEWED
   /// Đã chấm điểm, đã quyết định sẽ nộp, nhưng chưa nộp.
   RANKED
   /// Đã nộp, đang chờ hồi âm.

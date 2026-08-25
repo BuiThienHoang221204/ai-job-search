@@ -32,38 +32,47 @@ export class ApplicationsService {
   ) {}
 
   /** Tạo đơn ứng tuyển cho một công việc. */
-  async create(userId: string, jobId: string) {
+  async create(userId: string, jobId: string, skipDocuments = false, cvDocumentId?: string) {
     const match = await this.prisma.jobMatch.findUnique({
       where: { userId_jobId: { userId, jobId } },
       include: { job: true },
     });
 
-    if (!match) {
-      throw new BadRequestException(
-        'Chưa chấm điểm công việc này. Hãy chạy đánh giá độ phù hợp trước khi tạo đơn.',
-      );
+    if (!skipDocuments) {
+      if (!match) {
+        throw new BadRequestException(
+          'Chưa chấm điểm công việc này. Hãy chạy đánh giá độ phù hợp trước khi tạo đơn.',
+        );
+      }
+      if (match.status !== 'DONE') {
+        throw new BadRequestException(
+          `Kết quả chấm điểm đang ở trạng thái ${match.status}, chưa dùng được để tạo đơn.`,
+        );
+      }
+      if (match.eligibility === 'FAIL') {
+        throw new BadRequestException(
+          `Công việc này không đủ điều kiện ứng tuyển: ${match.eligibilityNote ?? 'tin tuyển dụng đòi điều kiện mà hồ sơ không đáp ứng'}`,
+        );
+      }
     }
-    if (match.status !== 'DONE') {
-      throw new BadRequestException(
-        `Kết quả chấm điểm đang ở trạng thái ${match.status}, chưa dùng được để tạo đơn.`,
-      );
-    }
-    if (match.eligibility === 'FAIL') {
-      throw new BadRequestException(
-        `Công việc này không đủ điều kiện ứng tuyển: ${match.eligibilityNote ?? 'tin tuyển dụng đòi điều kiện mà hồ sơ không đáp ứng'}`,
-      );
-    }
+
+    // skipDocuments=true và không có cvDocumentId → tạo đơn ở trạng thái VIEWED
+    const initialStatus = skipDocuments && !cvDocumentId ? 'VIEWED' : 'RANKED';
 
     const application = await this.prisma.application
       .create({
         data: {
           userId,
           jobId,
-          status: 'RANKED',
+          status: initialStatus,
           events: {
             create: {
-              toStatus: 'RANKED',
-              note: `Tạo đơn từ kết quả chấm điểm ${match.overallScore ?? 0}/100 (${match.verdict ?? 'chưa có kết luận'})`,
+              toStatus: initialStatus,
+              note: cvDocumentId
+                ? `Đã chọn CV: ${cvDocumentId}`
+                : match
+                  ? `Tạo đơn từ kết quả chấm điểm ${match.overallScore ?? 0}/100 (${match.verdict ?? 'chưa có kết luận'})`
+                  : 'Đã xem tin tuyển dụng',
             },
           },
         },
@@ -78,12 +87,14 @@ export class ApplicationsService {
         throw error;
       });
 
-    await this.prepareDocuments(
-      userId,
-      jobId,
-      match.job.title,
-      match.job.company,
-    );
+    if (!skipDocuments && match) {
+      await this.prepareDocuments(
+        userId,
+        jobId,
+        match.job.title,
+        match.job.company,
+      );
+    }
 
     return application;
   }
@@ -171,7 +182,35 @@ export class ApplicationsService {
       { all: 0, open: 0, interview: 0, offer: 0, closed: 0 },
     );
 
-    return { ...pageOf(items, total, query), counts };
+    const jobIds = [...new Set(items.map((item) => item.jobId))];
+    const documents = await this.prisma.document.findMany({
+      where: { userId, jobId: { in: jobIds }, kind: 'CV' },
+      select: {
+        id: true,
+        jobId: true,
+        kind: true,
+        title: true,
+        status: true,
+        templateId: true,
+        generatedAt: true,
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    const docsByJob = new Map<string, typeof documents>();
+    for (const doc of documents) {
+      if (!doc.jobId) continue;
+      const list = docsByJob.get(doc.jobId) ?? [];
+      list.push(doc);
+      docsByJob.set(doc.jobId, list);
+    }
+
+    const itemsWithDocs = items.map((item) => ({
+      ...item,
+      documents: docsByJob.get(item.jobId) ?? [],
+    }));
+
+    return { ...pageOf(itemsWithDocs, total, query), counts };
   }
 
   async get(userId: string, id: string) {
