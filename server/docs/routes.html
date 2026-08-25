@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cơ chế 35 route — AI Job Search Backend</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0}
+  img,svg{max-width:100%;height:auto}
+  table{border-collapse:collapse}
+</style>
+</head>
+<body>
+<style>
+  /* ---- Bảng màu: nền lệch xanh lam nguội, nhấn chàm.
+         Hai màu ngữ nghĩa tách khỏi màu nhấn: hổ phách = đường ghi (chậm, có AI),
+         lục lam = đường đọc (nhanh, chỉ DB). ---- */
+  :root {
+    --ground: #eef1f6;
+    --surface: #ffffff;
+    --surface-2: #f6f8fb;
+    --ink: #131722;
+    --ink-2: #4a5266;
+    --ink-3: #767e91;
+    --line: #d8dde7;
+    --line-soft: #e6eaf1;
+    --accent: #3f4fbe;
+    --accent-soft: #e7e9fa;
+    --slow: #9a6412;
+    --slow-soft: #f8eddb;
+    --fast: #0d6f60;
+    --fast-soft: #dcefeb;
+    --guard: #9d3560;
+    --guard-soft: #f9e5ed;
+    --shadow: 0 1px 2px rgba(19, 23, 34, .05), 0 8px 24px -16px rgba(19, 23, 34, .3);
+
+    --display: "Charter", "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+    --body: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0d1017;
+      --surface: #151924;
+      --surface-2: #1b202c;
+      --ink: #e7eaf2;
+      --ink-2: #a8b0c2;
+      --ink-3: #7c8497;
+      --line: #29303f;
+      --line-soft: #212836;
+      --accent: #8e9bf0;
+      --accent-soft: #22284a;
+      --slow: #d7a45a;
+      --slow-soft: #33280f;
+      --fast: #58c4ae;
+      --fast-soft: #10322c;
+      --guard: #dd8bab;
+      --guard-soft: #38182a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0d1017;
+    --surface: #151924;
+    --surface-2: #1b202c;
+    --ink: #e7eaf2;
+    --ink-2: #a8b0c2;
+    --ink-3: #7c8497;
+    --line: #29303f;
+    --line-soft: #212836;
+    --accent: #8e9bf0;
+    --accent-soft: #22284a;
+    --slow: #d7a45a;
+    --slow-soft: #33280f;
+    --fast: #58c4ae;
+    --fast-soft: #10322c;
+    --guard: #dd8bab;
+    --guard-soft: #38182a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 52px;
+  }
+
+  /* ---- Đầu trang ---- */
+  .masthead { display: flex; flex-direction: column; gap: 14px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(30px, 4.4vw, 44px);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .lede { max-width: 66ch; color: var(--ink-2); margin: 0; font-size: 17px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  .stat {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 3px;
+    padding: 8px 13px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .stat b { font-family: var(--mono); font-size: 16px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 12.5px; color: var(--ink-3); }
+
+  /* ---- Khối chung ---- */
+  section { display: flex; flex-direction: column; gap: 18px; }
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: -.01em;
+    margin: 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--ink);
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--body);
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0;
+  }
+  p { margin: 0; max-width: 72ch; }
+  .note { color: var(--ink-2); font-size: 15px; }
+  code {
+    font-family: var(--mono);
+    font-size: .875em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 3px;
+    padding: .08em .34em;
+  }
+  strong { font-weight: 650; }
+
+  /* ---- Sơ đồ hai đường ---- */
+  .paths { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .paths { grid-template-columns: 1fr; } }
+  .path {
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--edge);
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow);
+  }
+  .path.write { --edge: var(--slow); }
+  .path.read { --edge: var(--fast); }
+  .path-title { font-family: var(--display); font-size: 19px; font-weight: 600; }
+  .path.write .path-title { color: var(--slow); }
+  .path.read .path-title { color: var(--fast); }
+  .chain { display: flex; flex-direction: column; gap: 0; font-family: var(--mono); font-size: 12.5px; }
+  .chain span { padding: 5px 0; color: var(--ink-2); }
+  .chain span::before { content: "↓"; color: var(--ink-3); margin-right: 9px; }
+  .chain span:first-child::before { content: "▸"; }
+  .timing {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    color: var(--ink-3);
+  }
+  .timing b { color: var(--edge); font-variant-numeric: tabular-nums; }
+
+  /* ---- Chuỗi middleware ---- */
+  ol.steps { margin: 0; padding-left: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 9px; }
+  ol.steps > li {
+    counter-increment: s;
+    position: relative;
+    padding-left: 34px;
+    font-size: 15px;
+    color: var(--ink-2);
+  }
+  ol.steps > li::before {
+    content: counter(s);
+    position: absolute;
+    left: 0; top: .12em;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+  }
+  ol.steps > li b { color: var(--ink); }
+
+  /* ---- Thẻ route ---- */
+  .group { display: flex; flex-direction: column; gap: 12px; }
+  .group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+  .group-head .skillref {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+
+  .route {
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .route-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .num {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    min-width: 20px;
+  }
+  .method {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    border: 1px solid currentColor;
+  }
+  .method.get { color: var(--fast); }
+  .method.post, .method.patch { color: var(--slow); }
+  .path-str { font-family: var(--mono); font-size: 14px; font-weight: 600; word-break: break-all; }
+  .tags { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .tag.ai { background: var(--slow-soft); color: var(--slow); }
+  .tag.db { background: var(--fast-soft); color: var(--fast); }
+  .tag.jwt { background: var(--guard-soft); color: var(--guard); }
+  .tag.q { background: var(--accent-soft); color: var(--accent); }
+  .route-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .route-body ol.steps > li { font-size: 14.5px; }
+  .route-body ol.steps > li::before { width: 20px; height: 20px; font-size: 11px; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    border-radius: 0 3px 3px 0;
+    font-size: 14.5px;
+    color: var(--ink);
+  }
+  .callout.warn { border-left-color: var(--slow); background: var(--slow-soft); }
+
+  /* ---- Bảng ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  thead th {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--ink-3);
+    background: var(--surface-2);
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td code { background: transparent; border: none; padding: 0; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    color: var(--ink-3);
+    font-size: 13.5px;
+  }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">ai-job-search / server</div>
+    <h1>Cơ chế hoạt động của 35 route</h1>
+    <p class="lede">
+      NestJS 11 + Prisma 7 + pg-boss trên Postgres. Backend thi hành các skill markdown trong
+      <code>.claude/skills/</code> bằng model của OpenCode Zen. Trang này mô tả điều thực sự xảy ra
+      bên trong mỗi route.
+    </p>
+    <div class="stats">
+      <div class="stat"><b>35</b><span>route</span></div>
+      <div class="stat"><b>5</b><span>hàng đợi</span></div>
+      <div class="stat"><b>5</b><span>route gọi AI</span></div>
+      <div class="stat"><b>5</b><span>skill nạp</span></div>
+      <div class="stat"><b>~83ms</b><span>dashboard</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Hai đường, và vì sao phải tách</h2>
+    <p class="note">
+      Mọi route rơi vào một trong hai loại. Nếu màn hình danh sách gọi AI lúc render, 24 công việc
+      thành 24 lần gọi model, và điểm số sẽ nhảy mỗi lần tải lại trang vì model không cho kết quả
+      giống hệt nhau giữa các lần chạy.
+    </p>
+    <div class="paths">
+      <div class="path write">
+        <div class="path-title">Đường ghi</div>
+        <div class="chain">
+          <span>POST → tạo bản ghi PENDING</span>
+          <span>queue.send() → bảng pgboss.job</span>
+          <span>trả HTTP ngay, không chờ</span>
+          <span>worker poll mỗi 2 giây</span>
+          <span>nạp skill → dựng prompt</span>
+          <span>generateObject() → OpenCode</span>
+          <span>ghi kết quả, status DONE</span>
+        </div>
+        <div class="timing">phản hồi HTTP <b>vài ms</b> · AI chạy nền <b>35–90s</b></div>
+      </div>
+      <div class="path read">
+        <div class="path-title">Đường đọc</div>
+        <div class="chain">
+          <span>GET → guard giải token</span>
+          <span>truy vấn Postgres</span>
+          <span>trả JSON</span>
+        </div>
+        <div class="timing">toàn bộ <b>~83ms</b> · <b>0</b> lần gọi model</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Chuỗi xử lý chung cho mọi request</h2>
+    <p class="note">Chạy trước khi tới controller, cấu hình trong <code>main.ts</code>.</p>
+    <ol class="steps">
+      <li><b>Prefix</b> — <code>setGlobalPrefix('api')</code>, nên mọi đường dẫn bắt đầu bằng <code>/api</code>.</li>
+      <li><b>CORS</b> — chỉ chấp nhận origin khai trong <code>CORS_ORIGIN</code>, mặc định <code>http://localhost:3000</code>.</li>
+      <li><b>JwtAuthGuard</b> (route có guard) — passport-jwt lấy Bearer token, kiểm chữ ký và hạn, rồi <code>JwtStrategy.validate()</code> <em>truy DB lại</em> theo <code>sub</code>. Token còn hạn nhưng tài khoản đã xoá vẫn bị 401.</li>
+      <li><b>ValidationPipe</b> — class-transformer ép kiểu, class-validator kiểm tra. Bật <code>forbidNonWhitelisted</code> nên field lạ trong body bị từ chối 400 thay vì âm thầm bỏ qua.</li>
+      <li><b>@CurrentUser()</b> — đọc <code>req.user</code> guard vừa gắn. Mọi truy vấn đều lọc theo <code>userId</code> này, không route nào nhận userId từ body.</li>
+      <li><b>Serialize</b> — Nest trả JSON. Lỗi HttpException thành mã trạng thái tương ứng.</li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="group-head"><h2>Nhóm 1 — Hạ tầng và xác thực</h2></div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">01</span><span class="method get">GET</span>
+        <span class="path-str">/api/skills</span>
+        <span class="tags"><span class="tag db">RAM</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li><code>SkillRegistryService.list()</code> đọc Map trong bộ nhớ, không chạm đĩa hay DB.</li>
+          <li>Dedupe qua <code>new Set(values())</code> — mỗi skill đăng ký hai khoá (tên thư mục và tên trong frontmatter) nên phải khử trùng.</li>
+          <li>Trả tên, mô tả, <code>allowed-tools</code>, <code>framework_version</code>.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">02</span><span class="method post">POST</span>
+        <span class="path-str">/api/skills/reload</span>
+        <span class="tags"><span class="tag db">đĩa</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Xoá sạch Map hiện tại.</li>
+          <li><code>readdir</code> thư mục <code>SKILLS_DIR</code>. Bỏ qua entry không phải thư mục — <code>isDirectory()</code> trả false cho symlink, đúng thứ ta cần vì <code>server/.claude/skills/</code> của Prisma toàn symlink.</li>
+          <li>Mỗi thư mục: đọc <code>SKILL.md</code>, tách frontmatter bằng gray-matter, nạp thêm mọi file <code>.md</code> anh em làm reference.</li>
+          <li>Băm sha256 toàn bộ nội dung → <code>contentHash</code>. Hash này về sau đi vào <code>promptHash</code> để biết khi nào kết quả cũ hết giá trị.</li>
+        </ol>
+        <div class="callout">Sửa <code>SKILL.md</code> rồi gọi route này là có hiệu lực ngay, kể cả với job đang xếp hàng — vì skill được nạp lúc thi hành chứ không nhét vào payload của queue.</div>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">03</span><span class="method post">POST</span>
+        <span class="path-str">/api/auth/register</span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Kiểm email đã tồn tại chưa → <code>409 Conflict</code>.</li>
+          <li>bcrypt 12 vòng.</li>
+          <li><code>user.create</code> với <code>profile: { create: {} }</code> lồng nhau — tạo sẵn hồ sơ rỗng để các màn hình sau không phải xử lý trường hợp null.</li>
+          <li>Ký JWT <code>{ sub, email }</code>, hạn theo <code>JWT_EXPIRES_IN</code>.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">04</span><span class="method post">POST</span>
+        <span class="path-str">/api/auth/login</span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Tìm user theo email, so <code>bcrypt.compare</code>.</li>
+          <li>Email không tồn tại và mật khẩu sai đi chung một nhánh, trả <b>cùng một thông báo</b>. Tách hai thông báo sẽ biến endpoint này thành công cụ dò xem email nào đã đăng ký.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">05</span><span class="method get">GET</span>
+        <span class="path-str">/api/auth/me</span>
+        <span class="tags"><span class="tag jwt">JWT</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Guard đã truy DB và gắn user rồi, controller chỉ trả về. Không có truy vấn thứ hai.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="group-head"><h2>Nhóm 2 — Hồ sơ và tin tuyển dụng</h2></div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">06</span><span class="method get">GET</span>
+        <span class="path-str">/api/profile</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li><code>profile.upsert</code> chứ không phải <code>findUnique</code> — luôn có kết quả, không bao giờ 404.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">07</span><span class="method put">PUT</span>
+        <span class="path-str">/api/profile</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Upsert hồ sơ với dữ liệu gửi lên.</li>
+          <li>Tính lại <code>completion</code> trên <b>13 trường</b> ảnh hưởng trực tiếp tới chất lượng chấm điểm — không phải mọi trường trong bảng. Mảng rỗng và chuỗi trắng đều tính là chưa điền.</li>
+          <li>Update lần hai để ghi phần trăm.</li>
+        </ol>
+        <div class="callout">Sửa hồ sơ làm đổi <code>promptHash</code> của mọi kết quả chấm điểm, nên lần chạy sau sẽ tự chấm lại thay vì trả kết quả cũ.</div>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">08</span><span class="method get">GET</span>
+        <span class="path-str">/api/jobs</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Có <code>?q=</code> thì lọc <code>OR</code> trên title và company, chế độ <code>insensitive</code>.</li>
+          <li><code>findMany</code> và <code>count</code> chạy song song trong một <code>Promise.all</code>.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">09</span><span class="method get">GET</span>
+        <span class="path-str">/api/jobs/:id</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps"><li><code>findUnique</code>, không thấy thì 404.</li></ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">10</span><span class="method post">POST</span>
+        <span class="path-str">/api/jobs</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag q">queue</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>ValidationPipe chặn mô tả dưới 20 ký tự — loại rác trước khi tốn một lần gọi model.</li>
+          <li>Không có <code>externalId</code> → <code>create</code> mới. Có → <code>upsert</code> theo khoá kép <code>(source, externalId)</code>, nên scrape lại nhiều lần không sinh bản ghi trùng.</li>
+          <li>Đẩy <code>match.evaluate</code> vào hàng đợi với ba trường <code>{ userId, jobId, force }</code>.</li>
+          <li>Trả <code>201</code> ngay. Không chờ AI.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="group-head">
+      <h2>Nhóm 3 — Chấm điểm phù hợp</h2>
+      <span class="skillref">skill: 04-job-evaluation.md</span>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">11</span><span class="method get">GET</span>
+        <span class="path-str">/api/matches</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Lọc <code>status = DONE</code>, sắp <code>overallScore DESC</code>, kèm bản ghi job. Có index riêng cho cặp này.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">12</span><span class="method get">GET</span>
+        <span class="path-str">/api/matches/:jobId</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li><code>findUnique</code> trên khoá kép <code>(userId, jobId)</code>. Trả đủ 5 chiều, eligibility kèm câu trích, strengths, gaps, khuyến nghị.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">13</span><span class="method post">POST</span>
+        <span class="path-str">/api/matches/evaluate</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag q">queue</span></span>
+      </div>
+      <div class="route-body">
+        <ol class="steps">
+          <li>Chỉ <code>queue.send()</code> ba trường. <b>Không chạm tới skill.</b> Skill được nạp muộn hơn, trong worker.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="route">
+      <div class="route-head">
+        <span class="num">14</span><span class="method post">POST</span>
+        <span class="path-str">/api/matches/evaluate-sync</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag ai">gọi AI</span></span>
+      </div>
+      <div class="route-body">
+        <p class="note">Gọi thẳng <code>MatchingService.evaluate()</code> trong request. Dành cho đo chất lượng model, không dùng cho giao diện.</p>
+      </div>
+    </div>
+
+    <h3>Bên trong MatchingService.evaluate()</h3>
+    <div class="route">
+      <div class="route-body">
+        <ol class="steps">
+          <li>Đọc song song hồ sơ, job, và kết quả chấm cũ. Không có job → 404.</li>
+          <li><b>Dựng prompt.</b> Lấy <code>04-job-evaluation.md</code> rồi <code>keepSections()</code> giữ đúng bốn mục: Eligibility Gate, Scoring Dimensions, Weighting, Thresholds. Bỏ <code>Salary Benchmark</code> (gọi script python) và <code>Output Format</code>.</li>
+          <li><code>render()</code> thay <code>[YOUR_PRIMARY_SKILLS]</code>, <code>[YOUR_CAREER_GOAL_1]</code>… bằng dữ liệu hồ sơ. Token không có ánh xạ bị thay bằng <em>"(hồ sơ chưa cung cấp)"</em>, không để lại nguyên văn.</li>
+          <li><b>promptHash</b> = sha256(contentHash skill + hồ sơ + tiêu đề + công ty + mô tả + địa điểm). Trùng hash và đã DONE → trả kết quả cũ, <b>không gọi AI</b>.</li>
+          <li>Đặt <code>status = RUNNING</code>.</li>
+          <li><code>generateObject()</code> với schema Zod, timeout 90 giây, tối đa 2 lần thử lại.</li>
+          <li>Eligibility <code>FAIL</code> → <code>overallScore = 0</code>, bỏ qua trọng số. Ngược lại tính 30% kỹ thuật + 25% kinh nghiệm + 15% hành vi + 30% định hướng.</li>
+          <li>Quy verdict theo ngưỡng 75 / 60 / 45 / 30 → STRONG · GOOD · MODERATE · WEAK · POOR.</li>
+          <li>Ghi DONE kèm <code>promptHash</code> và <code>evaluatedAt</code>.</li>
+        </ol>
+        <div class="callout warn">
+          Lỗi được bắt và ghi <code>status = FAILED</code>, <b>không ném ra ngoài</b>. Nếu ném, pg-boss sẽ coi là job hỏng và thử lại mãi — mỗi lần thử là một lần gọi model.
+        </div>
+        <div class="callout">
+          Điểm tổng và ngưỡng verdict tính ở code, không hỏi model. Model hay tự làm tròn điểm tổng cho "hợp lý", khiến tổng không khớp các điểm thành phần hiển thị trên giao diện.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="group-head">
+      <h2>Nhóm 4 — Chuẩn bị phỏng vấn</h2>
+      <span class="skillref">skill: 07-interview-prep.md + 02-behavioral-profile.md</span>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>#</th><th>Route</th><th>Cơ chế</th></tr></thead>
+        <tbody>
+          <tr><td>15</td><td><code>GET /api/interview</code></td><td>Danh sách bộ chuẩn bị, sắp theo <code>updatedAt</code>, kèm tóm tắt job.</td></tr>
+          <tr><td>16</td><td><code>GET /api/interview/:jobId</code></td><td><code>findUnique</code> khoá kép. Trả STAR answers, câu hỏi khó, câu nên hỏi lại, talking points, likely probes.</td></tr>
+          <tr><td>17</td><td><code>POST /api/interview/prep</code></td><td>Đẩy <code>interview.prep</code> vào hàng đợi.</td></tr>
+          <tr><td>18</td><td><code>POST /api/interview/prep-sync</code></td><td>Chạy ngay trong request.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Bên trong InterviewService.generate()</h3>
+    <div class="route">
+      <div class="route-body">
+        <ol class="steps">
+          <li>Đọc song song hồ sơ, job, <b>kết quả chấm điểm</b>, và bộ chuẩn bị cũ.</li>
+          <li>Nạp hai file skill: <code>07</code> cho khung STAR và danh sách câu hỏi khó, <code>02</code> cho đặc điểm hành vi — thứ quyết định cách ứng viên nên dẫn dắt câu trả lời.</li>
+          <li><b>Đưa <code>match.gaps</code> thẳng vào prompt</b> kèm ghi chú rằng nhà tuyển dụng sẽ đào đúng những chỗ đó. Đây là lý do nên chấm điểm trước khi soạn câu hỏi.</li>
+          <li>promptHash gồm cả <code>gaps</code>, nên chấm điểm lại ra kết quả khác thì bộ câu hỏi cũng tự làm lại.</li>
+          <li><code>generateObject()</code> với schema yêu cầu STAR đủ bốn phần S/T/A/R.</li>
+        </ol>
+        <div class="callout">
+          Prompt cấm bịa dự án. Năng lực nào hồ sơ không có dữ liệu thì phải đẩy sang <code>likelyProbes</code> —
+          tức là "chỗ này bạn sẽ bị hỏi và chưa có gì để trả lời", thay vì dựng một câu chuyện tưởng tượng lấp chỗ trống.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="group-head">
+      <h2>Nhóm 5 — Lộ trình học</h2>
+      <span class="skillref">skill: upskill/SKILL.md, Step 3–6</span>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>#</th><th>Route</th><th>Cơ chế</th></tr></thead>
+        <tbody>
+          <tr><td>19</td><td><code>GET /api/upskill</code></td><td>Báo cáo DONE mới nhất.</td></tr>
+          <tr><td>20</td><td><code>GET /api/upskill/history</code></td><td>20 báo cáo gần nhất, chỉ metadata.</td></tr>
+          <tr><td>21</td><td><code>GET /api/upskill/:id</code></td><td>Một báo cáo, lọc kèm <code>userId</code> nên không đọc chéo được.</td></tr>
+          <tr><td>22</td><td><code>POST /api/upskill/generate</code></td><td>Tạo bản ghi PENDING → đẩy hàng đợi → trả <code>reportId</code> để giao diện theo dõi.</td></tr>
+          <tr><td>23</td><td><code>POST /api/upskill/generate-sync</code></td><td>Tạo rồi chạy ngay.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      Thứ tự đăng ký route <b>20 trước 21</b> là cố ý. Nest so khớp theo thứ tự khai báo; nếu <code>:id</code> đứng trước,
+      nó sẽ nuốt luôn <code>/history</code> và coi "history" là một id.
+    </div>
+
+    <h3>Bên trong UpskillService.generate()</h3>
+    <div class="route">
+      <div class="route-body">
+        <ol class="steps">
+          <li>Có <code>jobId</code> → chế độ TARGETED, lấy đúng một kết quả chấm. Không có → AGGREGATE, lấy tối đa 30 kết quả DONE <b>sắp điểm tăng dần</b> (việc kém phù hợp lên trước).</li>
+          <li>Chặn: chưa có job nào → 400. AGGREGATE mà dưới <b>3 job</b> → 400. "Xu hướng thị trường" rút từ 2 tin tuyển dụng chỉ là đặc điểm của 2 tin đó.</li>
+          <li>Nạp <code>upskill/SKILL.md</code> và <b>chia đôi</b>: Step 3–5 (hai pass phân tích) cho lời gọi 1, Step 6–7 (lộ trình và thứ tự học) cho lời gọi 2. Các bước thao tác file và WebSearch trong skill gốc không áp dụng cho server.</li>
+          <li><b>Lời gọi 1 — <code>upskill.gaps</code>, timeout 180s.</b> Mỗi job vào prompt kèm <b>trọng số <code>(100 − điểm) / 100</code></b>, lấy nguyên công thức Step 3. Trả về hardGaps và synthesisedGaps (4 nhãn: domain / soft / tooling / credential).</li>
+          <li><b>Lời gọi 2 — <code>upskill.plan</code>, timeout 120s.</b> Đầu vào là hồ sơ + danh sách khoảng trống của lời gọi 1, <b>không có mô tả công việc</b>. Trả về learningPlan có thứ tự học và tóm tắt.</li>
+          <li>Ghép hai kết quả rồi ghi một lần, kèm <code>jobsAnalysed</code> — người dùng cần thấy báo cáo dựa trên bao nhiêu việc. Lời gọi 1 hỏng thì dừng luôn, không trả tiền cho lời gọi 2.</li>
+        </ol>
+        <div class="callout">
+          <b>Vì sao hai lời gọi.</b> Bản một-lời-gọi <b>chưa từng tạo nổi một báo cáo AGGREGATE</b>: nhồi 30 công việc vào một prompt rồi đòi sinh cả bốn trường thì
+          <code>deepseek-v4-flash-free</code> hết giờ ở mốc 240s, còn <code>mimo-v2.5-free</code> viết xong sau 28,3s nhưng thiếu một dấu <code>{</code> nên cả JSON hỏng.
+          Tách theo <b>quan hệ dữ liệu</b>: lộ trình học vốn suy từ khoảng trống, nên lời gọi 2 không cần mô tả công việc — và đó chính là chỗ prompt nhỏ đi.
+          Chế độ TARGETED cũng đi đúng đường này, để <code>generate()</code> chỉ có một đường code.
+        </div>
+        <div class="callout">
+          Skill gốc đọc <code>job_search_tracker.csv</code> và dùng cột <code>fit_rating</code>.
+          Ở đây bảng <code>job_matches</code> đóng đúng vai trò đó, và <code>overallScore</code> <b>chính là</b> <code>fit_rating</code>.
+          Không cần file CSV nào.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="group-head">
+      <h2>Nhóm 6 — Tài liệu ứng tuyển</h2>
+      <span class="skillref">skill: 05 · 06 · 08 · 03-writing-style.md</span>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>#</th><th>Route</th><th>Cơ chế</th></tr></thead>
+        <tbody>
+          <tr><td>24</td><td><code>GET /api/documents</code></td><td>Lọc <code>?kind=CV|COVER_LETTER|FORM_ANSWER</code>. Chỉ trả metadata, không trả nội dung.</td></tr>
+          <tr><td>25</td><td><code>GET /api/documents/:id</code></td><td>Nội dung có cấu trúc dạng JSON.</td></tr>
+          <tr><td>26</td><td><code>GET /api/documents/:id/source</code></td><td>Đọc file <code>.tex</code> từ Storage, trả <code>text/plain</code>.</td></tr>
+          <tr><td>27</td><td><code>POST /api/documents/cv</code></td><td><code>jobId</code> tuỳ chọn — không có thì sinh CV tổng quát theo định hướng nghề nghiệp.</td></tr>
+          <tr><td>28</td><td><code>POST /api/documents/cover-letter</code></td><td>Bắt buộc có <code>jobId</code>.</td></tr>
+          <tr><td>29</td><td><code>POST /api/documents/form-answer</code></td><td>Nhận <code>question</code> và <code>characterLimit</code>, tạm cất trong cột <code>content</code>.</td></tr>
+          <tr><td>30</td><td><code>POST /api/documents/:id/generate-sync</code></td><td>Chạy ngay một tài liệu đã tạo.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Bên trong DocumentsService.generate()</h3>
+    <div class="route">
+      <div class="route-body">
+        <ol class="steps">
+          <li>Đọc song song hồ sơ và job. Lấy tham số đầu vào từ cột <code>content</code> — cột này sẽ bị ghi đè bằng kết quả ở bước cuối.</li>
+          <li>Phân nhánh theo <code>kind</code>. Cả ba nhánh đều nạp <code>03-writing-style.md</code> làm quy tắc văn phong chung, cộng thêm file chuyên biệt.</li>
+          <li><b>CV</b> → <code>generateObject(cvSchema)</code> → <code>renderCv()</code> dựng LaTeX moderncv → ghi <code>&lt;userId&gt;/cv/main_&lt;slug&gt;.tex</code>.</li>
+          <li><b>Thư xin việc</b> → nạp thêm <code>strengths</code> và <code>gaps</code> từ kết quả chấm điểm → <code>renderCoverLetter()</code> → ghi <code>&lt;userId&gt;/cover_letters/cover_&lt;slug&gt;.tex</code>.</li>
+          <li><b>Câu trả lời form</b> → không ghi file. <b>Đếm lại số ký tự bằng code</b> và ghi đè con số model tự khai, kèm cờ <code>overLimit</code>.</li>
+          <li>Ghi DONE kèm <code>content</code> và <code>storageKey</code>. DB không giữ nội dung file — đổi sang S3 chỉ là đổi driver.</li>
+        </ol>
+        <div class="callout">
+          <code>08-application-forms.md</code> viết rõ: <em>"Count characters programmatically. Do not estimate."</em>
+          Cùng nguyên tắc với trọng số điểm fit — quy tắc đếm được là việc của code, không phải của model.
+        </div>
+      </div>
+    </div>
+
+    <h3>Ba lớp bảo vệ trong nhánh tài liệu</h3>
+    <div class="route">
+      <div class="route-body">
+        <ol class="steps">
+          <li><b>escapeLatex()</b> — file <code>.tex</code> sinh từ JD do người lạ dán lên. Dấu <code>\</code> bị đổi thành <code>\textbackslash{}</code> trước tiên, nên <code>\input{/etc/passwd}</code>, <code>\write18{}</code> và bom <code>\def\x{\x\x}</code> đều không còn là lệnh.</li>
+          <li><b>Cắt lời chào lặp</b> — model hay chép lại salutation vào đầu đoạn mở, làm thư có hai lời chào liền nhau. Dặn trong prompt không đủ chắc với model yếu, nên <code>renderCoverLetter()</code> cắt dòng đầu nếu nó khớp mẫu lời chào.</li>
+          <li><b>Khoá Storage mang userId</b> — <code>LocalStorage.resolveKey()</code> chặn key thoát ra ngoài workspace. Tên công ty do model sinh sẽ thành đường dẫn file, nên đây là rủi ro thật.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="group-head"><h2>Nhóm 7 — Tổng quan</h2></div>
+    <div class="route">
+      <div class="route-head">
+        <span class="num">31</span><span class="method get">GET</span>
+        <span class="path-str">/api/dashboard</span>
+        <span class="tags"><span class="tag jwt">JWT</span><span class="tag db">DB</span></span>
+      </div>
+      <div class="route-body">
+        <p class="note">Sáu truy vấn chạy song song trong một <code>Promise.all</code>, không một dòng nào chạm tới AI.</p>
+        <ol class="steps">
+          <li>Hồ sơ — lấy <code>completion</code>.</li>
+          <li>Đếm match DONE — con số "việc làm phù hợp".</li>
+          <li>Đếm match tạo trong 7 ngày — "mới trong tuần".</li>
+          <li><code>AVG(overallScore)</code> — tỷ lệ phù hợp trung bình.</li>
+          <li>Top 3 theo điểm giảm dần, kèm job.</li>
+          <li>5 lần chấm gần nhất — trung bình thành "điểm phù hợp hôm nay".</li>
+        </ol>
+        <div class="callout">
+          Badge <em>"Cập nhật hôm nay"</em> trên giao diện phản ánh đúng cơ chế này: điểm số đã được tính sẵn từ trước,
+          nên nó ổn định giữa các lần tải trang.
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section>
+    <div class="group-head">
+      <h2>Nhóm 8 — Quét tin tuyển dụng</h2>
+      <span class="skillref">CLI: .agents/skills/itviec-search/</span>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>#</th><th>Route</th><th>Cơ chế</th></tr></thead>
+        <tbody>
+          <tr><td>32</td><td><code>GET /api/scrape/portals</code></td><td>Danh sách portal đã đăng ký trong <code>PortalCliService</code>.</td></tr>
+          <tr><td>33</td><td><code>GET /api/scrape/runs</code></td><td>20 lần quét gần nhất kèm số tin tìm được.</td></tr>
+          <tr><td>34</td><td><code>GET /api/scrape/runs/:id</code></td><td>Một lần quét, gồm cả các truy vấn đã chạy.</td></tr>
+          <tr><td>35</td><td><code>POST /api/scrape</code></td><td>Tạo bản ghi PENDING → đẩy hàng đợi <code>scrape.run</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Bên trong ScraperService.run()</h3>
+    <div class="route">
+      <div class="route-body">
+        <ol class="steps">
+          <li><strong>Dựng truy vấn từ hồ sơ, không gọi AI.</strong> Chức danh + tối đa 4 kỹ năng chính, mỗi cái thành một từ khoá, gắn thành phố của ứng viên.</li>
+          <li>Thử nhờ model tinh chỉnh truy vấn với hạn 30 giây. Hỏng thì dùng bản tất định — lần quét vẫn chạy bình thường.</li>
+          <li>Chạy CLI cho từng truy vấn qua <code>execFile</code> với <strong>mảng tham số</strong>, nghỉ 1,2 giây giữa các request. Dừng khi đủ 12 tin.</li>
+          <li>Khử trùng ngay trong lần quét: nhiều truy vấn thường trả về cùng một tin.</li>
+          <li><strong>Loại tin đã có trong DB TRƯỚC khi tải chi tiết</strong> — mỗi lần tải chi tiết là một request nữa tới portal.</li>
+          <li>Tải mô tả từng tin. Mô tả dưới 80 ký tự thì bỏ qua: không có mô tả thì không chấm điểm được.</li>
+          <li>Ghi <code>Job</code>, rồi đẩy từng tin sang hàng đợi <code>match.evaluate</code>.</li>
+        </ol>
+        <div class="callout">
+          Sinh từ khoá tìm việc chỉ là đọc lại <code>primarySkills</code> và <code>headline</code> — không có suy luận nào để model đóng góp, trong khi nó thêm một điểm hỏng. Vì vậy đường tất định là mặc định, AI là tuỳ chọn.
+        </div>
+        <div class="callout warn">
+          <code>execFile</code> với mảng tham số và shell tắt là bắt buộc. Từ khoá có thể do model sinh, nên một chuỗi kiểu <code>react"; rm -rf /</code> là khả năng thật — với mảng tham số nó chỉ là một từ khoá vô hại.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cơ chế xuyên suốt</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Cơ chế</th><th>Ở đâu</th><th>Chống điều gì</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>promptHash</code></td>
+            <td>matching · interview</td>
+            <td>Gọi lại model khi chẳng có gì thay đổi. Mở dashboard 100 lần vẫn 0 lần gọi AI.</td>
+          </tr>
+          <tr>
+            <td><code>AbortSignal.timeout(90s)</code></td>
+            <td>AiService</td>
+            <td>Gateway free chậm dần mà không trả 429. Đã đo được một lần gọi kéo dài 517 giây.</td>
+          </tr>
+          <tr>
+            <td><code>batchSize: 1</code></td>
+            <td>QueueService</td>
+            <td>Bắn song song lên gateway free là cách nhanh nhất để bị chặn. 4 worker nhưng chấm tuần tự.</td>
+          </tr>
+          <tr>
+            <td>Bắt lỗi, không ném</td>
+            <td>mọi service</td>
+            <td>pg-boss thử lại vô hạn, mỗi lần thử tốn một lần gọi model.</td>
+          </tr>
+          <tr>
+            <td><code>supportsStructuredOutputs</code></td>
+            <td>AiService</td>
+            <td>Mặc định <code>false</code>: SDK không gửi JSON schema lên API và model tự bịa cấu trúc riêng.</td>
+          </tr>
+          <tr>
+            <td><code>keepSections()</code></td>
+            <td>PromptBuilder</td>
+            <td>Mục <code>## Output Format</code> trong file skill ra lệnh in bảng markdown, đánh nhau trực tiếp với JSON schema.</td>
+          </tr>
+          <tr>
+            <td>Khoá bắt đầu bằng <code>userId</code></td>
+            <td>Storage</td>
+            <td>Đọc chéo workspace, và path traversal từ tên công ty do model sinh.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Chưa có</h2>
+    <p class="note">
+      Compile LaTeX ra PDF cần container cách ly.
+      Chưa có SSE streaming. Bảng <code>SavedJob</code> có schema nhưng chưa có route.
+    </p>
+  </section>
+
+  <footer>
+    Nguồn: <code>server/src/modules/</code> · 35 route đọc từ log khởi động của Nest ·
+    kiến trúc ghi/đọc và các số đo lấy từ lần chạy thật trên máy phát triển.
+  </footer>
+
+</div>
+</body>
+</html>

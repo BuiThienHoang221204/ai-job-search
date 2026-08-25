@@ -1,0 +1,106 @@
+# Ghim tên project. Mặc định Docker Compose lấy tên thư mục chứa file làm tên
+# project, nên chuyển file này từ gốc repo vào server/ sẽ đổi project từ
+# "ai-job-search" thành "server" - và Compose sẽ tạo volume MỚI, rỗng,
+# bỏ lại toàn bộ dữ liệu trong ai-job-search_postgres_data.
+name: ai-job-search
+
+services:
+  postgres:
+    # pgvector chứ không phải postgres chính thức: Pha 4 cần extension `vector`,
+    # mà ảnh `postgres:17-alpine` KHÔNG kèm nó (`create extension vector` báo
+    # "extension is not available").
+    #
+    # Volume đổi tên sang postgres_data_pgvector, cố ý KHÔNG dùng lại volume cũ:
+    # ảnh cũ chạy musl, ảnh này chạy glibc, và hai thư viện đó sắp xếp chuỗi khác
+    # nhau nên index trên cột text dựng dưới musl có thể sai thứ tự dưới glibc —
+    # truy vấn vẫn chạy, chỉ trả thiếu kết quả, không báo lỗi gì. Đã đi đường
+    # dump → restore. Volume cũ `ai-job-search_postgres_data` giữ nguyên để quay
+    # lại được: đổi hai dòng này về như cũ là xong.
+    image: pgvector/pgvector:pg17
+    container_name: aijob-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aijob
+      POSTGRES_PASSWORD: aijob_dev_password
+      POSTGRES_DB: aijob
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_pgvector:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aijob -d aijob"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Dịch vụ compile LaTeX ra PDF.
+  #
+  # Vì sao là dịch vụ riêng chứ không để app tự gọi `docker run`: app chạy trong
+  # container thì không có socket Docker, mà mount socket vào là cho app quyền tương
+  # đương root trên host. Và kể cả mount thì `-v <thư mục tạm>:/work` vẫn vỡ, vì
+  # daemon nằm trên host nên nó giải đường dẫn đó trên filesystem của host — nơi thư
+  # mục tạm bên trong container app không tồn tại.
+  #
+  # Build trước khi chạy:
+  #   docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
+  latex:
+    image: aijob-latex
+    container_name: aijob-latex
+    restart: unless-stopped
+    # KHÔNG mở cổng ra host. App gọi qua network nội bộ bằng tên `latex`. Mở cổng ra
+    # ngoài là biến một dịch vụ nội bộ thành endpoint ai cũng gọi được.
+    expose:
+      - "8080"
+    # Trần tài nguyên: một tài liệu độc hại có thể bơm bộ nhớ hoặc quay vô hạn bằng
+    # một macro tự gọi chính nó. Đo được một lượt compile CV thật cần dưới 512MB.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1"
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Dịch vụ in HTML ra PDF bằng Chromium. Đường sinh CV mới.
+  #
+  # Cùng lý lẽ tách dịch vụ như `latex` ở trên. Khác một điểm về tài nguyên: Chromium
+  # ngốn bộ nhớ hơn lualatex hẳn một bậc, và nó coi việc hết chỗ là crash chứ không
+  # phải lỗi in — nên trần 1GB thay vì 512M.
+  #
+  # Build trước khi chạy:
+  #   docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
+  pdf:
+    image: aijob-pdf
+    container_name: aijob-pdf
+    restart: unless-stopped
+    # KHÔNG mở cổng ra host. App gọi qua network nội bộ bằng tên `pdf`.
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  # Volume CU (postgres_data) co y giu lai de quay ve duoc.
+  postgres_data:
+  postgres_data_pgvector:

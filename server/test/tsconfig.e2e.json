@@ -1,0 +1,20 @@
+{
+  // tsconfig riêng cho test tích hợp. Lý do duy nhất nó tồn tại:
+  //
+  // Prisma 7 bỏ engine Rust và nạp WASM query compiler bằng `await import()`
+  // (xem src/generated/prisma/internal/class.ts). Ở chế độ `module: commonjs`,
+  // TypeScript HẠ CẤP `import()` thành `require()`, và `require()` không nạp
+  // được module ESM/WASM - Prisma chết ngay trong `$connect()`.
+  //
+  // `module: node16` giữ nguyên `import()` trong file CommonJS, đúng mục đích mà
+  // chế độ đó được thêm vào: cho CJS nạp được ESM. Import tĩnh vẫn ra `require`
+  // vì server/package.json không khai `"type": "module"`.
+  //
+  // Đi kèm: `moduleResolution: node16` đòi đuôi tường minh trên import tương
+  // đối. Repo này vốn đã viết `.js` ở mọi chỗ nên không phải sửa gì.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "node16",
+    "moduleResolution": "node16"
+  }
+}

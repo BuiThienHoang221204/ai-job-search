@@ -1,0 +1,209 @@
+{
+  "jobId": 2096266,
+  "jobTitle": "Full Stack Developer",
+  "jobUrl": "https://www.vietnamworks.com/full-stack-developer-2096266-jv",
+  "userId": 665743,
+  "companyLogo": "https://images.vietnamworks.com/pictureofcompany/60/11251043.png",
+  "companyUrl": "",
+  "alias": "full-stack-developer",
+  "createdOn": "2026-08-17T14:59:39+07:00",
+  "approvedOn": "2026-08-17T15:00:19+07:00",
+  "approvedOnText": "Đăng 1 ngày trước",
+  "prettyApprovedOn": "1 ngày trước",
+  "expiredOn": "2026-09-16T23:59:59+07:00",
+  "lastUpdatedOn": "2026-08-17T15:00:19+07:00",
+  "lastSyncedOn": "2026-08-19T12:07:16+07:00",
+  "companyName": "Saitex International Dong Nai (VN)",
+  "companyId": 24364,
+  "companyProfile": "SAITEX is a global leader in sustainable apparel manufacturing, known for innovation, automation, and ethical production. With facilities in Vietnam (Amata, Nhơn Trạch) and Los Angeles, we produce premium denim and woven garments for world-leading fashion brands such as Everlane, Ralph Lauren, Madewell, and G-Star RAW and many more. As a certified B Corp, Bluesign® and Cradle to Cradle™ manufacturer, SAITEX is redefining manufacturing efficiency and shaping the future of sustainable fashion through technology, circularity, and people empowerment.",
+  "companySizeId": 0,
+  "contactName": "Recruitment Team",
+  "createdBy": 665743,
+  "isOnline": true,
+  "isActive": true,
+  "isApproved": true,
+  "isUnpaidDisable": 0,
+  "isCompleted": true,
+  "isAnonymous": false,
+  "isSalaryVisible": false,
+  "isShowLogo": true,
+  "isShowLogoInSearch": false,
+  "jobDescription": "<p><strong>JOB OVERVIEW:</strong></p><p>Build and optimize the frontend and backend component s of our AI-po wered denim manufacturing platform for global brands. You'll develop intuitive interfa ce s, implement API connections, and create seamless experiences that help operation s team s manage the full product lifecycle from design to production.</p><p><br></p><p><strong>KEY RESPONSIBILITIES:</strong></p><p><strong><em>1. Development &amp; Implementation:</em></strong></p><p>• Frontend development...",
+  "jobRequirement": "<p><strong>Must Have</strong></p><p>• TypeScript, Node.js, Python</p><p>• Fastify, FastAPI (backend)</p><p>• React 19 + Vite + TanStack Router/Query + Tailwind/shadcn (frontend)</p><p>• PostgreSQL + SQL, Drizzle ORM, and database migrations</p><p>• Git monorepo discipline (pnpm workspaces, no cross-service imports)</p><p>• OIDC/JWT authentication (derive the user from the token, never from the request body)</p><p>• Docker</p><p><br></p><p><strong>Nice to Have</strong></p><p>• Kafka/Redpanda + Protobuf +...",
+  "jobLevelId": 5,
+  "languageSelectedId": 2,
+  "redirectTo": "",
+  "requiredCoverLetter": 0,
+  "salary": 0,
+  "salaryMax": 0,
+  "salaryMin": 0,
+  "typeWorkingId": 1,
+  "skills": [
+    {
+      "skillId": 1026028,
+      "skillWeight": 100,
+      "skillName": "TypeScript"
+    },
+    {
+      "skillId": 1651314,
+      "skillWeight": 100,
+      "skillName": "Fastify, Fastapi"
+    },
+    {
+      "skillId": 1651315,
+      "skillWeight": 100,
+      "skillName": "React, Vite, Tanstack"
+    },
+    {
+      "skillId": 1651316,
+      "skillWeight": 100,
+      "skillName": "Postgresql, Sql, Drizzle Orm"
+    }
+  ],
+  "benefits": [
+    {
+      "benefitId": 4,
+      "benefitIconName": "fa-graduation-cap",
+      "benefitName": "Training",
+      "benefitNameVI": "Đào tạo",
+      "benefitValue": "Clear path for technical growth and specialization\nStructured support system and professional development"
+    },
+    {
+      "benefitId": 11,
+      "benefitIconName": "fa-cab",
+      "benefitName": "Transportation",
+      "benefitNameVI": "Xe đưa đón",
+      "benefitValue": "Company shuttle bus service is available for employees commuting from District 2, District 9 & Thu Duc City."
+    },
+    {
+      "benefitId": 15,
+      "benefitIconName": "fa-check-square-o",
+      "benefitName": "Others",
+      "benefitNameVI": "Khác",
+      "benefitValue": "Opportunity to shape innovative AI-powered manufacturing and PLM solutions\nCollaborative and creative development environment\nExposure to cutting-edge AI technology"
+    }
+  ],
+  "workingLocations": [
+    {
+      "workingLocationId": 263602,
+      "addressId": 165527,
+      "cityId": 19,
+      "districtId": 0,
+      "address": "Amata, Đồng Nai",
+      "geoLoc": {
+        "lat": 0,
+        "lon": 0
+      },
+      "cityName": "Dong Nai",
+      "cityNameVI": "Đồng Nai"
+    },
+    {
+      "workingLocationId": 241357,
+      "addressId": 148178,
+      "cityId": 29,
+      "districtId": 0,
+      "address": "the Hive Thao Dien, the Hive, Đường Xuân Thủy, Thao Dien, Thủ Đức City, Ho Chi Minh City, Vietnam",
+      "geoLoc": {
+        "lat": 0,
+        "lon": 0
+      },
+      "cityName": "Ho Chi Minh",
+      "cityNameVI": "Hồ Chí Minh"
+    }
+  ],
+  "address": "Plot 225, Amata IZ, Bien Hoa, Dong Nai",
+  "industries": [
+    {
+      "industryId": 0,
+      "industryName": "",
+      "industryNameVI": ""
+    }
+  ],
+  "industriesV3": [
+    {
+      "industryV3Id": 30,
+      "industryV3Name": "Manufacturing",
+      "industryV3NameVI": "Sản xuất"
+    }
+  ],
+  "jobFunction": {
+    "parentId": 5,
+    "parentName": "Information Technology/Telecommunications",
+    "parentNameVI": "Công Nghệ Thông Tin/Viễn Thông",
+    "children": [
+      {
+        "id": 36,
+        "name": "Software Developer",
+        "nameVI": "Phần Mềm Máy Tính"
+      }
+    ]
+  },
+  "jobLevel": "Experienced (non-manager)",
+  "jobLevelVI": "Nhân viên",
+  "languageId": 0,
+  "locations": null,
+  "canonical": "full-stack-developer-2096266-jv",
+  "isShowContact": true,
+  "salaryRangeId": 0,
+  "requiredResume": false,
+  "companySize": "",
+  "companySizeVI": "",
+  "languageSelectedVI": "Tiếng Anh",
+  "languageSelected": "English",
+  "simpleServices": null,
+  "services": [
+    {
+      "serviceCode": "JPM",
+      "startOn": "2026-08-17T15:00:19+07:00",
+      "expiredOn": "2026-09-16T23:59:59+07:00"
+    },
+    {
+      "serviceCode": "TLM",
+      "startOn": "2026-08-17T15:00:19+07:00",
+      "expiredOn": "2026-09-01T23:59:59+07:00"
+    }
+  ],
+  "prettySalary": "Thương lượng",
+  "durationDays": 30,
+  "numOfApplications": 0,
+  "emailAddress": "",
+  "isMobileHotJob": true,
+  "isMobileTopJob": true,
+  "isBoldAndRedJob": false,
+  "isUrgentJob": false,
+  "isUrgentJobM": false,
+  "onlineOn": "2026-08-17T15:00:19+07:00",
+  "onlineOnText": "Đăng 1 ngày trước",
+  "onlineOnTextColor": "#018607",
+  "onlineOnBgColor": "#EFF5EA",
+  "prettyOnlineOn": "1 ngày trước",
+  "visibilityDisplay": false,
+  "priorityOrder": "2026-08-17T15:00:19",
+  "priorityOrderText": "Đăng 1 ngày trước",
+  "nearestGeoLoc": null,
+  "profilePublishedSiteMask": 0,
+  "companyColor": "#333333",
+  "yearsOfExperience": 3,
+  "highestDegreeId": 4,
+  "rangeAge": "Không hiển thị",
+  "isShowAge": 0,
+  "nationalityId": 1,
+  "isShowNationality": 1,
+  "genderId": 0,
+  "isShowGender": 1,
+  "maritalStatusId": 0,
+  "isShowMaritalStatus": 1,
+  "numberOfRecruits": 2,
+  "isShowNumberOfRecruits": 1,
+  "onlineServiceCode": "",
+  "salaryPeriodId": 1,
+  "salaryCurrency": "VND",
+  "isAdrLiteJob": false,
+  "isTopPriority": false,
+  "isTopPriorityM": true,
+  "summary": null,
+  "isRefreshJob": false,
+  "isReposted": false,
+  "exposureStatus": "above_target",
+  "exposureStatusUpdatedOn": "2026-08-19T12:35:58+07:00"
+}

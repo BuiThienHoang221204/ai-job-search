@@ -1,0 +1,69 @@
+import { Injectable } from '@nestjs/common';
+import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { pageArgs, pageOf } from '../../common/pagination.js';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { buildAiHealth, type AiHealth } from './ai-health.js';
+
+/**
+ * Trần số bản ghi đọc lên để tính phân vị. Đủ rộng để có ý nghĩa thống kê,
+ * đủ hẹp để không kéo cả bảng lên bộ nhớ khi nhật ký lớn dần.
+ */
+const MAX_ROWS = 5_000;
+
+@Injectable()
+export class AdminService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async aiHealth(days: number): Promise<AiHealth & { windowDays: number }> {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const rows = await this.prisma.aiCall.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_ROWS,
+      select: {
+        purpose: true,
+        modelId: true,
+        ok: true,
+        failureKind: true,
+        durationMs: true,
+      },
+    });
+
+    return { ...buildAiHealth(rows), windowDays: days };
+  }
+
+  /**
+   * Các lần hỏng gần nhất, kèm thông báo thật. Bảng tổng hợp cho biết CÓ vấn
+   * đề; danh sách này cho biết vấn đề là gì.
+   */
+  async recentFailures(query: PaginationQueryDto) {
+    const where = { ok: false };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.aiCall.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        ...pageArgs(query),
+        select: {
+          /**
+           * `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
+           * trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
+           * nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
+           */
+          id: true,
+          purpose: true,
+          provider: true,
+          modelId: true,
+          failureKind: true,
+          errorMessage: true,
+          durationMs: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.aiCall.count({ where }),
+    ]);
+
+    return pageOf(items, total, query);
+  }
+}

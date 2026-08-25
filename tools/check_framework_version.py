@@ -23,7 +23,18 @@ if root_agents.exists():
     FRAMEWORK_FILES.append(root_agents)
 
 def run_git(args: list[str]) -> tuple[int, str, str]:
-    res = subprocess.run(["git"] + args, cwd=str(ROOT), capture_output=True, text=True)
+    # encoding phai khai tuong minh: text=True dung codec cua locale, ma tren
+    # Windows locale mac dinh la cp1252 nen mot diff co tieng Viet lam vo tool
+    # (UnicodeDecodeError -> stdout thanh None -> AttributeError o cho khac).
+    # Tren CI Linux khong thay vi locale o do la UTF-8.
+    res = subprocess.run(
+        ["git"] + args,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     return res.returncode, res.stdout, res.stderr
 
 def get_base_commit() -> str | None:

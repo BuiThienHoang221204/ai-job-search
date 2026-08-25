@@ -56,20 +56,38 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
-      - name: Type-check LinkedIn search CLI
-        working-directory: .agents/skills/linkedin-search/cli
+      # Duyệt mọi portal CLI thay vì liệt kê từng cái: thêm portal mới bằng
+      # /add-portal sẽ được kiểm tra mà không phải sửa workflow này.
+      - name: Type-check and test every portal CLI
         run: |
-          bun install
-          bun run typecheck
+          set -euo pipefail
+          found=0
+          for cli in .agents/skills/*/cli; do
+            [ -f "$cli/package.json" ] || continue
+            found=1
+            echo "::group::$cli"
+            (
+              cd "$cli"
+              bun install
+              bun run typecheck
+              if find tests -type f -name '*.test.ts' 2>/dev/null | grep -q .; then
+                bun test
+              else
+                echo "Không có test fixture; bỏ qua."
+              fi
+            )
+            echo "::endgroup::"
+          done
+          test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào - cây thư mục đã đổi chỗ."; exit 1; }
 
-      - name: Run LinkedIn CLI fixture tests when present
-        working-directory: .agents/skills/linkedin-search/cli
+      - name: Backend - build and unit tests
+        working-directory: server
         run: |
-          if find tests -type f -name '*.test.ts' | grep -q .; then
-            bun test
-          else
-            echo "No Bun tests found; skipping fixture tests."
-          fi
+          pnpm install --frozen-lockfile
+          pnpm exec prisma generate
+          pnpm run lint
+          pnpm run build
+          pnpm test
 
   security-scan:
     name: Scan repository vulnerabilities

@@ -119,19 +119,60 @@ cd cover_letters && xelatex cover_<company>_<role>.tex && cd ..
 | `/add-template` | Đăng ký template LaTeX riêng cho CV/cover letter |
 | `/gmail-sync`, `/notion-sync`, `/html-report` | Đồng bộ / báo cáo (tùy chọn) |
 
+## Hai runtime dùng chung một repo
+
+Repo này phục vụ **hai môi trường thi hành khác nhau** trên cùng một bộ skill. Biết
+thư mục nào thuộc bên nào sẽ tránh được nhầm lẫn khi đọc mã.
+
+| | Claude Code | Backend `server/` |
+|---|---|---|
+| Dùng để | Soạn và debug skill, tự tìm việc cho bản thân | Phục vụ nhiều người dùng qua HTTP |
+| Đọc skill từ | `.claude/skills/` | `.claude/skills/` (**cùng một nguồn**) |
+| Hồ sơ ứng viên | `CLAUDE.md` | Bảng `Profile` trong Postgres |
+| CV / thư sinh ra | `cv/main_*.tex`, `cover_letters/cover_*.tex` | `workspaces/<userId>/...` |
+| Việc đã xem | `job_scraper/seen_jobs.json` | Ràng buộc unique `(source, externalId)` |
+| Lịch sử ứng tuyển | `job_search_tracker.csv` | Bảng `JobMatch` |
+| Báo cáo upskill | `upskill/*.md` | Bảng `UpskillReport` |
+
+Các thư mục `documents/`, `templates/`, `upskill/`, `job_scraper/` đã được **xoá** vì
+backend thay thế hoàn toàn vai trò của chúng. Nếu bạn muốn chạy lại các lệnh Claude Code
+cần đến chúng (`/setup`, `/add-template`), khôi phục bằng:
+
+```bash
+git checkout <commit-truoc-khi-xoa> -- documents templates upskill job_scraper
+```
+
+Điểm mấu chốt: **file `SKILL.md` là chung cho cả hai.** Sửa một lần, cả hai nơi cùng
+đổi. Backend gọi `POST /api/skills/reload` là nạp lại ngay, không cần khởi động lại.
+
 ## Cấu trúc thư mục
 
 ```
-├── .agents/skills/          # CLI tìm việc (LinkedIn, job boards)
-├── .claude/                 # Skill + command định nghĩa quy trình
-├── CLAUDE.md                # Hồ sơ ứng viên (điền qua /setup)
-├── cv/                      # Template CV LaTeX + CV đã soạn
-├── cover_letters/           # Template cover letter + đã soạn
-├── documents/               # CV gốc, bằng cấp, tài liệu tham khảo
+├── .agents/skills/          # CLI tìm việc, mỗi portal một thư mục
+│   ├── itviec-search/       #   ITviec (Việt Nam) - backend đang dùng
+│   └── linkedin-search/     #   LinkedIn (toàn cầu)
+├── .claude/                 # Skill + command - NGUỒN SỰ THẬT DUY NHẤT
+├── server/                  # Backend NestJS + Prisma + pg-boss  ← nơi bạn làm việc
+│   ├── docker-compose.yml   #   Postgres
+│   └── docs/routes.html     #   Tài liệu cơ chế 35 route
+├── workspaces/              # Dữ liệu người dùng của backend (gitignored)
+├── CLAUDE.md                # Hồ sơ ứng viên cho Claude Code
+├── cv/                      # THƯ VIỆN template CV LaTeX (main_example.tex)
+├── cover_letters/           # cover.cls + font Lato/Raleway - CẦN để compile
 ├── scripts/setup.mjs        # Script setup (check + install)
-├── tools/                   # Tool Python (tra cứu lương, kiểm tra PDF...)
+├── tools/                   # Tool Python (lint skill, kiểm tra PDF, tra lương)
 └── package.json             # npm scripts
 ```
+
+**Đừng xoá `cover_letters/cover.cls` và `cover_letters/OpenFonts/`.** Backend sinh ra
+file `.tex` khai `\documentclass{cover}` — chính là class đó. Mất chúng là không
+biên dịch được thư xin việc nào.
+
+Ba đường dẫn ở gốc bị **CI khoá cứng**, đừng di chuyển: `tools/` (CI gọi trực tiếp),
+`scripts/` (11 npm script trỏ vào), `.agents/` (`security_guards.py` glob và báo lỗi
+nếu cây thư mục đổi chỗ). `security_guards.py` cũng ép `.gitignore` phải chứa nguyên
+văn các mẫu `cv/main_*.*`, `cover_letters/cover_*.*` — giữ nguyên các dòng đó kể cả
+khi thư mục tương ứng đã bị xoá.
 
 ## Khắc phục sự cố
 

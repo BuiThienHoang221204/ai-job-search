@@ -52,15 +52,20 @@ site:[YOUR_JOB_BOARD] "[YOUR_ADJACENT_TITLE_1]" [YOUR_KEY_SKILL] [YOUR_CITY]
 site:[YOUR_JOB_BOARD] "[YOUR_ADJACENT_TITLE_2]" [YOUR_KEY_SKILL] [YOUR_CITY]
 ```
 
-### Priority 4: Broader Technical / Consulting
+### Priority 4: Broader net
 
-Wider net for general technical roles.
+Widest tier. Keep the job title as the anchor — a query built from skills alone
+matches postings across every industry and mostly returns noise.
 
 ```
-site:[YOUR_JOB_BOARD] [YOUR_KEY_SKILL] developer [YOUR_CITY]
-site:linkedin.com/jobs "[YOUR_KEY_SKILL] developer" [YOUR_CITY]
-site:[YOUR_JOB_BOARD] "technical consultant" [YOUR_DOMAIN] [YOUR_CITY]
+site:[YOUR_JOB_BOARD] "[YOUR_PRIMARY_JOB_TITLE]" [YOUR_CITY]
+site:linkedin.com/jobs "[YOUR_PRIMARY_JOB_TITLE]" [YOUR_KEY_SKILL] [YOUR_CITY]
+site:[YOUR_JOB_BOARD] "[YOUR_PRIMARY_JOB_TITLE]" [YOUR_DOMAIN] [YOUR_CITY]
 ```
+
+Write the query in the language the postings use: English for IT and
+engineering titles, Vietnamese with diacritics for every other field. Getting
+this wrong returns nothing at all rather than returning the wrong thing.
 
 ## Location Filter
 

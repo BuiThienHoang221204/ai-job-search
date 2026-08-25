@@ -1,0 +1,1068 @@
+// Schema cho AI Job Search backend.
+//
+// Nguyên tắc: mọi bảng mang dữ liệu người dùng đều có userId ngay từ đầu, kể cả
+// khi giai đoạn đầu chỉ có một người dùng. Đổi sang multi-user thật sẽ không
+// phải migrate lại dữ liệu.
+
+// Client phải nằm TRONG src/. Nếu để ngoài, tsc suy ra rootDir là gốc project
+// và build ra dist/src/main.js thay vì dist/main.js, làm sai đường dẫn khởi
+// động. moduleFormat = "cjs" là bắt buộc. Mặc định Prisma 7 sinh mã ESM có
+// `import.meta.url`; cú pháp đó sống sót qua bản compile CommonJS của Nest và
+// khiến Node parse lại file thành ESM, báo "exports is not defined" lúc chạy.
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Người dùng
+// ---------------------------------------------------------------------------
+
+/// Phân quyền. Route quản trị đọc trường này chứ KHÔNG đọc claim trong JWT:
+/// token còn hạn sau khi bị hạ quyền vẫn sẽ mang claim cũ.
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  role         UserRole @default(USER)
+  email        String   @unique
+  passwordHash String
+  name         String
+  /// Di tích của một tính năng thu hồi token đã bị revert: cột còn trong
+  /// database (một tài khoản mang giá trị 1) nhưng KHÔNG code nào đọc. Khai ở
+  /// đây để schema khớp database, đừng dựa vào nó.
+  tokenVersion Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  profile        Profile?
+  matches        JobMatch[]
+  skillMatches   JobRequirementMatch[]
+  savedJobs      SavedJob[]
+  interviewPreps InterviewPrep[]
+  upskillReports UpskillReport[]
+  documents      Document[]
+  scrapeRuns     ScrapeRun[]
+  aiCalls        AiCall[]
+  applications   Application[]
+  profileDrafts  ProfileDraft[]
+  agentRuns      AgentRun[]
+
+  @@map("users")
+}
+
+/// Hồ sơ ứng viên. Các trường ở đây thay thế trực tiếp các placeholder
+/// [YOUR_PRIMARY_SKILLS], [YOUR_CAREER_GOAL_1]... trong .claude/skills/*.md,
+/// nhờ vậy file skill gốc không phải sửa và vẫn sync được với upstream.
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Danh tính
+  headline String?
+  location String?
+
+  /// So dien thoai. Gan nhu MOI form ung tuyen doi truong nay, va template CV da
+  /// ho tro macro `\phone` tu truoc - truoc do `documents.service.ts` luon truyen
+  /// `phone: null` vi khong co cho nao luu.
+  ///
+  /// Model KHONG duoc de xuat truong nay tu CV: doc sai mot chu so thi ho so gui di
+  /// mang mot so dien thoai khong lien lac duoc, va nguoi dung khong co cach nao
+  /// biet. Nguoi dung tu dien.
+  phone            String?
+  country          String?
+  languages        String[] @default([])
+  employmentStatus String?
+  summary          String?  @db.Text
+
+  // Công dân / giấy phép lao động - phục vụ Eligibility Gate
+  citizenship    String?
+  workPermit     String?
+  workPermitNote String?
+
+  // Kỹ năng -> [YOUR_PRIMARY_SKILLS] / [YOUR_SECONDARY_SKILLS] / [SKILLS_YOU_LACK]
+  primarySkills   String[] @default([])
+  secondarySkills String[] @default([])
+  lackingSkills   String[] @default([])
+
+  // Kinh nghiệm -> [YOUR_DIRECT_EXPERIENCE_DOMAINS] / [YOUR_ADJACENT_EXPERIENCE]
+  directExperienceDomains String[] @default([])
+  adjacentExperience      String[] @default([])
+
+  // Định hướng -> [YOUR_CAREER_GOAL_*] / [YOUR_ENERGIZING_TASKS] /
+  // [YOUR_DRAINING_TASKS]
+  careerGoals     String[] @default([])
+  energizingTasks String[] @default([])
+  drainingTasks   String[] @default([])
+  targetSectors   String[] @default([])
+  dealBreakers    String[] @default([])
+
+  // Ràng buộc đi lại, dùng cho chiều Location (PASS/FAIL)
+  commuteConstraint String?
+  willingToRelocate Boolean @default(false)
+  remotePreference  String?
+
+  // Các khối dài, không cần truy vấn theo trường -> lưu JSON
+  behavioralTraits Json?
+  experiences      Json?
+  educations       Json?
+  certificates     Json?
+  projects         Json?
+
+  /// Nhóm ngành DẪN XUẤT từ `headline` và `primarySkills`, dùng chung danh mục
+  /// với tin tuyển dụng. Lượt quét đêm gom từ khoá theo cột này, nhờ đó số truy
+  /// vấn bị chặn bởi số ngành chứ không tăng theo số người dùng.
+  ///
+  /// `null` = hồ sơ chưa đủ dữ liệu để suy. Cố ý không quy về `OTHER`: gộp mọi
+  /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
+  occupationCode String?
+
+  completion Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  embedding ProfileEmbedding?
+
+  @@map("profiles")
+}
+
+// ---------------------------------------------------------------------------
+// Việc làm
+// ---------------------------------------------------------------------------
+
+model Job {
+  id         String  @id @default(cuid())
+  /// Id gốc trên portal, dùng để chống trùng khi scrape lại.
+  externalId String?
+  source     String
+
+  url         String
+  title       String
+  company     String
+  companyLogo String?
+
+  location String?
+  workMode String?
+
+  /// Ba trường DẪN XUẤT, tính lúc ghi trong `jobs.service.upsert()`. Chúng tồn
+  /// tại để lọc và tìm kiếm chạy được bằng index; `location`, `title` và `tags`
+  /// vẫn là nguồn sự thật và vẫn là thứ hiển thị cho người dùng.
+  ///
+  /// Mã tỉnh/thành chuẩn hoá từ `location`. `null` = không suy ra được, và tin
+  /// đó sẽ không xuất hiện khi lọc theo tỉnh - cố ý, vì đoán bừa còn tệ hơn.
+  provinceCode   String?
+  /// Mã nhóm ngành, suy từ `title` và `tags`.
+  occupationCode String?
+  /// Nghề cụ thể bên trong nhóm, ví dụ `IT_QA` trong nhóm `IT`. `null` khi
+  /// không đủ căn cứ — lọc theo nghề sẽ bỏ qua tin đó thay vì đoán bừa.
+  ///
+  /// Có mặt vì tầng nhóm một mình KHÔNG thu hẹp được: đo 2026-08-24, riêng
+  /// `IT` ôm 235/386 tin.
+  subOccupationCode String?
+  /// `title`, `company` và `tags` gộp lại, đã hạ chữ thường và bỏ dấu. Ô tìm
+  /// kiếm chạy `LIKE` trên đúng cột này để ăn được index trigram - `ILIKE` trên
+  /// `title` thì không index nào đỡ nổi.
+  searchText     String?
+  /// Vân tay "công ty | chức danh đã bỏ nhiễu | tỉnh", dùng để nhận ra cùng một
+  /// tin đăng trên nhiều portal. `null` = không đủ dữ liệu để gộp.
+  ///
+  /// KHÔNG đặt @@unique: hai tin thật sự khác nhau vẫn có thể đụng khoá, và lúc
+  /// đó upsert sẽ ghi đè mất một tin. Kiểm tra bằng truy vấn lúc ghi.
+  dedupeKey      String?
+
+  /// Trỏ về bản GỐC khi tin này là bản sao lấy từ portal khác.
+  ///
+  /// Bản sao vẫn được lưu chứ không bị bỏ qua: tập "đã biết" của scraper nhận
+  /// diện theo (source, externalId), nên bỏ qua đồng nghĩa mỗi đêm lại tưởng là
+  /// tin mới và lại tốn một request detail. Lưu lại thì lần sau nhận ra ngay, và
+  /// còn giữ được URL của nguồn thứ hai.
+  duplicateOfId String?
+  duplicateOf   Job?    @relation("JobDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates    Job[]   @relation("JobDuplicates")
+
+  salaryRaw String?
+  salaryMin Int?
+  salaryMax Int?
+  currency  String?
+
+  tags        String[] @default([])
+  description String   @db.Text
+
+  postedAt  DateTime?
+  scrapedAt DateTime  @default(now())
+
+  matches        JobMatch[]
+  skillMatches   JobRequirementMatch[]
+  saves          SavedJob[]
+  interviewPreps InterviewPrep[]
+  documents      Document[]
+  applications   Application[]
+  agentRuns      AgentRun[]
+  embedding      JobEmbedding?
+  requirements   JobRequirement?
+
+  @@unique([source, externalId])
+  /// Thứ tự mặc định của danh sách là `scrapedAt` giảm dần, kết bằng `id`, nên
+  /// đúng cặp đó phải nằm ở cuối mọi index lọc - có vậy Postgres mới vừa lọc
+  /// vừa lấy sẵn thứ tự thay vì phải sắp lại toàn bộ kết quả.
+  ///
+  /// Sắp theo `postedAt` thì KHÔNG index được: nó nullable, mà tin không có
+  /// ngày đăng phải xuống cuối, và `DESC NULLS LAST` không khớp với bất kỳ thứ
+  /// tự nào Prisma khai được. `postedAt` vẫn có index riêng cho bộ lọc
+  /// "đăng trong vòng N ngày".
+  @@index([scrapedAt(sort: Desc), id(sort: Desc)])
+  @@index([provinceCode, scrapedAt(sort: Desc), id(sort: Desc)])
+  @@index([occupationCode, scrapedAt(sort: Desc), id(sort: Desc)])
+  @@index([subOccupationCode, scrapedAt(sort: Desc), id(sort: Desc)])
+  @@index([postedAt])
+  @@index([dedupeKey])
+  @@index([duplicateOfId])
+  @@index([salaryMax(sort: Desc)])
+  @@index([tags], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@map("jobs")
+}
+
+/// Yêu cầu rút ra từ MỘT tin, không phụ thuộc ứng viên nào.
+///
+/// Rút một lần cho mỗi tin rồi đối chiếu với mọi hồ sơ bằng phép so sánh thuần:
+/// số lời gọi model đi từ (số người × số tin) xuống còn (số tin).
+model JobRequirement {
+  jobId String @id
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status MatchStatus @default(PENDING)
+
+  requiredSkills   String[] @default([])
+  niceToHaveSkills String[] @default([])
+
+  minYears  Int?
+  seniority JobSeniority @default(UNKNOWN)
+
+  citizenshipRequired String?
+  workPermitRequired  Boolean @default(false)
+  eligibilityQuote    String? @db.Text
+
+  city         String?
+  remotePolicy RemotePolicy @default(UNKNOWN)
+
+  /// Vân tay của phần tin đã đưa vào prompt. Đổi thì phải rút lại.
+  sourceHash  String?
+  modelId     String?
+  extractedAt DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("job_requirements")
+}
+
+/// Đối chiếu hồ sơ một người với yêu cầu một tin. Thuần CPU, không gọi model.
+///
+/// Bảng RIÊNG chứ không thêm cột vào `job_matches`: `reconcile` gom mọi
+/// `JobMatch` đang `PENDING` quá lâu rồi xếp lại hàng đợi chấm bằng AI, nên
+/// hàng chỉ có điểm đối chiếu sẽ kéo theo hàng nghìn lượt gọi model.
+model JobRequirementMatch {
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// Yêu cầu về NĂNG LỰC đáp ứng được / đối chiếu được. Địa điểm và quốc tịch
+  /// cố ý nằm ngoài: chúng là điều kiện lọc.
+  met   Int
+  total Int
+
+  /// 0-100, bắt buộc tính 1 và ưu tiên tính 0,5. Cột LỌC và SẮP XẾP nên có index.
+  percent Int
+
+  eligibility  EligibilityVerdict?
+  locationPass Boolean?
+
+  /// `JobRequirement.sourceHash` + mốc sửa hồ sơ. Trùng thì khỏi tính lại.
+  hash     String
+  scoredAt DateTime @default(now())
+
+  @@id([userId, jobId])
+  @@index([userId, percent(sort: Desc)])
+  @@map("job_requirement_matches")
+}
+
+enum JobSeniority {
+  INTERN
+  FRESHER
+  JUNIOR
+  MIDDLE
+  SENIOR
+  LEAD
+  UNKNOWN
+}
+
+enum RemotePolicy {
+  ONSITE
+  HYBRID
+  REMOTE
+  UNKNOWN
+}
+
+/// Vector ngữ nghĩa của một tin tuyển dụng, dùng để LỌC SƠ BỘ trước khi gọi
+/// model chấm điểm. Nó KHÔNG thay việc chấm điểm — chỉ quyết định tin nào đáng
+/// được chấm.
+///
+/// Để bảng riêng chứ không thêm cột vào `jobs`, vì hai lý do:
+/// 1. Đổi model hoặc đổi số chiều sau này không phải migrate cả bảng `jobs`.
+/// 2. Prisma không có kiểu `vector`, phải khai `Unsupported()` — mà trường
+///    `Unsupported` thì Prisma Client KHÔNG đọc được, mọi truy vấn phải qua
+///    `$queryRaw`. Giữ nó tách biệt để phần còn lại của `jobs` vẫn dùng client
+///    bình thường.
+/// Một kỹ năng CHUẨN: mọi cách gọi khác nhau của cùng một thứ đều trỏ về đây.
+///
+/// Cùng ý tưởng với `PROVINCES.aliases` trong taxonomy — tin viết `Hà Nội`,
+/// `HN` hay `hanoi` đều quy về mã `HN`. Khác ở chỗ kỹ năng không liệt kê tay
+/// được: 322 tin đã sinh ra 1.616 cách viết, và mỗi tin mới lại thêm.
+model CanonicalSkill {
+  id   String @id @default(cuid())
+  /// Tên hiển thị, lấy từ cách viết đầu tiên gặp được.
+  name String
+
+  /// Model sinh vector. Đổi model thì vector cũ không so được với vector mới.
+  model String
+
+  /// Dùng để tìm ứng viên gần nhất cho một chuỗi CHƯA có trong danh bạ. Không
+  /// đụng tới ở đường đọc — tra cứu hằng ngày chỉ cần `SkillAlias.key`.
+  embedding Unsupported("vector(768)")
+
+  aliases SkillAlias[]
+
+  createdAt DateTime @default(now())
+
+  @@index([model])
+  @@map("canonical_skills")
+}
+
+/// Nguồn của một liên kết: máy suy hay người chốt.
+enum AliasSource {
+  /// Trùng chữ sau khi bỏ dấu — không tốn lượt gọi model nào.
+  EXACT
+  /// Model đã chọn trong danh sách rút gọn do embedding đề cử.
+  LLM
+  /// Người sửa tay, và bản sửa tay KHÔNG bao giờ bị máy ghi đè.
+  MANUAL
+}
+
+/// Một cách viết cụ thể trỏ về một kỹ năng chuẩn. Đây là bảng đường ĐỌC tra.
+model SkillAlias {
+  /// Dạng đã bỏ dấu và hạ chữ thường, ví dụ `y ta`. Khoá chính luôn.
+  key String @id
+  /// Nguyên văn lần đầu gặp, để hiển thị và để lần lại nguồn.
+  raw String
+
+  skillId String
+  skill   CanonicalSkill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  source AliasSource
+
+  createdAt DateTime @default(now())
+
+  @@index([skillId])
+  @@map("skill_aliases")
+}
+
+model JobEmbedding {
+  jobId String @id
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// Model đã sinh vector này. Đổi model thì vector cũ không so được với vector
+  /// mới, nên phải biết cái nào sinh ra cái nào.
+  model String
+  dim   Int
+
+  embedding Unsupported("vector(768)")
+
+  createdAt DateTime @default(now())
+
+  @@index([model])
+  @@map("job_embeddings")
+}
+
+/// Vector ngữ nghĩa của một hồ sơ. Cần để tìm "K tin gần hồ sơ này nhất".
+///
+/// Nội dung đưa vào embedding CỐ Ý không có thông tin định danh (tên, điện
+/// thoại, địa chỉ): tên riêng không giúp gì cho độ tương đồng ngữ nghĩa, mà lại
+/// là dữ liệu cá nhân gửi ra dịch vụ ngoài. Hai lý do độc lập cùng chỉ về một
+/// cách làm.
+model ProfileEmbedding {
+  profileId String  @id
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  model String
+  dim   Int
+
+  embedding Unsupported("vector(768)")
+
+  /// Hồ sơ đổi thì vector phải sinh lại. Giữ hash của phần văn bản đã embed để
+  /// biết khi nào cần làm mới mà không phải so cả hồ sơ.
+  sourceHash String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profile_embeddings")
+}
+
+model SavedJob {
+  id      String   @id @default(cuid())
+  userId  String
+  jobId   String
+  savedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("saved_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Kết quả chấm điểm - do skill
+// job-application-assistant/04-job-evaluation.md sinh ra
+// ---------------------------------------------------------------------------
+
+enum MatchStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Kết quả Eligibility Gate. Đây là bộ lọc cứng chạy TRƯỚC khi chấm điểm:
+/// một ứng viên có thể đủ điều kiện về thời gian làm việc nhưng vẫn bị loại
+/// hoàn toàn vì yêu cầu quốc tịch.
+enum EligibilityVerdict {
+  PASS
+  FAIL
+  UNVERIFIED
+}
+
+enum FitVerdict {
+  STRONG
+  GOOD
+  MODERATE
+  WEAK
+  POOR
+}
+
+model JobMatch {
+  id     String @id @default(cuid())
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status MatchStatus @default(PENDING)
+
+  // --- Eligibility Gate ---
+  eligibility      EligibilityVerdict?
+  /// Trích nguyên văn câu chữ trong tin tuyển dụng dẫn tới kết luận này.
+  eligibilityQuote String?             @db.Text
+  eligibilityNote  String?             @db.Text
+
+  // --- 5 chiều chấm điểm ---
+  technicalScore  Int?
+  technicalNote   String? @db.Text
+  experienceScore Int?
+  experienceNote  String? @db.Text
+  behavioralScore Int?
+  behavioralNote  String? @db.Text
+  careerScore     Int?
+  careerNote      String? @db.Text
+
+  /// Location là PASS/FAIL, không tính vào điểm trọng số.
+  locationPass Boolean?
+  locationNote String?  @db.Text
+
+  /// Trung bình có trọng số: kỹ thuật 30%, kinh nghiệm 25%, hành vi 15%,
+  /// định hướng 30%.
+  overallScore Int?
+  verdict      FitVerdict?
+
+  strengths      String[] @default([])
+  gaps           String[] @default([])
+  recommendation String?  @db.Text
+
+  // --- Truy vết ---
+  modelId     String?
+  /// Hash của (nội dung skill + hồ sơ + mô tả công việc). Khi hash đổi nghĩa là
+  /// kết quả đã cũ và cần chấm lại; khi trùng thì bỏ qua, không gọi AI lại.
+  promptHash  String?
+  evaluatedAt DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, jobId])
+  @@index([userId, overallScore(sort: Desc)])
+  @@index([userId, status])
+  @@map("job_matches")
+}
+
+// ---------------------------------------------------------------------------
+// Chuẩn bị phỏng vấn - do skill
+// job-application-assistant/07-interview-prep.md sinh ra
+// ---------------------------------------------------------------------------
+
+model InterviewPrep {
+  id     String @id @default(cuid())
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status MatchStatus @default(PENDING)
+
+  /// Các câu trả lời theo cấu trúc STAR (Situation - Task - Action - Result).
+  starAnswers    Json?
+  /// Câu hỏi khó kèm gợi ý trả lời, gồm cả câu về khoảng trống trong hồ sơ.
+  toughQuestions Json?
+  /// Câu ứng viên nên hỏi lại nhà tuyển dụng.
+  questionsToAsk String[] @default([])
+  /// Ý chính cần nhắc đến, bám theo yêu cầu của tin tuyển dụng.
+  talkingPoints  String[] @default([])
+  /// Điểm yếu nhà tuyển dụng nhiều khả năng sẽ đào vào.
+  likelyProbes   String[] @default([])
+
+  modelId     String?
+  promptHash  String?
+  generatedAt DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, jobId])
+  @@map("interview_preps")
+}
+
+// ---------------------------------------------------------------------------
+// Báo cáo thiếu hụt kỹ năng - do skill upskill sinh ra
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Đọc hồ sơ từ nguồn ngoài (Agent 1) — SEAM 3 ProfileSource
+// ---------------------------------------------------------------------------
+
+/// Một lượt đọc hồ sơ từ CV hoặc nguồn ngoài, **chờ người dùng xác nhận**.
+///
+/// Vì sao là bảng riêng chứ không ghi thẳng vào `Profile`: đây là chỗ quy tắc lớn
+/// nhất của Agent 1 trở thành cấu trúc dữ liệu chứ không chỉ là ý định trong tài
+/// liệu — **AI đề xuất, người dùng chốt**. Model đọc CV rồi ghi đè hồ sơ là cách
+/// chắc chắn nhất để một lần đọc sai xoá mất dữ liệu người dùng đã gõ tay, mà lại
+/// không có đường lùi.
+///
+/// Vòng đời: PENDING → RUNNING → DONE (đợi xác nhận) → đã áp dụng, hoặc FAILED.
+/// `appliedAt` khác `generatedAt`: bản nháp có thể DONE hàng tuần mà chưa ai áp.
+model ProfileDraft {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status MatchStatus @default(PENDING)
+
+  /// Các mẩu bằng chứng đã thu, dạng `Evidence[]` (xem `profile-sources/evidence.ts`).
+  ///
+  /// Lưu lại chứ không bỏ đi sau khi tổng hợp: màn xác nhận phải trả lời được câu
+  /// "vì sao AI nghĩ tôi biết Kubernetes", và không giữ bằng chứng thì không truy
+  /// được về nguồn.
+  evidence Json?
+
+  /// Hồ sơ do model đề xuất, cùng hình dạng các trường của `Profile`.
+  /// KHÔNG phải hồ sơ thật cho tới khi người dùng áp dụng.
+  proposal Json?
+
+  /// Đường dẫn file gốc trong Storage, để người dùng tải lại đúng file đã nộp.
+  storageKey String?
+  /// Tên file lúc nộp, hiện ở màn xác nhận.
+  filename   String?
+
+  modelId     String?
+  generatedAt DateTime?
+  /// Thời điểm người dùng ĐÃ áp dụng bản nháp này vào hồ sơ. null nghĩa là chưa.
+  appliedAt   DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("profile_drafts")
+}
+
+enum UpskillMode {
+  /// Tổng hợp trên toàn bộ công việc đã chấm điểm của người dùng.
+  AGGREGATE
+  /// Chỉ phân tích một công việc cụ thể.
+  TARGETED
+}
+
+model UpskillReport {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  mode   UpskillMode @default(AGGREGATE)
+  status MatchStatus @default(PENDING)
+
+  /// Chỉ có ở chế độ TARGETED.
+  jobId String?
+
+  /// Số công việc đưa vào phân tích. Báo cáo dựa trên 2 job không đáng tin như
+  /// báo cáo dựa trên 20, nên con số này phải hiện ra cho người dùng thấy.
+  jobsAnalysed Int @default(0)
+
+  /// Thiếu hụt kỹ năng cứng, đã tính trọng số theo điểm phù hợp:
+  /// công việc càng ít phù hợp càng lộ ra nhiều khoảng trống.
+  hardGaps        Json?
+  /// Thiếu hụt suy luận: domain, soft skill, tooling, credential.
+  synthesisedGaps Json?
+  /// Lộ trình học theo thứ tự ưu tiên.
+  learningPlan    Json?
+  summary         String? @db.Text
+
+  modelId     String?
+  generatedAt DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("upskill_reports")
+}
+
+// ---------------------------------------------------------------------------
+// Tài liệu ứng tuyển - CV, thư xin việc, câu trả lời form
+// ---------------------------------------------------------------------------
+
+enum DocumentKind {
+  CV
+  COVER_LETTER
+  /// Mail ứng tuyển gửi thẳng cho nhà tuyển dụng. Khác COVER_LETTER ở chỗ nó có
+  /// tiêu đề mail, ngắn hơn, và KHÔNG có bản LaTeX - người dùng sao chép rồi
+  /// dán vào hộp thư chứ không đính kèm PDF.
+  APPLICATION_EMAIL
+  FORM_ANSWER
+}
+
+model Document {
+  id     String  @id @default(cuid())
+  userId String
+  jobId  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  kind   DocumentKind
+  status MatchStatus  @default(PENDING)
+
+  title String
+
+  /// Nội dung có cấu trúc do model sinh ra. Đây mới là nguồn sự thật; bản .tex
+  /// chỉ là một cách trình bày của nó.
+  content Json?
+
+  /// Khóa trong Storage, dạng "<userId>/cv/main_fpt_senior-frontend.tex".
+  /// Không lưu nội dung file vào DB: lên S3 sau này chỉ cần đổi driver.
+  storageKey String?
+
+  /// Mẫu trình bày đang chọn. Chỉ có nghĩa với `kind = CV`.
+  ///
+  /// CỘT RIÊNG chứ không nhét vào `content`, và đây là ranh giới quan trọng nhất
+  /// của tính năng chọn mẫu: `content` là output của model đã qua zod, còn cái này
+  /// là lựa chọn của NGƯỜI DÙNG. Trộn chung thì mỗi lần sinh lại CV sẽ ghi đè và
+  /// xoá mất mẫu họ đã chọn.
+  ///
+  /// Không dùng enum: thêm mẫu sẽ phải chạy migration, trong khi mẫu chỉ là CSS.
+  /// Id lạ (mẫu đã gỡ ở bản sau) được `templates/registry.ts` đưa về mẫu mặc định
+  /// thay vì làm CV cũ không mở được nữa.
+  templateId String @default("classic")
+
+  /// Tuỳ chọn trình bày của mẫu, hiện chỉ có `{ accent: "#rrggbb" }`.
+  /// Hình dạng do `resolveTemplateOptions` kiểm lại lúc đọc, vì cột Json không
+  /// đảm bảo gì.
+  templateOptions Json?
+
+  /// Thứ tự và mục bị ẩn, dạng `{ order: string[], hidden: string[] }`.
+  ///
+  /// Tách khỏi `content` vì đây là BỐ CỤC, không phải nội dung: `content` giữ chữ,
+  /// còn cái này chỉ giữ danh sách khoá mục. `resolveLayout` kiểm lại lúc đọc và
+  /// tự nối khoá còn thiếu vào cuối, nên thêm mục mới không làm CV cũ mất mục.
+  layout Json?
+
+  modelId     String?
+  generatedAt DateTime?
+  error       String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, kind, createdAt(sort: Desc)])
+  @@map("documents")
+}
+
+// ---------------------------------------------------------------------------
+// Lần quét việc làm - do skill job-scraper + CLI trong .agents/skills/ thực
+// hiện
+// ---------------------------------------------------------------------------
+
+model ScrapeRun {
+  id String @id @default(cuid())
+
+  /// null = lần quét của HỆ THỐNG do cron chạy, không thuộc về ai.
+  ///
+  /// Bảng `jobs` vốn đã là toàn cục, nên quét một lần rồi dùng chung cho mọi
+  /// người là đúng. Quét theo từng người nghĩa là với 50 tài khoản thì mỗi đêm
+  /// đánh vào portal 50 lần để lấy về gần như cùng một bộ tin - vừa phí, vừa
+  /// là cách nhanh nhất để bị chặn IP.
+  ///
+  /// onDelete: SetNull chứ không Cascade: xoá một tài khoản không được phép
+  /// xoá mất lịch sử quét của hệ thống.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  status MatchStatus @default(PENDING)
+
+  /// Tên portal, khớp với thư mục trong .agents/skills/. Ví dụ "itviec".
+  portal String
+
+  /// Các truy vấn đã chạy, do AI sinh từ hồ sơ. Lưu lại để biết lần quét này
+  /// tìm theo hướng nào khi kết quả không như mong đợi.
+  queries Json?
+
+  jobsFound  Int @default(0)
+  /// Tin mới thật sự - đã trừ phần trùng với lần quét trước.
+  jobsNew    Int @default(0)
+  jobsQueued Int @default(0)
+
+  modelId    String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?   @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("scrape_runs")
+}
+
+/// Lần gần nhất một NGÀNH được quét trên một portal.
+///
+/// Khi số ngành vượt `SCRAPER_SYSTEM_QUERY_LIMIT`, lượt quét chọn những ngành
+/// cũ nhất thay vì luôn chọn cùng một nhóm đứng đầu bảng chữ cái. Độ phủ khi đó
+/// là một CHU KỲ nhiều đêm, và chu kỳ đó phải ngắn hơn `SCRAPER_MAX_AGE_DAYS`
+/// (7 ngày) - dài hơn thì tin đăng rồi hết hạn giữa hai lượt sẽ mất hẳn.
+///
+/// Khoá theo cả portal: mỗi portal xoay vòng riêng, nhờ đó một ngành lần lượt
+/// được quét ở mọi portal thay vì chỉ ở portal chạy đầu tiên.
+model OccupationCrawl {
+  portal         String
+  occupationCode String
+
+  lastCrawledAt DateTime @updatedAt
+
+  @@id([portal, occupationCode])
+  @@map("occupation_crawls")
+}
+
+// ---------------------------------------------------------------------------
+// Nhật ký gọi model
+// ---------------------------------------------------------------------------
+
+/// Phân loại nguyên nhân hỏng. Đây là thông tin quan trọng nhất trong bảng này:
+/// "schema" nghĩa là model quá yếu cho tác vụ, còn "timeout"/"upstream" nghĩa
+/// là gateway có vấn đề. Hai kết luận đối lập nhau và dẫn tới hai hành động
+/// khác nhau - đổi model hay đổi nhà cung cấp.
+enum AiFailureKind {
+  /// Model trả về JSON không khớp schema sau khi đã thử lại.
+  SCHEMA
+  /// Vượt quá hạn thời gian của AiService.
+  TIMEOUT
+  /// Gateway trả lỗi (429, 5xx, response_format không hỗ trợ...).
+  UPSTREAM
+  OTHER
+}
+
+/// Mỗi lần gọi model, kể cả lần hỏng.
+///
+/// `modelId` đã nằm rải rác ở 5 bảng kết quả, nhưng những lần HỎNG thì không để
+/// lại dấu vết ở đâu cả - bản ghi kết quả chỉ lưu thông báo lỗi cuối cùng.
+/// Không có bảng này thì không trả lời được câu hỏi cơ bản nhất: gateway đang
+/// hỏng bao nhiêu phần trăm, và chậm thế nào.
+model AiCall {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Tên hàng đợi hoặc tác vụ gọi đến, ví dụ "match.evaluate".
+  purpose  String
+  provider String
+  modelId  String
+
+  ok           Boolean
+  failureKind  AiFailureKind?
+  errorMessage String?        @db.Text
+
+  durationMs   Int
+  inputTokens  Int?
+  outputTokens Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([purpose, ok])
+  @@map("ai_calls")
+}
+
+/// Vòng đời một đơn ứng tuyển.
+///
+/// Lấy nguyên bộ từ vựng của framework (xem .claude/commands/outcome.md và
+/// notion-sync.md) thay vì tự nghĩ ra bộ riêng. Nhờ vậy dữ liệu ở đây và dữ
+/// liệu trong job_search_tracker.csv của bản CLI nói cùng một ngôn ngữ, và
+/// /outcome, /gmail-sync, /html-report vẫn hiểu được nếu sau này bắc cầu sang.
+enum ApplicationStatus {
+  /// Đã xem tin, nhưng chưa nộp (user bấm "Ứng tuyển ngay" từ trang job).
+  VIEWED
+  /// Đã chấm điểm, đã quyết định sẽ nộp, nhưng chưa nộp.
+  RANKED
+  /// Đã nộp, đang chờ hồi âm.
+  APPLIED
+  /// Đã được mời phỏng vấn (bất kỳ vòng nào).
+  INTERVIEW
+  /// Đã nhận lời mời làm việc, chưa quyết định.
+  OFFER
+  /// Đã nhận việc.
+  HIRED
+  /// Nhà tuyển dụng từ chối.
+  REJECTED
+  /// Không hồi âm. Framework CỐ Ý không đặt mốc thời gian cứng cho trạng thái
+  /// này - người dùng tự quyết khi nào coi là im lặng.
+  NO_RESPONSE
+  /// Có offer nhưng ứng viên từ chối.
+  OFFER_DECLINED
+  /// Ứng viên tự rút.
+  WITHDRAWN
+  /// Tin tuyển dụng đã đóng trước khi có kết quả.
+  EXPIRED
+}
+
+/// Một đơn ứng tuyển cho một cặp (người dùng, công việc).
+///
+/// CỐ Ý không có cột cvDocumentId / coverLetterDocumentId / interviewPrepId.
+/// Bảng này đã duy nhất theo (userId, jobId), mà documents và interview_preps
+/// cũng khóa theo đúng cặp đó - nên tài liệu của đơn suy ra được bằng truy vấn.
+/// Thêm cột chỉ tạo ra khả năng lệch: xóa tài liệu rồi mà cột vẫn trỏ tới nó.
+model Application {
+  id     String @id @default(cuid())
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status ApplicationStatus @default(RANKED)
+
+  /// Ngày thực sự bấm nộp, không phải ngày tạo bản ghi. Một đơn có thể nằm ở
+  /// RANKED nhiều ngày trước khi nộp.
+  appliedAt DateTime?
+  /// Ngày chốt kết quả cuối (HIRED / REJECTED / NO_RESPONSE / ...).
+  closedAt  DateTime?
+
+  events ApplicationEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, jobId])
+  @@index([userId, status, updatedAt(sort: Desc)])
+  @@map("applications")
+}
+
+/// Nhật ký chuyển trạng thái của một đơn.
+///
+/// Bản CLI ghi việc này bằng cách nối thêm ghi chú có ngày vào cột `notes` của
+/// file CSV. Tách thành bảng riêng để truy vấn được "đơn này im lặng bao lâu
+/// rồi" - câu hỏi mà /outcome cần trả lời và màn hình Lịch sử ứng tuyển sẽ hỏi.
+model ApplicationEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// null ở sự kiện đầu tiên (lúc tạo đơn).
+  fromStatus ApplicationStatus?
+  toStatus   ApplicationStatus
+  note       String?            @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId, createdAt])
+  @@map("application_events")
+}
+
+// ---------------------------------------------------------------------------
+// Agent nhiều bước
+// ---------------------------------------------------------------------------
+
+/// Trạng thái một lượt chạy agent.
+///
+/// Có thêm `WAITING_USER` so với `MatchStatus`, và đó là khác biệt về BẢN CHẤT
+/// chứ không phải một giá trị thừa: tác vụ một-lượt chạy tới cùng rồi mới trả
+/// lời, còn agent được phép dừng giữa chừng để hỏi rồi chạy tiếp sau khi người
+/// dùng trả lời - có thể là vài giờ sau, ở một request khác.
+enum AgentRunStatus {
+  PENDING
+  RUNNING
+  WAITING_USER
+  DONE
+  FAILED
+}
+
+/// Một lượt chạy kịch bản trong `.claude/commands/`.
+///
+/// Bảng này là thứ khiến vòng lặp agent gỡ lỗi được. Một tác vụ một-lượt hỏng
+/// thì chỉ cần biết prompt vào và kết quả ra; agent hỏng thì gần như luôn hỏng ở
+/// GIỮA - gọi nhầm tool, nhận về rác rồi vẫn viết tiếp như thật - nên từng bước
+/// phải nằm lại trong `AgentStep`.
+model AgentRun {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Tên file kịch bản, ví dụ "apply" cho `.claude/commands/apply.md`.
+  workflow String
+  status   AgentRunStatus @default(PENDING)
+
+  /// Công việc mà lượt chạy này nhắm tới, khi nó bắt đầu từ một tin đã lưu.
+  ///
+  /// Là CỘT chứ không phải một khoá trong `input`, khác với `jobUrl` và
+  /// `jobDescription` bên cạnh: hai thứ đó chỉ đi vào prompt rồi thôi, còn cái
+  /// này phải truy vấn ngược được - màn Phỏng vấn thử hỏi "job này đã luyện
+  /// mấy lượt rồi". Lọc theo một khoá JSON thì không có index để mà dùng.
+  ///
+  /// `SetNull` chứ không `Cascade`: dọn một tin tuyển dụng hết hạn không có lý
+  /// do gì xoá luôn buổi luyện phỏng vấn mà người dùng đã bỏ công làm.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  /// Đầu vào người dùng đưa vào: URL tin tuyển dụng, hoặc JD dán tay.
+  input Json
+
+  /// Kết quả cuối cùng agent trả về.
+  result Json?
+
+  /// Câu hỏi agent đang chờ trả lời, và câu trả lời của người dùng. Có giá trị
+  /// khi và chỉ khi lượt chạy đi qua trạng thái WAITING_USER.
+  question String? @db.Text
+  answer   String? @db.Text
+
+  /// Lịch sử hội thoại đã tuần tự hoá, để nạp lại khi người dùng trả lời.
+  /// KHÔNG dựng lại từ `steps`: bước là bản tóm tắt để người đọc, còn cái này
+  /// là trạng thái máy, và hai thứ đó không được trộn.
+  messages Json?
+
+  modelId String?
+  error   String? @db.Text
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  steps AgentStep[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, jobId, createdAt(sort: Desc)])
+  @@map("agent_runs")
+}
+
+/// Một bước trong vòng lặp: model nói gì, gọi tool nào, tool trả về gì.
+model AgentStep {
+  id    String   @id @default(cuid())
+  runId String
+  run   AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  /// Thứ tự trong lượt chạy, bắt đầu từ 0.
+  index Int
+
+  text        String @db.Text
+  toolCalls   Json
+  toolResults Json
+  durationMs  Int
+
+  createdAt DateTime @default(now())
+
+  @@unique([runId, index])
+  @@map("agent_steps")
+}
+
+enum BriefConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum CompanyVerdict {
+  POSITIVE
+  MIXED
+  NEGATIVE
+  NO_REVIEWS_YET
+  UNKNOWN
+}
+
+/// Bản tìm hiểu một công ty với tư cách NƠI LÀM VIỆC, tổng hợp từ các trang
+/// đánh giá công khai. Không lưu nguyên văn đánh giá của người khác - chỉ lưu
+/// bản phân tích kèm đường dẫn về nguồn.
+model CompanyBrief {
+  id String @id @default(cuid())
+
+  /// Tên công ty đã chuẩn hoá bởi `companyKeyOf`. Nhiều tin của cùng một công
+  /// ty dùng chung một bản, nên đây là khoá tra cứu chứ không phải `Job.id`.
+  nameKey String @unique
+  /// Tên hiển thị, lấy từ tin tuyển dụng đầu tiên gặp được.
+  name    String
+
+  verdict    CompanyVerdict
+  summary    String          @db.Text
+  pros       String[]        @default([])
+  cons       String[]        @default([])
+  confidence BriefConfidence
+
+  /// Chỉ điền khi trang nguồn ghi rõ con số.
+  rating      Float?
+  reviewCount Int?
+
+  /// `[{ url, title, usedFor }]` - những nguồn thật sự dùng để viết bản này.
+  sources Json
+
+  modelId String?
+
+  /// Quá hạn thì vẫn hiện bản cũ kèm nhãn, không tự chạy lại: người dùng quyết
+  /// định có đáng tốn một lượt gọi model hay không.
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("company_briefs")
+}

@@ -1,0 +1,132 @@
+/**
+ * Tên hàng đợi, viết bằng chuỗi thay vì tham chiếu `QUEUE` của
+ * queue.service.ts: file kia import file này lúc chạy, nên tham chiếu ngược lại
+ * sẽ thành phụ thuộc vòng. `queue-key.spec.ts` đối chiếu hai danh sách với nhau
+ */
+const EVALUATE_MATCH = 'match.evaluate';
+const INTERVIEW_PREP = 'interview.prep';
+const UPSKILL_REPORT = 'upskill.report';
+const GENERATE_DOCUMENT = 'document.generate';
+const SCRAPE_RUN = 'scrape.run';
+const PROFILE_SYNTHESIZE = 'profile.synthesize';
+const EXTRACT_REQUIREMENTS = 'job.requirements';
+const AGENT_RUN = 'agent.run';
+const COMPANY_BRIEF = 'company.brief';
+const REQUIREMENT_MATCH = 'match.requirements';
+const SKILL_CANONICALIZE = 'skill.canonicalize';
+
+export const QUEUES_WITH_KEY_RULE = [
+  EVALUATE_MATCH,
+  INTERVIEW_PREP,
+  UPSKILL_REPORT,
+  GENERATE_DOCUMENT,
+  SCRAPE_RUN,
+  PROFILE_SYNTHESIZE,
+  EXTRACT_REQUIREMENTS,
+  AGENT_RUN,
+  COMPANY_BRIEF,
+  REQUIREMENT_MATCH,
+  SKILL_CANONICALIZE,
+] as const;
+
+/** Đọc một trường chuỗi bắt buộc từ payload. */
+function requireField(queue: string, data: object, field: string): string {
+  const value = (data as Record<string, unknown>)[field];
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(
+      `Payload của hàng đợi "${queue}" thiếu trường chuỗi "${field}", không dựng được khoá dedup.`,
+    );
+  }
+  return value;
+}
+
+function isForced(data: object): boolean {
+  return (data as { force?: unknown }).force === true;
+}
+
+/** Khoá dedup cho một việc sắp xếp vào hàng đợi. */
+export function singletonKeyFor(queue: string, data: object): string {
+  switch (queue) {
+    /**
+     * `force` đi vào khoá: một yêu cầu chấm LẠI không được gộp vào job đang chờ,
+     * vì job đó sẽ thấy promptHash không đổi và trả kết quả cache - đúng thứ mà
+     * người dùng vừa nói là không muốn.
+     */
+    case EVALUATE_MATCH:
+    case INTERVIEW_PREP:
+      return [
+        requireField(queue, data, 'userId'),
+        requireField(queue, data, 'jobId'),
+        isForced(data) ? 'force' : 'cache',
+      ].join(':');
+
+    /**
+     * Ba hàng đợi dưới đây đã có bản ghi riêng trong database trước khi việc
+     * được xếp, nên chính id của bản ghi là khoá tự nhiên: xếp hai lần cho cùng
+     * một bản ghi luôn là trùng lặp, không bao giờ là hai việc khác nhau.
+     */
+    case UPSKILL_REPORT:
+      return requireField(queue, data, 'reportId');
+
+    case GENERATE_DOCUMENT:
+      return requireField(queue, data, 'documentId');
+
+    case SCRAPE_RUN:
+      return requireField(queue, data, 'runId');
+
+    case PROFILE_SYNTHESIZE:
+      return requireField(queue, data, 'draftId');
+
+    case AGENT_RUN:
+      return requireField(queue, data, 'runId');
+
+    /** Khoá theo CÔNG TY, không theo người dùng: hai người mở cùng một tin thì
+     * lượt thứ hai gộp vào lượt đầu thay vì trả tiền hai lần. */
+    case COMPANY_BRIEF:
+      return [
+        requireField(queue, data, 'nameKey'),
+        isForced(data) ? 'force' : 'cache',
+      ].join(':');
+
+    /** Một tin chỉ cần rút một lần; `force` tách riêng như EVALUATE_MATCH. */
+    case EXTRACT_REQUIREMENTS:
+      return [
+        requireField(queue, data, 'jobId'),
+        isForced(data) ? 'force' : 'cache',
+      ].join(':');
+
+    /**
+     * Đối chiếu KHÔNG gọi model nên trùng lặp chỉ tốn vài mili giây CPU, nhưng
+     * khoá vẫn phải riêng cho từng phía: một lượt tính lại theo tin và một lượt
+     * tính lại theo hồ sơ là hai việc khác nhau, gộp lại là mất một trong hai.
+     */
+    /**
+     * Ba hình dạng payload, ba khoá. `round` phải nằm trong khoá vì lượt quét
+     * toàn kho tự xếp lượt kế trước khi nó kết thúc, mà policy `exclusive` sẽ
+     * nuốt mất lượt kế nếu hai lượt trùng khoá. Payload rỗng nghĩa là làm lại
+     * tất cả, và hai yêu cầu như vậy gộp làm một là đúng.
+     */
+    case SKILL_CANONICALIZE:
+    case REQUIREMENT_MATCH: {
+      const payload = data as {
+        round?: unknown;
+        jobId?: unknown;
+        userId?: unknown;
+      };
+      if (typeof payload.round === 'number') return `sweep:${payload.round}`;
+      if (payload.jobId) return `job:${requireField(queue, data, 'jobId')}`;
+      if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
+      return 'all';
+    }
+
+    default:
+      /**
+       * KHÔNG có khoá mặc định. Thêm hàng đợi mới thì buộc phải quyết định khoá
+       * của nó: đoán sai thì gộp mất việc, còn để trống thì policy `exclusive`
+       * coi cả hàng đợi là một khoá và chặn mọi thứ xuống còn một job.
+       */
+      throw new Error(
+        `Hàng đợi "${queue}" chưa khai khoá dedup. Thêm một nhánh vào singletonKeyFor().`,
+      );
+  }
+}
