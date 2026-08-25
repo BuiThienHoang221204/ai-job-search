@@ -146,12 +146,12 @@ jobs:
         env:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
-          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+          DO_PASSWORD: ${{ secrets.DO_PASSWORD }}
           DO_DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
         run: |
           test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
           test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
-          test -n "$DO_SSH_KEY" || { echo "::error::Missing DO_SSH_KEY secret."; exit 1; }
+          test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
           test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH repository variable."; exit 1; }
 
       - name: Deploy to DigitalOcean
@@ -162,7 +162,7 @@ jobs:
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
-          key: ${{ secrets.DO_SSH_KEY }}
+          password: ${{ secrets.DO_PASSWORD }}
           envs: DEPLOY_PATH,IMAGE
           script: |
             set -euo pipefail
