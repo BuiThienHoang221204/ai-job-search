@@ -1,5 +1,6 @@
-# Development: docker compose up -d
-# Production: docker compose -f docker-compose.yml up -d
+# Usage:
+#   Development: docker compose --env-file .env.development up -d
+#   Production:  docker compose --env-file .env.production up -d
 
 name: ai-job-search
 
@@ -8,14 +9,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY:-BuiThienHoang221204/ai-job-search}/server:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-BuiThienHoang221204/ai-job-search}/server:${IMAGE_TAG:-latest}
     container_name: aijob-app
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "3000:3000"
-    environment:
-      DATABASE_URL: postgresql://aijob:${POSTGRES_PASSWORD:-aijob_dev_password}@postgres:5432/aijob
-      NODE_ENV: ${NODE_ENV:-development}
     depends_on:
       postgres:
         condition: service_healthy

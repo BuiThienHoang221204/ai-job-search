@@ -168,6 +168,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
+            cp .env.development .env
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
@@ -204,6 +205,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
+            cp .env.production .env
             docker compose pull
             docker compose up -d --remove-orphans
             docker compose exec app npx prisma migrate deploy --skip-generate
