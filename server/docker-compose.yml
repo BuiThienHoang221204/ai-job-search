@@ -9,7 +9,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY:-BuiThienHoang221204/ai-job-search}/server:${IMAGE_TAG:-latest}
+    image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/server:${IMAGE_TAG:-latest}
     container_name: aijob-app
     restart: unless-stopped
     env_file:
