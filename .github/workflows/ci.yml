@@ -202,8 +202,8 @@ jobs:
               echo "Local image aijob-pdf not found. Building it..."
               docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
             fi
+            docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
-            docker compose exec -T app node node_modules/prisma/build/index.js migrate deploy
 
   deploy-prod:
     name: Deploy to Production
@@ -267,5 +267,5 @@ jobs:
               echo "Local image aijob-pdf not found. Building it..."
               docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
             fi
+            docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
-            docker compose exec -T app node node_modules/prisma/build/index.js migrate deploy
