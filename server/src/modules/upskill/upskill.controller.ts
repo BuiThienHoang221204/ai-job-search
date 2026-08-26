@@ -1,4 +1,10 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -15,6 +21,8 @@ export class GenerateUpskillDto {
   @IsOptional() @IsString() jobId?: string;
 }
 
+@ApiTags('Upskill Reports')
+@ApiBearerAuth()
 @Controller('upskill')
 export class UpskillController {
   constructor(
@@ -23,16 +31,20 @@ export class UpskillController {
   ) {}
 
   /** Báo cáo mới nhất đã hoàn thành - màn hình Upskill đọc cái này. */
+  @ApiOperation({ summary: 'Lấy báo cáo upskill mới nhất đã hoàn thành' })
   @Get()
   latest(@CurrentUser() user: AuthUser) {
     return this.upskill.latest(user.id);
   }
 
+  @ApiOperation({ summary: 'Lấy lịch sử các báo cáo upskill đã tạo' })
   @Get('history')
   history(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
     return this.upskill.history(user.id, query);
   }
 
+  @ApiOperation({ summary: 'Lấy chi tiết một báo cáo upskill theo ID' })
+  @ApiParam({ name: 'id', description: 'ID của báo cáo upskill' })
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.upskill.get(user.id, id);
@@ -43,6 +55,9 @@ export class UpskillController {
    * theo dõi trạng thái.
    */
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo báo cáo gợi ý nâng cao kỹ năng và đưa vào hàng đợi xử lý',
+  })
   @Post('generate')
   async enqueue(
     @CurrentUser() user: AuthUser,
@@ -58,6 +73,9 @@ export class UpskillController {
 
   /** Chạy ngay, dùng để thử nghiệm. */
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo báo cáo upskill đồng bộ ngay lập tức (dùng để thử nghiệm)',
+  })
   @Post('generate-sync')
   async generateNow(
     @CurrentUser() user: AuthUser,

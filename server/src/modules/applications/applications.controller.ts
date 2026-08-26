@@ -1,4 +1,10 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { ApplicationStatus } from '../../generated/prisma/enums.js';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
@@ -38,15 +44,22 @@ export class UpdateStatusDto {
   note?: string;
 }
 
+@ApiTags('Applications')
+@ApiBearerAuth()
 @Controller('applications')
 export class ApplicationsController {
   constructor(private readonly applications: ApplicationsService) {}
 
+  @ApiOperation({
+    summary: 'Lấy danh sách các đơn ứng tuyển của người dùng hiện tại',
+  })
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListApplicationsDto) {
     return this.applications.list(user.id, query.group, query);
   }
 
+  @ApiOperation({ summary: 'Lấy thông tin chi tiết một đơn ứng tuyển theo ID' })
+  @ApiParam({ name: 'id', description: 'ID của đơn ứng tuyển' })
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.applications.get(user.id, id);
@@ -58,6 +71,7 @@ export class ApplicationsController {
    * người dùng tự nộp trên trang tuyển dụng.
    * `cvDocumentId` ghi nhận CV nào được chọn để nộp.
    */
+  @ApiOperation({ summary: 'Tạo đơn ứng tuyển mới cho một công việc' })
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
     return this.applications.create(
@@ -72,6 +86,8 @@ export class ApplicationsController {
    * Đổi trạng thái. Luôn là 'user' vì đường vào duy nhất là người dùng bấm
    * nút; hệ thống không có route nào tự đổi trạng thái hộ.
    */
+  @ApiOperation({ summary: 'Cập nhật trạng thái đơn ứng tuyển' })
+  @ApiParam({ name: 'id', description: 'ID của đơn ứng tuyển' })
   @Put(':id/status')
   updateStatus(
     @CurrentUser() user: AuthUser,

@@ -14,6 +14,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import {
   ArrayMaxSize,
@@ -39,12 +47,27 @@ export class ApplyDraftDto {
   fields!: string[];
 }
 
+@ApiTags('Profile Drafts (CV Upload)')
+@ApiBearerAuth()
 @Controller('profile-drafts')
 export class ProfileDraftController {
   constructor(private readonly drafts: ProfileDraftService) {}
 
   /** Nộp CV PDF. */
   @ThrottleAi()
+  @ApiOperation({ summary: 'Nộp file CV PDF để AI trích xuất thông tin hồ sơ' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   @Post('cv')
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_PDF_BYTES, files: 1 } }),
@@ -89,11 +112,15 @@ export class ProfileDraftController {
   }
 
   /** Bản nháp mới nhất — màn Upload đọc cái này để theo tiến trình. */
+  @ApiOperation({
+    summary: 'Lấy bản nháp hồ sơ mới nhất đang xử lý hoặc đã hoàn thành',
+  })
   @Get('latest')
   async latest(@CurrentUser() user: AuthUser) {
     return withFailureKind(await this.drafts.latest(user.id));
   }
 
+  @ApiOperation({ summary: 'Lấy lịch sử các lượt tải lên CV và trích xuất' })
   @Get('history')
   async history(
     @CurrentUser() user: AuthUser,
@@ -104,6 +131,8 @@ export class ProfileDraftController {
   }
 
   /** File CV gốc đã nộp. Dùng `StreamableFile`, KHÔNG trả `Buffer` trực tiếp. */
+  @ApiOperation({ summary: 'Tải xuống hoặc xem file CV PDF gốc đã nộp' })
+  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Get(':id/file')
   async file(
     @CurrentUser() user: AuthUser,
@@ -124,6 +153,8 @@ export class ProfileDraftController {
    * Đặt SAU 'latest' và 'history': route tĩnh phải khai trước route tham số, nếu
    * không Nest sẽ khớp `/latest` vào `:id`.
    */
+  @ApiOperation({ summary: 'Lấy chi tiết một bản nháp hồ sơ theo ID' })
+  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Get(':id')
   async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return withFailureKind(await this.drafts.get(user.id, id));
@@ -131,6 +162,10 @@ export class ProfileDraftController {
 
   /** Chạy lại một bản nháp đã hỏng, dùng lại bằng chứng đã lưu. */
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Thử lại tiến trình trích xuất bản nháp hồ sơ bị lỗi',
+  })
+  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Post(':id/retry')
   @HttpCode(200)
   async retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {
@@ -138,6 +173,11 @@ export class ProfileDraftController {
   }
 
   /** Áp dụng những trường người dùng đã chọn vào hồ sơ thật. */
+  @ApiOperation({
+    summary:
+      'Áp dụng các trường thông tin đã trích xuất từ CV vào hồ sơ chính thức',
+  })
+  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Put(':id/apply')
   apply(
     @CurrentUser() user: AuthUser,

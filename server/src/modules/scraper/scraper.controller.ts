@@ -8,6 +8,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -28,6 +34,8 @@ export class StartScrapeDto {
   @IsOptional() @IsString() portal?: string;
 }
 
+@ApiTags('Scraper')
+@ApiBearerAuth()
 @Controller('scrape')
 export class ScraperController {
   constructor(
@@ -37,6 +45,10 @@ export class ScraperController {
   ) {}
 
   /** Danh sách portal đã đăng ký. Giao diện dùng để dựng menu chọn. */
+  @ApiOperation({
+    summary:
+      'Lấy danh sách các cổng thông tin (portals) cào dữ liệu đã đăng ký',
+  })
   @Get('portals')
   listPortals() {
     return { portals: this.portals.describePortals() };
@@ -46,6 +58,9 @@ export class ScraperController {
    * Quét lại thư mục portal mà không phải khởi động lại máy chủ. Dùng sau khi
    * thêm một thư mục portal mới hoặc đổi cờ `enabled:` trong SKILL.md.
    */
+  @ApiOperation({
+    summary: 'Tải lại danh sách cổng thông tin cấu hình từ đĩa (Admin)',
+  })
   @Post('portals/reload')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -54,11 +69,16 @@ export class ScraperController {
     return { portals };
   }
 
+  @ApiOperation({
+    summary: 'Lấy lịch sử các lượt chạy scraper của người dùng hiện tại',
+  })
   @Get('runs')
   history(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
     return this.scraper.history(user.id, query);
   }
 
+  @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy scraper theo ID' })
+  @ApiParam({ name: 'id', description: 'ID của lượt chạy scraper' })
   @Get('runs/:id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.scraper.get(user.id, id);
@@ -69,6 +89,9 @@ export class ScraperController {
    * vài phút vì phải tôn trọng nhịp request tới portal.
    */
   @ThrottleScrape()
+  @ApiOperation({
+    summary: 'Bắt đầu một lượt quét tin tuyển dụng mới từ cổng thông tin',
+  })
   @Post()
   async start(@CurrentUser() user: AuthUser, @Body() dto: StartScrapeDto) {
     const available = this.portals.listPortals();

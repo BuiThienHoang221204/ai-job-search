@@ -1,4 +1,5 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
@@ -35,4 +36,13 @@ export function configureApp(app: INestApplication): void {
       forbidNonWhitelisted: true,
     }),
   );
+
+  const config = new DocumentBuilder()
+    .setTitle('AI Job Search API')
+    .setDescription('Tài liệu API cho hệ thống Tìm kiếm việc làm AI')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
 }

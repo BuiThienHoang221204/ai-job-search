@@ -6,6 +6,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
@@ -32,6 +38,8 @@ export class FailuresQueryDto extends PaginationQueryDto {}
  * toàn cục luôn chạy TRƯỚC guard của controller, nên `request.user` chắc chắn
  * đã có khi RolesGuard đọc tới.
  */
+@ApiTags('Admin')
+@ApiBearerAuth()
 @Controller('admin')
 @UseGuards(RolesGuard)
 @Roles('ADMIN')
@@ -47,17 +55,22 @@ export class AdminController {
    * Tỷ lệ hỏng, độ trễ p50/p95 và phân loại nguyên nhân, tách theo tác vụ và
    * theo model. Đây là câu trả lời cho "gateway free có dùng được không".
    */
+  @ApiOperation({ summary: 'Xem thống kê sức khỏe và hiệu năng tích hợp AI' })
   @Get('ai-health')
   aiHealth(@Query() query: AiHealthQueryDto) {
     return this.admin.aiHealth(query.days ?? 7);
   }
 
+  @ApiOperation({ summary: 'Xem danh sách các lỗi AI gần đây' })
   @Get('ai-failures')
   failures(@Query() query: FailuresQueryDto) {
     return this.admin.recentFailures(query);
   }
 
   /** Chạy NGAY lượt quét hằng đêm, không đợi tới 23:00. */
+  @ApiOperation({
+    summary: 'Chạy ngay lập tức tiến trình cào dữ liệu từ các cổng',
+  })
   @Post('scrape/run-now')
   @HttpCode(202)
   async scrapeNow() {
@@ -77,6 +90,15 @@ export class AdminController {
    * `?all=true` tính lại TẤT CẢ - dùng sau khi sửa danh mục tỉnh hoặc ngành,
    * vì tin cũ vẫn giữ mã suy ra từ danh mục phiên bản trước.
    */
+  @ApiOperation({
+    summary: 'Backfill taxonomy - cập nhật lại phân loại tỉnh thành/ngành nghề',
+  })
+  @ApiQuery({
+    name: 'all',
+    type: String,
+    required: false,
+    description: 'Có backfill lại toàn bộ hay không ("true"/"false")',
+  })
   @Post('jobs/backfill-taxonomy')
   @HttpCode(200)
   backfillTaxonomy(@Query('all') all?: string) {
@@ -84,6 +106,9 @@ export class AdminController {
   }
 
   /** Nhặt NGAY những việc nền đã rơi, không đợi lượt cron 10 phút. */
+  @ApiOperation({
+    summary: 'Xử lý ngay lập tức các công việc nền bị lỗi hoặc chưa hoàn thành',
+  })
   @Post('reconcile/run-now')
   @HttpCode(202)
   async reconcileNow() {
