@@ -7,7 +7,7 @@ import {
 import type { PgBoss, SendOptions, WorkOptions } from 'pg-boss';
 import { appRole, runsBackgroundWork } from '../../config/app-role.js';
 import { singletonKeyFor } from './queue-key.js';
-import { type QueueConfigService } from './queue-config.service.js';
+import { QueueConfigService } from './queue-config.service.js';
 
 /** Policy áp cho mọi hàng đợi. */
 const QUEUE_POLICY = 'exclusive';
