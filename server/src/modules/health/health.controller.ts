@@ -43,7 +43,7 @@ export class HealthController {
     summary:
       'Thống kê hàng đợi - Số job đang chờ, đang chạy, và concurrency mỗi queue',
   })
-  @Get('api/queue/stats')
+  @Get('queue/stats')
   async queueStats(): Promise<QueueStats> {
     return this.queue.getStats();
   }
