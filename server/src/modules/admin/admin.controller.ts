@@ -1,16 +1,30 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
+  Param,
+  Put,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
+import {
+  QueueConfigService,
+  type QueueConfigItem,
+} from '../queue/queue-config.service.js';
 import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
 import { ReconcileService } from '../reconcile/services/reconcile.service.js';
 import { ScrapeCronService } from '../scraper/scrape-cron.service.js';
@@ -27,11 +41,28 @@ export class AiHealthQueryDto {
 
 export class FailuresQueryDto extends PaginationQueryDto {}
 
+export class UpdateQueueConfigDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  concurrency?: number;
+
+  @IsOptional()
+  serial?: boolean;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 /**
  * Chỉ khai RolesGuard ở đây. `JwtAuthGuard` là APP_GUARD toàn cục và guard
  * toàn cục luôn chạy TRƯỚC guard của controller, nên `request.user` chắc chắn
  * đã có khi RolesGuard đọc tới.
  */
+@ApiTags('Admin')
+@ApiBearerAuth()
 @Controller('admin')
 @UseGuards(RolesGuard)
 @Roles('ADMIN')
@@ -41,23 +72,29 @@ export class AdminController {
     private readonly cron: ScrapeCronService,
     private readonly reconcile: ReconcileService,
     private readonly backfill: TaxonomyBackfillService,
+    private readonly queueConfig: QueueConfigService,
   ) {}
 
   /**
    * Tỷ lệ hỏng, độ trễ p50/p95 và phân loại nguyên nhân, tách theo tác vụ và
    * theo model. Đây là câu trả lời cho "gateway free có dùng được không".
    */
+  @ApiOperation({ summary: 'Xem thống kê sức khỏe và hiệu năng tích hợp AI' })
   @Get('ai-health')
   aiHealth(@Query() query: AiHealthQueryDto) {
     return this.admin.aiHealth(query.days ?? 7);
   }
 
+  @ApiOperation({ summary: 'Xem danh sách các lỗi AI gần đây' })
   @Get('ai-failures')
   failures(@Query() query: FailuresQueryDto) {
     return this.admin.recentFailures(query);
   }
 
   /** Chạy NGAY lượt quét hằng đêm, không đợi tới 23:00. */
+  @ApiOperation({
+    summary: 'Chạy ngay lập tức tiến trình cào dữ liệu từ các cổng',
+  })
   @Post('scrape/run-now')
   @HttpCode(202)
   async scrapeNow() {
@@ -77,6 +114,15 @@ export class AdminController {
    * `?all=true` tính lại TẤT CẢ - dùng sau khi sửa danh mục tỉnh hoặc ngành,
    * vì tin cũ vẫn giữ mã suy ra từ danh mục phiên bản trước.
    */
+  @ApiOperation({
+    summary: 'Backfill taxonomy - cập nhật lại phân loại tỉnh thành/ngành nghề',
+  })
+  @ApiQuery({
+    name: 'all',
+    type: String,
+    required: false,
+    description: 'Có backfill lại toàn bộ hay không ("true"/"false")',
+  })
   @Post('jobs/backfill-taxonomy')
   @HttpCode(200)
   backfillTaxonomy(@Query('all') all?: string) {
@@ -84,6 +130,9 @@ export class AdminController {
   }
 
   /** Nhặt NGAY những việc nền đã rơi, không đợi lượt cron 10 phút. */
+  @ApiOperation({
+    summary: 'Xử lý ngay lập tức các công việc nền bị lỗi hoặc chưa hoàn thành',
+  })
   @Post('reconcile/run-now')
   @HttpCode(202)
   async reconcileNow() {
@@ -95,5 +144,27 @@ export class AdminController {
           ? 'Đã xếp lại vào hàng đợi. Worker sẽ xử lý ở nền.'
           : 'Không tìm thấy việc nào bị rơi.',
     };
+  }
+
+  // ── Queue Config ──────────────────────────────────────────────
+
+  @ApiOperation({
+    summary: 'Lấy danh sách cấu hình concurrency của tất cả hàng đợi',
+  })
+  @Get('queue/config')
+  queueConfigList(): Promise<QueueConfigItem[]> {
+    return this.queueConfig.findAll();
+  }
+
+  @ApiOperation({
+    summary: 'Cập nhật concurrency cho một hàng đợi',
+  })
+  @ApiParam({ name: 'queueName', example: 'match.evaluate' })
+  @Put('queue/config/:queueName')
+  queueConfigUpdate(
+    @Param('queueName') queueName: string,
+    @Body() body: UpdateQueueConfigDto,
+  ): Promise<QueueConfigItem> {
+    return this.queueConfig.update(queueName, body);
   }
 }

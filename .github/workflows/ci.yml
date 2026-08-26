@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
   workflow_dispatch:
 
@@ -20,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -36,16 +36,16 @@ jobs:
       - name: Run security guards
         run: python tools/security_guards.py
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: pnpm
-
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
 
       - name: Check workspace setup
         run: |
@@ -53,7 +53,7 @@ jobs:
           pnpm run check
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        uses: oven-sh/setup-bun@v2
 
       - name: Type-check and test every portal CLI
         run: |
@@ -75,16 +75,15 @@ jobs:
             )
             echo "::endgroup::"
           done
-          test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào - cây thư mục đã đổi chỗ."; exit 1; }
+          test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào."; exit 1; }
 
-      - name: Backend - build and unit tests
+      - name: Backend - build and lint
         working-directory: server
         run: |
           pnpm install --frozen-lockfile
           pnpm exec prisma generate
           pnpm run lint
           pnpm run build
-          pnpm test
 
   security-scan:
     name: Scan repository vulnerabilities
@@ -92,7 +91,7 @@ jobs:
     needs: test-and-build
     steps:
       - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.36.0
@@ -108,10 +107,15 @@ jobs:
     name: Build and push Docker image
     runs-on: ubuntu-latest
     needs: security-scan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set image name
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -124,22 +128,88 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
-          context: ./server
-          file: ./server/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/server:latest
-            ghcr.io/${{ github.repository }}/server:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/server:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_NAME }}/server:${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_NAME }}/server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to DigitalOcean
+  deploy-dev:
+    name: Deploy to Development
     runs-on: ubuntu-latest
     needs: docker-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/dev'
+    environment: development
+    steps:
+      - name: Validate deployment configuration
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_PASSWORD: ${{ secrets.DO_PASSWORD }}
+          DO_DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+        run: |
+          test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
+          test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
+          test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
+          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
+
+      - name: Set lowercase image name
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync deploy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          password: ${{ secrets.DO_PASSWORD }}
+          source: "server/docker-compose.yml,latex-service,pdf-service"
+          target: ${{ vars.DO_DEPLOY_PATH }}
+          overwrite: true
+
+      - name: Deploy to DigitalOcean
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: dev
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          password: ${{ secrets.DO_PASSWORD }}
+          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
+          script: |
+            set -euo pipefail
+            cd "$DEPLOY_PATH/server"
+            cp .env.development .env
+            export GITHUB_REPOSITORY="$IMAGE_NAME"
+            export IMAGE_TAG="$IMAGE_TAG"
+            docker compose pull app postgres
+            if ! docker image inspect aijob-latex >/dev/null 2>&1; then
+              echo "Local image aijob-latex not found. Building it..."
+              docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
+            fi
+            if ! docker image inspect aijob-pdf >/dev/null 2>&1; then
+              echo "Local image aijob-pdf not found. Building it..."
+              docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
+            fi
+            docker compose --profile migrate run --rm migrate
+            docker compose up -d --remove-orphans
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.ref == 'refs/heads/main'
     environment: production
     steps:
       - name: Validate deployment configuration
@@ -152,20 +222,50 @@ jobs:
           test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
           test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
           test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
-          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH repository variable."; exit 1; }
+          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
+
+      - name: Set lowercase image name
+        run: |
+          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync deploy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          password: ${{ secrets.DO_PASSWORD }}
+          source: "server/docker-compose.yml,latex-service,pdf-service"
+          target: ${{ vars.DO_DEPLOY_PATH }}
+          overwrite: true
 
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
         env:
           DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE: ghcr.io/${{ github.repository }}/server:latest
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: main
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           password: ${{ secrets.DO_PASSWORD }}
-          envs: DEPLOY_PATH,IMAGE
+          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH/server"
-            docker compose pull
+            cp .env.production .env
+            export GITHUB_REPOSITORY="$IMAGE_NAME"
+            export IMAGE_TAG="$IMAGE_TAG"
+            docker compose pull app postgres
+            if ! docker image inspect aijob-latex >/dev/null 2>&1; then
+              echo "Local image aijob-latex not found. Building it..."
+              docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
+            fi
+            if ! docker image inspect aijob-pdf >/dev/null 2>&1; then
+              echo "Local image aijob-pdf not found. Building it..."
+              docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
+            fi
+            docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans

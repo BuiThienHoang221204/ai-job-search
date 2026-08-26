@@ -50,5 +50,6 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
     tags: [],
     url: `${BASE_URL}/it-jobs/${slug}`,
     description,
+    companyLogo: null,
   }
 }

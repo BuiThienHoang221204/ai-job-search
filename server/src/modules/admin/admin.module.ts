@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { JobsModule } from '../jobs/jobs.module.js';
+import { QueueModule } from '../queue/queue.module.js';
 import { ReconcileModule } from '../reconcile/reconcile.module.js';
 import { ScraperModule } from '../scraper/scraper.module.js';
 import { AdminController } from './admin.controller.js';
 import { AdminService } from './admin.service.js';
 
 @Module({
-  imports: [ScraperModule, ReconcileModule, JobsModule],
+  imports: [ScraperModule, ReconcileModule, JobsModule, QueueModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

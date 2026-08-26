@@ -10,6 +10,12 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsIn,
@@ -153,6 +159,8 @@ export class ListDocumentsDto extends PaginationQueryDto {
   @IsOptional() @IsString() jobId?: string;
 }
 
+@ApiTags('Documents')
+@ApiBearerAuth()
 @Controller('documents')
 export class DocumentsController {
   constructor(
@@ -160,6 +168,7 @@ export class DocumentsController {
     private readonly queue: QueueService,
   ) {}
 
+  @ApiOperation({ summary: 'Lấy danh sách tài liệu của người dùng hiện tại' })
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListDocumentsDto) {
     return this.documents.list(user.id, query.kind, query.jobId, query);
@@ -169,17 +178,22 @@ export class DocumentsController {
    * Danh mục mẫu CV. Phải đứng TRƯỚC `@Get(':id')`, nếu không Nest khớp
    * "cv-templates" vào `:id` và trả 404 "không tìm thấy tài liệu".
    */
+  @ApiOperation({ summary: 'Lấy danh mục các mẫu CV hiện có' })
   @Get('cv-templates')
   templates() {
     return { items: CV_TEMPLATES };
   }
 
+  @ApiOperation({ summary: 'Lấy chi tiết tài liệu theo ID' })
+  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.documents.get(user.id, id);
   }
 
   /** Trả về file .tex thô để tải xuống hoặc xem trước. */
+  @ApiOperation({ summary: 'Lấy mã nguồn LaTeX (.tex) của tài liệu' })
+  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id/source')
   @Header('Content-Type', 'text/plain; charset=utf-8')
   source(@CurrentUser() user: AuthUser, @Param('id') id: string) {
@@ -187,6 +201,8 @@ export class DocumentsController {
   }
 
   /** Đổi mẫu trình bày của CV. Không `@ThrottleAi()` vì route này không gọi model. */
+  @ApiOperation({ summary: 'Cập nhật mẫu trình bày (template) cho CV' })
+  @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/template')
   setTemplate(
     @CurrentUser() user: AuthUser,
@@ -200,6 +216,8 @@ export class DocumentsController {
    * Bản HTML của CV để nhúng vào khung xem trước. Hai header bảo mật là lớp chặn
    * thứ hai sau `escapeHtml`: CSP `sandbox` không kèm `allow-scripts`.
    */
+  @ApiOperation({ summary: 'Lấy bản xem trước HTML của CV' })
+  @ApiParam({ name: 'id', description: 'ID của CV' })
   @Get(':id/preview')
   @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Content-Security-Policy', 'sandbox')
@@ -216,6 +234,8 @@ export class DocumentsController {
    * Xem trước bản nháp chưa lưu. POST vì nội dung CV không nhét vừa query string,
    * nhưng vẫn KHÔNG ghi gì vào database.
    */
+  @ApiOperation({ summary: 'Xem trước bản nháp HTML chưa lưu của CV' })
+  @ApiParam({ name: 'id', description: 'ID của CV' })
   @Post(':id/preview')
   // 200 chứ không phải 201 mặc định của Nest: route này KHÔNG tạo ra gì.
   @HttpCode(200)
@@ -231,6 +251,8 @@ export class DocumentsController {
   }
 
   /** Lưu bản CV người dùng đã sửa. Không gọi model. */
+  @ApiOperation({ summary: 'Lưu nội dung chỉnh sửa của CV' })
+  @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/cv')
   updateCv(
     @CurrentUser() user: AuthUser,
@@ -241,6 +263,8 @@ export class DocumentsController {
   }
 
   /** Tạo PDF rồi trả về bytes. `engine=html` đi đường mẫu HTML, mặc định là LaTeX. */
+  @ApiOperation({ summary: 'Tải file PDF của tài liệu' })
+  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id/pdf')
   async pdf(
     @CurrentUser() user: AuthUser,
@@ -255,6 +279,7 @@ export class DocumentsController {
   }
 
   @ThrottleAi()
+  @ApiOperation({ summary: 'Tạo tài liệu CV mới bằng AI' })
   @Post('cv')
   async cv(@CurrentUser() user: AuthUser, @Body() dto: CreateCvDto) {
     const document = await this.documents.create(
@@ -271,6 +296,9 @@ export class DocumentsController {
   }
 
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo tài liệu Thư xin việc (Cover Letter) mới bằng AI',
+  })
   @Post('cover-letter')
   async coverLetter(
     @CurrentUser() user: AuthUser,
@@ -294,6 +322,7 @@ export class DocumentsController {
    * tên công ty và vị trí - JD dán tay không được lưu thành tin tuyển dụng.
    */
   @ThrottleAi()
+  @ApiOperation({ summary: 'Tạo tài liệu Mail ứng tuyển mới bằng AI' })
   @Post('application-email')
   async applicationEmail(
     @CurrentUser() user: AuthUser,
@@ -308,6 +337,9 @@ export class DocumentsController {
   }
 
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo tài liệu Trả lời câu hỏi ứng tuyển mới bằng AI',
+  })
   @Post('form-answer')
   async formAnswer(
     @CurrentUser() user: AuthUser,
@@ -328,6 +360,8 @@ export class DocumentsController {
   }
 
   /** Render lại `.tex` từ nội dung đã lưu, KHÔNG gọi model. */
+  @ApiOperation({ summary: 'Render lại mã LaTeX của tài liệu' })
+  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Put(':id/rerender')
   rerender(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.documents.rerender(user.id, id);
@@ -335,6 +369,10 @@ export class DocumentsController {
 
   /** Chạy ngay một tài liệu đã tạo. Dùng để thử nghiệm. */
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo tài liệu đồng bộ ngay lập tức (không qua hàng đợi)',
+  })
+  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Post(':id/generate-sync')
   generateNow(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.documents.generate(user.id, id);

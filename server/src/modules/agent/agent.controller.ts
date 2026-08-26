@@ -8,6 +8,12 @@ import {
   Res,
   Logger,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
@@ -21,6 +27,8 @@ import {
   StartAgentDto,
 } from './dto/agent.dto.js';
 
+@ApiTags('Agent Runs')
+@ApiBearerAuth()
 @Controller('agent-runs')
 export class AgentController {
   private readonly logger = new Logger(AgentController.name);
@@ -31,17 +39,23 @@ export class AgentController {
     private readonly turns: InterviewTurnService,
   ) {}
 
+  @ApiOperation({
+    summary: 'Lấy danh sách các lượt chạy agent của người dùng hiện tại',
+  })
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListAgentRunsDto) {
     return this.agent.list(user.id, query);
   }
 
   /** Phải khai TRƯỚC ':id', nếu không Nest coi "workflows" là một id. */
+  @ApiOperation({ summary: 'Lấy danh sách các workflow hiện có của agent' })
   @Get('workflows')
   workflows() {
     return this.agent.workflows();
   }
 
+  @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy agent theo ID' })
+  @ApiParam({ name: 'id', description: 'ID của lượt chạy agent' })
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.agent.get(user.id, id);
@@ -52,6 +66,7 @@ export class AgentController {
    * giao diện hỏi lại trạng thái, giống mọi tác vụ AI khác của hệ thống.
    */
   @ThrottleAi()
+  @ApiOperation({ summary: 'Bắt đầu một lượt chạy agent mới' })
   @Post()
   async start(@CurrentUser() user: AuthUser, @Body() dto: StartAgentDto) {
     const run = await this.agent.start(user.id, dto);
@@ -67,6 +82,8 @@ export class AgentController {
    * thì bắt đầu lại từ chính đầu vào cũ - người dùng không phải dán lại JD.
    */
   @ThrottleAi()
+  @ApiOperation({ summary: 'Thử lại một lượt chạy agent bị lỗi' })
+  @ApiParam({ name: 'id', description: 'ID của lượt chạy agent' })
   @Post(':id/retry')
   async retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     const run = await this.agent.retry(user.id, id);
@@ -76,6 +93,8 @@ export class AgentController {
 
   /** Trả lời câu hỏi agent đang chờ, rồi cho nó chạy tiếp. */
   @ThrottleAi()
+  @ApiOperation({ summary: 'Trả lời câu hỏi phản hồi mà agent đang chờ' })
+  @ApiParam({ name: 'id', description: 'ID của lượt chạy agent' })
   @Post(':id/answer')
   async answer(
     @CurrentUser() user: AuthUser,
@@ -105,6 +124,10 @@ export class AgentController {
    * chữ chạy, lên server thì lại đứng im 19 giây như cũ.
    */
   @ThrottleAi()
+  @ApiOperation({
+    summary: 'Gửi câu trả lời phỏng vấn dưới dạng stream chữ thô',
+  })
+  @ApiParam({ name: 'id', description: 'ID của lượt chạy agent phỏng vấn' })
   @Post(':id/turn')
   async turn(
     @CurrentUser() user: AuthUser,

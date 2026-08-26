@@ -1,6 +1,8 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import type { NextFunction, Request, Response } from 'express';
 
 /**
  * Đây là API trả JSON và file, KHÔNG render HTML - nên hai header nổi tiếng
@@ -25,7 +27,12 @@ const HELMET_OPTIONS = {
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
 
-  app.use(helmet(HELMET_OPTIONS));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api/docs')) {
+      return next();
+    }
+    return helmet(HELMET_OPTIONS)(req, res, next);
+  });
   app.use(cookieParser());
 
   app.useGlobalPipes(
@@ -35,4 +42,13 @@ export function configureApp(app: INestApplication): void {
       forbidNonWhitelisted: true,
     }),
   );
+
+  const config = new DocumentBuilder()
+    .setTitle('AI Job Search API')
+    .setDescription('Tài liệu API cho hệ thống Tìm kiếm việc làm AI')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
 }

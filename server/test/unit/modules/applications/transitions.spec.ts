@@ -33,7 +33,7 @@ describe('isFinal / groupOf', () => {
   test('hai danh sách không chồng nhau và phủ hết enum', () => {
     const all = [...OPEN_STATUSES, ...FINAL_STATUSES];
     expect(new Set(all).size).toBe(all.length);
-    expect(all).toHaveLength(10);
+    expect(all).toHaveLength(11);
   });
 
   test('mọi trạng thái đã đóng gộp chung một nhóm', () => {
