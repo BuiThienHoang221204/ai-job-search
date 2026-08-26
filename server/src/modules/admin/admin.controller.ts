@@ -1,7 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   HttpCode,
+  Param,
+  Put,
   Post,
   Query,
   UseGuards,
@@ -9,14 +12,19 @@ import {
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
+import {
+  QueueConfigService,
+  type QueueConfigItem,
+} from '../queue/queue-config.service.js';
 import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
 import { ReconcileService } from '../reconcile/services/reconcile.service.js';
 import { ScrapeCronService } from '../scraper/scrape-cron.service.js';
@@ -32,6 +40,21 @@ export class AiHealthQueryDto {
 }
 
 export class FailuresQueryDto extends PaginationQueryDto {}
+
+export class UpdateQueueConfigDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  concurrency?: number;
+
+  @IsOptional()
+  serial?: boolean;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
 
 /**
  * Chỉ khai RolesGuard ở đây. `JwtAuthGuard` là APP_GUARD toàn cục và guard
@@ -49,6 +72,7 @@ export class AdminController {
     private readonly cron: ScrapeCronService,
     private readonly reconcile: ReconcileService,
     private readonly backfill: TaxonomyBackfillService,
+    private readonly queueConfig: QueueConfigService,
   ) {}
 
   /**
@@ -120,5 +144,27 @@ export class AdminController {
           ? 'Đã xếp lại vào hàng đợi. Worker sẽ xử lý ở nền.'
           : 'Không tìm thấy việc nào bị rơi.',
     };
+  }
+
+  // ── Queue Config ──────────────────────────────────────────────
+
+  @ApiOperation({
+    summary: 'Lấy danh sách cấu hình concurrency của tất cả hàng đợi',
+  })
+  @Get('queue/config')
+  queueConfigList(): Promise<QueueConfigItem[]> {
+    return this.queueConfig.findAll();
+  }
+
+  @ApiOperation({
+    summary: 'Cập nhật concurrency cho một hàng đợi',
+  })
+  @ApiParam({ name: 'queueName', example: 'match.evaluate' })
+  @Put('queue/config/:queueName')
+  queueConfigUpdate(
+    @Param('queueName') queueName: string,
+    @Body() body: UpdateQueueConfigDto,
+  ): Promise<QueueConfigItem> {
+    return this.queueConfig.update(queueName, body);
   }
 }

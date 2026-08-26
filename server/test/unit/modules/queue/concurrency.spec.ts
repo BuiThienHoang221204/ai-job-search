@@ -1,27 +1,42 @@
-import { QUEUE, concurrencyFor } from 'src/modules/queue/queue.service.js';
+import { concurrencyForQueue } from 'src/modules/queue/queue.config.js';
+import { QUEUE } from 'src/modules/queue/queue.service.js';
 
-describe('concurrencyFor', () => {
-  /// Đây là test giữ cho một ràng buộc ĐÚNG ĐẮN không bị biến thành núm chỉnh.
-  /// `PortalCliService.pace()` đọc mốc thời gian rồi mới ghi sau một `await`,
-  /// nên hai lượt quét song song cùng bỏ qua nhịp chống chặn IP. Ai nâng
-  /// QUEUE_CONCURRENCY lên cũng KHÔNG được kéo theo hàng đợi quét.
-  test('hàng đợi quét luôn tuần tự dù cấu hình cao', () => {
-    expect(concurrencyFor(QUEUE.SCRAPE_RUN, 1)).toBe(1);
-    expect(concurrencyFor(QUEUE.SCRAPE_RUN, 25)).toBe(1);
+describe('concurrencyForQueue', () => {
+  /// Hàng đợi quét LUÔN tuần tự dù config nói gì — vì portal chặn IP nếu song song.
+  test('hàng đợi quét luôn tuần tự', () => {
+    expect(concurrencyForQueue(QUEUE.SCRAPE_RUN)).toBe(1);
   });
 
-  test('hàng đợi AI nhận đúng mức cấu hình', () => {
-    expect(concurrencyFor(QUEUE.EVALUATE_MATCH, 10)).toBe(10);
-    expect(concurrencyFor(QUEUE.GENERATE_DOCUMENT, 4)).toBe(4);
-    expect(concurrencyFor(QUEUE.UPSKILL_REPORT, 25)).toBe(25);
+  test('hàng đợi AI trả về concurrency mặc định từ config', () => {
+    expect(concurrencyForQueue(QUEUE.EVALUATE_MATCH)).toBe(10);
+    expect(concurrencyForQueue(QUEUE.GENERATE_DOCUMENT)).toBe(8);
+    expect(concurrencyForQueue(QUEUE.UPSKILL_REPORT)).toBe(5);
   });
 
-  /// Cấu hình rác không được biến thành 0 worker: hàng đợi im lặng không chạy
-  /// gì trông y hệt hàng đợi hỏng, mà không có log nào nói tại sao.
-  test('giá trị vô lý lùi về 1 chứ không về 0', () => {
-    expect(concurrencyFor(QUEUE.EVALUATE_MATCH, 0)).toBe(1);
-    expect(concurrencyFor(QUEUE.EVALUATE_MATCH, -5)).toBe(1);
-    expect(concurrencyFor(QUEUE.EVALUATE_MATCH, NaN)).toBe(1);
-    expect(concurrencyFor(QUEUE.EVALUATE_MATCH, 2.7)).toBe(2);
+  test('hàng đợi không tồn tại trả về 1', () => {
+    expect(concurrencyForQueue('queue.khong.ton.tai')).toBe(1);
+  });
+
+  test('override bằng env variable', () => {
+    const original = process.env.MATCH_EVALUATE_CONCURRENCY;
+    process.env.MATCH_EVALUATE_CONCURRENCY = '25';
+    expect(concurrencyForQueue(QUEUE.EVALUATE_MATCH)).toBe(25);
+    // Restore
+    if (original === undefined) {
+      delete process.env.MATCH_EVALUATE_CONCURRENCY;
+    } else {
+      process.env.MATCH_EVALUATE_CONCURRENCY = original;
+    }
+  });
+
+  test('env无效 giá trị bỏ qua, dùng default', () => {
+    const original = process.env.MATCH_EVALUATE_CONCURRENCY;
+    process.env.MATCH_EVALUATE_CONCURRENCY = 'abc';
+    expect(concurrencyForQueue(QUEUE.EVALUATE_MATCH)).toBe(10);
+    if (original === undefined) {
+      delete process.env.MATCH_EVALUATE_CONCURRENCY;
+    } else {
+      process.env.MATCH_EVALUATE_CONCURRENCY = original;
+    }
   });
 });

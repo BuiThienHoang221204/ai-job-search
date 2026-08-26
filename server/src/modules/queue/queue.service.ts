@@ -7,6 +7,7 @@ import {
 import type { PgBoss, SendOptions, WorkOptions } from 'pg-boss';
 import { appRole, runsBackgroundWork } from '../../config/app-role.js';
 import { singletonKeyFor } from './queue-key.js';
+import { type QueueConfigService } from './queue-config.service.js';
 
 /** Policy áp cho mọi hàng đợi. */
 const QUEUE_POLICY = 'exclusive';
@@ -35,25 +36,6 @@ export const QUEUE = {
   /** Quy các cách viết kỹ năng về một mã chuẩn. Chạy TRƯỚC bước đối chiếu. */
   SKILL_CANONICALIZE: 'skill.canonicalize',
 } as const;
-
-/**
- * Hàng đợi BUỘC phải tuần tự. Đây là ràng buộc ĐÚNG ĐẮN, không phải núm tinh
- * chỉnh - nên nó nằm trong code chứ không nằm trong .env.
- *
- * `PortalCliService.pace()` đọc mốc thời gian, `await`, rồi mới ghi lại. Hai
- * lượt song song cùng đọc mốc cũ nên cùng bỏ qua nhịp lịch sự chống chặn IP, và
- * triệu chứng chỉ hiện ra vài ngày sau, trông y hệt "portal hỏng".
- */
-const SERIAL_QUEUES: readonly string[] = [QUEUE.SCRAPE_RUN];
-
-/**
- * Số worker song song cho một hàng đợi. Hàng đợi tuần tự luôn là 1 bất kể cấu
- * hình, để người chỉnh `QUEUE_CONCURRENCY` không vô tình gỡ mất nhịp chống chặn.
- */
-export function concurrencyFor(queue: string, configured: number): number {
-  if (SERIAL_QUEUES.includes(queue)) return 1;
-  return Math.max(1, Math.floor(configured) || 1);
-}
 
 export type ExtractRequirementsPayload = {
   jobId: string;
@@ -120,10 +102,27 @@ export type ScrapeRunPayload = {
 };
 
 /** Mặt tiếp xúc mà các module khác dùng để đẩy và nhận việc nền. */
-export type Queue = Pick<QueueService, 'send' | 'sendMany' | 'work' | 'status'>;
+export type Queue = Pick<
+  QueueService,
+  'send' | 'sendMany' | 'work' | 'status' | 'getStats'
+>;
 
 /** Trạng thái khởi tạo hàng đợi, dùng cho readiness probe. */
 export type QueueStatus = { ready: boolean; error: string | null };
+
+export type QueueStatsItem = {
+  name: string;
+  concurrency: number;
+  size: number;
+  active: number;
+  total: number;
+};
+
+export type QueueStats = {
+  queues: QueueStatsItem[];
+  totalWaiting: number;
+  totalActive: number;
+};
 
 /** Hàng đợi chạy trên chính Postgres, không cần Redis. */
 @Injectable()
@@ -132,18 +131,14 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
   private boss!: PgBoss;
   private started!: Promise<void>;
 
+  /** Timer refresh config từ DB mỗi 30s. */
+  private refreshTimer?: NodeJS.Timeout;
+
   /** Ghi lại kết quả khởi tạo để readiness probe đọc được. */
   private isStarted = false;
   private startupError: string | null = null;
 
-  /**
-   * Số worker song song mặc định mỗi hàng đợi. Đọc thẳng `process.env` cho khớp
-   * phần còn lại của lớp này - nó không nhận ConfigService.
-   */
-  private readonly concurrency = parseInt(
-    process.env.QUEUE_CONCURRENCY ?? '1',
-    10,
-  );
+  constructor(private readonly queueConfig: QueueConfigService) {}
 
   onModuleInit(): void {
     this.started = (async () => {
@@ -175,6 +170,13 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
           `Vai tiến trình: ${appRole()}` +
             (runsBackgroundWork() ? '' : ' - KHÔNG đăng ký worker nào'),
         );
+
+        // Bắt đầu poll config từ DB mỗi 30s
+        this.refreshTimer = setInterval(() => {
+          this.queueConfig.refreshCache().catch((err) => {
+            this.logger.error('Lỗi refresh queue config', err);
+          });
+        }, 30_000);
       } catch (error) {
         this.startupError =
           error instanceof Error ? error.message : String(error);
@@ -188,7 +190,31 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     return { ready: this.isStarted, error: this.startupError };
   }
 
+  /** Thống kê realtime tất cả hàng đợi. */
+  async getStats(): Promise<QueueStats> {
+    await this.started;
+    const queues: QueueStatsItem[] = [];
+
+    for (const name of Object.values(QUEUE)) {
+      const q = await this.boss.getQueue(name);
+      queues.push({
+        name,
+        concurrency: this.queueConfig.getConcurrency(name),
+        size: (q?.queuedCount as number) ?? 0,
+        active: (q?.activeCount as number) ?? 0,
+        total: (q?.totalCount as number) ?? 0,
+      });
+    }
+
+    return {
+      queues,
+      totalWaiting: queues.reduce((sum, q) => sum + q.size, 0),
+      totalActive: queues.reduce((sum, q) => sum + q.active, 0),
+    };
+  }
+
   async onApplicationShutdown(): Promise<void> {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
     await this.boss?.stop({ graceful: true });
   }
 
@@ -273,7 +299,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     }
 
     await this.started;
-    const concurrency = concurrencyFor(queue, this.concurrency);
+    const concurrency = this.queueConfig.getConcurrency(queue);
     await this.boss.work<T>(
       queue,
       {

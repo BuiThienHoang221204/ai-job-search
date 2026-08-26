@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # Build context là GỐC REPO, không phải server/: image cần cả `server/` lẫn
-# `.claude/skills` và `.agents/skills`, mà hai thư mục sau nằm ngoài server/.
+# `.claude/skills`, `.agents/skills`, `.claude/commands`, `cv/` và
+# `cover_letters/`, mà năm thư mục sau nằm ngoài server/.
 #
 #   docker build -t ai-job-server -f Dockerfile .
 #
@@ -69,13 +70,20 @@ RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/server/dist ./dist
 
 # prisma/ đi kèm để chạy được `pnpm prisma migrate deploy` từ trong container.
+# prisma.config.ts là BẮT BUỘC chứ không phải tuỳ chọn: schema.prisma khai
+# `datasource db` KHÔNG có trường `url`, URL đến từ file config này. Thiếu nó thì
+# `migrate deploy` trong bước triển khai đứt, còn build vẫn xanh.
 COPY server/prisma ./prisma
+COPY server/prisma.config.ts ./prisma.config.ts
 
 # Đọc lúc KHỞI ĐỘNG, không phải tài nguyên tuỳ chọn: thiếu `.claude/skills` thì
 # SkillRegistry không dựng được prompt nào, thiếu `.agents/skills` thì không portal
 # nào được đăng ký và việc quét im lặng không làm gì.
 COPY .claude/skills /app/.claude/skills
 COPY .agents/skills /app/.agents/skills
+COPY .claude/commands /app/.claude/commands
+COPY cv /app/cv
+COPY cover_letters /app/cover_letters
 
 # Khai TƯỜNG MINH đường dẫn tuyệt đối. Mặc định trong configuration.ts là tương
 # đối theo `process.cwd()` - đúng khi chạy `pnpm start` từ server/, nhưng đó là một
@@ -83,6 +91,8 @@ COPY .agents/skills /app/.agents/skills
 # làm scraper âm thầm không tìm thấy portal nào.
 ENV SKILLS_DIR=/app/.claude/skills \
     PORTALS_DIR=/app/.agents/skills \
+    COMMANDS_DIR=/app/.claude/commands \
+    TEMPLATES_ROOT=/app \
     STORAGE_LOCAL_ROOT=/app/workspaces
 
 # workspaces là nơi ghi file .tex của người dùng - gắn volume vào đây khi chạy
@@ -90,13 +100,13 @@ ENV SKILLS_DIR=/app/.claude/skills \
 RUN mkdir -p /app/workspaces && chown -R node:node /app/workspaces
 USER node
 
-EXPOSE 4000
+EXPOSE 3000
 
 # Dùng LIVENESS chứ không phải readiness. Readiness hỏng khi database chập chờn, và
 # nếu healthcheck của container đọc nó thì Docker sẽ khởi động lại một tiến trình
 # hoàn toàn khoẻ mạnh - làm sự cố nặng thêm thay vì chỉ ngừng nhận request.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.PORT||4000;fetch('http://127.0.0.1:'+p+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # CỐ Ý không chạy `prisma migrate deploy` ở đây. Migration là bước triển khai
 # riêng, chạy MỘT lần; nhúng vào lệnh khởi động thì khi scale ra nhiều instance,

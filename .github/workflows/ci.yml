@@ -130,8 +130,8 @@ jobs:
       - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./server
-          file: ./server/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}/server:${{ github.ref_name }}
@@ -162,6 +162,19 @@ jobs:
       - name: Set lowercase image name
         run: |
           echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync deploy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          password: ${{ secrets.DO_PASSWORD }}
+          source: "server/docker-compose.yml,latex-service,pdf-service"
+          target: ${{ vars.DO_DEPLOY_PATH }}
+          overwrite: true
 
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2
@@ -214,6 +227,19 @@ jobs:
       - name: Set lowercase image name
         run: |
           echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync deploy files to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          password: ${{ secrets.DO_PASSWORD }}
+          source: "server/docker-compose.yml,latex-service,pdf-service"
+          target: ${{ vars.DO_DEPLOY_PATH }}
+          overwrite: true
 
       - name: Deploy to DigitalOcean
         uses: appleboy/ssh-action@v1.2.2

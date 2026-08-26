@@ -1066,3 +1066,25 @@ model CompanyBrief {
 
   @@map("company_briefs")
 }
+
+/// Cấu hình concurrency cho từng hàng đợi. Admin thay đổi trên UI, worker poll mỗi 30s.
+model QueueConfig {
+  id String @id @default(cuid())
+
+  /// Tên hàng đợi, ví dụ: "match.evaluate", "agent.run"
+  queueName String @unique
+
+  /// Số worker song song cho hàng đợi này
+  concurrency Int @default(1)
+
+  /// Có bắt buộc tuần tự không (ghi đè concurrency thành 1)
+  serial Boolean @default(false)
+
+  /// Ghi chú cho admin
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("queue_configs")
+}

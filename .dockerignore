@@ -1,7 +1,10 @@
-# CẢNH BÁO khi sửa file này: `.claude/skills` và `.agents/skills` PHẢI đi vào
-# image - chúng được đọc lúc khởi động. Đừng thêm mẫu `**/*.md`: khung prompt
-# chính là các file .md trong .claude/skills, loại chúng ra thì ứng dụng build
-# thành công rồi chết lúc chạy.
+# CẢNH BÁO khi sửa file này: `.claude/skills`, `.agents/skills`,
+# `.claude/commands`, `cv/` và `cover_letters/` PHẢI đi vào image - Dockerfile
+# COPY cả năm thư mục. Hai thư mục đầu được đọc lúc khởi động; `.claude/commands`
+# là kịch bản của agent, còn `cv/` với `cover_letters/` là template mà tool
+# `read_template` đọc. Đừng thêm mẫu `**/*.md`: khung prompt chính là các file
+# .md trong `.claude/skills` và `.claude/commands`, loại chúng ra thì ứng dụng
+# build thành công rồi chết lúc chạy.
 
 .git
 .gitignore
@@ -18,6 +21,8 @@ server/*.tsbuildinfo
 
 # Bí mật của máy dev. .env.example vẫn được giữ để làm tài liệu.
 server/.env
+server/.env.*
+!server/.env.example
 
 # Dữ liệu người dùng sinh ra lúc chạy, gắn volume thay vì nướng vào image.
 workspaces
@@ -25,8 +30,6 @@ workspaces
 # Chỉ dùng cho runtime Claude Code, không phần nào của máy chủ đọc tới.
 tools
 scripts
-cv
-cover_letters
 salary_lookup.py
 
 # Test không chạy trong image chạy thật.
