@@ -614,6 +614,15 @@ enum DocumentKind {
   FORM_ANSWER
 }
 
+/// Ngôn ngữ của tài liệu do model viết ra.
+///
+/// Thuộc về TỪNG tài liệu chứ không phải tài khoản: cùng một người có thể nộp
+/// cho công ty Việt và công ty nước ngoài trong cùng một tuần.
+enum DocumentLanguage {
+  VI
+  EN
+}
+
 model Document {
   id     String  @id @default(cuid())
   userId String
@@ -624,6 +633,13 @@ model Document {
 
   kind   DocumentKind
   status MatchStatus  @default(PENDING)
+
+  /// Ngôn ngữ model phải viết. Chỉ có nghĩa với tài liệu do model sinh; chữ
+  /// người dùng tự gõ khi sửa CV không đi qua trường này.
+  ///
+  /// Đổi giá trị này thì phải SINH LẠI, không phải vẽ lại: tiêu đề mục là phần
+  /// trình bày nên đổi ngay được, còn thân bài do model viết thì không.
+  language DocumentLanguage @default(VI)
 
   title String
 

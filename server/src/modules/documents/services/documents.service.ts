@@ -8,6 +8,7 @@ import {
 import type {
   Document,
   DocumentKind,
+  DocumentLanguage,
   Prisma,
 } from '../../../generated/prisma/client.js';
 import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
@@ -309,6 +310,7 @@ export class DocumentsService {
     title: string,
     jobId?: string,
     params?: Prisma.InputJsonValue,
+    language?: DocumentLanguage,
   ) {
     return this.prisma.document.create({
       data: {
@@ -317,6 +319,7 @@ export class DocumentsService {
         title,
         jobId: jobId ?? null,
         content: params ?? undefined,
+        language,
       },
     });
   }

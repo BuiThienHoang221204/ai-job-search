@@ -2,7 +2,9 @@ import type {
   CvContent,
   Identity,
 } from 'src/modules/documents/content.types.js';
-import { SECTION_TITLES } from 'src/modules/documents/templates/body.js';
+import { SECTION_TITLES } from 'src/modules/documents/templates/cv-layout.js';
+
+const TITLES = SECTION_TITLES.vi;
 import {
   DEFAULT_LAYOUT,
   SECTION_KEYS,
@@ -124,11 +126,11 @@ describe('render theo bố cục', () => {
       }),
     );
 
-    expect(text.indexOf(SECTION_TITLES.skills)).toBeLessThan(
-      text.indexOf(SECTION_TITLES.education),
+    expect(text.indexOf(TITLES.skills)).toBeLessThan(
+      text.indexOf(TITLES.education),
     );
-    expect(text.indexOf(SECTION_TITLES.education)).toBeLessThan(
-      text.indexOf(SECTION_TITLES.profile),
+    expect(text.indexOf(TITLES.education)).toBeLessThan(
+      text.indexOf(TITLES.profile),
     );
   });
 
@@ -138,7 +140,7 @@ describe('render theo bố cục', () => {
       hidden: ['education'],
     });
 
-    expect(textOf(html)).not.toContain(SECTION_TITLES.education);
+    expect(textOf(html)).not.toContain(TITLES.education);
     expect(html).not.toContain('ĐH Kinh tế Đà Nẵng');
   });
 
@@ -148,16 +150,14 @@ describe('render theo bố cục', () => {
     });
 
     expect(html).toContain('Trần Thị Bích Ngọc');
-    for (const title of Object.values(SECTION_TITLES)) {
+    for (const title of Object.values(TITLES)) {
       expect(textOf(html)).not.toContain(title);
     }
   });
 
   test('không truyền bố cục thì giữ nguyên thứ tự cũ', () => {
     const text = textOf(renderCvHtml(identity, content, 'classic'));
-    const positions = SECTION_KEYS.map((key) =>
-      text.indexOf(SECTION_TITLES[key]),
-    );
+    const positions = SECTION_KEYS.map((key) => text.indexOf(TITLES[key]));
 
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });

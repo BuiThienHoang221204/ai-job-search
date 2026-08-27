@@ -82,7 +82,8 @@ const findArrayMaxChecks = (root: unknown): string[] => {
 
 /** Schema gửi cho MODEL. Trần số lượng ở đây phải cắt, không được từ chối. */
 const MODEL_SCHEMAS: Array<[string, ZodType]> = [
-  ['cvSchema', cvSchema],
+  ['cvSchema (vi)', cvSchema('vi')],
+  ['cvSchema (en)', cvSchema('en')],
   ['coverLetterSchema', coverLetterSchema],
   ['applicationEmailSchema', applicationEmailSchema],
   ['formAnswerSchema', formAnswerSchema],

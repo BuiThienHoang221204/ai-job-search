@@ -25,6 +25,7 @@ import {
   type PdfRenderer,
 } from '../pdf-render.js';
 import { renderCvHtml } from '../templates/registry.js';
+import type { DocumentLanguage } from '../templates/cv-layout.js';
 
 /**
  * Loại tài liệu có bản LaTeX để in ra.
@@ -37,6 +38,9 @@ const PRINTABLE: readonly DocumentKind[] = ['CV', 'COVER_LETTER'];
 
 export const isPrintable = (kind: DocumentKind): boolean =>
   PRINTABLE.includes(kind);
+
+const renderLanguage = (document: Document): DocumentLanguage =>
+  document.language === 'EN' ? 'en' : 'vi';
 
 const hasText = (...parts: Array<string | null | undefined>): boolean =>
   parts.some((part) => (part ?? '').trim().length > 0);
@@ -122,7 +126,11 @@ export class DocumentRenderer {
     identity: Identity,
   ): Promise<string | null> {
     if (document.kind === 'CV') {
-      const tex = renderCv(identity, cvContent(content));
+      const tex = renderCv(
+        identity,
+        cvContent(content),
+        renderLanguage(document),
+      );
 
       const key = userKey(
         document.userId,
@@ -199,6 +207,7 @@ export class DocumentRenderer {
       document.templateId,
       document.templateOptions,
       document.layout,
+      renderLanguage(document),
     );
   }
 

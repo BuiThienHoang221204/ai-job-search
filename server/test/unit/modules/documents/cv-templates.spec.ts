@@ -2,7 +2,9 @@ import type {
   CvContent,
   Identity,
 } from 'src/modules/documents/content.types.js';
-import { SECTION_TITLES } from 'src/modules/documents/templates/body.js';
+import { SECTION_TITLES } from 'src/modules/documents/templates/cv-layout.js';
+
+const TITLES = SECTION_TITLES.vi;
 import {
   CV_TEMPLATES,
   DEFAULT_TEMPLATE_ID,
@@ -91,7 +93,7 @@ describe('mọi mẫu đều in ra đủ nội dung', () => {
   test.each(ids)('mẫu %s có đủ năm mục', (id) => {
     const html = renderCvHtml(identity, content, id);
 
-    for (const title of Object.values(SECTION_TITLES)) {
+    for (const title of Object.values(TITLES)) {
       expect(html).toContain(title);
     }
   });
@@ -243,6 +245,6 @@ describe('mẫu lạ thì quay về mặc định, KHÔNG ném lỗi', () => {
     const html = renderCvHtml(identity, content, id);
 
     expect(html).toContain('Trần Thị Bích Ngọc');
-    expect(html).toContain(SECTION_TITLES.experience);
+    expect(html).toContain(TITLES.experience);
   });
 });

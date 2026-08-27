@@ -3,6 +3,11 @@ import type {
   CvContent,
   Identity,
 } from './content.types.js';
+import {
+  SECTION_TITLES,
+  TOOLS_LABEL,
+  type DocumentLanguage,
+} from './templates/cv-layout.js';
 
 /** Escape văn bản trước khi nhúng vào LaTeX. */
 export const escapeLatex = (input: string): string =>
@@ -55,7 +60,13 @@ const contactBlock = (lines: string[]): string =>
   lines.filter((line) => line.length > 0).join('\n');
 
 /** Sinh CV theo moderncv/banking, dùng khớp template trong cv/main_example.tex. */
-export const renderCv = (identity: Identity, content: CvContent): string => {
+export const renderCv = (
+  identity: Identity,
+  content: CvContent,
+  language: DocumentLanguage = 'vi',
+): string => {
+  const title = SECTION_TITLES[language];
+  const toolsLabel = TOOLS_LABEL[language];
   const experiences = content.experiences
     .map((experience) =>
       [
@@ -82,7 +93,7 @@ export const renderCv = (identity: Identity, content: CvContent): string => {
             ].join('\n')
           : '',
         project.tools.length > 0
-          ? `Công cụ: ${escapeLatex(project.tools.join(', '))}`
+          ? `${toolsLabel}: ${escapeLatex(project.tools.join(', '))}`
           : '',
         `}`,
       ]
@@ -91,7 +102,9 @@ export const renderCv = (identity: Identity, content: CvContent): string => {
     )
     .join('\n\n');
 
-  const projectSection = projects ? `\n\\section{Dự án}\n${projects}\n` : '';
+  const projectSection = projects
+    ? `\n\\section{${title.projects}}\n${projects}\n`
+    : '';
 
   const educations = content.educations
     .map(
@@ -129,22 +142,22 @@ ${contactBlock([
 \\begin{document}
 \\makecvtitle
 
-\\section{Giới thiệu}
+\\section{${title.profile}}
 \\cvitem{}{${escapeLatex(content.profileStatement)}}
 
-\\section{Năng lực chính}
+\\section{${title.competencies}}
 \\cvitem{}{%
 \\begin{itemize}%
 ${content.coreCompetencies.map(item).join('\n')}
 \\end{itemize}}
 
-\\section{Kinh nghiệm}
+\\section{${title.experience}}
 ${experiences}
 ${projectSection}
-\\section{Học vấn}
+\\section{${title.education}}
 ${educations}
 
-\\section{Kỹ năng}
+\\section{${title.skills}}
 ${skills}
 
 \\end{document}

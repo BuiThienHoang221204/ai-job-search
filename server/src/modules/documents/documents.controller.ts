@@ -48,6 +48,8 @@ import { CV_TEMPLATES } from './templates/registry.js';
 export class CreateCvDto {
   @IsOptional() @IsString() jobId?: string;
 
+  @IsOptional() @IsIn(['vi', 'en']) language?: 'vi' | 'en';
+
   /**
    * Người gọi sẽ tự stream bằng `POST :id/generate-stream`, nên ĐỪNG xếp hàng
    * đợi. Thiếu cờ này thì cả worker lẫn stream cùng sinh một tài liệu - hai lượt
@@ -329,11 +331,14 @@ export class DocumentsController {
 
   @Post('cv')
   async cv(@CurrentUser() user: AuthUser, @Body() dto: CreateCvDto) {
+    const english = dto.language === 'en';
     const document = await this.documents.create(
       user.id,
       'CV',
-      dto.jobId ? 'CV theo vị trí' : 'CV tổng quát',
+      ``,
       dto.jobId,
+      undefined,
+      english ? 'EN' : 'VI',
     );
     if (dto.stream) return { queued: false, documentId: document.id };
 

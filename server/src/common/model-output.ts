@@ -12,6 +12,23 @@ export const cappedTextVi = (max: number, hint: string) =>
     .describe(`${hint} Tối đa ${max} ký tự. Viết bằng tiếng Việt có dấu.`)
     .transform((value) => value.trim().slice(0, max));
 
+export type OutputLanguage = 'vi' | 'en';
+
+export const LANGUAGE_RULE: Record<OutputLanguage, string> = {
+  vi: 'Viết bằng tiếng Việt có dấu.',
+  en: 'Write in English.',
+};
+
+export const cappedTextIn = (
+  language: OutputLanguage,
+  max: number,
+  hint: string,
+) =>
+  z
+    .string()
+    .describe(`${hint} Tối đa ${max} ký tự. ${LANGUAGE_RULE[language]}`)
+    .transform((value) => value.trim().slice(0, max));
+
 export const optionalCappedText = (max: number, hint: string) =>
   z
     .string()

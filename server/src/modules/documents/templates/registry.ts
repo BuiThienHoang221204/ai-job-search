@@ -1,6 +1,6 @@
 import type { CvContent, Identity } from '../content.types.js';
 import { buildCvHeader, buildCvSections } from './body.js';
-import { resolveLayout } from './cv-layout.js';
+import { resolveLayout, type DocumentLanguage } from './cv-layout.js';
 import { htmlDocument } from './html.js';
 import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes.js';
 
@@ -59,6 +59,7 @@ export const renderCvHtml = (
   templateId: string | null | undefined = DEFAULT_TEMPLATE_ID,
   rawOptions: unknown = null,
   rawLayout: unknown = null,
+  language: DocumentLanguage = 'vi',
 ): string => {
   const theme = findTheme(templateId);
   const options = resolveTemplateOptions(templateId, rawOptions);
@@ -69,7 +70,7 @@ export const renderCvHtml = (
   const body = [
     '<div class="page-bar"></div>',
     buildCvHeader(identity),
-    buildCvSections(content, layout),
+    buildCvSections(content, layout, language),
   ].join('\n');
 
   return htmlDocument({
