@@ -11,7 +11,6 @@ export type CatalogModel = {
   id: string;
   name: string;
   tool_call?: boolean;
-  cost?: { input: number; output: number };
   provider?: { npm?: string; api?: string };
 };
 
@@ -30,6 +29,7 @@ export type ResolvedModel = {
   apiKey: string;
   /** Header thêm vào mỗi request. Rỗng với hầu hết lõi — xem `userAgentEnv`. */
   headers: Record<string, string>;
+  explicitStreamFlag: boolean;
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -84,19 +84,17 @@ export class ModelCatalogService {
     return this.config.get<string>('ai.modelId')!;
   }
 
-  private get allowPaidModels(): boolean {
-    return this.config.get<boolean>('ai.allowPaidModels') ?? false;
-  }
-
   /**
    * Header riêng của một lõi. Hiện chỉ có `User-Agent`, và chỉ `opencode` dùng
    * tới — lý do đầy đủ nằm trong docblock của `providers/opencode.ts`.
    */
   private headersFor(descriptor: ProviderDescriptor): Record<string, string> {
-    if (!descriptor.userAgentEnv) return {};
+    const headers = { ...(descriptor.extraHeaders ?? {}) };
+    if (!descriptor.userAgentEnv) return headers;
     const agents = this.config.get<Record<string, string>>('ai.userAgents');
     const agent = agents?.[descriptor.id];
-    return agent ? { 'User-Agent': agent } : {};
+    if (agent) headers['User-Agent'] = agent;
+    return headers;
   }
 
   /** Key của một lõi. Thiếu key là lỗi cấu hình, không phải lỗi lúc chạy. */
@@ -109,6 +107,55 @@ export class ModelCatalogService {
       );
     }
     return key;
+  }
+
+  private baseURLFor(descriptor: ProviderDescriptor): string | undefined {
+    if (!descriptor.baseURLEnv) return undefined;
+    const urls = this.config.get<Record<string, string>>('ai.baseURLs') ?? {};
+    return urls[descriptor.id] || undefined;
+  }
+
+  private async catalogFor(
+    descriptor: ProviderDescriptor,
+    apiKey: string,
+    headers: Record<string, string>,
+  ): Promise<CatalogProvider> {
+    const declared = this.baseURLFor(descriptor);
+    if (!declared) {
+      const catalog = await this.loadCatalog();
+      const provider = catalog[descriptor.id];
+      if (!provider) {
+        throw new ModelUnavailableError(
+          `Catalog không có lõi ${descriptor.label} (${descriptor.id}).`,
+        );
+      }
+      return provider;
+    }
+
+    let live: Map<string, Record<string, unknown>> | undefined;
+    try {
+      live = await this.liveModels(declared, apiKey, headers);
+    } catch (error) {
+      throw new ModelUnavailableError(
+        `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    if (!live?.size) {
+      throw new ModelUnavailableError(
+        `Lõi ${descriptor.label} tại ${declared} không trả model nào.`,
+      );
+    }
+
+    const models: Record<string, CatalogModel> = {};
+    for (const [id, entry] of live) {
+      models[id] = {
+        id,
+        name: typeof entry.name === 'string' ? entry.name : id,
+      };
+    }
+    return { id: descriptor.id, name: descriptor.label, api: declared, models };
   }
 
   async loadCatalog(): Promise<Record<string, CatalogProvider>> {
@@ -169,11 +216,6 @@ export class ModelCatalogService {
     return entries;
   }
 
-  /** Model miễn phí. Không khai giá thì coi như TRẢ TIỀN — an toàn về tiền. */
-  private isFree(model: CatalogModel): boolean {
-    return model.cost?.input === 0 && model.cost?.output === 0;
-  }
-
   private usableAdapter(
     model: CatalogModel,
     provider: CatalogProvider,
@@ -207,13 +249,7 @@ export class ModelCatalogService {
 
     const apiKey = this.apiKeyFor(descriptor);
     const headers = this.headersFor(descriptor);
-    const catalog = await this.loadCatalog();
-    const provider = catalog[descriptor.id];
-    if (!provider) {
-      throw new ModelUnavailableError(
-        `Catalog không có lõi ${descriptor.label} (${descriptor.id}).`,
-      );
-    }
+    const provider = await this.catalogFor(descriptor, apiKey, headers);
 
     const selected = this.select(provider, descriptor, target, requireToolCall);
     const baseURL = selected.provider?.api ?? provider.api;
@@ -231,6 +267,7 @@ export class ModelCatalogService {
       baseURL,
       apiKey,
       headers,
+      explicitStreamFlag: descriptor.explicitStreamFlag === true,
     };
   }
 
@@ -256,11 +293,6 @@ export class ModelCatalogService {
     if (requireToolCall && found.tool_call === false) {
       throw new ModelUnavailableError(
         `Model ${formatModelRef(target)} không gọi được tool.`,
-      );
-    }
-    if (!this.allowPaidModels && !this.isFree(found)) {
-      throw new ModelUnavailableError(
-        `Model ${formatModelRef(target)} là model TRẢ TIỀN và AI_ALLOW_PAID_MODELS đang tắt.`,
       );
     }
     if (descriptor.knownNoStructuredOutput?.includes(found.id)) {
@@ -310,7 +342,6 @@ export class ModelCatalogService {
       id: string;
       ref: string;
       name: string;
-      free: boolean;
       toolCall: boolean;
       structuredOutput: boolean | null;
     }>
@@ -319,9 +350,11 @@ export class ModelCatalogService {
     const descriptor = findProvider(id);
     if (!descriptor) throw new Error(`Không biết lõi model: ${id}`);
 
-    const catalog = await this.loadCatalog();
-    const provider = catalog[id];
-    if (!provider) throw new Error(`Catalog không có lõi: ${id}`);
+    const provider = await this.catalogFor(
+      descriptor,
+      this.apiKeyFor(descriptor),
+      this.headersFor(descriptor),
+    );
 
     const models = Object.values(provider.models).filter((model) =>
       this.usableAdapter(model, provider),
@@ -350,7 +383,6 @@ export class ModelCatalogService {
           id: model.id,
           ref: formatModelRef({ providerId: id, modelId: model.id }),
           name: model.name,
-          free: this.isFree(model),
           toolCall: model.tool_call !== false,
           structuredOutput: descriptor.knownNoStructuredOutput?.includes(
             model.id,
@@ -363,7 +395,6 @@ export class ModelCatalogService {
         (a, b) =>
           Number(b.id === this.defaultModelId) -
             Number(a.id === this.defaultModelId) ||
-          Number(b.free) - Number(a.free) ||
           a.name.localeCompare(b.name),
       );
   }

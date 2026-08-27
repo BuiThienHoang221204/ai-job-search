@@ -154,6 +154,50 @@ describe('matchRequirements', () => {
       );
     });
 
+    /**
+     * Cùng một thành phố viết sáu kiểu trong dữ liệu thật, và hồ sơ thì ghi kèm
+     * quận. Phép so chuỗi cũ (`trim().toLowerCase()`) khớp 0/520 tin với 8
+     * trong 12 hồ sơ có địa chỉ - kể cả người ở ngay trong thành phố đó.
+     */
+    test.each([
+      ['Ho Chi Minh City', 'Quận Tân Bình, Hồ Chí Minh'],
+      ['TP.HCM', 'Hồ Chí Minh'],
+      ['Ho Chi Minh City Metropolitan Area', 'Bình Thạnh, TP. Hồ Chí Minh'],
+      ['Hanoi', 'Cầu Giấy, Hà Nội'],
+      ['Ha Noi', 'Hà Nội'],
+    ])('tin ghi "%s", hồ sơ ghi "%s" → cùng tỉnh', (city, home) => {
+      expect(
+        matchRequirements(requirements({ city }), profile({ location: home }))
+          .checks,
+      ).toContainEqual(
+        expect.objectContaining({ kind: 'LOCATION', met: true }),
+      );
+    });
+
+    /** Bình Dương đã sáp nhập vào TP.HCM từ 1/7/2025 - so chuỗi không thấy. */
+    test('tỉnh đã sáp nhập tính là cùng một nơi', () => {
+      expect(
+        matchRequirements(
+          requirements({ city: 'Ho Chi Minh City' }),
+          profile({ location: 'Thủ Dầu Một, Bình Dương' }),
+        ).checks,
+      ).toContainEqual(
+        expect.objectContaining({ kind: 'LOCATION', met: true }),
+      );
+    });
+
+    test('sẵn sàng chuyển chỗ vẫn NÓI RA là khác tỉnh', () => {
+      const [check] = matchRequirements(
+        requirements({ city: 'Cà Mau' }),
+        profile({ location: 'Hà Nội', willingToRelocate: true }),
+      ).checks.filter((row) => row.kind === 'LOCATION');
+
+      expect({ met: check.met, coGhiChu: Boolean(check.note) }).toEqual({
+        met: true,
+        coGhiChu: true,
+      });
+    });
+
     test('không đủ dữ liệu địa điểm thì bỏ qua dòng đó', () => {
       const result = matchRequirements(
         requirements({ city: 'Hồ Chí Minh' }),

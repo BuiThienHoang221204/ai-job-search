@@ -54,6 +54,35 @@ services:
       timeout: 5s
       retries: 10
 
+  omniroute:
+    image: diegosouzapw/omniroute:3.8.49
+    container_name: aijob-omniroute
+    restart: unless-stopped
+    expose:
+      - "20128"
+    ports:
+      - "127.0.0.1:20128:20128"
+    environment:
+      PORT: 20128
+      NODE_ENV: production
+      DATA_DIR: /data
+      JWT_SECRET: ${OMNIROUTE_JWT_SECRET}
+      API_KEY_SECRET: ${OMNIROUTE_KEY_SECRET}
+      INITIAL_PASSWORD: ${OMNIROUTE_PASSWORD}
+      DISABLE_SQLITE_AUTO_BACKUP: "true"
+    volumes:
+      - omniroute_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:20128/v1/models').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
   latex:
     image: aijob-latex
     container_name: aijob-latex
@@ -80,3 +109,4 @@ services:
 
 volumes:
   postgres_data:
+  omniroute_data:

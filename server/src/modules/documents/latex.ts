@@ -68,6 +68,31 @@ export const renderCv = (identity: Identity, content: CvContent): string => {
     )
     .join('\n\n');
 
+  const projects = content.projects
+    .map((project) =>
+      [
+        `\\needspace{5\\baselineskip}`,
+        `\\cventry{${escapeLatex(project.period)}}{${escapeLatex(project.name)}}{${escapeLatex(project.role)}}{${escapeLatex(project.organization)}}{}{%`,
+        project.description.trim() ? escapeLatex(project.description) : '',
+        project.bullets.length > 0
+          ? [
+              `\\begin{itemize}%`,
+              ...project.bullets.map(item),
+              `\\end{itemize}`,
+            ].join('\n')
+          : '',
+        project.tools.length > 0
+          ? `Công cụ: ${escapeLatex(project.tools.join(', '))}`
+          : '',
+        `}`,
+      ]
+        .filter((line) => line.length > 0)
+        .join('\n'),
+    )
+    .join('\n\n');
+
+  const projectSection = projects ? `\n\\section{Dự án}\n${projects}\n` : '';
+
   const educations = content.educations
     .map(
       (education) =>
@@ -115,7 +140,7 @@ ${content.coreCompetencies.map(item).join('\n')}
 
 \\section{Kinh nghiệm}
 ${experiences}
-
+${projectSection}
 \\section{Học vấn}
 ${educations}
 

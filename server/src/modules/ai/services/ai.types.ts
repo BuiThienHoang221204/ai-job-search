@@ -22,6 +22,21 @@ export type GenerateObjectOptions<T> = {
 
 export type StreamTextResult = ReturnType<typeof streamText>;
 
+export type StreamObjectOptions<T> = {
+  schema: ZodType<T>;
+  system: string;
+  prompt: string;
+  context: AiCallContext;
+  modelId?: string;
+  timeoutMs?: number;
+};
+
+export type StreamObjectResult<T> = {
+  modelId: string;
+  partials: AsyncIterable<unknown>;
+  object: Promise<T>;
+};
+
 export type StreamTextOptions = {
   system: string;
   /** Một lượt hỏi rời. Loại trừ lẫn nhau với `messages`. */

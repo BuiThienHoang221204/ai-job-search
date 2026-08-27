@@ -30,6 +30,12 @@ export type ProviderDescriptor = {
    */
   userAgentEnv?: string;
 
+  baseURLEnv?: string;
+
+  extraHeaders?: Record<string, string>;
+
+  explicitStreamFlag?: boolean;
+
   /**
    * Đọc MỘT phần tử `data[]` của `GET /models`: gateway có KHAI là model này
    * giữ được structured output không. Bỏ trống nghĩa là gateway không khai gì,

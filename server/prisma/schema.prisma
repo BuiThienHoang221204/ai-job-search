@@ -36,10 +36,6 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  /// Di tích của một tính năng thu hồi token đã bị revert: cột còn trong
-  /// database (một tài khoản mang giá trị 1) nhưng KHÔNG code nào đọc. Khai ở
-  /// đây để schema khớp database, đừng dựa vào nó.
-  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -126,12 +122,13 @@ model Profile {
   /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
   occupationCode String?
 
+  lastFanOutAt DateTime?
+
   completion Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  embedding ProfileEmbedding?
-
+  @@index([lastFanOutAt])
   @@map("profiles")
 }
 
@@ -207,7 +204,6 @@ model Job {
   documents      Document[]
   applications   Application[]
   agentRuns      AgentRun[]
-  embedding      JobEmbedding?
   requirements   JobRequirement?
 
   @@unique([source, externalId])
@@ -227,7 +223,6 @@ model Job {
   @@index([dedupeKey])
   @@index([duplicateOfId])
   @@index([salaryMax(sort: Desc)])
-  @@index([tags], type: Gin)
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("jobs")
 }
@@ -297,6 +292,7 @@ model JobRequirementMatch {
 
   @@id([userId, jobId])
   @@index([userId, percent(sort: Desc)])
+  @@index([jobId])
   @@map("job_requirement_matches")
 }
 
@@ -317,16 +313,6 @@ enum RemotePolicy {
   UNKNOWN
 }
 
-/// Vector ngữ nghĩa của một tin tuyển dụng, dùng để LỌC SƠ BỘ trước khi gọi
-/// model chấm điểm. Nó KHÔNG thay việc chấm điểm — chỉ quyết định tin nào đáng
-/// được chấm.
-///
-/// Để bảng riêng chứ không thêm cột vào `jobs`, vì hai lý do:
-/// 1. Đổi model hoặc đổi số chiều sau này không phải migrate cả bảng `jobs`.
-/// 2. Prisma không có kiểu `vector`, phải khai `Unsupported()` — mà trường
-///    `Unsupported` thì Prisma Client KHÔNG đọc được, mọi truy vấn phải qua
-///    `$queryRaw`. Giữ nó tách biệt để phần còn lại của `jobs` vẫn dùng client
-///    bình thường.
 /// Một kỹ năng CHUẨN: mọi cách gọi khác nhau của cùng một thứ đều trỏ về đây.
 ///
 /// Cùng ý tưởng với `PROVINCES.aliases` trong taxonomy — tin viết `Hà Nội`,
@@ -380,48 +366,6 @@ model SkillAlias {
   @@map("skill_aliases")
 }
 
-model JobEmbedding {
-  jobId String @id
-  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  /// Model đã sinh vector này. Đổi model thì vector cũ không so được với vector
-  /// mới, nên phải biết cái nào sinh ra cái nào.
-  model String
-  dim   Int
-
-  embedding Unsupported("vector(768)")
-
-  createdAt DateTime @default(now())
-
-  @@index([model])
-  @@map("job_embeddings")
-}
-
-/// Vector ngữ nghĩa của một hồ sơ. Cần để tìm "K tin gần hồ sơ này nhất".
-///
-/// Nội dung đưa vào embedding CỐ Ý không có thông tin định danh (tên, điện
-/// thoại, địa chỉ): tên riêng không giúp gì cho độ tương đồng ngữ nghĩa, mà lại
-/// là dữ liệu cá nhân gửi ra dịch vụ ngoài. Hai lý do độc lập cùng chỉ về một
-/// cách làm.
-model ProfileEmbedding {
-  profileId String  @id
-  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  model String
-  dim   Int
-
-  embedding Unsupported("vector(768)")
-
-  /// Hồ sơ đổi thì vector phải sinh lại. Giữ hash của phần văn bản đã embed để
-  /// biết khi nào cần làm mới mà không phải so cả hồ sơ.
-  sourceHash String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("profile_embeddings")
-}
-
 model SavedJob {
   id      String   @id @default(cuid())
   userId  String
@@ -432,6 +376,7 @@ model SavedJob {
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([userId, jobId])
+  @@index([jobId])
   @@map("saved_jobs")
 }
 
@@ -517,6 +462,7 @@ model JobMatch {
   @@unique([userId, jobId])
   @@index([userId, overallScore(sort: Desc)])
   @@index([userId, status])
+  @@index([jobId])
   @@map("job_matches")
 }
 
@@ -555,6 +501,7 @@ model InterviewPrep {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, jobId])
+  @@index([jobId])
   @@map("interview_preps")
 }
 
@@ -720,6 +667,7 @@ model Document {
   updatedAt DateTime @updatedAt
 
   @@index([userId, kind, createdAt(sort: Desc)])
+  @@index([jobId])
   @@map("documents")
 }
 
@@ -829,10 +777,33 @@ model AiCall {
   inputTokens  Int?
   outputTokens Int?
 
+  /// Trong `inputTokens`, bao nhiêu token là ĐỌC LẠI TỪ CACHE của nhà cung cấp.
+  ///
+  /// `inputTokens` ĐÃ GỘP cả phần này - đo 2026-08-26 trên OpenCode: prompt_tokens
+  /// giữ nguyên 1415 trong khi cached_tokens nhảy từ 0 lên 1408 ở lần gọi thứ hai.
+  /// Không tách ra thì mọi con số "token đã tiêu" đều thổi phồng, và mọi quyết
+  /// định tối ưu prompt đều dựa trên một cái giá không có thật.
+  cachedTokens Int?
+
+  /// Model dừng vì sao: "stop", "length", "tool-calls"… Chỉ ghi khi lượt gọi hỏng.
+  finishReason String?
+
+  /// Nguyên văn thứ model trả về, đã cắt hai đầu còn 2000 ký tự. CHỈ ghi khi hỏng.
+  ///
+  /// Có mặt để phân biệt "model trả RỖNG" với "model trả SAI HÌNH DẠNG" - hai
+  /// sự kiện khác nhau mà `failureKind = SCHEMA` đang gộp làm một, và 39/70 lượt
+  /// hỏng không bóc được chi tiết zod nên không có cách nào biết là cái nào.
+  ///
+  /// CHỨA DỮ LIỆU CÁ NHÂN: đầu ra của `document.cv` và `profile.synthesize` là CV
+  /// người thật. Hai truy vấn trong `admin.service.ts` đều dùng `select` liệt kê
+  /// tường minh nên cột này không lọt ra API - ĐỪNG đổi chúng thành select-tất-cả.
+  responseText String? @db.Text
+
   createdAt DateTime @default(now())
 
   @@index([createdAt(sort: Desc)])
   @@index([purpose, ok])
+  @@index([userId])
   @@map("ai_calls")
 }
 
@@ -897,6 +868,7 @@ model Application {
 
   @@unique([userId, jobId])
   @@index([userId, status, updatedAt(sort: Desc)])
+  @@index([jobId])
   @@map("applications")
 }
 
@@ -994,6 +966,7 @@ model AgentRun {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, jobId, createdAt(sort: Desc)])
+  @@index([jobId])
   @@map("agent_runs")
 }
 

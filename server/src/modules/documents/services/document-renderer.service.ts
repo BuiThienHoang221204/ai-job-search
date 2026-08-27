@@ -64,6 +64,21 @@ const cvContent = (content: unknown): CvContent => {
           hasText(experience.position, experience.company) ||
           experience.bullets.length > 0,
       ),
+    projects: (cv.projects ?? [])
+      .map((project) => ({
+        ...project,
+        role: project.role ?? '',
+        organization: project.organization ?? '',
+        period: project.period ?? '',
+        description: project.description ?? '',
+        bullets: project.bullets ?? [],
+        tools: project.tools ?? [],
+      }))
+      .filter(
+        (project) =>
+          hasText(project.name, project.organization) ||
+          project.bullets.length > 0,
+      ),
     educations: cv.educations
       .map((education) => ({
         ...education,

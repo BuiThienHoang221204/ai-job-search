@@ -8,6 +8,7 @@ import type { AgentRun, Prisma } from '../../../generated/prisma/client.js';
 import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../../common/pagination.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { trimToolOutput } from '../trim-output.js';
 import { STUCK_AFTER_MS } from '../../reconcile/services/reconcile.service.js';
 import { CommandRegistryService } from './command-registry.service.js';
 import { ASK_USER_TOOL } from '../tools/ask-user.tool.js';
@@ -228,6 +229,31 @@ export class AgentService {
     });
     if (!run) throw new NotFoundException(`Không tìm thấy lượt chạy: ${runId}`);
     return run;
+  }
+
+  /**
+   * Bản dành cho ĐƯỜNG HTTP: giống `get` nhưng KHÔNG kèm `messages`.
+   *
+   * `messages` là hội thoại thô để chạy tiếp một lượt - `interview-turn` và
+   * `agent-runner` cần nó, giao diện thì không đọc tới bao giờ. Đo trên một
+   * lượt `apply` thật: cột đó nặng 41.084 ký tự, mà màn hình hỏi lại mỗi 4 giây
+   * suốt cả lượt chạy (p90 của `agent.apply` là 229 giây, tức khoảng 57 lần
+   * hỏi). Gửi kèm nó là đẩy vài megabyte qua mạng để vẽ mấy dòng tóm tắt.
+   */
+  async detail(userId: string, runId: string) {
+    const run = await this.prisma.agentRun.findFirst({
+      where: { id: runId, userId },
+      omit: { messages: true },
+      include: { steps: { orderBy: { index: 'asc' } } },
+    });
+    if (!run) throw new NotFoundException(`Không tìm thấy lượt chạy: ${runId}`);
+    return {
+      ...run,
+      steps: run.steps.map((step) => ({
+        ...step,
+        toolResults: trimToolOutput(step.toolResults) as Prisma.JsonValue,
+      })),
+    };
   }
 
   async list(userId: string, query: ListAgentRunsQuery) {

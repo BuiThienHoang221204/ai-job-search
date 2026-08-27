@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { ProfileDraft } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { AiService } from '../../ai/services/ai.service.js';
+import type { ModelStreamEvent } from '../../../common/stream-event.js';
 import { parseEvidenceList, type Evidence } from '../evidence.js';
 import {
   profileProposalSchema,
@@ -55,6 +56,65 @@ export class ProfileSynthesizerService {
       '',
       'Rút thông tin hồ sơ từ những nguồn trên.',
     ].join('\n');
+  }
+
+  async *streamSynthesize(
+    draftId: string,
+  ): AsyncGenerator<ModelStreamEvent<ProfileDraft>> {
+    const draft = await this.prisma.profileDraft.findUnique({
+      where: { id: draftId },
+    });
+    if (!draft) {
+      throw new NotFoundException(`Không tìm thấy bản nháp hồ sơ: ${draftId}`);
+    }
+
+    await this.prisma.profileDraft.update({
+      where: { id: draftId },
+      data: { status: 'RUNNING', error: null },
+    });
+
+    try {
+      const evidence = parseEvidenceList(draft.evidence);
+      if (evidence.length === 0) {
+        throw new Error('Bản nháp không có bằng chứng nào đọc được');
+      }
+
+      const { partials, object, modelId } =
+        await this.ai.streamObject<ProfileProposal>({
+          schema: profileProposalSchema,
+          context: { purpose: 'profile.synthesize', userId: draft.userId },
+          system: this.system(),
+          prompt: this.prompt(evidence),
+          timeoutMs: SYNTHESIS_TIMEOUT_MS,
+        });
+
+      for await (const partial of partials) {
+        yield { type: 'partial', data: partial };
+      }
+
+      const final = await object;
+      yield {
+        type: 'done',
+        result: await this.prisma.profileDraft.update({
+          where: { id: draftId },
+          data: {
+            status: 'DONE',
+            proposal: final,
+            modelId,
+            generatedAt: new Date(),
+            error: null,
+          },
+        }),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Đọc hồ sơ (stream) thất bại (${draftId}): ${message}`);
+      await this.prisma.profileDraft.update({
+        where: { id: draftId },
+        data: { status: 'FAILED', error: message },
+      });
+      yield { type: 'error', message };
+    }
   }
 
   /** Tổng hợp bản nháp: đọc bằng chứng đã lưu, gọi model MỘT LẦN, ghi đề xuất. */

@@ -5,6 +5,7 @@ import {
   generateText,
   hasToolCall,
   stepCountIs,
+  streamObject,
   streamText,
   type ModelMessage,
 } from 'ai';
@@ -28,6 +29,8 @@ import type {
   GenerateObjectOptions,
   RunToolsOptions,
   RunToolsResult,
+  StreamObjectOptions,
+  StreamObjectResult,
   StreamTextOptions,
   StreamTextResult,
 } from './ai.types.js';
@@ -50,6 +53,13 @@ const DEFAULT_MAX_STEPS = 12;
 
 /** Trần ký tự khi in nguyên văn thứ model trả về. */
 const LOG_TEXT_LIMIT = 4000;
+
+/**
+ * Trần ký tự khi GHI nguyên văn đó xuống `ai_calls.responseText`. Thấp hơn trần
+ * của log vì cột này nằm trong database và chứa dữ liệu cá nhân - xem docblock
+ * của trường trong `schema.prisma`.
+ */
+const DB_TEXT_LIMIT = 2000;
 
 /** Cắt giữa chứ không cắt đuôi: trường bị thiếu thường nằm ở cuối JSON. */
 const clipMiddle = (text: string, limit: number): string => {
@@ -238,6 +248,7 @@ export class AiService implements Ai {
         durationMs,
         inputTokens: result.usage?.inputTokens,
         outputTokens: result.usage?.outputTokens,
+        cachedTokens: result.usage?.inputTokenDetails?.cacheReadTokens,
       });
 
       return {
@@ -348,12 +359,16 @@ export class AiService implements Ai {
         durationMs,
         inputTokens: result.usage?.inputTokens,
         outputTokens: result.usage?.outputTokens,
+        cachedTokens: result.usage?.inputTokenDetails?.cacheReadTokens,
       });
 
       return { object: result.object, modelId: id };
     } catch (error) {
       const durationMs = Date.now() - startedAt;
       const issues = schemaIssues(error);
+      const empty = NoObjectGeneratedError.isInstance(error)
+        ? error
+        : undefined;
 
       await this.callLog.record({
         context: options.context,
@@ -365,6 +380,13 @@ export class AiService implements Ai {
         errorMessage: issues.length
           ? `${truncateError(error, 200)} | ${issues.map(formatIssue).join(' | ')}`
           : truncateError(error),
+        inputTokens: empty?.usage?.inputTokens,
+        cachedTokens: empty?.usage?.inputTokenDetails?.cacheReadTokens,
+        outputTokens: empty?.usage?.outputTokens,
+        finishReason: empty?.finishReason,
+        responseText: empty?.text
+          ? clipMiddle(empty.text, DB_TEXT_LIMIT)
+          : undefined,
       });
 
       if (NoObjectGeneratedError.isInstance(error)) {
@@ -386,6 +408,61 @@ export class AiService implements Ai {
       }
       throw error;
     }
+  }
+
+  async streamObject<T>(
+    options: StreamObjectOptions<T>,
+  ): Promise<StreamObjectResult<T>> {
+    const { model, id, provider, ref } = await this.models.create(
+      options.modelId,
+      this.structuredOutputs,
+    );
+    const startedAt = Date.now();
+
+    const result = streamObject({
+      model,
+      schema: options.schema,
+      system: this.structuredOutputs
+        ? options.system
+        : this.withSchemaInstruction(options.system, options.schema),
+      prompt: options.prompt,
+      abortSignal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      onFinish: ({ usage, error }) => {
+        const empty = NoObjectGeneratedError.isInstance(error)
+          ? error
+          : undefined;
+        const issues = error ? schemaIssues(error) : [];
+        void this.callLog.record({
+          context: options.context,
+          provider,
+          modelId: id,
+          ok: !error,
+          durationMs: Date.now() - startedAt,
+          failureKind: error ? classifyFailure(error) : undefined,
+          errorMessage: !error
+            ? undefined
+            : issues.length
+              ? `${truncateError(error, 200)} | ${issues.map(formatIssue).join(' | ')}`
+              : truncateError(error),
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          cachedTokens: usage?.inputTokenDetails?.cacheReadTokens,
+          finishReason: empty?.finishReason,
+          responseText: empty?.text
+            ? clipMiddle(empty.text, DB_TEXT_LIMIT)
+            : undefined,
+        });
+        this.logger.log(
+          `streamObject ${ref} xong sau ${Date.now() - startedAt}ms`,
+        );
+      },
+    });
+
+    return {
+      modelId: id,
+      partials: result.partialObjectStream,
+      object: result.object,
+    };
   }
 
   /**

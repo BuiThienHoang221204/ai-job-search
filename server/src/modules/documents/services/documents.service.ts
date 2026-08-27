@@ -13,6 +13,7 @@ import type {
 import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../../common/pagination.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import type { ModelStreamEvent } from '../../../common/stream-event.js';
 import { DocumentComposer } from './document-composer.service.js';
 import { DocumentRenderer, isPrintable } from './document-renderer.service.js';
 import type { Identity } from '../content.types.js';
@@ -100,6 +101,72 @@ export class DocumentsService {
   }
 
   /** Sinh nội dung cho một tài liệu đã tạo. */
+  async *streamGenerate(
+    userId: string,
+    documentId: string,
+  ): AsyncGenerator<ModelStreamEvent<Document>> {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, userId },
+    });
+    if (!document)
+      throw new NotFoundException(`Không tìm thấy tài liệu: ${documentId}`);
+
+    if (document.kind !== 'CV' && document.kind !== 'COVER_LETTER') {
+      yield { type: 'done', result: await this.generate(userId, documentId) };
+      return;
+    }
+
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: { status: 'RUNNING', error: null },
+    });
+
+    try {
+      const { profile, target, identity } = await this.context(document);
+      const { partials, object, modelId } =
+        document.kind === 'CV'
+          ? await this.composer.streamCv(document, profile, target)
+          : await this.composer.streamCoverLetter(document, profile, target);
+
+      for await (const partial of partials) {
+        yield { type: 'partial', data: partial };
+      }
+
+      const content = await object;
+      const storageKey = await this.renderer.render(
+        document,
+        target,
+        content,
+        identity,
+      );
+
+      yield {
+        type: 'done',
+        result: await this.prisma.document.update({
+          where: { id: documentId },
+          data: {
+            status: 'DONE',
+            content: content,
+            storageKey,
+            modelId,
+            generatedAt: new Date(),
+            error: null,
+          },
+        }),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Sinh tài liệu (stream) thất bại (${documentId}): ${message}`,
+      );
+      await this.prisma.document.update({
+        where: { id: documentId },
+        data: { status: 'FAILED', error: message },
+      });
+      yield { type: 'error', message };
+    }
+  }
+
   async generate(userId: string, documentId: string): Promise<Document> {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, userId },

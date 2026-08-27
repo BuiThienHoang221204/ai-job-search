@@ -11,6 +11,7 @@ import { isUniqueViolation } from '../../../prisma/prisma-errors.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { jobCardSelect } from '../../jobs/job-card.select.js';
 import { AiService } from '../../ai/services/ai.service.js';
+import type { ModelStreamEvent } from '../../../common/stream-event.js';
 import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
 import {
@@ -141,37 +142,7 @@ export class MatchingService {
         prompt,
       });
 
-      const ineligible = object.eligibility.verdict === 'FAIL';
-      const overall = ineligible ? 0 : computeOverall(object);
-
-      return await this.prisma.jobMatch.update({
-        where: { userId_jobId: { userId, jobId } },
-        data: {
-          status: 'DONE',
-          eligibility: object.eligibility.verdict,
-          eligibilityQuote: object.eligibility.quote || null,
-          eligibilityNote: object.eligibility.note,
-          technicalScore: object.technical.score,
-          technicalNote: object.technical.note,
-          experienceScore: object.experience.score,
-          experienceNote: object.experience.note,
-          behavioralScore: object.behavioral.score,
-          behavioralNote: object.behavioral.note,
-          careerScore: object.career.score,
-          careerNote: object.career.note,
-          locationPass: object.location.pass,
-          locationNote: object.location.note,
-          overallScore: overall,
-          verdict: ineligible ? 'POOR' : verdictFor(overall),
-          strengths: object.strengths,
-          gaps: object.gaps,
-          recommendation: object.recommendation,
-          modelId,
-          promptHash: hash,
-          evaluatedAt: new Date(),
-          error: null,
-        },
-      });
+      return await this.persist(userId, jobId, object, modelId, hash);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
@@ -183,6 +154,110 @@ export class MatchingService {
         data: { status: 'FAILED', error: message },
       });
     }
+  }
+
+  async *streamEvaluate(
+    userId: string,
+    jobId: string,
+    force = false,
+  ): AsyncGenerator<ModelStreamEvent<JobMatch>> {
+    const [profile, job, existing] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId } }),
+      this.prisma.job.findUnique({ where: { id: jobId } }),
+      this.prisma.jobMatch.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+      }),
+    ]);
+
+    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+
+    const { system, prompt } = this.buildPrompt(profile, job);
+    const hash = this.promptHash(system, prompt);
+
+    if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
+      yield { type: 'done', result: existing };
+      return;
+    }
+
+    if (!(await this.claim(userId, jobId))) {
+      yield {
+        type: 'done',
+        result: await this.prisma.jobMatch.findUniqueOrThrow({
+          where: { userId_jobId: { userId, jobId } },
+        }),
+      };
+      return;
+    }
+
+    try {
+      const { partials, object, modelId } =
+        await this.ai.streamObject<Evaluation>({
+          schema: evaluationSchema,
+          context: { purpose: 'match.evaluate', userId },
+          system,
+          prompt,
+        });
+
+      for await (const partial of partials) {
+        yield { type: 'partial', data: partial };
+      }
+
+      const final = await object;
+      yield {
+        type: 'done',
+        result: await this.persist(userId, jobId, final, modelId, hash),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Chấm điểm (stream) thất bại (user=${userId} job=${jobId}): ${message}`,
+      );
+      await this.prisma.jobMatch.update({
+        where: { userId_jobId: { userId, jobId } },
+        data: { status: 'FAILED', error: message },
+      });
+      yield { type: 'error', message };
+    }
+  }
+
+  private persist(
+    userId: string,
+    jobId: string,
+    object: Evaluation,
+    modelId: string,
+    hash: string,
+  ) {
+    const ineligible = object.eligibility.verdict === 'FAIL';
+    const overall = ineligible ? 0 : computeOverall(object);
+
+    return this.prisma.jobMatch.update({
+      where: { userId_jobId: { userId, jobId } },
+      data: {
+        status: 'DONE',
+        eligibility: object.eligibility.verdict,
+        eligibilityQuote: object.eligibility.quote || null,
+        eligibilityNote: object.eligibility.note,
+        technicalScore: object.technical.score,
+        technicalNote: object.technical.note,
+        experienceScore: object.experience.score,
+        experienceNote: object.experience.note,
+        behavioralScore: object.behavioral.score,
+        behavioralNote: object.behavioral.note,
+        careerScore: object.career.score,
+        careerNote: object.career.note,
+        locationPass: object.location.pass,
+        locationNote: object.location.note,
+        overallScore: overall,
+        verdict: ineligible ? 'POOR' : verdictFor(overall),
+        strengths: object.strengths,
+        gaps: object.gaps,
+        recommendation: object.recommendation,
+        modelId,
+        promptHash: hash,
+        evaluatedAt: new Date(),
+        error: null,
+      },
+    });
   }
 
   /** Giành quyền chấm một cặp (user, job). */

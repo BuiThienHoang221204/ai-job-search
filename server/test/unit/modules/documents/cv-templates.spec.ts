@@ -31,6 +31,17 @@ const content: CvContent = {
       bullets: ['Hạch toán 400 chứng từ mỗi tháng'],
     },
   ],
+  projects: [
+    {
+      name: 'Cổng tra cứu hóa đơn',
+      role: 'Trưởng nhóm',
+      organization: 'ATOM Solution',
+      period: '2025 - nay',
+      description: 'Nền tảng thu thập và đối soát hóa đơn điện tử.',
+      bullets: ['Rút thời gian xử lý một hóa đơn từ 5 phút xuống 15 giây.'],
+      tools: ['NestJS', 'PostgreSQL'],
+    },
+  ],
   educations: [
     {
       degree: 'Cử nhân Kế toán',

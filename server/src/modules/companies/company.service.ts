@@ -26,6 +26,7 @@ import {
   pickSnippetSources,
 } from './research/review-sources.js';
 import { trimToReviewText } from './research/review-text.js';
+import type { ModelStreamEvent } from '../../common/stream-event.js';
 
 const BRIEF_TIMEOUT_MS = 120_000;
 const TTL_DAYS = 60;
@@ -152,6 +153,66 @@ export class CompanyService {
    * Tìm hiểu một công ty và lưu lại. Gọi từ worker, không từ HTTP: một lượt đi
    * qua ba câu tìm kiếm, năm trang và một lời gọi model.
    */
+  async *streamBuild(
+    company: string,
+  ): AsyncGenerator<ModelStreamEvent<BriefRecord>> {
+    const nameKey = companyKeyOf(company);
+    if (!nameKey) {
+      throw new BadRequestException(
+        `Không tìm hiểu được công ty ẩn danh: "${company}"`,
+      );
+    }
+
+    try {
+      const { sources, unreachable } = await this.collectSources(company);
+      if (sources.length === 0) {
+        this.logger.warn(`Không đọc được nguồn nào về "${company}"`);
+        yield {
+          type: 'done',
+          result: await this.save(
+            nameKey,
+            company,
+            emptyBrief(),
+            [],
+            unreachable,
+            null,
+          ),
+        };
+        return;
+      }
+
+      const { partials, object, modelId } =
+        await this.ai.streamObject<CompanyBrief>({
+          schema: companyBriefSchema,
+          context: { purpose: 'company.brief' },
+          system: BRIEF_SYSTEM,
+          prompt: buildBriefPrompt(company, sources),
+          timeoutMs: BRIEF_TIMEOUT_MS,
+        });
+
+      for await (const partial of partials) {
+        yield { type: 'partial', data: partial };
+      }
+
+      const final = await object;
+      yield {
+        type: 'done',
+        result: await this.save(
+          nameKey,
+          company,
+          final,
+          sources,
+          unreachable,
+          modelId,
+        ),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Tìm hiểu (stream) "${company}" hỏng: ${message}`);
+      yield { type: 'error', message };
+    }
+  }
+
   async build(company: string): Promise<BriefRecord> {
     const nameKey = companyKeyOf(company);
     if (!nameKey) {

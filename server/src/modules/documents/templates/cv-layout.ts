@@ -1,10 +1,11 @@
 /** Bố cục CV: mục nào đứng trước, mục nào ẩn. Tách khỏi nội dung. */
 
-/** Khoá của năm mục cố định. Thứ tự ở đây là thứ tự mặc định. */
+/** Khoá của sáu mục cố định. Thứ tự ở đây là thứ tự mặc định. */
 export const SECTION_KEYS = [
   'profile',
   'competencies',
   'experience',
+  'projects',
   'education',
   'skills',
 ] as const;

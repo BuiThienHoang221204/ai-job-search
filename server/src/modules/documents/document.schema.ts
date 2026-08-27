@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { cappedTextVi } from '../../common/model-output.js';
 
-const vn = (max: number, hint: string) =>
-  z.string().min(1).max(max).describe(`${hint} Viết bằng tiếng Việt có dấu.`);
+const vn = (max: number, hint: string) => cappedTextVi(max, hint);
 
 /** CV tailored, dịch từ 05-cv-templates.md. */
 export const cvSchema = z.object({
@@ -14,7 +14,7 @@ export const cvSchema = z.object({
       vn(160, 'Một năng lực, diễn đạt theo đúng từ ngữ tin tuyển dụng dùng.'),
     )
     .min(3)
-    .max(8),
+    .transform((items) => items.slice(0, 8)),
   experiences: z
     .array(
       z.object({
@@ -30,12 +30,58 @@ export const cvSchema = z.object({
             ),
           )
           .min(1)
-          .max(5),
+          .transform((items) => items.slice(0, 5)),
       }),
     )
-    .max(6)
     .describe(
       'Lấy TỪ kinh nghiệm có thật trong hồ sơ. Được phép viết lại cách diễn đạt và đổi thứ tự để bám yêu cầu công việc, nhưng KHÔNG được thêm công ty, chức danh hay con số không có trong hồ sơ.',
+    ),
+  projects: z
+    .array(
+      z.object({
+        name: vn(200, 'Tên dự án.'),
+        role: z
+          .string()
+          .max(120)
+          .default('')
+          .describe(
+            'Vai trò trong dự án, ví dụ "Trưởng nhóm". Để trống nếu hồ sơ không nêu.',
+          ),
+        organization: z
+          .string()
+          .max(160)
+          .default('')
+          .describe(
+            'Công ty, khách hàng, trường hoặc tổ chức. Để trống nếu là dự án cá nhân.',
+          ),
+        period: z.string().max(60).default(''),
+        description: z
+          .string()
+          .max(400)
+          .default('')
+          .describe('Dự án LÀ GÌ, một tới hai câu.'),
+        bullets: z
+          .array(
+            vn(
+              300,
+              'Một gạch đầu dòng: bạn ĐÃ LÀM GÌ và kết quả đo được nếu hồ sơ có.',
+            ),
+          )
+          .default([])
+          .transform((items) => items.slice(0, 4)),
+        tools: z
+          .array(vn(60, 'Một công cụ hoặc phương pháp đã dùng.'))
+          .default([])
+          .transform((items) => items.slice(0, 8))
+          .describe(
+            'Công cụ, phần mềm hoặc phương pháp của NGÀNH ứng viên đang làm, không mặc định là công nghệ phần mềm. Để mảng rỗng nếu hồ sơ không nêu.',
+          ),
+      }),
+    )
+    .default([])
+    .transform((items) => items.slice(0, 4))
+    .describe(
+      'Lấy TỪ dự án có thật trong hồ sơ. Chọn 3-4 dự án bám sát tin tuyển dụng nhất chứ không liệt kê hết, và KHÔNG bịa dự án mới. Dự án phải nằm ở đây, KHÔNG được viết thành một mục kinh nghiệm làm việc.',
     ),
   educations: z
     .array(
@@ -46,15 +92,18 @@ export const cvSchema = z.object({
         detail: z.string().max(300).default(''),
       }),
     )
-    .max(4),
+    .transform((items) => items.slice(0, 4)),
   skillGroups: z
     .array(
       z.object({
         label: vn(80, 'Tên nhóm kỹ năng, ví dụ "Ngôn ngữ", "Framework".'),
-        items: z.array(z.string().min(1).max(60)).min(1).max(12),
+        items: z
+          .array(vn(60, 'Một kỹ năng.'))
+          .min(1)
+          .transform((items) => items.slice(0, 12)),
       }),
     )
-    .max(6),
+    .transform((items) => items.slice(0, 6)),
 });
 
 /**
@@ -86,6 +135,20 @@ export const cvEditSchema = z.object({
       }),
     )
     .max(12)
+    .default([]),
+  projects: z
+    .array(
+      z.object({
+        name: z.string().max(200).default(''),
+        role: z.string().max(120).default(''),
+        organization: z.string().max(160).default(''),
+        period: z.string().max(60).default(''),
+        description: z.string().max(400).default(''),
+        bullets: z.array(z.string().min(1).max(300)).max(10).default([]),
+        tools: z.array(z.string().min(1).max(60)).max(20).default([]),
+      }),
+    )
+    .max(8)
     .default([]),
   educations: z
     .array(
@@ -129,7 +192,7 @@ export const coverLetterSchema = z.object({
       ),
     )
     .min(1)
-    .max(3),
+    .transform((items) => items.slice(0, 3)),
   motivation: vn(
     600,
     'Vì sao là công ty NÀY. Phải nhắc đến thứ cụ thể về công ty, không được chung chung.',
@@ -162,7 +225,7 @@ export const applicationEmailSchema = z.object({
       ),
     )
     .min(2)
-    .max(3)
+    .transform((items) => items.slice(0, 3))
     .describe(
       'Toàn bộ thân mail. Mail được đọc trên điện thoại nên tổng cộng chỉ 150-250 chữ.',
     ),
@@ -204,7 +267,7 @@ export const formAnswerSchema = z.object({
       }),
     )
     .min(2)
-    .max(5)
+    .transform((items) => items.slice(0, 5))
     .describe(
       'Nhiều phương án ở các độ dài khác nhau để người dùng chọn theo giới hạn của portal.',
     ),

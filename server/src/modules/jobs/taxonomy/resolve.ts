@@ -32,16 +32,21 @@ const REMOTE_HINTS = ['remote', 'lam viec tu xa', 'tu xa', 'work from home'];
  * trong bộ lọc của người ở tỉnh khác, còn tin không gán thì chỉ vắng mặt - sai
  * kiểu thứ hai dễ phát hiện và ít gây hại hơn.
  */
+const ALIASES: ReadonlyArray<{ name: string; code: string }> =
+  PROVINCES.flatMap((province) =>
+    [normalizeText(province.name), ...province.aliases].map((name) => ({
+      name,
+      code: province.code,
+    })),
+  ).sort((left, right) => right.name.length - left.name.length);
+
 export function resolveProvince(location: string | null): string | null {
   if (!location) return null;
   const haystack = padded(normalizeText(location));
   if (!haystack.trim()) return null;
 
-  for (const province of PROVINCES) {
-    const names = [normalizeText(province.name), ...province.aliases];
-    if (names.some((name) => haystack.includes(padded(name)))) {
-      return province.code;
-    }
+  for (const alias of ALIASES) {
+    if (haystack.includes(padded(alias.name))) return alias.code;
   }
 
   if (REMOTE_HINTS.some((hint) => haystack.includes(padded(hint)))) {

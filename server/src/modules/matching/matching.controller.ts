@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -19,6 +29,8 @@ import { ThrottleAi } from '../../common/throttle.js';
 @ApiBearerAuth()
 @Controller('matches')
 export class MatchingController {
+  private readonly logger = new Logger(MatchingController.name);
+
   constructor(
     private readonly matching: MatchingService,
     private readonly queue: QueueService,
@@ -112,6 +124,42 @@ export class MatchingController {
   @ApiOperation({
     summary: 'Đánh giá độ tương thích công việc đồng bộ ngay lập tức',
   })
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Chấm điểm và đẩy về từng phần ngay khi model viết ra (NDJSON)',
+  })
+  @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
+  @Post('evaluate-stream/:jobId')
+  async evaluateStream(
+    @CurrentUser() user: AuthUser,
+    @Param('jobId') jobId: string,
+    @Query('force') force: string | undefined,
+    @Res() response: Response,
+  ): Promise<void> {
+    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+
+    try {
+      for await (const event of this.matching.streamEvaluate(
+        user.id,
+        jobId,
+        force === 'true',
+      )) {
+        response.write(`${JSON.stringify(event)}\n`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Stream chấm điểm ${jobId} hỏng: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      response.destroy();
+      return;
+    }
+
+    response.end();
+  }
+
   @Post('evaluate-sync')
   evaluateNow(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
     return this.matching.evaluate(user.id, dto.jobId, dto.force ?? false);

@@ -44,6 +44,23 @@ const experienceEntry = (
   ].join('');
 };
 
+const projectEntry = (project: CvContent['projects'][number]): string => {
+  const meta = joinParts([project.role, project.organization]);
+  return [
+    '<article class="entry">',
+    entryHead(project.name, project.period),
+    meta ? `<div class="entry-meta">${escapeHtml(meta)}</div>` : '',
+    project.description.trim()
+      ? `<div class="entry-detail">${escapeHtml(project.description)}</div>`
+      : '',
+    bullets(project.bullets),
+    project.tools.length > 0
+      ? `<div class="entry-detail">Công cụ: ${escapeHtml(project.tools.join(', '))}</div>`
+      : '',
+    '</article>',
+  ].join('');
+};
+
 /** Một mục học vấn. */
 const educationEntry = (education: CvContent['educations'][number]): string =>
   [
@@ -67,6 +84,7 @@ export const SECTION_TITLES: Record<SectionKey, string> = {
   profile: 'Giới thiệu',
   competencies: 'Năng lực chính',
   experience: 'Kinh nghiệm',
+  projects: 'Dự án',
   education: 'Học vấn',
   skills: 'Kỹ năng',
 };
@@ -97,6 +115,7 @@ const sectionBody = (content: CvContent): Record<SectionKey, string> => ({
     : '',
   competencies: bullets(content.coreCompetencies),
   experience: content.experiences.map(experienceEntry).join(''),
+  projects: content.projects.map(projectEntry).join(''),
   education: content.educations.map(educationEntry).join(''),
   skills: content.skillGroups.map(skillRow).join(''),
 });

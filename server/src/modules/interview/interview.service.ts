@@ -10,6 +10,7 @@ import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/services/ai.service.js';
+import type { ModelStreamEvent } from '../../common/stream-event.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
@@ -141,21 +142,7 @@ export class InterviewService {
           prompt,
         });
 
-      return await this.prisma.interviewPrep.update({
-        where: { userId_jobId: { userId, jobId } },
-        data: {
-          status: 'DONE',
-          starAnswers: object.starAnswers,
-          toughQuestions: object.toughQuestions,
-          questionsToAsk: object.questionsToAsk,
-          talkingPoints: object.talkingPoints,
-          likelyProbes: object.likelyProbes,
-          modelId,
-          promptHash: hash,
-          generatedAt: new Date(),
-          error: null,
-        },
-      });
+      return await this.persist(userId, jobId, object, modelId, hash);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Soạn câu hỏi thất bại (job=${jobId}): ${message}`);
@@ -163,6 +150,99 @@ export class InterviewService {
         where: { userId_jobId: { userId, jobId } },
         data: { status: 'FAILED', error: message },
       });
+    }
+  }
+
+  private persist(
+    userId: string,
+    jobId: string,
+    object: InterviewPrepResult,
+    modelId: string,
+    hash: string,
+  ) {
+    return this.prisma.interviewPrep.update({
+      where: { userId_jobId: { userId, jobId } },
+      data: {
+        status: 'DONE',
+        starAnswers: object.starAnswers,
+        toughQuestions: object.toughQuestions,
+        questionsToAsk: object.questionsToAsk,
+        talkingPoints: object.talkingPoints,
+        likelyProbes: object.likelyProbes,
+        modelId,
+        promptHash: hash,
+        generatedAt: new Date(),
+        error: null,
+      },
+    });
+  }
+
+  async *streamGenerate(
+    userId: string,
+    jobId: string,
+    force = false,
+  ): AsyncGenerator<ModelStreamEvent<InterviewPrep>> {
+    const [profile, job, match, existing] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId } }),
+      this.prisma.job.findUnique({ where: { id: jobId } }),
+      this.prisma.jobMatch.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+      }),
+      this.prisma.interviewPrep.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+      }),
+    ]);
+
+    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+
+    const { system, prompt, skillHash } = this.buildPrompt(profile, job, match);
+    const hash = createHash('sha256')
+      .update(skillHash)
+      .update(profile ? JSON.stringify(profile) : 'no-profile')
+      .update(job.description)
+      .update(match?.gaps.join('|') ?? '')
+      .digest('hex')
+      .slice(0, 32);
+
+    if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
+      yield { type: 'done', result: existing };
+      return;
+    }
+
+    await this.prisma.interviewPrep.upsert({
+      where: { userId_jobId: { userId, jobId } },
+      create: { userId, jobId, status: 'RUNNING' },
+      update: { status: 'RUNNING', error: null },
+    });
+
+    try {
+      const { partials, object, modelId } =
+        await this.ai.streamObject<InterviewPrepResult>({
+          schema: interviewPrepSchema,
+          context: { purpose: 'interview.prep', userId },
+          system,
+          prompt,
+        });
+
+      for await (const partial of partials) {
+        yield { type: 'partial', data: partial };
+      }
+
+      const final = await object;
+      yield {
+        type: 'done',
+        result: await this.persist(userId, jobId, final, modelId, hash),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Soạn câu hỏi (stream) thất bại (job=${jobId}): ${message}`,
+      );
+      await this.prisma.interviewPrep.update({
+        where: { userId_jobId: { userId, jobId } },
+        data: { status: 'FAILED', error: message },
+      });
+      yield { type: 'error', message };
     }
   }
 

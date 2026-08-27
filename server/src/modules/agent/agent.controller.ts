@@ -58,7 +58,7 @@ export class AgentController {
   @ApiParam({ name: 'id', description: 'ID của lượt chạy agent' })
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.agent.get(user.id, id);
+    return this.agent.detail(user.id, id);
   }
 
   /**

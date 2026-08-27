@@ -25,6 +25,24 @@ import { PROVINCES, REMOTE_CODE } from './taxonomy/provinces.js';
 import { normalizeText } from './taxonomy/resolve.js';
 import type { CreateJobDto, JobSort, ListJobsQueryDto } from './job.dto.js';
 
+const MATCH_STATE_FIELDS = {
+  status: true,
+  overallScore: true,
+  verdict: true,
+} satisfies Prisma.JobMatchSelect;
+
+const MATCH_DETAIL_FIELDS = {
+  ...MATCH_STATE_FIELDS,
+  jobId: true,
+  eligibility: true,
+  eligibilityNote: true,
+  technicalScore: true,
+  experienceScore: true,
+  strengths: true,
+  gaps: true,
+  evaluatedAt: true,
+} satisfies Prisma.JobMatchSelect;
+
 @Injectable()
 export class JobsService {
   constructor(
@@ -80,12 +98,31 @@ export class JobsService {
     const { matches, ...rest } = job;
     return { ...rest, match: matches[0] ?? null };
   }
+  private withMatchDetail<
+    T extends {
+      matches: { evaluatedAt: Date | null }[];
+    },
+  >(job: T, profileUpdatedAt: Date | null) {
+    const { matches, ...rest } = job;
+    const match = matches[0];
+    if (!match) return { ...rest, match: null };
+
+    const stale =
+      profileUpdatedAt !== null &&
+      match.evaluatedAt !== null &&
+      match.evaluatedAt < profileUpdatedAt;
+    return { ...rest, match: { ...match, stale } };
+  }
+  private async profileUpdatedAt(userId: string): Promise<Date | null> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { updatedAt: true },
+    });
+    return profile?.updatedAt ?? null;
+  }
   private readonly relations = (userId: string) => ({
     saves: { where: { userId }, select: { id: true } },
-    matches: {
-      where: { userId },
-      select: { status: true, overallScore: true, verdict: true },
-    },
+    matches: { where: { userId }, select: MATCH_DETAIL_FIELDS },
     requirements: true,
   });
   private async matchProfileOf(userId: string): Promise<MatchProfile | null> {
@@ -195,10 +232,7 @@ export class JobsService {
   private readonly cardSelect = (userId: string) =>
     ({
       ...jobCardSelect(userId),
-      matches: {
-        where: { userId },
-        select: { status: true, overallScore: true, verdict: true },
-      },
+      matches: { where: { userId }, select: MATCH_STATE_FIELDS },
       requirements: true,
     }) satisfies Prisma.JobSelect;
 
@@ -318,17 +352,18 @@ export class JobsService {
   }
 
   async get(id: string, userId: string) {
-    const [job, skills, dictionary] = await Promise.all([
+    const [job, skills, dictionary, profileUpdatedAt] = await Promise.all([
       this.prisma.job.findUnique({
         where: { id },
         include: this.relations(userId),
       }),
       this.matchProfileOf(userId),
       this.dictionary.lookup(),
+      this.profileUpdatedAt(userId),
     ]);
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
     return this.withSystemMatch(
-      this.withMatchState(this.withSavedFlag(job)),
+      this.withMatchDetail(this.withSavedFlag(job), profileUpdatedAt),
       skills,
       dictionary,
     );

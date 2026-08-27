@@ -513,10 +513,9 @@ Nên `openrouter.ts` có hàm `declaresStructuredOutput`, `opencode.ts` không c
 
 `kilo` **nhận request không cần API key** (đã đo: không header vẫn 200), nên nó là mắt xích cứu hộ khi hai lõi kia cạn hạn mức. Nhưng nó là **mắt xích CUỐI, không phải lõi chính**: cả 14 model free của nó đều tự khai `mayTrainOnYourPrompts: true`, mà app thì gửi đi CV người thật.
 
-Hai ràng buộc về tiền, đừng nới:
+Ràng buộc về tiền, đừng nới:
 
 - **`resolve()` KHÔNG bao giờ tự thay thế model khác.** Bản cũ không tìm thấy model được yêu cầu thì lấy `models[0]`. Với OpenCode toàn free thì vô hại; OpenRouter có 413 model gồm cả loại đắt, nên gõ sai một ký tự trong `.env` sẽ thành một hoá đơn chạy theo cron.
-- **`AI_ALLOW_PAID_MODELS` mặc định `false`**, và model không khai giá bị coi là **trả tiền**.
 
 ## Đánh giá chất lượng model
 
@@ -561,6 +560,98 @@ docker run -d --name ai-job-server --network <mạng-có-postgres> \
 - **`workspaces/` phải gắn volume.** Đó là nơi ghi file `.tex` của người dùng; không gắn thì dữ liệu mất theo container.
 - **`dotenv` nằm ở `dependencies`, không phải `devDependencies`**, vì `main.ts` import nó lúc chạy và image cài bằng `pnpm install --prod`.
 
+### Gateway `omniroute` — service riêng, KHÔNG cài vào `package.json`
+
+Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `LATEX_SERVICE_URL`.
+
+**Đừng `pnpm add omniroute`.** Gói đó là một app Next.js đầy đủ — **792MB giải nén, 21.765 file, 74 dependency** — mà cài vào rồi nó **vẫn** phải chạy như tiến trình riêng nghe cổng riêng. Trả toàn bộ cái giá, không nhận lại gì. Ảnh Docker chính thức là 483MB nén.
+
+- **Máy dev:** `npx -y omniroute@3.8.49`, rồi `OMNIROUTE_BASE_URL=http://localhost:20128/v1`.
+- **VPS:** service `omniroute` trong `docker-compose.yml`, và `OMNIROUTE_BASE_URL=http://omniroute:20128/v1` — **tên service**, không phải `localhost`. Đặt `localhost` trong container app là trỏ vào chính nó.
+
+**`expose`, tuyệt đối không `ports`.** Đã đo: `/v1/*` của gateway **không kiểm tra key** (không header, `Bearer public`, chuỗi bừa — đều 200), chỉ `/api/*` quản trị mới trả 401. Tức phần TIÊU hạn mức là phần không có cổng chặn. Mở ra internet là tặng cả thiên hạ một gateway model đứng tên mình.
+
+**Healthcheck dùng `/v1/models`** vì đó là endpoint duy nhất trả 200 mà không cần đăng nhập — `/api/health` của nó trả 401.
+
+**Cố ý KHÔNG có `depends_on` từ `app`**, cùng lý do với `latex` và `pdf`: gateway chết thì `catalogFor()` ném `ModelUnavailableError`, và đó đúng là một trong bốn lý do `ModelChain` bỏ qua mắt xích để đi tiếp. Nên miễn là chuỗi dự phòng còn giữ vài mắt xích `opencode/...` gọi thẳng, gateway sập **không** kéo app sập. Đừng buộc app chờ nó khoẻ mới khởi động.
+
+Ba biến `OMNIROUTE_JWT_SECRET`, `OMNIROUTE_KEY_SECRET`, `OMNIROUTE_PASSWORD` **không đi vào container app**. Chúng là giá trị thay thế `${...}` lúc đọc `docker-compose.yml`, nên phải nằm trong file truyền qua `--env-file` (`.env.production`), không phải trong `.env` mà `env_file:` nạp. Sinh lại bằng `openssl rand -base64 48` và `openssl rand -hex 32`; `INITIAL_PASSWORD` mặc định của image là `CHANGEME`.
+
+Ghim tag `3.8.49`, **đừng `:latest`** — repo đó push mỗi ngày.
+
+### Kết quả chảy dần: năm đường stream, và điều kiện để thêm đường thứ sáu
+
+| Route | Tác vụ | Chờ trước | Tới nội dung đầu |
+|---|---|---|---|
+| `POST /matches/evaluate-stream/:jobId` | chấm điểm | 13,2s | **6,2s** |
+| `POST /documents/:id/generate-stream` | sinh CV | 11,7s | **3,3s** |
+| `POST /profile-drafts/:id/synthesize-stream` | đọc CV | 21s | — |
+| `POST /companies/brief/by-job/:jobId/stream` | tìm hiểu công ty | 10,1s | — |
+| `POST /interview/prep-stream/:jobId` | soạn câu hỏi | 42s | — |
+
+Tất cả trả **NDJSON**, mỗi dòng một `ModelStreamEvent` (`src/common/stream-event.ts`): `partial` / `done` / `error`. Bên giao diện có đúng MỘT bộ đọc dùng chung — `lib/model-stream.ts`.
+
+**Điều kiện để một tác vụ đáng có đường stream: phải có NGƯỜI ĐANG CHỜ.** Đã suýt làm sai một lần: `interview.prep` chậm nhất (42s) nên bị xếp đầu bảng, nhưng nó được xếp việc từ `applications.service` **khi người dùng chuyển đơn sang trạng thái Phỏng vấn** — chạy nền, không ai nhìn. Đường stream của nó giờ chỉ phục vụ nút "thử lại". `job.requirements` và `skill.canonicalize` chạy trong cron nên KHÔNG có và không nên có.
+
+**Ba cái bẫy đã sập khi triển khai:**
+
+1. **Sinh hai lần.** `POST /documents/cv` và `POST /profile-drafts/cv` vừa tạo bản ghi **vừa xếp hàng đợi**. Gọi stream sau đó là hai lượt gọi model cho một lần bấm, và hai tiến trình cùng ghi một bản ghi. Cả hai nay nhận cờ `stream` để bỏ bước xếp hàng đợi.
+
+2. **`ReconcileService` chỉ dọn `agentRun`.** Rời trang giữa lúc stream thì `profileDraft`/`document` kẹt ở `RUNNING` vĩnh viễn — không có gì gỡ, và màn hình treo ở "Đang đọc CV" mãi mãi. Vá bằng `response.on('close')` → xếp lại vào hàng đợi. `match.evaluate` không dính vì `claim()` đã có `STALE_RUNNING_MS`.
+
+3. **Streaming KHÔNG có chuỗi model dự phòng.** Token đầu tiên rời đi là hết đường lùi. Nên mọi màn hình đều giữ đường hàng đợi làm lưới an toàn: stream hỏng thì rơi về `evaluate`/`refreshForJob` vốn CÓ chuỗi dự phòng. **Đừng gỡ nhánh đó.**
+
+**`upskill` cố ý KHÔNG stream.** Nó có hai lời gọi nối tiếp, nên rẻ hơn nhiều là **ghi kết quả bước 1 xuống database ngay khi xong** (`hardGaps`, `synthesisedGaps` vốn đã là cột sẵn có, không cần migration) rồi để vòng hỏi 2 giây của giao diện đọc lên. Người dùng thấy "Bước 1/2 — đã tìm ra N khoảng trống" trong lúc bước 2 còn chạy.
+
+### Chấm điểm theo kiểu chảy dần — thí điểm cho `match.evaluate`
+
+`POST /api/matches/evaluate-stream/:jobId` đẩy về **NDJSON**, mỗi dòng một sự kiện: `partial` (bản object dang dở), `done` (bản ghi `JobMatch` đã lưu), `error`.
+
+Đo trên một tin thật: **174 sự kiện, nội dung đầu tiên về sau 6,2 giây, xong ở 13,2 giây** — trong khi đường `generateObject` cũ để màn hình trống suốt 13,2 giây. Các chiều điểm hiện dần: `eligibility` (6,2s) → `technical` (7,7s) → `experience` (8,6s) → `behavioral` (9,4s) → `career` (10,2s) → `strengths` (11,0s).
+
+**6,2 giây không rút ngắn được nữa** — đó là thời gian tới token đầu tiên của bể free, đã đo là ~4 giây chi phí cố định mỗi lượt gọi bất kể prompt dài ngắn.
+
+**Cache vẫn đi trước:** trùng `promptHash` thì trả đúng một sự kiện `done` trong ~65ms, không gọi model.
+
+**Streaming ĐÁNH ĐỔI chuỗi model dự phòng.** `AiService.streamObject` chọn mắt xích một lần rồi đi tới cùng - token đầu tiên rời đi là hết đường lùi, cùng lý do đã ghi cho `streamText`. Nên giao diện giữ đường cũ làm dự phòng: `streamMatchEvaluation` hỏng thì `job-detail-view` tự động rơi về `matchesService.evaluate` (hàng đợi, CÓ chuỗi dự phòng). Đừng gỡ nhánh đó đi.
+
+**Chỉ nên nhân rộng cho tác vụ có người ngồi chờ.** `job.requirements` và `skill.canonicalize` chạy trong cron - stream ở đó chỉ thêm phức tạp mà không ai thấy. Danh sách đáng làm tiếp, theo thời gian chờ: `upskill` (47s), `interview.prep` (42s), `profile.synthesize` (21s), `document.cv`/`coverLetter` (11,7s), `company.brief` (10,1s).
+
+### Địa điểm: so MÃ TỈNH, không so chuỗi
+
+`checkLocation` trong `requirement-match.ts` dùng `resolveProvince`, không dùng `trim().toLowerCase()`. Lý do đo được: cùng một thành phố xuất hiện sáu cách viết trong dữ liệu thật (`Hà Nội` 94 tin, `Hanoi` 38, `Ha Noi` 26; `Ho Chi Minh City` 83, `Ho Chi Minh` 55, `Hồ Chí Minh` 52), còn hồ sơ thì ghi kèm quận (`Quận Tân Bình, Hồ Chí Minh`).
+
+Phép so chuỗi cũ khớp **0/520 tin với 8 trong 12 hồ sơ** có địa chỉ. Sau khi đổi:
+
+```
+ketoan@   (Tân Bình, HCM)    0 → 254/520
+demo@     (Hồ Chí Minh)     52 → 254/520
+mkt-fresher@ (Hà Nội)       94 → 180/520
+```
+
+`resolveProvince` cũng biết các tỉnh **đã sáp nhập 1/7/2025**, nên `Bình Dương` và `TP.HCM` là một nơi — thứ so chuỗi không bao giờ thấy được.
+
+**Một tỉnh từng NUỐT MẤT ba tỉnh khác.** `Nghệ An` khai alias `vinh` (thành phố Vinh), và `' vinh phuc '` thì chứa `' vinh '`. Bản cũ duyệt `PROVINCES` theo thứ tự khai báo nên Nghệ An thắng: **Vĩnh Phúc, Trà Vinh và Vĩnh Long đều rơi về Nghệ An**. Nay `resolveProvince` khớp alias DÀI trước, không phụ thuộc thứ tự mảng. `test/unit/modules/jobs/province-alias-shadow.spec.ts` canh điều này bằng một phép kiểm tổng quát: mọi alias của mọi tỉnh phải tự giải về đúng tỉnh của nó.
+
+Lỗi đó ảnh hưởng **cả bộ lọc tỉnh/thành trên trang danh sách**, không riêng khối đối chiếu.
+
+**`willingToRelocate` cho ĐẠT nhưng vẫn nói ra là khác tỉnh.** Bản cũ thoát sớm ngay trong `checkLocation`, nên người đánh dấu sẵn sàng chuyển chỗ thấy chấm xanh mà không biết công ty ở đâu — tin ở Cà Mau trông y hệt tin trong thành phố.
+
+**`LOCATION` cố ý KHÔNG vào mẫu số** (`SCORED_KINDS` chỉ có `SKILL`, `NICE`, `YEARS`). Nhét vào thì người ở tỉnh khác thấy "khớp 60%" mà không biết 40% mất đi là do thiếu kỹ năng hay do ở xa. Hai câu hỏi khác nhau thì phải có hai câu trả lời riêng.
+
+### Đường HTTP của agent: `detail()`, KHÔNG phải `get()`
+
+`GET /api/agent/:id` bị giao diện hỏi lại **mỗi 2 giây suốt cả lượt chạy** (p90 của `agent.apply` là 229 giây). Nên nó dùng `AgentService.detail()` chứ không dùng `get()`:
+
+- **bỏ hẳn cột `messages`** — hội thoại thô để chạy tiếp một lượt. `interview-turn` và `agent-runner` cần nó, giao diện thì chưa bao giờ đọc.
+- **cắt mọi chuỗi dài trong `toolResults` còn 500 ký tự** (`trim-output.ts`). `lib/agent-steps.ts` bên giao diện chỉ đọc `error`, `ok`, `reason`, `saved`, `critique`, `asked`, `pages`, `file`, `path` và `results.length` — nó không bao giờ vẽ `content` hay `text`, mà đó đúng là hai trường nặng nhất (`read_skill_reference` ~8.000 ký tự, `fetch_url` tới 20.000).
+
+Đo trên 5 lượt `apply` thật: **73.957 → 3.569 ký tự mỗi lần hỏi, giảm 95%**.
+
+**`get()` phải giữ nguyên `messages`** — cắt ở đó là làm hỏng nhánh chạy tiếp của phỏng vấn, và lỗi sẽ hiện ra dưới dạng agent quên sạch bối cảnh chứ không phải một exception.
+
+**Cắt độ dài chứ không lọc theo danh sách khoá.** Lọc khoá thì lần sau giao diện muốn thêm một trường sẽ im lặng không nhận được gì; cắt độ dài giữ nguyên hình dạng dữ liệu. `trimToolOutput` giữ nguyên độ dài mảng vì giao diện đọc `results.length`, và có test đơn vị ghim điều đó.
+
 ### Hai probe, trả lời hai câu hỏi khác nhau
 
 | Route | Câu hỏi | Khi trả lỗi thì làm gì |
@@ -569,6 +660,45 @@ docker run -d --name ai-job-server --network <mạng-có-postgres> \
 | `GET /api/ready` | Có nhận việc được không? | Rút khỏi load balancer, **đừng** khởi động lại |
 
 `HEALTHCHECK` trong image cố ý dùng `/api/health` chứ không phải `/api/ready`: nếu healthcheck của container đọc readiness thì một lần database chập chờn sẽ khiến Docker khởi động lại một tiến trình hoàn toàn khoẻ mạnh — làm sự cố nặng thêm thay vì chỉ ngừng nhận request.
+
+### Đổi `schema.prisma`: KHÔNG dùng `migrate dev`
+
+> **Cập nhật 2026-08-27.** Bảng `job_embeddings` và `profile_embeddings` đã bị xoá (`20260827093000_drop_unused_embeddings`) vì không một dòng mã nào đọc chúng. Index HNSW duy nhất của database đi theo bảng, nên **hiện không còn đối tượng nào nằm ngoài `schema.prisma`**: `migrate diff --from-url` giữa database và schema trả về rỗng. Cái bẫy mô tả dưới đây tạm thời không nổ được — nhưng nó sẽ quay lại nguyên vẹn ngay khi có ai thêm lại một index vector, nên cách làm ở cuối mục vẫn là cách làm chuẩn.
+
+Index HNSW của pgvector (`job_embeddings_embedding_idx`) được tạo bằng SQL viết tay, vì Prisma không có kiểu `vector`. Nên nó **không tồn tại trong `schema.prisma`**, và mọi lần `prisma migrate dev` so schema với DATABASE đều coi nó là dư thừa rồi sinh ra:
+
+```sql
+DROP INDEX "job_embeddings_embedding_idx";
+```
+
+Chín migration đầu gỡ dòng đó bằng tay. Migration thứ mười (`20260825035410_add_viewed_status`) để lọt, và **index bị xoá thật từ 2026-08-25 tới 2026-08-26**. Lỗi này im lặng hoàn toàn: truy vấn ngữ nghĩa vẫn trả đúng kết quả, chỉ quét toàn bảng thay vì dùng index. Không log, không exception, không có gì đỏ.
+
+**Cách né hẳn — diff HAI FILE SCHEMA, không cho database tham gia:**
+
+```bash
+cp prisma/schema.prisma /tmp/schema-before.prisma
+# sửa prisma/schema.prisma
+mkdir -p prisma/migrations/2026MMDDHHMMSS_ten_migration
+npx prisma migrate diff --from-schema /tmp/schema-before.prisma \
+  --to-schema prisma/schema.prisma --script \
+  > prisma/migrations/2026MMDDHHMMSS_ten_migration/migration.sql
+npx prisma migrate deploy
+```
+
+Ba migration làm theo cách này đều `grep -c DROP` ra **0** mà không phải sửa tay dòng nào. Cờ là `--from-schema`; `--from-schema-datamodel` đã bị bỏ ở Prisma 7.
+
+**`test/unit/prisma/vector-index.spec.ts` là máy canh, đừng gỡ.** Với mỗi index vector, nó đòi câu lệnh CUỐI CÙNG nhắc tới index đó (xét theo thứ tự tên thư mục migration) phải là `CREATE`. Một `DROP` đã áp rồi vẫn hợp lệ miễn là có migration sau dựng lại; một `DROP` mới thêm vào cuối lịch sử thì đỏ ngay. Đã thử làm nó đỏ để chắc là nó biết đỏ.
+
+Từ 2026-08-27 nó canh một tập RỖNG: `DROP TABLE "job_embeddings"` không khớp mẫu `DROP INDEX` nên lịch sử của `job_embeddings_embedding_idx` vẫn kết thúc bằng `CREATE`, và test xanh một cách vô nghĩa. Giữ lại vì nó tự động canh lại ngay khi index vector đầu tiên xuất hiện trở lại — không phải vì nó đang bảo vệ thứ gì.
+
+Kiểm nhanh trên database đang chạy:
+
+```sql
+select indexname, tablename from pg_indexes
+where indexdef ilike '%hnsw%' or indexdef ilike '%ivfflat%';
+```
+
+Bảng `canonical_skills` có cột `vector(768)` nhưng **chưa có index** — khi thêm, nó thành nạn nhân thứ hai của cùng cái bẫy, và test trên sẽ tự canh luôn.
 
 ### Nâng cấp một database đã chạy từ trước
 

@@ -1,5 +1,6 @@
 import { kilo } from './kilo.js';
 import { opencode } from './opencode.js';
+import { omniroute } from './omniroute.js';
 import { openrouter } from './openrouter.js';
 import type { ProviderDescriptor } from './types.js';
 
@@ -10,6 +11,7 @@ import type { ProviderDescriptor } from './types.js';
 export const PROVIDERS: readonly ProviderDescriptor[] = [
   opencode,
   openrouter,
+  omniroute,
   kilo,
 ];
 

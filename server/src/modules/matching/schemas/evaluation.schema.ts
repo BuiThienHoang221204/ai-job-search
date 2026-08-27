@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { boundedList, cappedTextVi } from '../../../common/model-output.js';
 
 /**
  * Mô tả được gửi kèm JSON schema lên API, nên đây là nơi hiệu quả nhất để nêu
@@ -14,13 +15,10 @@ const score = z
     'Điểm trên thang 0-100. Ví dụ hợp lệ: 85, 62, 40. TUYỆT ĐỐI không dùng thang 0-5 hay 0-10.',
   );
 
-const note = z
-  .string()
-  .min(1)
-  .max(600)
-  .describe(
-    'Giải thích ngắn bằng tiếng Việt có dấu, 1-2 câu, nêu bằng chứng cụ thể từ hồ sơ và tin tuyển dụng.',
-  );
+const note = cappedTextVi(
+  600,
+  'Giải thích ngắn bằng tiếng Việt có dấu, 1-2 câu, nêu bằng chứng cụ thể từ hồ sơ và tin tuyển dụng.',
+).default('');
 
 /**
  * Cấu trúc kết quả chấm điểm, dịch nguyên từ
@@ -34,7 +32,10 @@ export const evaluationSchema = z.object({
      * Trích nguyên văn câu chữ trong tin tuyển dụng dẫn tới kết luận. Để
      * trống nếu tin không nói gì về quốc tịch / quyền làm việc.
      */
-    quote: z.string().max(600).default(''),
+    quote: cappedTextVi(
+      600,
+      'Trích nguyên văn câu chữ trong tin về quốc tịch hoặc quyền làm việc.',
+    ).default(''),
     note: note,
   }),
 
@@ -44,28 +45,30 @@ export const evaluationSchema = z.object({
   career: z.object({ score, note }),
 
   /** Location là PASS/FAIL, không tính vào điểm có trọng số. */
-  location: z.object({ pass: z.boolean(), note: note }),
+  location: z.object({
+    pass: z.boolean().catch(false).default(false),
+    note: note,
+  }),
 
   strengths: z
-    .array(z.string().min(1).max(300))
+    .array(cappedTextVi(300, 'Một thế mạnh, viết thành câu hoàn chỉnh.'))
     .min(1)
-    .max(6)
     .describe(
       '2-4 thế mạnh cụ thể của ứng viên cho ĐÚNG vị trí này, mỗi ý một câu tiếng Việt hoàn chỉnh.',
-    ),
-  gaps: z
-    .array(z.string().min(1).max(300))
-    .max(6)
+    )
+    .transform((items) => items.filter((t) => t.length > 0).slice(0, 6)),
+  gaps: boundedList(
+    cappedTextVi(300, 'Một khoảng trống, viết thành câu hoàn chỉnh.'),
+    6,
+  )
     .describe(
       'Các yêu cầu của tin tuyển dụng mà hồ sơ chưa đáp ứng, mỗi ý một câu tiếng Việt hoàn chỉnh.',
-    ),
-  recommendation: z
-    .string()
-    .min(1)
-    .max(800)
-    .describe(
-      '1-2 câu tiếng Việt: nên ứng tuyển, nên bỏ qua, hay ứng tuyển kèm lưu ý gì.',
-    ),
+    )
+    .default([]),
+  recommendation: cappedTextVi(
+    800,
+    '1-2 câu tiếng Việt: nên ứng tuyển, nên bỏ qua, hay ứng tuyển kèm lưu ý gì.',
+  ).default(''),
 });
 
 export type Evaluation = z.infer<typeof evaluationSchema>;

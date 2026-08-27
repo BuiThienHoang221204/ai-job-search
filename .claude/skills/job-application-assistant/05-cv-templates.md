@@ -175,6 +175,16 @@ Three honest fixes, in order of preference:
 
 **Prepare the interview answer too.** If a long span against little visible output survives these fixes, the question is coming. The candidate needs a ready two-part answer — what actually filled the time, and what the outcome was — recorded in their interview prep rather than improvised in the room.
 
+### Projects
+
+A project entry is not a job entry. Keep project work in the Projects section even when it happened at an employer already listed under Experience. An ATS that reads three projects as three employers makes the candidate look like a job-hopper.
+
+- **Name** the project the way the candidate's own field names things, not the way a software team would.
+- **Role and organisation**: state the candidate's role, and the client, employer, school or body the work was for. Leave the organisation empty for personal projects rather than inventing an affiliation.
+- **Description** answers *what the project was*, in one or two sentences. **Bullets** answer *what the candidate did* and what came of it, carrying figures wherever the profile supplies them.
+- **Tools** means whatever the candidate's own field counts as tools: Excel, Bloomberg and SAP in finance; SPSS or R in research; AutoCAD or Revit in construction; equipment and protocols in clinical work. Do not default to software stacks. Leave empty when the profile names none.
+- Select three or four projects that answer the posting, ordered by how well they answer it. Do not list everything the profile holds, and do not repeat under Projects what already appears under Experience.
+
 ### Handling Employment Gaps (Best Practice)
 If there is a gap in your employment history:
 - The gap should be explained matter-of-factly if needed
@@ -297,15 +307,17 @@ The section order varies by role type:
 1. Profile statement / elevator pitch
 2. Core competencies / Skills
 3. Professional Experience (reverse chronological)
-4. Education (reverse chronological)
-5. Languages
-6. Publications & Awards
-7. References
+4. Projects (most relevant first)
+5. Education (reverse chronological)
+6. Languages
+7. Publications & Awards
+8. References
 
 **For domain-specific / specialist roles:**
 1. Profile statement / elevator pitch
 2. Core competencies / Skills
 3. Education (reverse chronological) - credentials are a key qualifier
 4. Professional Experience (reverse chronological)
-5. Publications & Awards
-6. References
+5. Projects (most relevant first)
+6. Publications & Awards
+7. References

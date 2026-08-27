@@ -168,6 +168,10 @@ export class ScraperService {
     const [users, scored, jobs] = await Promise.all([
       this.prisma.profile.findMany({
         where: { completion: { gte: MIN_COMPLETION_TO_SCORE } },
+        orderBy: [
+          { lastFanOutAt: { sort: 'asc', nulls: 'first' } },
+          { userId: 'asc' },
+        ],
         select: {
           userId: true,
           completion: true,
@@ -203,8 +207,16 @@ export class ScraperService {
       plan.targets,
     );
 
+    const served = [...new Set(plan.targets.map((target) => target.userId))];
+    if (served.length) {
+      await this.prisma.profile.updateMany({
+        where: { userId: { in: served } },
+        data: { lastFanOutAt: new Date() },
+      });
+    }
+
     this.logger.log(
-      `Xếp hàng ${queued}/${plan.targets.length} lượt chấm cho ${users.length} hồ sơ` +
+      `Xếp hàng ${queued}/${plan.targets.length} lượt chấm cho ${served.length}/${users.length} hồ sơ` +
         (plan.dropped ? `; BỎ ${plan.dropped} lượt ngoài hạn ngạch` : '') +
         (plan.skippedThinProfiles
           ? `; bỏ qua ${plan.skippedThinProfiles} hồ sơ quá sơ sài`

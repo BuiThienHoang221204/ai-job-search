@@ -227,4 +227,64 @@ describe('planFanOut', () => {
     const served = new Set(result.targets.map((t) => t.userId));
     expect(served.size).toBe(120);
   });
+
+  const overCap = () =>
+    Array.from({ length: MAX_EVALUATIONS_PER_RUN + 200 }, (_, i) => ({
+      id: `u${String(i).padStart(4, '0')}`,
+      completion: 100,
+      skills: ['devops'],
+    }));
+
+  test('vượt trần chung thì mỗi người nhiều nhất MỘT tin, dù PER_USER_LIMIT là 5', () => {
+    const result = planFanOut({
+      jobs: jobs(...Array.from({ length: 20 }, (_, i) => `j${i}`)),
+      users: overCap(),
+      alreadyScored: [],
+    });
+
+    const perUser = new Map<string, number>();
+    for (const target of result.targets) {
+      perUser.set(target.userId, (perUser.get(target.userId) ?? 0) + 1);
+    }
+
+    expect(Math.max(...perUser.values())).toBe(1);
+    expect(PER_USER_LIMIT).toBeGreaterThan(1);
+  });
+
+  test('vượt trần chung thì đúng những người ĐỨNG ĐẦU danh sách được phục vụ', () => {
+    const ordered = overCap();
+
+    const result = planFanOut({
+      jobs: jobs(...Array.from({ length: 20 }, (_, i) => `j${i}`)),
+      users: ordered,
+      alreadyScored: [],
+    });
+
+    const served = new Set(result.targets.map((t) => t.userId));
+    const expected = ordered
+      .slice(0, MAX_EVALUATIONS_PER_RUN)
+      .map((user) => user.id);
+
+    expect(served.size).toBe(MAX_EVALUATIONS_PER_RUN);
+    expect([...served].sort()).toEqual(expected.sort());
+  });
+
+  test('đảo thứ tự đầu vào thì đảo luôn người được phục vụ', () => {
+    const ordered = overCap();
+    const reversed = [...ordered].reverse();
+    const args = {
+      jobs: jobs(...Array.from({ length: 20 }, (_, i) => `j${i}`)),
+      alreadyScored: [],
+    };
+
+    const first = new Set(
+      planFanOut({ ...args, users: ordered }).targets.map((t) => t.userId),
+    );
+    const second = new Set(
+      planFanOut({ ...args, users: reversed }).targets.map((t) => t.userId),
+    );
+
+    const overlap = [...first].filter((id) => second.has(id));
+    expect(overlap).toHaveLength(2 * MAX_EVALUATIONS_PER_RUN - ordered.length);
+  });
 });
