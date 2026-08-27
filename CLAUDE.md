@@ -139,6 +139,33 @@ Giao diện sửa bằng FORM chứ không sửa thẳng trên bản xem trướ
 
 **`escapeHtml` là ranh giới an toàn, gắt hơn `escapeLatex` một bậc.** Bản HTML không chỉ đi vào PDF mà còn được nhúng vào iframe trong phiên đăng nhập của người dùng, trong khi nội dung do model sinh từ mô tả công việc người lạ đăng lên. Route `/preview` gửi kèm `Content-Security-Policy: sandbox` làm lớp chặn thứ hai.
 
+### Bấm vào bản xem trước — vì sao `allow-same-origin` được bật còn `allow-scripts` thì không
+
+`CvPreview` khai `sandbox="allow-same-origin"`. Đây là một nới lỏng CÓ CHỦ Ý so với `sandbox=""` trước đây, và ranh giới thật sự vẫn nguyên vì hai cờ này làm hai việc khác nhau:
+
+| Cờ | Cho phép | Trạng thái |
+|---|---|---|
+| `allow-scripts` | script BÊN TRONG iframe chạy được | **TẮT** — đây mới là lớp chặn XSS |
+| `allow-same-origin` | trang CHA đọc được DOM của iframe | BẬT |
+
+Không có `allow-scripts` thì `<script>` và `onerror=` trong nội dung do model sinh đều chết cứng. `allow-same-origin` chỉ cho code của chính app đọc DOM từ bên ngoài — thứ cần để biết người dùng bấm vào mục nào và để cuộn tới đúng mục.
+
+**Bật CẢ HAI cùng lúc mới là tổ hợp nguy hiểm**: lúc đó trang bên trong tự gỡ được sandbox của chính nó. Đừng thêm `allow-scripts` vào đây.
+
+Chốt chặn thứ hai nằm trong `templates/html.ts`: tài liệu tự mang `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`, nên kể cả có ai thêm `allow-scripts` ở bản sau thì script vẫn không chạy. Có test đơn vị ghim cả hai điều này.
+
+**Mỗi mục mang `data-section="<khoá>"`** (`templates/body.ts`). Đó là toàn bộ thứ cần để nối hai chiều: bấm vào bản xem trước thì `closest('[data-section]')` cho ra khoá mục, còn mở một mục trong ô sửa thì `offsetTop` của chính phần tử đó nhân với `scale` cho ra chỗ phải cuộn tới. Mục bị ẩn không được vẽ nên cũng không có mỏ neo — đúng với quy tắc "mục ẩn không lọt vào tầng chữ".
+
+**KHÔNG cần backend tính toạ độ.** Đã từng định đi hướng đó và nó sai: server không hề dàn trang, chiều cao một mục phụ thuộc font và ngắt dòng nên chỉ trình duyệt dựng xong mới biết. Ai muốn "đồng bộ bản xem trước" thì dùng `data-section`, đừng thêm API trả vị trí.
+
+**Hai cái bẫy đã sập khi nối hai chiều, cả hai đều IM LẶNG — không lỗi, không log, tính năng chỉ đơn giản là không chạy:**
+
+1. **`instanceof` không đi qua được ranh giới realm.** `event.target` của một click trong iframe là phần tử thuộc `window` CỦA IFRAME, nên `target instanceof Element` so với `Element` của trang cha và luôn trả `false`. Bản đầu của `CvPreview` có đúng phép kiểm đó và cả tính năng chết câm. Dò theo hình dạng (`typeof node.closest === 'function'`) mới đi xuyên được. Cùng lý do này áp cho mọi `instanceof` khác nếu sau này có code chạm vào DOM của iframe.
+
+2. **Đếm số lần nạp, đừng dùng cờ boolean.** `srcDoc` đổi sau mỗi lần gõ phím (qua debounce), và mỗi lần đổi là một DOCUMENT MỚI — listener gắn vào document cũ đi theo nó vào sọt rác. Với `const [ready, setReady] = useState(false)` thì `setReady(true)` lần thứ hai là no-op nên effect không chạy lại, và từ lần xem trước thứ hai trở đi bấm vào bản CV không còn ăn. `CvPreview` đếm `loads` và mọi effect phụ thuộc vào con số đó.
+
+Cả hai lỗi đều lọt qua typecheck, lint, unit test và build. Bắt được bằng `test/visual/cv-editor.spec.ts` — spec `bam vao mot muc tren ban xem truoc thi o sua mo dung muc do` có mặt để canh đúng chỗ này.
+
 ## Xuất PDF (Pha 3) — ba điều đã trả giá để biết
 
 **Hai đường, chọn bằng `LATEX_SERVICE_URL`.** Có giá trị → `HttpLatexCompiler` gọi dịch vụ riêng (production). Bỏ trống → `SandboxLatexCompiler` gọi `docker run` qua SEAM 2 (máy phát triển, app chạy trực tiếp trên host). App ghi ra log lúc khởi động nó đang dùng đường nào.

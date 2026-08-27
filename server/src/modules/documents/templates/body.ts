@@ -21,9 +21,9 @@ const bullets = (items: string[]): string =>
   items.length > 0 ? `<ul class="bullets">${items.map(li).join('')}</ul>` : '';
 
 /** Vẽ một mục, hoặc KHÔNG vẽ gì khi rỗng: tiêu đề trên khoảng trắng đọc như mất dữ liệu. */
-const section = (title: string, inner: string): string =>
+const section = (key: SectionKey, title: string, inner: string): string =>
   inner.trim().length > 0
-    ? `<section class="section"><h2 class="section-title">${escapeHtml(title)}</h2><div class="section-body">${inner}</div></section>`
+    ? `<section class="section" data-section="${key}"><h2 class="section-title">${escapeHtml(title)}</h2><div class="section-body">${inner}</div></section>`
     : '';
 
 /** Dòng đầu một mục: nhan đề trước, khoảng thời gian sau - kể cả khi CSS đẩy nó sang phải. */
@@ -141,6 +141,6 @@ export const buildCvSections = (
 
   return layout.order
     .filter((key) => !layout.hidden.includes(key))
-    .map((key) => section(titles[key], bodies[key]))
+    .map((key) => section(key, titles[key], bodies[key]))
     .join('\n');
 };

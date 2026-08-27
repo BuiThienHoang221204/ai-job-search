@@ -173,3 +173,31 @@ describe('render theo bố cục', () => {
     expect(dao.split(' ').sort()).toEqual(mac_dinh.split(' ').sort());
   });
 });
+
+describe('data-section — mỏ neo cho việc bấm vào bản xem trước', () => {
+  test('mỗi mục hiện ra đều mang khoá của chính nó', () => {
+    const html = renderCvHtml(identity, content);
+
+    for (const key of SECTION_KEYS) {
+      expect(html).toContain(`data-section="${key}"`);
+    }
+  });
+
+  test('mục bị ẩn KHÔNG để lại mỏ neo nào', () => {
+    const html = renderCvHtml(identity, content, 'classic', null, {
+      order: [...SECTION_KEYS],
+      hidden: ['education'],
+    });
+
+    expect(html).not.toContain('data-section="education"');
+    expect(html).toContain('data-section="skills"');
+  });
+
+  test('tài liệu tự chặn script bằng CSP', () => {
+    const html = renderCvHtml(identity, content);
+
+    expect(html).toContain(
+      `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`,
+    );
+  });
+});

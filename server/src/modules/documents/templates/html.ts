@@ -35,6 +35,7 @@ export const htmlDocument = (options: {
 <html lang="vi">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src 'none'">
 <title>${escapeHtml(options.title)}</title>
 <style>
 ${options.css}
