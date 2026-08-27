@@ -133,6 +133,15 @@ function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
 }
 
+function stripTagsKeepBreaks(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
 function clean(html: string): string {
   return decodeHtmlEntities(stripTags(html))
 }
@@ -232,7 +241,8 @@ export function parseJobDetail(html: string, id: string): JobDetail {
     const withBreaks = descHtml
       .replace(/<\s*br\s*\/?>/gi, "\n")
       .replace(/<\/(p|li|ul|ol|div|h\d)>/gi, "\n")
-    description = decodeHtmlEntities(stripTags(withBreaks)).replace(/\n{3,}/g, "\n\n").trim() || null
+    description =
+      stripTagsKeepBreaks(decodeHtmlEntities(withBreaks)) || null
   }
 
   // Job-criteria items: subheader label -> text value.

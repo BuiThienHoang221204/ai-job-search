@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module.js';
 import { SkillsModule } from '../skills/skills.module.js';
-import { AtsSourceService } from './sources/ats-source.service.js';
 import { JobSourceRouter } from './sources/job-source.router.js';
 import { PortalCliService } from './sources/portal-cli.service.js';
 import { ScrapeCronService } from './scrape-cron.service.js';
@@ -16,7 +15,6 @@ import { ScraperService } from './scraper.service.js';
     ScraperService,
     ScraperProcessor,
     PortalCliService,
-    AtsSourceService,
     JobSourceRouter,
     ScrapeCronService,
   ],

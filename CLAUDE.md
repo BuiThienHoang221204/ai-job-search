@@ -180,20 +180,19 @@ Muốn dựng lại `cover.cls` (ví dụ sau khi đổi font của nó sang fon
 
 Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `\today`: `\today` theo ngôn ngữ document class, và moderncv mặc định tiếng Anh — đã thấy dòng "August 13, 2026" trong một thư tiếng Việt.
 
-## Nguồn tin: SEAM 5, hai adapter
+## Nguồn tin: SEAM 5
 
-`ScraperService` KHÔNG biết một nguồn là CLI hay HTTP — nó hỏi `JobSourceRouter`. Hai adapter:
+`ScraperService` KHÔNG biết một nguồn được lấy bằng cách nào — nó hỏi `JobSourceRouter`. Hiện chỉ có một adapter:
 
 - `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bốn portal Việt nằm ở đây.
-- `AtsSourceService` — gọi **API job board công khai** của Greenhouse/Lever/Ashby, khai bằng `ATS_BOARDS=greenhouse:gitlab,ashby:ramp`.
 
-**Vì sao có nguồn ATS: tin của chúng lấy được qua API công bố, có tài liệu, không cần key — đọc chúng không phải scrape.** Đây cũng là món trả nợ ToS mà lộ trình ghi ở mục 4: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Đã đo trên board GitLab: 201 tin có mô tả → 42 khớp "DevOps" → 12 lưu.
+Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn mới mà `ScraperService` không phải biết.
 
-Ba điều dễ làm sai ở adapter ATS:
+Từng có adapter thứ hai gọi API job board công khai của Greenhouse/Lever/Ashby (`AtsSourceService`, khai bằng `ATS_BOARDS`). **Đã gỡ 2026-08-27** cùng toàn bộ dữ liệu của hai board từng bật — `ashby:ramp` và `greenhouse:gitlab`. Đừng dựng lại theo trí nhớ: hãy đọc lại commit đó.
 
-1. **Lever trả MẢNG ở tầng ngoài**, Greenhouse và Ashby bọc trong `{ jobs: [...] }`. Đọc sai chỗ này thì luôn ra 0 tin và lượt quét vẫn được ghi là "thành công".
-2. **Greenhouse cần `?content=true`**, thiếu nó thì `content` vắng và phải gọi thêm một request cho từng tin. Cả ba đều trả mô tả sẵn, nên `AtsSourceService.detail()` cố ý **ném lỗi** — nó không bao giờ được gọi tới.
-3. **Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ.
+Món nợ ToS mà lộ trình ghi ở mục 4 vẫn còn nguyên: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Việc gỡ ATS KHÔNG trả món nợ đó, chỉ bỏ một hướng đã thử.
+
+**Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ. Bài học này nay sống ở `agent/utils/html-text.ts`.
 
 ### "Thẻ đã có mô tả" KHÔNG có nghĩa là mô tả đầy đủ
 

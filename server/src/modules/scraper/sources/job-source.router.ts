@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AtsSourceService } from './ats-source.service.js';
 import {
   PortalCliService,
   type PortalJobCard,
@@ -14,13 +13,10 @@ import type { JobSource } from './job-source.interface.js';
 export class JobSourceRouter implements JobSource {
   private readonly logger = new Logger(JobSourceRouter.name);
 
-  constructor(
-    private readonly cli: PortalCliService,
-    private readonly ats: AtsSourceService,
-  ) {}
+  constructor(private readonly cli: PortalCliService) {}
 
   private get adapters(): JobSource[] {
-    return [this.cli, this.ats];
+    return [this.cli];
   }
 
   async reload(): Promise<PortalEntry[]> {
@@ -33,7 +29,7 @@ export class JobSourceRouter implements JobSource {
     for (const entry of entries) {
       if (seen.has(entry.key)) {
         this.logger.warn(
-          `Khoá nguồn "${entry.key}" khai ở hai adapter; adapter đứng trước sẽ thắng.`,
+          `Khoá nguồn "${entry.key}" khai hai lần; mục đứng trước sẽ thắng.`,
         );
       }
       seen.add(entry.key);

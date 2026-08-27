@@ -132,8 +132,6 @@ const configuration = () => ({
 
     portalDelayMs: parseInt(process.env.SCRAPER_PORTAL_DELAY_MS ?? '3000', 10),
 
-    atsBoards: process.env.ATS_BOARDS ?? '',
-
     defaultLocation: process.env.SCRAPER_DEFAULT_LOCATION ?? 'Vietnam',
 
     /** Trần số tin lấy về cho MỘT portal trong một lần quét. */
