@@ -13,6 +13,15 @@ import { QueryPlanner } from './planning/query-planner.js';
 import { JobWriter } from './ingest/job-writer.js';
 import { collectCards, type CollectLimits } from './ingest/collect-cards.js';
 
+/**
+ * Số tin gộp vào MỘT lượt gọi model khi rút yêu cầu.
+ *
+ * `job.requirements` là khoản chi lớn nhất hệ thống - đo trên `ai_calls`:
+ * 633/1.311 lượt, tức 48%, và một đêm cao điểm đã chạm 261 lượt. Gộp năm tin
+ * đưa một đêm 200 tin từ 200 lượt xuống còn 40.
+ */
+const REQUIREMENTS_BATCH = 5;
+
 @Injectable()
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
@@ -95,7 +104,7 @@ export class ScraperService {
         data: { queries: plan.queries, modelId },
       });
 
-      const cards = await collectCards(
+      const { cards, askedIndices } = await collectCards(
         {
           search: (portal, args) => this.portals.search(portal, args),
           log: (message) => this.logger.log(message),
@@ -116,8 +125,12 @@ export class ScraperService {
         ? await this.fanOut(run.userId, saved.savedJobIds)
         : 0;
 
-      if (system)
-        await this.planner.markCrawled(run.portal, system.occupations);
+      if (system) {
+        const crawled = askedIndices
+          .map((index) => system.clusterCodes[index])
+          .filter((code): code is string => code !== undefined);
+        await this.planner.markCrawled(run.portal, crawled);
+      }
 
       return await this.prisma.scrapeRun.update({
         where: { id: runId },
@@ -145,10 +158,14 @@ export class ScraperService {
    */
   private async extractRequirements(jobIds: string[]): Promise<number> {
     if (!jobIds.length) return 0;
-    return this.queue.sendMany(
-      QUEUE.EXTRACT_REQUIREMENTS,
-      jobIds.map((jobId) => ({ jobId })),
-    );
+
+    const batches: Array<{ jobIds: string[] }> = [];
+    for (let start = 0; start < jobIds.length; start += REQUIREMENTS_BATCH) {
+      batches.push({ jobIds: jobIds.slice(start, start + REQUIREMENTS_BATCH) });
+    }
+
+    await this.queue.sendMany(QUEUE.EXTRACT_REQUIREMENTS, batches);
+    return jobIds.length;
   }
 
   /** Xếp hàng chấm điểm cho các tin vừa lưu. */

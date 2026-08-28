@@ -244,6 +244,24 @@ Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. V
 
 **Không có từ khoá mặc định nào.** Hồ sơ trống thì lần quét FAILED kèm lời nhắc đi điền hồ sơ, và **không gọi model**. Trước đây chỗ này lùi về `'developer'` và gọi đó là "quét rộng" — `developer` không rộng, nó là một nghề. Đừng thêm lại một giá trị mặc định: không có từ khoá trung lập nào tồn tại, `việc làm` trả về vài chục nghìn tin ngẫu nhiên.
 
+### `job.requirements` gộp LÔ 5 tin — khoản chi lớn nhất hệ thống
+
+Đo trên `ai_calls` ngày 2026-08-28: **`job.requirements` chiếm 633/1.311 lượt gọi model của cả hệ thống — 48%**, và một đêm cao điểm (26/08) đã chạm **261 lượt**. Nó là khoản chi lớn nhất, lớn hơn cả `match.evaluate` (271) lẫn `skill.canonicalize` (248) cộng lại thì gần bằng.
+
+Nó tốn nhiều vì **nhân tuyến tính 1:1 với số tin MỚI và không có phanh nào**: đầu vào từ crawl là `savedJobIds`, toàn tin chưa có bản ghi nên nhánh `sourceHash` không bao giờ ăn. Khác hẳn `skill.canonicalize` — cửa lọc "đã có trong danh bạ chưa" khiến nó tự tắt dần khi danh bạ bão hoà.
+
+Nay `scraper.service` xếp hàng theo **lô 5 tin** (`REQUIREMENTS_BATCH`) và `extractMany` hỏi model **một lượt cho cả lô**: một đêm 200 tin đi từ 200 lượt xuống **40**.
+
+**Ba đường lùi, và cả ba đều bắt buộc — gộp lô không được phép tệ hơn không gộp:**
+
+1. **Tin dài hơn 6.000 ký tự đi đường lẻ.** Đo trên 563 tin: p50 2.556, p95 5.993, dài nhất 20.265. Mức này giữ ~95% số tin ở đường gộp mà không để một tin khổng lồ thổi phồng prompt.
+2. **Lô hỏng thì rút lại từng tin.** `job.requirements` vốn đã đứng đầu bảng lỗi SCHEMA, gộp lô làm bán kính thiệt hại rộng ra 5 lần — nên `catch` phải chạy lại đường lẻ, không được để cả lô mất trắng.
+3. **Lô thiếu phần tử thì riêng tin đó rút lẻ.** Model bỏ sót một tin trong lô là chuyện có thật; ánh xạ theo `index` phát hiện được và chỉ tin đó phải trả giá.
+
+**Khoá dedup của hàng đợi nay là VÂN TAY của cả lô** (sha256 của danh sách id đã sắp xếp, cắt 32 ký tự) — nối chuỗi năm cuid sẽ dài hơn cột `singleton_key` của pg-boss. Hai lô khác nhau chứa chung một tin thì không dedup được, và đó là chấp nhận được: `extractMany` so `sourceHash` trước khi gọi model nên tin đã rút xong chỉ tốn một lượt đọc database.
+
+**`matching.controller` vẫn dùng `extract()` đường lẻ** — rút lại một tin theo yêu cầu người dùng thì không có lô nào để gộp.
+
 **Tin rác đắt gấp N lần bạn tưởng.** `planFanOut` chấm mỗi tin mới với MỌI người dùng đủ điều kiện, nên một tin lạc ngành tốn `số người dùng` lượt gọi model chứ không phải một. Đó là lý do độ chính xác của truy vấn quan trọng hơn số lượng truy vấn.
 
 **Lượt quét đêm có ba trần, đừng chỉnh một cái mà quên hai cái kia:** `SCRAPER_MAX_JOBS_PER_PORTAL` (50 tin/portal, gom qua nhiều trang), `SCRAPER_MAX_AGE_DAYS` (7 ngày, lọc **trước** `detail` chứ không phải sau) và `SCRAPER_MAX_PAGES`. Nâng trần tin mà quên cửa sổ ngày thì database đầy tin đã đóng; lọc ngày sau khi gọi `detail` thì đã trả tiền đúng phần đắt nhất rồi.
@@ -252,7 +270,30 @@ Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. V
 
 **ITviec chỉ có IT, và vẫn cố ý được gọi cho mọi người.** Chọn portal theo ngành cần một khái niệm "ngành của hồ sơ" mà `Profile` chưa có. Trong lúc đó, người dùng ngoài IT chịu một lượt quét rỗng — **giao diện phải phân biệt "0 tin vì portal không phục vụ ngành này" với "0 tin vì hỏng"**, không thì họ tưởng app lỗi.
 
-**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa, lý do ghi trong docblock của `planForSystem`.
+**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa.
+
+### Lượt quét hệ thống gom cụm theo NGHỀ, không theo nhóm ngành
+
+`clusterProfiles` gom hồ sơ theo `subOccupationCode` (**danh mục 77 nghề**), lùi về `occupationCode` khi không suy ra được nghề cụ thể. Đây là cùng một bài học đã có ở `Job.subOccupationCode`: **tầng nhóm một mình không thu hẹp được** — đo 2026-08-24, riêng `IT` ôm 235/386 tin. Bên lọc đã sửa từ hồi đó, bên quét thì tới 2026-08-28 mới sửa.
+
+Gom theo 19 nhóm thì cả `IT_QA`, `IT_DEVOPS` và `IT_SECURITY` chung một từ khoá duy nhất (`mostCommon` của headline trong cụm), và hai nghề thua cuộc **không bao giờ được quét**. Đó là chỗ 100 hồ sơ bị nén xuống 19 truy vấn, chứ không phải ở số IP hay nơi chạy code.
+
+**Trần độ phủ là TAXONOMY, không phải số người dùng.** `SCRAPER_SYSTEM_QUERY_LIMIT` (nay 20) quyết định chu kỳ phủ: 77 nghề / 20 mỗi đêm ≈ **bốn đêm** cho một vòng, xoay theo thứ tự cũ-trước của `OccupationCrawl.lastCrawledAt`. Muốn phủ nhanh hơn thì nâng biến đó, đừng đi tăng số nguồn quét.
+
+**Hạn ngạch trong `collectCards` làm tròn XUỐNG, và đó là một sửa lỗi chứ không phải sở thích.** `quota * số truy vấn` phải **≤** `SCRAPER_MAX_JOBS_PER_PORTAL`, nếu không lượt đầu đầy trần trước khi duyệt hết truy vấn và những truy vấn cuối bảng không gửi đi một request nào. Đo trên chính hàm đó:
+
+| Truy vấn | Trần tin | quota | Thật sự gọi |
+|---|---|---|---|
+| 10 | 50 | 5 | 10/10 |
+| 20 | 50 | **làm tròn LÊN → 3** | **17/20** |
+| 20 | 50 | làm tròn xuống → 2 | 20/20 |
+| 60 | 50 | 1 | 50/60 |
+
+**Và `markCrawled` chỉ đóng dấu nghề THẬT SỰ được gọi** — `collectCards` trả về `askedIndices` cho đúng việc này. Đóng dấu một nghề chưa gọi là lỗi **tự nuôi**: nghề đó nhận mốc thời gian mới nhất, tụt xuống cuối hàng xoay vòng, rồi vòng sau lại rơi đúng vào chỗ bị cắt. Vì tie-break là `size DESC` nên nạn nhân luôn là **cụm nhỏ nhất** — tức người dùng ngành ngách, đúng nhóm mà đề tài đa ngành muốn phục vụ. Không phải ngẫu nhiên mà có hệ thống.
+
+Ở 1.000 người dùng, số cụm vẫn ≤96 và **chi phí model không đổi** (nó tính theo số TIN, không theo số người). Thứ xấu đi theo quy mô là **độ đại diện của `mostCommon`**: cụm càng đông thì một chức danh đại diện càng ít người. Đó là giới hạn cố hữu của "một truy vấn cho một cụm", và cách gỡ là top-N chức danh mỗi cụm theo cỡ cụm — chưa làm.
+
+**Không có migration nào.** Mã nghề tính trong bộ nhớ từ `headline` + `primarySkills` lúc lập kế hoạch, nên `Profile` không cần cột mới. Cột `occupation_crawls.occupation_code` giữ nguyên tên nhưng **nay chứa mã nghề** (`FIN_ACCOUNTING`), hoặc mã nhóm khi cụm rơi vào nhánh lùi. Bản ghi cũ mang mã nhóm không phải rác: chúng vẫn khớp đúng những cụm đi nhánh lùi.
 
 `.claude/skills/job-scraper/search-queries.md` **được nạp vào `skill.references` nhưng không prompt nào đọc** — `refineQueries` tự dựng prompt riêng. Sửa file đó chỉ đổi hành vi runtime Claude Code, không đổi gì ở backend. Chỉ các file của `job-application-assistant` mới thật sự được nhồi vào prompt.
 

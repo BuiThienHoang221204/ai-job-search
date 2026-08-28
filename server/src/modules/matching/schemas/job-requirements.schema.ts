@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  boundedInt,
   boundedList,
   cappedText,
   looseEnum,
@@ -59,3 +60,23 @@ export const jobRequirementsSchema = z.object({
 });
 
 export type JobRequirements = z.infer<typeof jobRequirementsSchema>;
+
+export const jobRequirementsBatchSchema = z.object({
+  jobs: z
+    .array(
+      z.object({
+        index: boundedInt(
+          1,
+          50,
+          'Số thứ tự của tin, ĐÚNG như đã đánh trong danh sách đầu vào.',
+        ),
+        ...jobRequirementsSchema.shape,
+      }),
+    )
+    .describe(
+      'MỘT phần tử cho MỖI tin đầu vào, giữ nguyên số thứ tự đã đánh. Không gộp hai tin làm một, không bỏ sót tin nào.',
+    )
+    .transform((items) => items.slice(0, 50)),
+});
+
+export type JobRequirementsBatch = z.infer<typeof jobRequirementsBatchSchema>;

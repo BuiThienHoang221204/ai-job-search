@@ -14,7 +14,10 @@ import {
 import { profileProposalSchema } from 'src/modules/profile-sources/profile-proposal.schema.js';
 import { searchPlanSchema } from 'src/modules/scraper/planning/search-plan.schema.js';
 import { evaluationSchema } from 'src/modules/matching/schemas/evaluation.schema.js';
-import { jobRequirementsSchema } from 'src/modules/matching/schemas/job-requirements.schema.js';
+import {
+  jobRequirementsBatchSchema,
+  jobRequirementsSchema,
+} from 'src/modules/matching/schemas/job-requirements.schema.js';
 import { skillMergeSchema } from 'src/modules/matching/schemas/skill-merge.schema.js';
 import { companyBriefSchema } from 'src/modules/companies/brief/company-brief.schema.js';
 
@@ -94,6 +97,7 @@ const MODEL_SCHEMAS: Array<[string, ZodType]> = [
   ['searchPlanSchema', searchPlanSchema],
   ['evaluationSchema', evaluationSchema],
   ['jobRequirementsSchema', jobRequirementsSchema],
+  ['jobRequirementsBatchSchema', jobRequirementsBatchSchema],
   ['skillMergeSchema', skillMergeSchema],
   ['companyBriefSchema', companyBriefSchema],
 ];

@@ -46,6 +46,12 @@ type QueryCursor = {
   pending: PortalJobCard[];
   /** Số tin nhận được từ trang đang tiêu thụ. Đặt lại mỗi lần tải trang mới. */
   gained: number;
+  requested: boolean;
+};
+
+export type CollectOutcome = {
+  cards: PortalJobCard[];
+  askedIndices: number[];
 };
 
 /**
@@ -63,7 +69,7 @@ export async function collectCards(
   deps: CollectDeps,
   portal: string,
   queries: PlannedQuery[],
-): Promise<PortalJobCard[]> {
+): Promise<CollectOutcome> {
   const { limits } = deps;
   const seen = new Map<string, PortalJobCard>();
   const cursors: QueryCursor[] = queries.map((query) => ({
@@ -73,12 +79,13 @@ export async function collectCards(
     done: false,
     pending: [],
     gained: 0,
+    requested: false,
   }));
   let stale = 0;
 
   const quota = Math.max(
     1,
-    Math.ceil(limits.maxJobsPerPortal / Math.max(1, cursors.length)),
+    Math.floor(limits.maxJobsPerPortal / Math.max(1, cursors.length)),
   );
 
   for (const cap of [quota, Number.POSITIVE_INFINITY]) {
@@ -101,7 +108,20 @@ export async function collectCards(
   if (stale) {
     deps.log(`${portal}: bỏ ${stale} tin đăng quá ${limits.maxAgeDays} ngày`);
   }
-  return [...seen.values()].slice(0, limits.maxJobsPerPortal);
+
+  const askedIndices = cursors.flatMap((cursor, index) =>
+    cursor.requested ? [index] : [],
+  );
+  if (askedIndices.length < cursors.length) {
+    deps.log(
+      `${portal}: ${cursors.length - askedIndices.length}/${cursors.length} truy vấn không gửi được request nào vì đã đầy trần tin`,
+    );
+  }
+
+  return {
+    cards: [...seen.values()].slice(0, limits.maxJobsPerPortal),
+    askedIndices,
+  };
 }
 
 /**
@@ -123,6 +143,7 @@ async function advance(
 
   if (!cursor.pending.length) {
     const page = cursor.page;
+    cursor.requested = true;
     const cards = await deps.search(portal, {
       query: cursor.query.query,
       location: cursor.query.location || limits.defaultLocation,

@@ -156,12 +156,13 @@ const configuration = () => ({
      * Trần số từ khoá cho một lần quét của HỆ THỐNG. Mỗi từ khoá là ít nhất
      * một request, nên đây là tải đặt lên portal.
      *
-     * Hiện từ khoá sinh theo TỪNG hồ sơ, nên con số này cũng đang giới hạn số
-     * người được phục vụ mỗi đêm. Khi từ khoá gom theo ngành thì nó quay về
-     * đúng vai trò trần tải, và không còn phải tăng theo số người dùng.
+     * Từ khoá gom theo NGHỀ (danh mục 77 mục), nên con số này là trần tải chứ
+     * không còn phải tăng theo số người dùng. Nó quyết định chu kỳ phủ hết
+     * danh mục: 20 nghề mỗi đêm thì mọi nghề có người dùng được quét sau
+     * khoảng bốn đêm, theo thứ tự cũ-trước của `OccupationCrawl`.
      */
     systemQueryLimit: parseInt(
-      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '10',
+      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '20',
       10,
     ),
 

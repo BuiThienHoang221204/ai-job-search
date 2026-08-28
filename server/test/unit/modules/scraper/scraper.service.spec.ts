@@ -394,6 +394,27 @@ describe('ScraperService.run - chấm điểm theo yêu cầu', () => {
     expect(queued(queue, QUEUE.EXTRACT_REQUIREMENTS)).toBe(true);
   });
 
+  test('xếp hàng rút yêu cầu theo LÔ, không phải mỗi tin một việc', async () => {
+    const { router } = fakePortals({
+      1: Array.from({ length: 12 }, (_, index) => card(`tin-${index}`)),
+    });
+    const queue = fakeQueue();
+    const service = buildService(fakePrisma(null), router, queue, {
+      'scraper.maxJobsPerPortal': 12,
+    });
+
+    await runScrape(service);
+
+    const call = queue.sendMany.mock.calls.find(
+      (args) => args[0] === QUEUE.EXTRACT_REQUIREMENTS,
+    );
+    const batches = call![1] as Array<{ jobIds: string[] }>;
+
+    expect(batches).toHaveLength(3);
+    expect(batches.map((batch) => batch.jobIds.length)).toEqual([5, 5, 2]);
+    expect(batches.flatMap((batch) => batch.jobIds)).toHaveLength(12);
+  });
+
   test('bật cờ thì chấm lại như cũ', async () => {
     const { router } = fakePortals({ 1: [card('a')] });
     const queue = fakeQueue();
@@ -620,6 +641,42 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
       (args) => args[0].create.occupationCode,
     );
     expect(stamped).toEqual(['FINANCE', 'HEALTHCARE']);
+  });
+
+  test('KHÔNG đóng dấu nghề chưa gửi được request nào', async () => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const codes = Array.from(
+      { length: 60 },
+      (_, index) =>
+        `NGHE${letters[Math.floor(index / 26)]}${letters[index % 26]}`,
+    );
+
+    const sizes = Object.fromEntries(
+      codes.map((code, index) => [code, 60 - index]),
+    );
+    const byQuery = Object.fromEntries(
+      codes.map((code) => [
+        `Chức danh ${code}`,
+        [Array.from({ length: 25 }, (_, index) => card(`${code}-${index}`))],
+      ]),
+    );
+
+    const { router } = fakePortalsPerQuery(byQuery);
+    const prisma = industriesPrisma(sizes);
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 60,
+      'scraper.maxJobsPerPortal': 50,
+    });
+
+    await runScrape(service);
+
+    const stamped = prisma.occupationCrawl.upsert.mock.calls.map(
+      (args) => args[0].create.occupationCode,
+    );
+
+    expect(stamped.length).toBeGreaterThan(0);
+    expect(stamped.length).toBeLessThan(60);
+    expect(stamped).toEqual(codes.slice(0, stamped.length));
   });
 
   test('lượt quét theo NGƯỜI DÙNG không đóng dấu xoay vòng', async () => {

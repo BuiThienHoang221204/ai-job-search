@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Tên hàng đợi, viết bằng chuỗi thay vì tham chiếu `QUEUE` của
  * queue.service.ts: file kia import file này lúc chạy, nên tham chiếu ngược lại
@@ -88,12 +90,28 @@ export function singletonKeyFor(queue: string, data: object): string {
         isForced(data) ? 'force' : 'cache',
       ].join(':');
 
-    /** Một tin chỉ cần rút một lần; `force` tách riêng như EVALUATE_MATCH. */
-    case EXTRACT_REQUIREMENTS:
-      return [
-        requireField(queue, data, 'jobId'),
-        isForced(data) ? 'force' : 'cache',
-      ].join(':');
+    /**
+     * Rút trích đi theo LÔ, nên khoá là vân tay của cả lô. Băm thay vì nối
+     * chuỗi: năm cuid nối lại dài hơn cột `singleton_key` của pg-boss.
+     *
+     * Hai lô khác nhau chứa chung một tin thì không dedup được, và đó là chấp
+     * nhận được: `extractMany` so `sourceHash` trước khi gọi model, nên tin đã
+     * rút xong chỉ tốn một lượt đọc database.
+     */
+    case EXTRACT_REQUIREMENTS: {
+      const ids = (data as { jobIds?: unknown }).jobIds;
+      if (!Array.isArray(ids) || !ids.length) {
+        throw new Error(
+          `Payload của hàng đợi "${queue}" thiếu mảng "jobIds", không dựng được khoá dedup.`,
+        );
+      }
+      const sorted = (ids as unknown[]).map((id) => String(id)).sort();
+      const fingerprint = createHash('sha256')
+        .update(sorted.join(','))
+        .digest('hex')
+        .slice(0, 32);
+      return [fingerprint, isForced(data) ? 'force' : 'cache'].join(':');
+    }
 
     /**
      * Đối chiếu KHÔNG gọi model nên trùng lặp chỉ tốn vài mili giây CPU, nhưng

@@ -38,7 +38,7 @@ export const QUEUE = {
 } as const;
 
 export type ExtractRequirementsPayload = {
-  jobId: string;
+  jobIds: string[];
   force?: boolean;
 };
 
