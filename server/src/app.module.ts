@@ -11,6 +11,7 @@ import { ApplicationsModule } from './modules/applications/applications.module.j
 import { AgentModule } from './modules/agent/agent.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { SalaryModule } from './modules/salary/salary.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { InterviewModule } from './modules/interview/interview.module.js';
@@ -62,6 +63,7 @@ import { StorageModule } from './modules/storage/storage.module.js';
     ApplicationsModule,
     AgentModule,
     DashboardModule,
+    SalaryModule,
     ReconcileModule,
     AdminModule,
   ],

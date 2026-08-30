@@ -19,7 +19,6 @@ import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { InterviewService } from './interview.service.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
@@ -34,10 +33,7 @@ export class PrepDto {
 export class InterviewController {
   private readonly logger = new Logger(InterviewController.name);
 
-  constructor(
-    private readonly interview: InterviewService,
-    private readonly queue: QueueService,
-  ) {}
+  constructor(private readonly interview: InterviewService) {}
 
   @ApiOperation({
     summary: 'Lấy danh sách các tài liệu chuẩn bị phỏng vấn của người dùng',
@@ -63,12 +59,7 @@ export class InterviewController {
   })
   @Post('prep')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
-    const id = await this.queue.send(QUEUE.INTERVIEW_PREP, {
-      userId: user.id,
-      jobId: dto.jobId,
-      force: dto.force ?? false,
-    });
-    return { queued: true, queueJobId: id };
+    return this.interview.enqueue(user.id, dto.jobId, dto.force ?? false);
   }
 
   /** Chạy ngay, dùng để thử nghiệm và đo chất lượng model. */

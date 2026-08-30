@@ -830,29 +830,12 @@ model AiCall {
 /// liệu trong job_search_tracker.csv của bản CLI nói cùng một ngôn ngữ, và
 /// /outcome, /gmail-sync, /html-report vẫn hiểu được nếu sau này bắc cầu sang.
 enum ApplicationStatus {
-  /// Đã xem tin, nhưng chưa nộp (user bấm "Ứng tuyển ngay" từ trang job).
+  /// Đã xem tin, chưa nộp đơn.
   VIEWED
-  /// Đã chấm điểm, đã quyết định sẽ nộp, nhưng chưa nộp.
-  RANKED
   /// Đã nộp, đang chờ hồi âm.
   APPLIED
-  /// Đã được mời phỏng vấn (bất kỳ vòng nào).
-  INTERVIEW
-  /// Đã nhận lời mời làm việc, chưa quyết định.
-  OFFER
-  /// Đã nhận việc.
-  HIRED
-  /// Nhà tuyển dụng từ chối.
-  REJECTED
-  /// Không hồi âm. Framework CỐ Ý không đặt mốc thời gian cứng cho trạng thái
-  /// này - người dùng tự quyết khi nào coi là im lặng.
-  NO_RESPONSE
-  /// Có offer nhưng ứng viên từ chối.
-  OFFER_DECLINED
-  /// Ứng viên tự rút.
+  /// Đã huỷ - người dùng tự rút, hoặc thôi không theo tin này nữa.
   WITHDRAWN
-  /// Tin tuyển dụng đã đóng trước khi có kết quả.
-  EXPIRED
 }
 
 /// Một đơn ứng tuyển cho một cặp (người dùng, công việc).
@@ -869,7 +852,7 @@ model Application {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  status ApplicationStatus @default(RANKED)
+  status ApplicationStatus @default(VIEWED)
 
   /// Ngày thực sự bấm nộp, không phải ngày tạo bản ghi. Một đơn có thể nằm ở
   /// RANKED nhiều ngày trước khi nộp.
@@ -1076,4 +1059,61 @@ model QueueConfig {
   updatedAt DateTime @updatedAt
 
   @@map("queue_configs")
+}
+
+// ---------------------------------------------------------------------------
+// Tra cứu lương
+// ---------------------------------------------------------------------------
+
+enum SalaryRefVisibility {
+  INTERNAL
+  PUBLIC
+}
+
+/// Bảng lương THAM CHIẾU lấy từ nguồn ngoài.
+///
+/// `source` là cột cho phép RÚT LUI: gỡ một nguồn là xoá theo cột này, không phải
+/// rà từng dòng. Mặc định `INTERNAL` nên nạp về xong vẫn chưa có đường nào lộ ra
+/// web cho tới khi có người cố ý lật sang PUBLIC.
+model SalaryReference {
+  id         String              @id @default(cuid())
+  source     String
+  sourceUrl  String
+  fetchedAt  DateTime
+  visibility SalaryRefVisibility @default(INTERNAL)
+
+  industrySlug String
+  positionSlug String
+  positionName String
+  /// `null` = không xếp được về mã ngành nào, và bản ghi sẽ không được trả ra.
+  occupationCode String?
+
+  avgMonthly Int?
+  rangeMin   Int?
+  rangeMax   Int?
+  currency   String @default("VND")
+
+  bands SalaryReferenceBand[]
+
+  @@unique([source, positionSlug])
+  @@index([occupationCode, visibility])
+  @@map("salary_references")
+}
+
+/// Một mốc kinh nghiệm của một vị trí tham chiếu.
+///
+/// `experienceLabel` giữ NGUYÊN chữ của nguồn. Không quy về `JobSeniority` lúc ghi:
+/// bốn mốc theo số năm không khớp một-một với bảy cấp bậc, và quy đổi lúc ghi là
+/// mất dữ liệu vĩnh viễn.
+model SalaryReferenceBand {
+  id              String          @id @default(cuid())
+  referenceId     String
+  reference       SalaryReference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  experienceLabel String
+  minAmount       Int?
+  avgAmount       Int?
+  maxAmount       Int?
+
+  @@unique([referenceId, experienceLabel])
+  @@map("salary_reference_bands")
 }

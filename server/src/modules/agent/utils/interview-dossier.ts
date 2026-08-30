@@ -30,16 +30,9 @@ export type InterviewDossier = {
 
 /** Nhãn tiếng Việt cho trạng thái đơn, dùng đúng chữ mà màn Lịch sử đang hiện. */
 const STATUS_LABEL: Record<string, string> = {
-  RANKED: 'Đã chọn, chưa nộp',
+  VIEWED: 'Đã xem tin, chưa nộp',
   APPLIED: 'Đã nộp, đang chờ hồi âm',
-  INTERVIEW: 'Đã được mời phỏng vấn',
-  OFFER: 'Đã nhận lời mời làm việc',
-  HIRED: 'Đã nhận việc',
-  REJECTED: 'Nhà tuyển dụng từ chối',
-  NO_RESPONSE: 'Không hồi âm',
-  OFFER_DECLINED: 'Đã từ chối lời mời',
-  WITHDRAWN: 'Đã tự rút đơn',
-  EXPIRED: 'Tin tuyển dụng đã đóng',
+  WITHDRAWN: 'Đã huỷ',
 };
 
 const bullets = (items: string[]): string[] => items.map((item) => `- ${item}`);

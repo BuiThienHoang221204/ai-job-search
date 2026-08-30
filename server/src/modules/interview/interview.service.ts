@@ -9,6 +9,7 @@ import type {
 import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { AiService } from '../ai/services/ai.service.js';
 import type { ModelStreamEvent } from '../../common/stream-event.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
@@ -30,7 +31,63 @@ export class InterviewService {
     private readonly ai: AiService,
     private readonly skills: SkillRegistryService,
     private readonly prompts: PromptBuilderService,
+    private readonly queue: QueueService,
   ) {}
+
+  /**
+   * Xếp một lượt soạn vào hàng đợi VÀ ghi bản ghi ở trạng thái chờ ngay lập tức.
+   *
+   * Hai việc này phải đi cùng nhau. Trước đây controller chỉ gọi `queue.send`
+   * rồi trả về, còn bản ghi mãi tới lúc worker chạy - một tới ba giây sau - mới
+   * ra đời. Giao diện tải lại ngay sau khi bấm nên thấy đúng danh sách cũ, và
+   * người dùng không có gì để nhìn cho tới khi tự tải lại trang.
+   *
+   * KHÔNG đụng vào bản ghi đã DONE khi `force = false`: `generate` sẽ trả luôn
+   * bản cũ mà không gọi model, nên hạ nó xuống PENDING vừa nói dối trên màn hình
+   * vừa làm mất trạng thái đã xong.
+   */
+  async enqueue(
+    userId: string,
+    jobId: string,
+    force: boolean,
+  ): Promise<{ queued: true; queueJobId: string | null }> {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true },
+    });
+    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+
+    const existing = await this.prisma.interviewPrep.findUnique({
+      where: { userId_jobId: { userId, jobId } },
+      select: { status: true },
+    });
+    const willRun = force || existing?.status !== 'DONE';
+
+    if (willRun) {
+      await this.prisma.interviewPrep.upsert({
+        where: { userId_jobId: { userId, jobId } },
+        create: { userId, jobId, status: 'PENDING' },
+        update: { status: 'PENDING', error: null },
+      });
+    }
+
+    try {
+      const queueJobId = await this.queue.send(QUEUE.INTERVIEW_PREP, {
+        userId,
+        jobId,
+        force,
+      });
+      return { queued: true, queueJobId };
+    } catch (error) {
+      if (willRun) {
+        await this.prisma.interviewPrep.update({
+          where: { userId_jobId: { userId, jobId } },
+          data: { status: 'FAILED', error: 'Không xếp được vào hàng đợi' },
+        });
+      }
+      throw error;
+    }
+  }
 
   private buildPrompt(
     profile: Profile | null,
@@ -264,7 +321,16 @@ export class InterviewService {
         where,
         orderBy: { updatedAt: 'desc' },
         ...pageArgs(query),
-        include: { job: { select: { id: true, title: true, company: true } } },
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              company: true,
+              companyLogo: true,
+            },
+          },
+        },
       }),
       this.prisma.interviewPrep.count({ where }),
     ]);

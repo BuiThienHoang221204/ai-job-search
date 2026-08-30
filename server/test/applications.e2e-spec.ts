@@ -1,5 +1,4 @@
 import request from 'supertest';
-import { QUEUE } from 'src/modules/queue/queue.service.js';
 import {
   createTestApp,
   type TestApp,
@@ -51,7 +50,7 @@ describe('Vòng đời đơn ứng tuyển', () => {
   /// DONE và không FAIL, mà việc đó thuộc phạm vi test của matching. Ở đây quan
   /// tâm tới chuyển trạng thái.
   const seedApplication = async (
-    status: 'RANKED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' = 'APPLIED',
+    status: 'VIEWED' | 'APPLIED' | 'WITHDRAWN' = 'APPLIED',
     owner: TestUser = user,
   ) => {
     const application = await harness.prisma.application.create({
@@ -72,28 +71,16 @@ describe('Vòng đời đơn ứng tuyển', () => {
       .send({ status });
 
   describe('chuyển trạng thái hợp lệ', () => {
-    test('APPLIED sang INTERVIEW được chấp nhận', async () => {
-      const id = await seedApplication('APPLIED');
+    test('VIEWED sang APPLIED được chấp nhận', async () => {
+      const id = await seedApplication('VIEWED');
 
-      const response = await patchStatus(id, 'INTERVIEW').expect(200);
+      const response = await patchStatus(id, 'APPLIED').expect(200);
 
-      expect((response.body as { status: string }).status).toBe('INTERVIEW');
-    });
-
-    /// Bước 4 của SKILL.md kích hoạt đúng lúc: có lịch phỏng vấn rồi mới soạn câu
-    /// hỏi. Không sinh sớm hơn vì phần lớn đơn không đi tới vòng này.
-    test('chuyển sang INTERVIEW xếp hàng đợi chuẩn bị phỏng vấn', async () => {
-      const id = await seedApplication('APPLIED');
-
-      await patchStatus(id, 'INTERVIEW').expect(200);
-
-      expect(harness.queue.sentTo(QUEUE.INTERVIEW_PREP)).toEqual([
-        { userId: user.id, jobId, force: false },
-      ]);
+      expect((response.body as { status: string }).status).toBe('APPLIED');
     });
 
     test('ngày nộp được ghi ở lần chuyển sang APPLIED đầu tiên', async () => {
-      const id = await seedApplication('RANKED');
+      const id = await seedApplication('VIEWED');
 
       const response = await patchStatus(id, 'APPLIED').expect(200);
 
@@ -105,45 +92,17 @@ describe('Vòng đời đơn ứng tuyển', () => {
     test('mỗi lần đổi đều ghi một sự kiện vào nhật ký', async () => {
       const id = await seedApplication('APPLIED');
 
-      await patchStatus(id, 'INTERVIEW').expect(200);
+      await patchStatus(id, 'WITHDRAWN').expect(200);
 
       const events = await harness.prisma.applicationEvent.findMany({
         where: { applicationId: id },
         orderBy: { createdAt: 'asc' },
       });
-      expect(events.map((e) => e.toStatus)).toEqual(['APPLIED', 'INTERVIEW']);
+      expect(events.map((e) => e.toStatus)).toEqual(['APPLIED', 'WITHDRAWN']);
     });
   });
 
   describe('ba quy tắc mà backend thực sự chặn', () => {
-    /// Quy tắc 2. Đây là quy tắc mà GIAO DIỆN không tự kiểm được: dữ liệu client
-    /// không có nhật ký sự kiện nên không biết đơn đã từng ở OFFER hay chưa. Nó
-    /// chào mời lựa chọn rồi hiện nguyên văn lý do nếu máy chủ từ chối - test này
-    /// khoá lại việc lý do đó phải đọc được, không phải một lỗi 500 trống rỗng.
-    test('không thể nhận việc khi chưa từng có offer', async () => {
-      const id = await seedApplication('INTERVIEW');
-
-      const response = await patchStatus(id, 'HIRED').expect(400);
-
-      expect(JSON.stringify(response.body)).toContain('OFFER');
-    });
-
-    test('có offer rồi thì nhận việc được', async () => {
-      const id = await seedApplication('OFFER');
-
-      await patchStatus(id, 'HIRED').expect(200);
-    });
-
-    /// Đơn đi OFFER -> INTERVIEW (thêm một vòng) -> HIRED vẫn phải chạy được:
-    /// điều kiện là "đã TỪNG ở OFFER", suy từ nhật ký chứ không nhìn trạng thái
-    /// hiện tại.
-    test('quay lại phỏng vấn sau offer rồi nhận việc vẫn được', async () => {
-      const id = await seedApplication('OFFER');
-      await patchStatus(id, 'INTERVIEW').expect(200);
-
-      await patchStatus(id, 'HIRED').expect(200);
-    });
-
     test('đổi sang chính trạng thái đang có bị từ chối', async () => {
       const id = await seedApplication('APPLIED');
 
@@ -154,16 +113,16 @@ describe('Vòng đời đơn ứng tuyển', () => {
     /// tự động mới bị chặn, mà đường HTTP luôn là người dùng.
     test('người dùng mở lại được đơn đã đóng', async () => {
       const id = await seedApplication('APPLIED');
-      await patchStatus(id, 'REJECTED').expect(200);
+      await patchStatus(id, 'WITHDRAWN').expect(200);
 
-      await patchStatus(id, 'INTERVIEW').expect(200);
+      await patchStatus(id, 'APPLIED').expect(200);
     });
 
     test('mở lại đơn đã đóng thì xoá ngày đóng', async () => {
       const id = await seedApplication('APPLIED');
-      await patchStatus(id, 'REJECTED').expect(200);
+      await patchStatus(id, 'WITHDRAWN').expect(200);
 
-      const response = await patchStatus(id, 'INTERVIEW').expect(200);
+      const response = await patchStatus(id, 'APPLIED').expect(200);
 
       expect(
         (response.body as { closedAt: string | null }).closedAt,
@@ -176,7 +135,7 @@ describe('Vòng đời đơn ứng tuyển', () => {
       const attacker = await harness.signUp();
       const id = await seedApplication('APPLIED');
 
-      await patchStatus(id, 'INTERVIEW', attacker.token).expect(404);
+      await patchStatus(id, 'WITHDRAWN', attacker.token).expect(404);
 
       // Và đơn vẫn nguyên trạng.
       const stored = await harness.prisma.application.findUniqueOrThrow({
@@ -190,7 +149,7 @@ describe('Vòng đời đơn ứng tuyển', () => {
 
       await request(harness.server)
         .put(`/api/applications/${id}/status`)
-        .send({ status: 'INTERVIEW' })
+        .send({ status: 'WITHDRAWN' })
         .expect(401);
     });
   });
@@ -208,7 +167,7 @@ describe('Vòng đời đơn ứng tuyển', () => {
       await request(harness.server)
         .put(`/api/applications/${id}/status`)
         .set(auth(user.token))
-        .send({ status: 'INTERVIEW', userId: 'ai-do-khac' })
+        .send({ status: 'WITHDRAWN', userId: 'ai-do-khac' })
         .expect(400);
     });
   });

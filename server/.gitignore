@@ -5,3 +5,6 @@ node_modules
 .env.production
 
 /generated/prisma
+
+# HTML thô của bảng lương tham chiếu, chỉ là cache để khỏi crawl lại
+scripts/.cache/
