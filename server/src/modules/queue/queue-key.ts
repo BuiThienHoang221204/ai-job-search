@@ -13,6 +13,7 @@ const SCRAPE_RUN = 'scrape.run';
 const PROFILE_SYNTHESIZE = 'profile.synthesize';
 const EXTRACT_REQUIREMENTS = 'job.requirements';
 const AGENT_RUN = 'agent.run';
+const AGENT_REVIEW = 'agent.review';
 const COMPANY_BRIEF = 'company.brief';
 const REQUIREMENT_MATCH = 'match.requirements';
 const SKILL_CANONICALIZE = 'skill.canonicalize';
@@ -26,6 +27,7 @@ export const QUEUES_WITH_KEY_RULE = [
   PROFILE_SYNTHESIZE,
   EXTRACT_REQUIREMENTS,
   AGENT_RUN,
+  AGENT_REVIEW,
   COMPANY_BRIEF,
   REQUIREMENT_MATCH,
   SKILL_CANONICALIZE,
@@ -80,6 +82,7 @@ export function singletonKeyFor(queue: string, data: object): string {
       return requireField(queue, data, 'draftId');
 
     case AGENT_RUN:
+    case AGENT_REVIEW:
       return requireField(queue, data, 'runId');
 
     /** Khoá theo CÔNG TY, không theo người dùng: hai người mở cùng một tin thì

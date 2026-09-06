@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -12,6 +13,8 @@ import { trimToolOutput } from '../trim-output.js';
 import { STUCK_AFTER_MS } from '../../reconcile/services/reconcile.service.js';
 import { CommandRegistryService } from './command-registry.service.js';
 import { ASK_USER_TOOL } from '../tools/ask-user.tool.js';
+import { STORAGE, type Storage } from '../../storage/storage.interface.js';
+import type { ArtifactRecord } from '../agent.types.js';
 
 /** Bộ lọc của đường đọc danh sách. Rỗng thì trả về mọi lượt chạy của người dùng. */
 export type ListAgentRunsQuery = PaginationQueryDto & {
@@ -25,6 +28,7 @@ export type StartAgentInput = {
   jobUrl?: string;
   jobDescription?: string;
   note?: string;
+  coverLetter?: boolean;
 };
 
 /** Đường ĐỌC và ĐẶT LỆNH cho agent. Việc chạy thật nằm ở `AgentRunnerService`. */
@@ -33,6 +37,7 @@ export class AgentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly commands: CommandRegistryService,
+    @Inject(STORAGE) private readonly storage: Storage,
   ) {}
 
   /**
@@ -86,6 +91,7 @@ export class AgentService {
           jobUrl: input.jobUrl ?? null,
           jobDescription: input.jobDescription ?? null,
           note: input.note ?? null,
+          coverLetter: input.coverLetter ?? false,
         },
       },
     });
@@ -254,6 +260,31 @@ export class AgentService {
         toolResults: trimToolOutput(step.toolResults) as Prisma.JsonValue,
       })),
     };
+  }
+
+  /**
+   * Nội dung một file agent đã ghi, đọc được NGAY khi nó vừa lưu xong.
+   *
+   * Khoá Storage lấy từ bản ghi trong database chứ KHÔNG ghép từ tên người dùng
+   * gửi lên: tên file đi thẳng vào đường dẫn thì "../../<id người khác>/…" là
+   * một lượt đọc trộm. Ở đây tên chỉ dùng để dò trong danh sách của đúng lượt
+   * chạy đó, và lượt chạy đã lọc theo `userId`.
+   */
+  async artifact(userId: string, runId: string, name: string) {
+    const run = await this.prisma.agentRun.findFirst({
+      where: { id: runId, userId },
+      select: { result: true },
+    });
+    if (!run) throw new NotFoundException(`Không tìm thấy lượt chạy: ${runId}`);
+
+    const artifacts =
+      (run.result as { artifacts?: ArtifactRecord[] } | null)?.artifacts ?? [];
+    const found = artifacts.find((item) => item.name === name);
+    if (!found) {
+      throw new NotFoundException(`Lượt chạy này không có file "${name}"`);
+    }
+
+    return { name, content: await this.storage.readText(found.key) };
   }
 
   async list(userId: string, query: ListAgentRunsQuery) {

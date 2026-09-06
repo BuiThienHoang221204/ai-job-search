@@ -647,6 +647,14 @@ model Document {
   /// chỉ là một cách trình bày của nó.
   content Json?
 
+  /// Lượt chạy agent đã sinh ra tài liệu này, khi nó đến từ màn Ứng tuyển tự
+  /// động thay vì từ nút soạn tài liệu.
+  ///
+  /// `SetNull` chứ không `Cascade`: dọn nhật ký một lượt chạy cũ không có lý do
+  /// gì xoá luôn cái CV người dùng đang dùng để đi nộp.
+  agentRunId String?
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
+
   /// Khóa trong Storage, dạng "<userId>/cv/main_fpt_senior-frontend.tex".
   /// Không lưu nội dung file vào DB: lên S3 sau này chỉ cần đổi driver.
   storageKey String?
@@ -684,6 +692,7 @@ model Document {
 
   @@index([userId, kind, createdAt(sort: Desc)])
   @@index([jobId])
+  @@index([agentRunId])
   @@map("documents")
 }
 
@@ -943,6 +952,8 @@ model AgentRun {
   /// Kết quả cuối cùng agent trả về.
   result Json?
 
+  review Json?
+
   /// Câu hỏi agent đang chờ trả lời, và câu trả lời của người dùng. Có giá trị
   /// khi và chỉ khi lượt chạy đi qua trạng thái WAITING_USER.
   question String? @db.Text
@@ -961,7 +972,8 @@ model AgentRun {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  steps AgentStep[]
+  steps     AgentStep[]
+  documents Document[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, jobId, createdAt(sort: Desc)])

@@ -165,6 +165,7 @@ export class AiService implements Ai {
     );
     const startedAt = Date.now();
     const steps: AgentStepLog[] = [];
+    const compact = options.compact;
 
     /*
      * `response.messages` của SDK chỉ chứa những gì MODEL sinh ra - không có
@@ -206,6 +207,13 @@ export class AiService implements Ai {
           options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS,
         ),
         maxRetries: 1,
+        ...(compact
+          ? {
+              prepareStep: ({ messages }: { messages: ModelMessage[] }) => ({
+                messages: compact(messages),
+              }),
+            }
+          : {}),
         onStepFinish: (step) => {
           generated.push(...step.response.messages);
           const log: AgentStepLog = {
@@ -493,6 +501,9 @@ export class AiService implements Ai {
         ...(options.messages
           ? { messages: options.messages }
           : { prompt: options.prompt ?? '' }),
+        abortSignal: AbortSignal.timeout(
+          options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        ),
         onFinish: ({ usage }) => {
           if (!options.context) return;
           void this.callLog.record({

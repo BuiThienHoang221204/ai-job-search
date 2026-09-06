@@ -5,6 +5,10 @@ import type {
   GenerateObjectOptions,
   RunToolsOptions,
   RunToolsResult,
+  StreamObjectOptions,
+  StreamObjectResult,
+  StreamTextOptions,
+  StreamTextResult,
 } from '../modules/ai/services/ai.types.js';
 
 /**
@@ -216,5 +220,19 @@ export class FakeAi implements Ai {
       modelId: FAKE_MODEL_ID,
       messages: [...conversation],
     };
+  }
+
+  streamText(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options: StreamTextOptions,
+  ): Promise<{ modelId: string; result: StreamTextResult }> {
+    throw new Error('FakeAi.streamText chưa được mock cho test này');
+  }
+
+  streamObject<T>(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options: StreamObjectOptions<T>,
+  ): Promise<StreamObjectResult<T>> {
+    throw new Error('FakeAi.streamObject chưa được mock cho test này');
   }
 }

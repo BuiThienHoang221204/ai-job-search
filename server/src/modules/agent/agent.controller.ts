@@ -24,6 +24,7 @@ import { InterviewTurnService } from './services/interview-turn.service.js';
 import {
   AnswerAgentDto,
   ListAgentRunsDto,
+  ReadArtifactDto,
   StartAgentDto,
 } from './dto/agent.dto.js';
 
@@ -52,6 +53,23 @@ export class AgentController {
   @Get('workflows')
   workflows() {
     return this.agent.workflows();
+  }
+
+  /**
+   * Nội dung một file agent đã ghi. Tên file đi qua query chứ không qua path:
+   * nó chứa dấu gạch chéo ("cv/main.tex") và Nest sẽ cắt nó thành hai đoạn.
+   */
+  @ApiOperation({
+    summary: 'Đọc nội dung một file agent đã ghi trong lượt chạy',
+  })
+  @ApiParam({ name: 'id', description: 'ID của lượt chạy agent' })
+  @Get(':id/artifact')
+  artifact(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Query() query: ReadArtifactDto,
+  ) {
+    return this.agent.artifact(user.id, id, query.name);
   }
 
   @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy agent theo ID' })
@@ -104,6 +122,43 @@ export class AgentController {
     const run = await this.agent.answer(user.id, id, dto.text);
     await this.queue.send(QUEUE.AGENT_RUN, { runId: run.id, userId: user.id });
     return { queued: true, runId: run.id };
+  }
+
+  /**
+   * Mở buổi phỏng vấn mới và stream câu hỏi đầu tiên ngay, không qua hàng đợi.
+   *
+   * Thay cho `POST /agent-runs {workflow:interview}` 5 bước 28s: một lần
+   * streamText với dossier 2k, 3s đã thấy chữ. `web_search` dời sang câu 2.
+   */
+  @ThrottleAi()
+  @ApiOperation({ summary: 'Mở buổi phỏng vấn thử và stream câu hỏi đầu tiên' })
+  @Post('interview/open-stream')
+  async openInterview(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { jobId: string },
+    @Res() response: Response,
+  ): Promise<void> {
+    let runId: string | null = null;
+    try {
+      const opened = await this.turns.openStream(user.id, dto.jobId);
+      runId = opened.runId;
+      response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-cache, no-transform');
+      response.setHeader('X-Accel-Buffering', 'no');
+      response.setHeader('X-Run-Id', runId);
+      response.flushHeaders();
+      for await (const piece of opened.stream) {
+        response.write(piece);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Mở buổi phỏng vấn hỏng${runId ? ` ${runId}` : ''}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      if (!response.headersSent) throw error;
+      response.destroy();
+      return;
+    }
+    response.end();
   }
 
   /**

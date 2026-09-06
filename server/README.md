@@ -300,6 +300,160 @@ loạt**. Ba portal Việt Nam không có ràng buộc này. Tắt LinkedIn kh�
 - `render()` thay `[YOUR_PRIMARY_SKILLS]`, `[YOUR_CAREER_GOAL_1]`... bằng dữ liệu hồ sơ từ DB. File skill gốc không bị sửa, nên vẫn sync được với upstream.
 - `keepSections()` chỉ lấy các mục `##` cần thiết. **Không được nhồi cả file vào prompt**: file skill có mục `## Output Format` ra lệnh in bảng markdown, lệnh đó đánh nhau với JSON schema và làm model trả về sai định dạng.
 
+## Agent chạy kịch bản: hai chỗ đã cắt để bớt token và bớt chờ
+
+Đo trên `ai_calls` + `agent_steps` ngày 2026-08-29, kịch bản `/apply`, `MODEL_ID=oc/mimo-v2.5-free`:
+
+| purpose | lượt | trung bình | lâu nhất | token vào | token ra | ăn cache |
+|---|---|---|---|---|---|---|
+| `agent.apply` | 21 | 90,1s | 312,5s | 112.510 | 3.918 | **18,9%** |
+| `agent.reviewer` | 5 | 57,6s | 96,0s | 11.569 | 2.618 | 15,3% |
+
+Token đầu vào của MỘT lượt chạy leo **20.877 → 59.429 → 331.274 → 454.770 → 473.877** qua năm bước, và bốn lượt hoàn tất mất 237s / 488s / 1.067s / 1.576s.
+
+### 1. Nén lịch sử sau khi lưu file — `compact-history.ts`
+
+Vòng lặp agent gửi lại TOÀN BỘ hội thoại ở mỗi bước, mà hội thoại chứa nguyên văn file `.tex` model vừa gõ ra. Đó là nguồn gốc của cả đường leo token lẫn tỉ lệ ăn cache 18,9% — phần đổi liên tục lấn hết phần hằng.
+
+`AiService.runTools` nay nhận tuỳ chọn `compact`, cắm vào `prepareStep` của AI SDK. `AgentRunnerService` truyền `compactHistory` vào: tham số `content` của những lần `save_artifact` ĐÃ QUA (từ 2.000 ký tự trở lên) bị thay bằng một dòng ghi chú.
+
+**File không mất, và ghi chú phải nói rõ điều đó.** `save_artifact` đã ghi xuống Storage rồi; nếu ghi chú không chỉ đường đọc lại thì model tưởng nó chưa viết gì và **gõ lại từ đầu** — đắt gấp đôi thay vì rẻ đi. Đó là lý do tool `read_artifact` được thêm cùng lúc: kịch bản `/apply` có hai bước sửa lại file đã viết.
+
+Chỉ nén tham số của `save_artifact`, không nén tool khác: kết quả `fetch_url` cũng dài nhưng không có đường đọc lại nào.
+
+Bản lưu xuống `AgentRun.messages` vẫn là bản ĐẦY ĐỦ — nén chỉ xảy ra lúc gửi request, nên lượt chạy tiếp vẫn khôi phục được nguyên văn rồi nén lại.
+
+### 2. Nạp sẵn khung đặc tả vào system prompt — `PRELOADED_REFERENCES`
+
+Cùng lượt chạy đó tốn hai bước (7,5s + 6,9s) cho sáu lượt `read_skill_reference`, chỉ để lấy về những file KHÔNG bao giờ đổi. `buildSystemPrompt` nay nhồi thẳng chúng vào prompt:
+
+| kịch bản | file nạp sẵn |
+|---|---|
+| `apply` | `03-writing-style.md`, `04-job-evaluation.md`, `05-cv-templates.md`, `06-cover-letter-templates.md` |
+| `interview` | `02-behavioral-profile.md`, `07-interview-prep.md` |
+
+Cái giá là ~43.000 ký tự hằng cộng vào system prompt. Nó đáng vì **system prompt là phần hằng đứng đầu nên ăn cache tiền tố** (đo được 97,6% ở mục "Token" của `CLAUDE.md`), trong khi cùng nội dung đó nằm giữa hội thoại thì mỗi lượt chạy trả tiền lại từ đầu.
+
+Ba ràng buộc:
+
+- **`01-candidate-profile.md` KHÔNG được nạp sẵn** — `read_profile` đọc hồ sơ thật từ database, file kia chỉ là khung placeholder.
+- **`08-application-forms.md` cũng không** — chỉ dùng khi tin tuyển dụng có biểu mẫu, nạp sẵn là trả tiền cho việc phần lớn lượt chạy không làm.
+- **Sổ `seen` được gieo sẵn tên các file đã nạp**, nên agent gọi lại `read_skill_reference` cho chúng chỉ nhận một câu nhắc chứ không nhận lại vài nghìn token.
+
+`test/unit/modules/agent/system-prompt-references.spec.ts` đối chiếu danh sách với file THẬT trên đĩa: đổi tên một file trong `.claude/skills/` mà quên sửa danh sách thì nó đỏ, thay vì âm thầm nạp thiếu.
+
+### 3. Hiện file ngay khi agent lưu xong
+
+Bổ 114 bước `/apply` thật ra theo tool cho thấy đồng hồ nằm ở đâu:
+
+| tool | số bước | tổng | trung bình | % |
+|---|---|---|---|---|
+| `save_artifact` | 31 | 2.572s | 83s | **51,2%** |
+| `spawn_reviewer` | 7 | 991s | 142s | **19,7%** |
+| `compile_pdf` | 20 | 470s | 23s | 9,4% |
+| chỉ viết chữ | 9 | 422s | 47s | 8,4% |
+| `ask_user` | 14 | 268s | 19s | 5,3% |
+| toàn bộ các bước đọc + `fetch_url` | 33 | 294s | 9s | 5,9% |
+
+Tách `save_artifact` theo tài liệu: **CV 25 lần / 1.475 giây**, **thư xin việc 17 lần / 1.024 giây**.
+
+Nghĩa là CV soạn xong ở khoảng phút thứ tư, nhưng người dùng phải đợi thêm thư xin việc, phản biện và compile PDF mới nhìn thấy dòng đầu tiên. `recordStep` nay ghi luôn `result.artifacts` sau MỖI bước thay vì đợi lượt chạy kết thúc, và `AgentFilesCard` đọc nó ở mọi trạng thái.
+
+`GET /agent-runs/:id/artifact?name=cv/main.tex` trả nội dung file. **Khoá Storage lấy từ bản ghi trong database, không ghép từ tên người dùng gửi lên** — tên chỉ dùng để dò trong danh sách artifact của đúng lượt chạy đó, mà lượt chạy đã lọc theo `userId`. Ghép thẳng vào đường dẫn thì `../../<id người khác>/cv/main.tex` là một lượt đọc trộm; có test đơn vị ghim đúng ca đó.
+
+Tên file đi qua **query** chứ không qua path vì nó chứa dấu gạch chéo (`cv/main.tex`) và Nest sẽ cắt nó thành hai đoạn route.
+
+### 4. Phản biện chạy NỀN, sau khi đã trả kết quả
+
+`spawn_reviewer` từng là một tool trong vòng lặp agent: nó sinh một agent con đóng vai nhà tuyển dụng, và agent chính **đứng đợi** nó xong. Đo được 142 giây mỗi lần, **19,7%** quãng chờ - trong khi CV thì đã lưu xong từ trước đó.
+
+Nay nó là một hàng đợi riêng, `QUEUE.AGENT_REVIEW`:
+
+1. Lượt chạy kết thúc `DONE` → `AgentProcessor` đánh dấu `review = { status: 'PENDING' }` rồi xếp việc.
+2. `AgentReviewService` đọc lại artifact từ Storage, gọi model, ghi `review` vào chính bản ghi lượt chạy.
+3. Giao diện hỏi trạng thái tiếp chừng nào `review.status === 'PENDING'`, rồi hiện thẻ góp ý.
+
+**`review` là cột riêng, không nhét vào `result`.** `recordStep` ghi đè `result` sau mỗi bước; một lượt chạy tiếp sẽ xoá mất lời phản biện của lượt trước.
+
+**Ba trạng thái, không phải hai.** `null` = kịch bản này không có phản biện; `PENDING` = có và đang tới; `FAILED` = đã thử và hỏng. Gộp `null` với `PENDING` thì màn hình kết luận "không có góp ý nào" trong lúc góp ý đang chạy.
+
+**`draft()` chỉ đọc artifact có khoá bắt đầu bằng `<userId>/`.** Vòng phản biện chạy trong worker, không có request nào để mà kiểm quyền - nên phép lọc đó là chốt chặn duy nhất. Có test đơn vị ghim.
+
+Phản biện hỏng **không** làm hỏng lượt chạy: hồ sơ đã có, mất vòng đọc lại thì tệ hơn một chút chứ không phải mất trắng. Đây là luật cũ của `spawn_reviewer`, giữ nguyên.
+
+### `compile_pdf` thì ĐỪNG dời đi - nó là chốt chặn, không phải khâu giao hàng
+
+Nhìn tên dễ tưởng nó sinh file PDF cho người dùng tải. Không phải: nó compile rồi trả về **số đo** - mấy trang, ký tự nào font không vẽ được. Bản gốc `/apply` bắt Claude mở ảnh trang giấy ra nhìn; ở đây không có mắt nên thứ thay thế được là con số.
+
+Đo trên 28 lượt gọi thật:
+
+| | số lần |
+|---|---|
+| compile HỎNG | **6** |
+| thiếu glyph | 0 |
+| quá 2 trang | 0 |
+| bước NGAY SAU đó có sửa file | **14** |
+
+**6/28 lần bản `.tex` model gõ ra không compile nổi**, và một nửa số lượt gọi dẫn tới một lần sửa ngay sau đó. Dời nó ra sau khi đã trả kết quả là gửi cho người dùng một file hỏng rồi mới báo. 9,4% quãng chờ này là bảo hiểm rẻ nhất trong cả luồng - giữ nguyên.
+
+Con số 6 lần hỏng đó cũng chính là lý lẽ mạnh nhất cho hướng A: không bắt model gõ tay LaTeX thì không có gì để mà hỏng.
+
+### Thư xin việc là TUỲ CHỌN, và ô chọn nằm ở form khởi động
+
+Tách `save_artifact` theo tài liệu cho thấy riêng việc gõ thư xin việc mất **1.024 giây / 17 lần lưu** - khoảng một phần tư quãng chờ, cho một tài liệu mà phần lớn tin trên TopCV, ITviec hay VietnamWorks không đòi.
+
+`StartAgentDto.coverLetter` mặc định **false**, và `buildOpeningPrompt` dặn thẳng "BỎ HẲN bước soạn thư" khi không được tích.
+
+**Đừng chuyển câu hỏi này vào `ask_user`.** Tool đó khai `stopOnTool`: nó CẮT ĐỨT lượt chạy, và khi người dùng trả lời thì backend gọi model lại từ đầu với toàn bộ hội thoại cũ - đó là lý do một lượt `/apply` có 3-4 lời gọi model chứ không phải một, và token vào leo tới 618k. Đo được 17 lần `ask_user` trên 12 lượt chạy. Hỏi giữa lượt còn bắt người dùng ngồi chờ chính họ, đúng cái đang muốn tránh.
+
+Cờ này nằm trong `AgentRun.input` (cột Json), **không cần migration**.
+
+### Hai chốt chặn chống lặp trong bộ tool của agent
+
+Cả hai đều nằm trong CLOSURE của tool, tức sống đúng một lượt gọi `runTools`. Nhắc bằng system prompt đã thử và không ăn thua - dòng "soạn xong một tài liệu thì lưu MỘT lần" có từ trước, mà 12 lượt chạy vẫn lưu 31 lần.
+
+**`save_artifact`: trần 3 lần cho mỗi tên file, cộng chặn nội dung y hệt.**
+
+Lưu lại đúng nội dung cũ thì trả về `unchanged` mà không ghi. Quá 3 lần thì từ chối, kèm câu nói rõ bản đang có vẫn được giao - nếu không model sẽ tưởng mất file và gõ lại lần nữa.
+
+Ba chứ không phải một: bản `.tex` model gõ ra **hỏng compile 6/28 lần**, nên một lượt sửa sau khi `compile_pdf` báo lỗi là chính đáng. Ba cho phép bản đầu cộng hai lần sửa.
+
+Trần đếm theo TỪNG tên file, không dùng chung: CV và thư xin việc là hai tài liệu riêng.
+
+**`compile_pdf`: nhớ kết quả theo sha256 của nội dung `.tex`.**
+
+28 lượt compile cho 12 lượt chạy, mỗi lượt 23 giây. File không đổi thì trả kết quả cũ kèm câu nhắc "sửa file rồi hãy compile lại". Nhớ **cả kết quả HỎNG** - hỏi lại một bản đã biết là hỏng thì càng không đáng tốn 23 giây nữa.
+
+Lưu ý cho người sửa sau: cả hai closure nằm trong `buildToolSet`, mà `buildToolSet` được gọi lại mỗi lần lượt chạy tiếp tục sau `WAITING_USER`. Nghĩa là bộ đếm **reset** ở mỗi đoạn chạy. Đó là chấp nhận được: mỗi đoạn là một lời gọi model riêng, và người dùng vừa trả lời xong thì một lần lưu lại thường là chính đáng.
+
+### Agent KHÔNG viết LaTeX nữa — `save_cv` thay `save_artifact`
+
+Đây là chỗ đắt nhất của cả luồng: `save_artifact` chiếm **51,2%** quãng chờ, trung bình 83 giây mỗi lần và đỉnh 247 giây. Nó chậm không phải vì ghi file mà vì model phải gõ ra **20.000 token LaTeX** trước khi gọi tool - preamble, macro, `section`, khoảng cách, màu, rồi mới tới nội dung.
+
+Nay agent chỉ đưa **nội dung có cấu trúc**; code dựng bản trình bày, đúng như đường `document.cv` vẫn làm.
+
+| | trước | sau |
+|---|---|---|
+| tool | `save_artifact("cv/main.tex", <LaTeX>)` | `save_cv(<JSON theo cvSchema>)` |
+| token model sinh | ~20.000 | ~1.000 |
+| ép định dạng | không có | zod |
+| kết quả | file rời trong Storage | một `Document` |
+| compile hỏng | 6/28 lần | không còn LaTeX để hỏng |
+
+**Vì sao khuôn cố định chứ không để agent tự chọn bố cục.** Kho mẫu CV đã có sáu mẫu, `Document.layout` cho người dùng đổi thứ tự và ẩn mục, đổi mẫu không tốn lượt gọi model nào. Cho agent tự chế bố cục là chốt một thứ mà người dùng **không đổi được nữa nếu không gọi model lần nữa** - đi ngược đúng ranh giới mà `templateId` là cột riêng đang bảo vệ. Agent giữ nguyên quyền quyết định phần thật sự làm nên một CV may đo: chọn kinh nghiệm nào, viết gạch đầu dòng thế nào.
+
+**`DocumentsService.saveFromAgent()` KHÔNG gọi model**, khác `generate()` ở đúng chỗ đó. Agent vừa đọc tin tuyển dụng và hồ sơ xong nên nội dung đã có; gọi `generate()` từ agent là trả tiền hai lần cho cùng một việc.
+
+**`Document.agentRunId` là cột thật, `SetNull`.** Nhờ nó màn Ứng tuyển tự động trỏ thẳng sang trình sửa CV. Dọn nhật ký một lượt chạy cũ không được phép xoá cái CV người dùng đang dùng để đi nộp.
+
+**Ba tool đã GỠ khỏi bộ của agent:** `spawn_reviewer` (chuyển sang hàng đợi nền), `read_template` và `compile_pdf` (không còn `.tex` nào để đọc mẫu hay để kiểm). File của chúng đã xoá - một tool còn nằm trong bộ là một tool sẽ bị gọi, đó là bài học từ chính `spawn_reviewer`.
+
+**`05-cv-templates.md` nạp sẵn theo MỤC, không nạp cả file.** Nửa file là cơ chế LaTeX - "Template: LaTeX moderncv", "Document Structure", "Compile-and-Inspect Loop (MANDATORY)" - và sau thay đổi này chúng không chỉ thừa mà còn **sai**: chúng bảo model làm thứ nó không còn tool để làm. `REFERENCE_SECTIONS` giữ lại bốn mục hướng dẫn nội dung, cắt hơn 30% số chữ.
+
+Còn sót ba chỗ nhắc thoáng qua tới LaTeX bên trong các mục được giữ (`enlargethispage` ở mục cắt bớt nội dung, hai câu ở mục ATS). Có test đếm số lệnh LaTeX còn lại và ghim mức ≤3 - thêm lại một mục cơ chế là đỏ ngay. `workflowNotes.apply` cũng nói thẳng "mọi hướng dẫn về LaTeX trong khung đặc tả đều KHÔNG áp dụng".
+
+**`save_cv` trần 2 lần mỗi loại**, thấp hơn `save_artifact`: không còn vòng compile-sửa-compile nên không có lý do chính đáng nào để lưu tới lần thứ ba.
+
 ## Các điểm dễ vấp
 
 | Vấn đề | Nguyên nhân |

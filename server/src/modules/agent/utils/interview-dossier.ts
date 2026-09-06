@@ -104,7 +104,18 @@ export function formatInterviewDossier(dossier: InterviewDossier): string {
     }
   }
 
-  lines.push('', 'Mô tả công việc:', dossier.job.description);
+  lines.push(
+    '',
+    'Mô tả công việc:',
+    truncateDescription(dossier.job.description),
+  );
 
   return lines.join('\n');
+}
+
+const MAX_DESCRIPTION_CHARS = 2000;
+
+function truncateDescription(description: string): string {
+  if (description.length <= MAX_DESCRIPTION_CHARS) return description;
+  return `${description.slice(0, MAX_DESCRIPTION_CHARS)}\n… [cắt ${description.length - MAX_DESCRIPTION_CHARS} ký tự, giữ 2000 đầu]`;
 }

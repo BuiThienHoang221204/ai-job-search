@@ -46,6 +46,7 @@ export type StreamTextOptions = {
   modelId?: string;
   /** Để ghi vào `ai_calls`; thiếu nó thì lượt stream vô hình với màn quản trị. */
   context?: AiCallContext;
+  timeoutMs?: number;
 };
 
 /**
@@ -96,6 +97,7 @@ export type RunToolsOptions = {
   stopOnTool?: string;
   /** Gọi sau mỗi bước, để nơi dùng ghi tiến trình xuống DB ngay lúc chạy. */
   onStep?: (step: AgentStepLog) => Promise<void>;
+  compact?: (messages: ModelMessage[]) => ModelMessage[];
 };
 
 export type RunToolsResult = {
@@ -120,4 +122,10 @@ export interface Ai {
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }>;
   runTools(options: RunToolsOptions): Promise<RunToolsResult>;
+  streamText(
+    options: StreamTextOptions,
+  ): Promise<{ modelId: string; result: StreamTextResult }>;
+  streamObject<T>(
+    options: StreamObjectOptions<T>,
+  ): Promise<StreamObjectResult<T>>;
 }

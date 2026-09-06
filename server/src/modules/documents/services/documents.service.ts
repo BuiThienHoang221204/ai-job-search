@@ -220,6 +220,55 @@ export class DocumentsService {
     }
   }
 
+  /**
+   * Ghi một tài liệu do AGENT soạn, KHÔNG gọi model lần nữa.
+   *
+   * Khác `generate()` ở đúng một chỗ nhưng là chỗ quyết định: `generate()` tự
+   * hỏi model để dựng `content`, còn ở đây agent đã có sẵn nội dung có cấu trúc
+   * rồi - nó vừa đọc tin tuyển dụng và hồ sơ xong. Gọi `generate()` từ agent là
+   * trả tiền hai lần cho cùng một việc.
+   *
+   * Đi qua đây thay vì `save_artifact` để CV của agent rơi vào cùng một bản ghi
+   * `Document` với đường soạn tay: người dùng sửa được, đổi mẫu được, tải PDF
+   * được. Bản `.tex` nằm rời trong Storage thì không làm được gì trong số đó.
+   */
+  async saveFromAgent(input: {
+    userId: string;
+    agentRunId: string;
+    kind: DocumentKind;
+    jobId?: string | null;
+    title: string;
+    content: object;
+  }): Promise<Document> {
+    const document = await this.prisma.document.create({
+      data: {
+        userId: input.userId,
+        agentRunId: input.agentRunId,
+        kind: input.kind,
+        jobId: input.jobId ?? null,
+        title: input.title,
+        status: 'DONE',
+        content: input.content,
+        generatedAt: new Date(),
+      },
+    });
+
+    if (!isPrintable(document.kind)) return document;
+
+    const { target, identity } = await this.context(document);
+    const storageKey = await this.renderer.render(
+      document,
+      target,
+      document.content,
+      identity,
+    );
+
+    return this.prisma.document.update({
+      where: { id: document.id },
+      data: { storageKey },
+    });
+  }
+
   /** Render lại `.tex` từ `content` đã lưu, KHÔNG gọi model. */
   async rerender(userId: string, documentId: string): Promise<Document> {
     const document = await this.get(userId, documentId);

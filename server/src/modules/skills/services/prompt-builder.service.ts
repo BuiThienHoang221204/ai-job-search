@@ -131,7 +131,7 @@ export class PromptBuilderService {
 
     if (profile.experiences) {
       lines.push(
-        `- Kinh nghiệm làm việc (JSON): ${JSON.stringify(profile.experiences)}`,
+        `- Kinh nghiệm làm việc (JSON): ${this.clipJson(profile.experiences, 1500)}`,
       );
     }
     /*
@@ -145,20 +145,33 @@ export class PromptBuilderService {
      * Điểm phù hợp bị dìm và CV, thư, mail sinh ra chỉ nói chung chung được.
      */
     if (profile.projects) {
-      lines.push(`- Dự án (JSON): ${JSON.stringify(profile.projects)}`);
+      lines.push(`- Dự án (JSON): ${this.clipJson(profile.projects, 1200)}`);
     }
     if (profile.educations) {
-      lines.push(`- Học vấn (JSON): ${JSON.stringify(profile.educations)}`);
+      lines.push(`- Học vấn (JSON): ${this.clipJson(profile.educations, 800)}`);
     }
     if (profile.certificates) {
-      lines.push(`- Chứng chỉ (JSON): ${JSON.stringify(profile.certificates)}`);
+      lines.push(
+        `- Chứng chỉ (JSON): ${this.clipJson(profile.certificates, 600)}`,
+      );
     }
     if (profile.behavioralTraits) {
       lines.push(
-        `- Đặc điểm hành vi (JSON): ${JSON.stringify(profile.behavioralTraits)}`,
+        `- Đặc điểm hành vi (JSON): ${this.clipJson(profile.behavioralTraits, 600)}`,
       );
     }
 
-    return lines.join('\n');
+    const joined = lines.join('\n');
+    // Trần tổng cho khối hồ sơ: dossier + system đã ~10k tok, vượt 4k ở đây là phình 19k
+    if (joined.length > 4000) {
+      return `${joined.slice(0, 4000)}\n… [cắt ${joined.length - 4000} ký tự hồ sơ]`;
+    }
+    return joined;
+  }
+
+  private clipJson(value: unknown, limit: number): string {
+    const text = JSON.stringify(value);
+    if (text.length <= limit) return text;
+    return `${text.slice(0, limit)}… [cắt ${text.length - limit} ký tự]`;
   }
 }
