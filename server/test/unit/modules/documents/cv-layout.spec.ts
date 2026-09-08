@@ -2,7 +2,9 @@ import type {
   CvContent,
   Identity,
 } from 'src/modules/documents/content.types.js';
-import { SECTION_TITLES } from 'src/modules/documents/templates/body.js';
+import { SECTION_TITLES } from 'src/modules/documents/templates/cv-layout.js';
+
+const TITLES = SECTION_TITLES.vi;
 import {
   DEFAULT_LAYOUT,
   SECTION_KEYS,
@@ -28,6 +30,17 @@ const content: CvContent = {
       location: 'Đà Nẵng',
       period: '03/2025 - nay',
       bullets: ['Hạch toán 400 chứng từ mỗi tháng'],
+    },
+  ],
+  projects: [
+    {
+      name: 'Cổng tra cứu hóa đơn',
+      role: 'Trưởng nhóm',
+      organization: 'ATOM Solution',
+      period: '2025 - nay',
+      description: 'Nền tảng thu thập và đối soát hóa đơn điện tử.',
+      bullets: ['Rút thời gian xử lý một hóa đơn từ 5 phút xuống 15 giây.'],
+      tools: ['NestJS', 'PostgreSQL'],
     },
   ],
   educations: [
@@ -64,6 +77,7 @@ describe('resolveLayout', () => {
     const order = [
       'skills',
       'experience',
+      'projects',
       'education',
       'competencies',
       'profile',
@@ -112,11 +126,11 @@ describe('render theo bố cục', () => {
       }),
     );
 
-    expect(text.indexOf(SECTION_TITLES.skills)).toBeLessThan(
-      text.indexOf(SECTION_TITLES.education),
+    expect(text.indexOf(TITLES.skills)).toBeLessThan(
+      text.indexOf(TITLES.education),
     );
-    expect(text.indexOf(SECTION_TITLES.education)).toBeLessThan(
-      text.indexOf(SECTION_TITLES.profile),
+    expect(text.indexOf(TITLES.education)).toBeLessThan(
+      text.indexOf(TITLES.profile),
     );
   });
 
@@ -126,7 +140,7 @@ describe('render theo bố cục', () => {
       hidden: ['education'],
     });
 
-    expect(textOf(html)).not.toContain(SECTION_TITLES.education);
+    expect(textOf(html)).not.toContain(TITLES.education);
     expect(html).not.toContain('ĐH Kinh tế Đà Nẵng');
   });
 
@@ -136,16 +150,14 @@ describe('render theo bố cục', () => {
     });
 
     expect(html).toContain('Trần Thị Bích Ngọc');
-    for (const title of Object.values(SECTION_TITLES)) {
+    for (const title of Object.values(TITLES)) {
       expect(textOf(html)).not.toContain(title);
     }
   });
 
   test('không truyền bố cục thì giữ nguyên thứ tự cũ', () => {
     const text = textOf(renderCvHtml(identity, content, 'classic'));
-    const positions = SECTION_KEYS.map((key) =>
-      text.indexOf(SECTION_TITLES[key]),
-    );
+    const positions = SECTION_KEYS.map((key) => text.indexOf(TITLES[key]));
 
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
@@ -159,5 +171,33 @@ describe('render theo bố cục', () => {
     );
 
     expect(dao.split(' ').sort()).toEqual(mac_dinh.split(' ').sort());
+  });
+});
+
+describe('data-section — mỏ neo cho việc bấm vào bản xem trước', () => {
+  test('mỗi mục hiện ra đều mang khoá của chính nó', () => {
+    const html = renderCvHtml(identity, content);
+
+    for (const key of SECTION_KEYS) {
+      expect(html).toContain(`data-section="${key}"`);
+    }
+  });
+
+  test('mục bị ẩn KHÔNG để lại mỏ neo nào', () => {
+    const html = renderCvHtml(identity, content, 'classic', null, {
+      order: [...SECTION_KEYS],
+      hidden: ['education'],
+    });
+
+    expect(html).not.toContain('data-section="education"');
+    expect(html).toContain('data-section="skills"');
+  });
+
+  test('tài liệu tự chặn script bằng CSP', () => {
+    const html = renderCvHtml(identity, content);
+
+    expect(html).toContain(
+      `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`,
+    );
   });
 });

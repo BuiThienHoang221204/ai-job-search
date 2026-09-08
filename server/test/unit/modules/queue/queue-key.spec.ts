@@ -41,6 +41,41 @@ describe('singletonKeyFor', () => {
     ).toBe('fpt software:cache');
   });
 
+  describe('khoá rút yêu cầu đi theo LÔ', () => {
+    test('cùng một lô cho ra cùng một khoá dù thứ tự khác nhau', () => {
+      const first = singletonKeyFor(QUEUE.EXTRACT_REQUIREMENTS, {
+        jobIds: ['j1', 'j2', 'j3'],
+      });
+      const second = singletonKeyFor(QUEUE.EXTRACT_REQUIREMENTS, {
+        jobIds: ['j3', 'j1', 'j2'],
+      });
+
+      expect(first).toBe(second);
+    });
+
+    test('hai lô khác nhau cho hai khoá khác nhau', () => {
+      expect(
+        singletonKeyFor(QUEUE.EXTRACT_REQUIREMENTS, { jobIds: ['j1', 'j2'] }),
+      ).not.toBe(
+        singletonKeyFor(QUEUE.EXTRACT_REQUIREMENTS, { jobIds: ['j1', 'j3'] }),
+      );
+    });
+
+    test('khoá đủ ngắn cho cột singleton_key của pg-boss', () => {
+      const key = singletonKeyFor(QUEUE.EXTRACT_REQUIREMENTS, {
+        jobIds: Array.from({ length: 5 }, (_, i) => `clx${'0'.repeat(21)}${i}`),
+      });
+
+      expect(key.length).toBeLessThanOrEqual(64);
+    });
+
+    test('mảng rỗng bị từ chối thay vì dựng một khoá vô nghĩa', () => {
+      expect(() =>
+        singletonKeyFor(QUEUE.EXTRACT_REQUIREMENTS, { jobIds: [] }),
+      ).toThrow(/jobIds/);
+    });
+  });
+
   /// Bản tìm hiểu công ty dùng chung cho mọi người, nên hai người mở cùng một
   /// tin phải gộp làm một lượt. Lọt `userId` vào khoá là trả tiền hai lần cho
   /// cùng một kết quả.

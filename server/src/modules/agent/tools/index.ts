@@ -6,13 +6,12 @@ import type {
   ToolDeps,
 } from '../agent.types.js';
 import { ASK_USER_TOOL, askUserTool } from './ask-user.tool.js';
-import { compilePdfTool } from './compile-pdf.tool.js';
 import { fetchUrlTool } from './fetch-url.tool.js';
+import { readArtifactTool } from './read-artifact.tool.js';
 import { readProfileTool } from './read-profile.tool.js';
 import { readSkillReferenceTool } from './read-skill-reference.tool.js';
-import { readTemplateTool } from './read-template.tool.js';
 import { saveArtifactTool } from './save-artifact.tool.js';
-import { spawnReviewerTool } from './spawn-reviewer.tool.js';
+import { saveCoverLetterTool, saveCvTool } from './save-document.tool.js';
 import { webSearchTool } from './web-search.tool.js';
 
 /**
@@ -27,6 +26,7 @@ import { webSearchTool } from './web-search.tool.js';
 export function buildToolSet(
   deps: ToolDeps,
   context: ToolContext,
+  preloadedReferences: string[] = [],
 ): { tools: ToolSet; artifacts: ArtifactRecord[] } {
   const artifacts: ArtifactRecord[] = [];
 
@@ -36,16 +36,18 @@ export function buildToolSet(
    * chạy thật vẫn đọc `03-writing-style.md` hai lần, mất 15 giây và một prompt
    * phình ra vài nghìn token.
    */
-  const seen: ReadLog = new Set();
+  const seen: ReadLog = new Set(
+    preloadedReferences.map((file) => `skill:${file}`),
+  );
 
   const tools: ToolSet = {
     read_profile: readProfileTool(deps, context, seen),
     read_skill_reference: readSkillReferenceTool(deps, seen),
-    read_template: readTemplateTool(deps, seen),
     fetch_url: fetchUrlTool(deps),
+    save_cv: saveCvTool(deps, context, artifacts),
+    save_cover_letter: saveCoverLetterTool(deps, context, artifacts),
     save_artifact: saveArtifactTool(deps, context, artifacts),
-    spawn_reviewer: spawnReviewerTool(deps, context),
-    compile_pdf: compilePdfTool(deps, context),
+    read_artifact: readArtifactTool(deps, context, artifacts),
     [ASK_USER_TOOL]: askUserTool(),
   };
 

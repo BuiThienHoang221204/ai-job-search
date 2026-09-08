@@ -76,6 +76,12 @@ function fakePortals(
 /** Đúng phần của `occupationCrawl.upsert` mà test đọc tới. */
 type CrawlUpsertArgs = { create: { occupationCode: string } };
 
+type ProfileFindManyArgs = { orderBy?: unknown };
+type ProfileStampArgs = {
+  where: { userId: { in: string[] } };
+  data: { lastFanOutAt: Date };
+};
+
 /** Đúng phần của `job.upsert` mà test đọc tới. */
 type UpsertArgs = {
   create: {
@@ -97,17 +103,22 @@ function fakePrisma(original: { id: string } | null = null) {
       update: jest.fn((args: { data: unknown }) => Promise.resolve(args.data)),
     },
     profile: {
-      findMany: jest.fn().mockResolvedValue([
-        {
-          userId: 'u1',
-          completion: 80,
-          headline: 'Kế toán tổng hợp',
-          primarySkills: [],
-          secondarySkills: [],
-          occupationCode: 'FINANCE',
-        },
-      ]),
+      findMany: jest.fn<Promise<unknown[]>, [ProfileFindManyArgs]>(() =>
+        Promise.resolve([
+          {
+            userId: 'u1',
+            completion: 80,
+            headline: 'Kế toán tổng hợp',
+            primarySkills: [],
+            secondarySkills: [],
+            occupationCode: 'FINANCE',
+          },
+        ]),
+      ),
       findUnique: jest.fn().mockResolvedValue(null),
+      updateMany: jest.fn<Promise<{ count: number }>, [ProfileStampArgs]>(() =>
+        Promise.resolve({ count: 0 }),
+      ),
     },
     job: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -383,6 +394,27 @@ describe('ScraperService.run - chấm điểm theo yêu cầu', () => {
     expect(queued(queue, QUEUE.EXTRACT_REQUIREMENTS)).toBe(true);
   });
 
+  test('xếp hàng rút yêu cầu theo LÔ, không phải mỗi tin một việc', async () => {
+    const { router } = fakePortals({
+      1: Array.from({ length: 12 }, (_, index) => card(`tin-${index}`)),
+    });
+    const queue = fakeQueue();
+    const service = buildService(fakePrisma(null), router, queue, {
+      'scraper.maxJobsPerPortal': 12,
+    });
+
+    await runScrape(service);
+
+    const call = queue.sendMany.mock.calls.find(
+      (args) => args[0] === QUEUE.EXTRACT_REQUIREMENTS,
+    );
+    const batches = call![1] as Array<{ jobIds: string[] }>;
+
+    expect(batches).toHaveLength(3);
+    expect(batches.map((batch) => batch.jobIds.length)).toEqual([5, 5, 2]);
+    expect(batches.flatMap((batch) => batch.jobIds)).toHaveLength(12);
+  });
+
   test('bật cờ thì chấm lại như cũ', async () => {
     const { router } = fakePortals({ 1: [card('a')] });
     const queue = fakeQueue();
@@ -428,24 +460,27 @@ function fakePortalsPerQuery(byQuery: Record<string, PortalJobCard[][]>) {
 /** Hai hồ sơ hai ngành -> kế hoạch có hai từ khoá. */
 function twoIndustryPrisma() {
   const prisma = fakePrisma();
-  prisma.profile.findMany = jest.fn().mockResolvedValue([
-    {
-      userId: 'u1',
-      completion: 80,
-      headline: 'Kế toán tổng hợp',
-      primarySkills: [],
-      secondarySkills: [],
-      occupationCode: 'FINANCE',
-    },
-    {
-      userId: 'u2',
-      completion: 80,
-      headline: 'Điều dưỡng viên',
-      primarySkills: [],
-      secondarySkills: [],
-      occupationCode: 'HEALTHCARE',
-    },
-  ]);
+  prisma.profile.findMany = jest.fn<Promise<unknown[]>, [ProfileFindManyArgs]>(
+    () =>
+      Promise.resolve([
+        {
+          userId: 'u1',
+          completion: 80,
+          headline: 'Kế toán tổng hợp',
+          primarySkills: [],
+          secondarySkills: [],
+          occupationCode: 'FINANCE',
+        },
+        {
+          userId: 'u2',
+          completion: 80,
+          headline: 'Điều dưỡng viên',
+          primarySkills: [],
+          secondarySkills: [],
+          occupationCode: 'HEALTHCARE',
+        },
+      ]),
+  );
   return prisma;
 }
 
@@ -540,7 +575,9 @@ function industriesPrisma(
     })),
   );
 
-  prisma.profile.findMany = jest.fn().mockResolvedValue(profiles);
+  prisma.profile.findMany = jest.fn<Promise<unknown[]>, [ProfileFindManyArgs]>(
+    () => Promise.resolve(profiles),
+  );
   prisma.occupationCrawl.findMany = jest.fn().mockResolvedValue(marks);
   return prisma;
 }
@@ -606,6 +643,42 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
     expect(stamped).toEqual(['FINANCE', 'HEALTHCARE']);
   });
 
+  test('KHÔNG đóng dấu nghề chưa gửi được request nào', async () => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const codes = Array.from(
+      { length: 60 },
+      (_, index) =>
+        `NGHE${letters[Math.floor(index / 26)]}${letters[index % 26]}`,
+    );
+
+    const sizes = Object.fromEntries(
+      codes.map((code, index) => [code, 60 - index]),
+    );
+    const byQuery = Object.fromEntries(
+      codes.map((code) => [
+        `Chức danh ${code}`,
+        [Array.from({ length: 25 }, (_, index) => card(`${code}-${index}`))],
+      ]),
+    );
+
+    const { router } = fakePortalsPerQuery(byQuery);
+    const prisma = industriesPrisma(sizes);
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 60,
+      'scraper.maxJobsPerPortal': 50,
+    });
+
+    await runScrape(service);
+
+    const stamped = prisma.occupationCrawl.upsert.mock.calls.map(
+      (args) => args[0].create.occupationCode,
+    );
+
+    expect(stamped.length).toBeGreaterThan(0);
+    expect(stamped.length).toBeLessThan(60);
+    expect(stamped).toEqual(codes.slice(0, stamped.length));
+  });
+
   test('lượt quét theo NGƯỜI DÙNG không đóng dấu xoay vòng', async () => {
     const { router } = fakePortals({ 1: [card('a')] });
     const prisma = industriesPrisma({ FINANCE: 3 });
@@ -625,5 +698,88 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
     await runScrape(service);
 
     expect(prisma.occupationCrawl.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe('ScraperService.run - xoay vòng hồ sơ được chấm điểm', () => {
+  const profile = (over: Record<string, unknown> = {}) => ({
+    userId: 'u1',
+    completion: 80,
+    headline: 'Kế toán tổng hợp',
+    primarySkills: ['kế toán'],
+    secondarySkills: [],
+    occupationCode: 'FINANCE',
+    ...over,
+  });
+
+  const scoringPrisma = (profiles = [profile()]) => {
+    const prisma = fakePrisma();
+    prisma.profile.findMany = jest.fn<
+      Promise<unknown[]>,
+      [ProfileFindManyArgs]
+    >(() => Promise.resolve(profiles));
+    prisma.job.findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'job-1',
+        title: 'Kế toán tổng hợp',
+        description: 'Mô tả đủ dài để không bị bỏ qua.',
+      },
+    ]);
+    return prisma;
+  };
+
+  const scoringService = (
+    prisma: ReturnType<typeof fakePrisma>,
+    router: JobSourceRouter,
+  ) => buildService(prisma, router, fakeQueue(), { 'scraper.autoScore': true });
+
+  test('hỏi hồ sơ theo lastFanOutAt tăng dần, chưa từng được phát thì lên trước', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = scoringPrisma();
+
+    await runScrape(scoringService(prisma, router));
+
+    const withOrder = prisma.profile.findMany.mock.calls
+      .map((call) => call[0])
+      .filter((args) => args.orderBy !== undefined);
+
+    expect(withOrder).toHaveLength(1);
+    expect(withOrder[0].orderBy).toEqual([
+      { lastFanOutAt: { sort: 'asc', nulls: 'first' } },
+      { userId: 'asc' },
+    ]);
+  });
+
+  test('đóng dấu lastFanOutAt cho đúng những hồ sơ ĐƯỢC phát suất', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = scoringPrisma();
+
+    await runScrape(scoringService(prisma, router));
+
+    expect(prisma.profile.updateMany).toHaveBeenCalledTimes(1);
+
+    const [args] = prisma.profile.updateMany.mock.calls[0];
+    expect(args.where).toEqual({ userId: { in: ['u1'] } });
+    expect(args.data.lastFanOutAt.getTime()).toBeGreaterThanOrEqual(
+      NOW.getTime(),
+    );
+  });
+
+  test('hồ sơ không dính kỹ năng nào của tin thì KHÔNG bị đóng dấu', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = scoringPrisma([profile({ primarySkills: ['kubernetes'] })]);
+
+    await runScrape(scoringService(prisma, router));
+
+    expect(prisma.profile.updateMany).not.toHaveBeenCalled();
+  });
+
+  test('tắt SCRAPER_AUTO_SCORE thì không phát suất nào, cũng không đóng dấu', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = scoringPrisma();
+
+    await runScrape(buildService(prisma, router, fakeQueue()));
+
+    expect(prisma.profile.updateMany).not.toHaveBeenCalled();
   });
 });

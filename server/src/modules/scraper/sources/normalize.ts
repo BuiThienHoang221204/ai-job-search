@@ -17,6 +17,19 @@ export function unwrapList(payload: unknown): unknown[] {
 const text = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
 
+export function normalizeDescription(input: string | null): string | null {
+  if (input === null) return null;
+
+  const cleaned = input
+    .replace(/\r\n?/g, '\n')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 /** Suy `slug` khi CLI không trả về. */
 const slugOf = (row: Record<string, unknown>): string | null =>
   text(row.slug) ?? text(row.id) ?? null;
@@ -31,6 +44,8 @@ export function normalizeCard(input: unknown): PortalJobCard | null {
   const title = text(row.title);
   const url = text(row.url);
   if (!id || !slug || !title || !url) return null;
+
+  const description = normalizeDescription(text(row.description));
 
   return {
     id,
@@ -47,7 +62,7 @@ export function normalizeCard(input: unknown): PortalJobCard | null {
     tags: Array.isArray(row.tags)
       ? row.tags.filter((tag): tag is string => typeof tag === 'string')
       : [],
-    ...(text(row.description) ? { description: text(row.description) } : {}),
+    ...(description ? { description } : {}),
   };
 }
 
@@ -63,7 +78,7 @@ export function normalizeDetail(payload: unknown): PortalJobDetail | null {
   if (!card) return null;
 
   const row = payload as Record<string, unknown>;
-  return { ...card, description: text(row.description) };
+  return { ...card, description: normalizeDescription(text(row.description)) };
 }
 
 /** Bốn portal nói ngày đăng theo bốn kiểu, và không kiểu nào là timestamp. */

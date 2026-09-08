@@ -173,6 +173,17 @@ describe('renderCv', () => {
         bullets: ['Dẫn dắt nhóm 4 kỹ sư.', 'Giảm thời gian tải 60%.'],
       },
     ],
+    projects: [
+      {
+        name: 'Cổng tra cứu hóa đơn',
+        role: 'Trưởng nhóm',
+        organization: 'ATOM Solution',
+        period: '2025 - nay',
+        description: 'Nền tảng thu thập và đối soát hóa đơn điện tử.',
+        bullets: ['Rút thời gian xử lý một hóa đơn từ 5 phút xuống 15 giây.'],
+        tools: ['NestJS', 'PostgreSQL'],
+      },
+    ],
     educations: [
       {
         degree: 'Kỹ sư',
@@ -200,10 +211,36 @@ describe('renderCv', () => {
     expect(tex).toContain('\\moderncvstyle{banking}');
   });
 
+  test('sinh mục Dự án riêng, tách khỏi Kinh nghiệm', () => {
+    const tex = renderCv(identity, content);
+
+    expect(tex).toContain('\\section{Dự án}');
+    expect(tex).toContain('Cổng tra cứu hóa đơn');
+    expect(tex).toContain('Công cụ: NestJS, PostgreSQL');
+  });
+
+  test('không sinh mục Dự án khi hồ sơ không có dự án nào', () => {
+    const tex = renderCv(identity, { ...content, projects: [] });
+
+    expect(tex).not.toContain('\\section{Dự án}');
+  });
+
+  test('dự án không có gạch đầu dòng thì không sinh itemize rỗng', () => {
+    const tex = renderCv(identity, {
+      ...content,
+      projects: [{ ...content.projects[0], bullets: [] }],
+    });
+    const duAn = tex.slice(tex.indexOf('\\section{Dự án}'));
+
+    expect(duAn).toContain('Cổng tra cứu hóa đơn');
+    expect(duAn).not.toContain('\\begin{itemize}');
+  });
+
   test('vẫn chạy khi các mục rỗng', () => {
     const empty: CvContent = {
       ...content,
       experiences: [],
+      projects: [],
       educations: [],
       skillGroups: [],
     };
@@ -242,6 +279,7 @@ describe('macro liên hệ khi thiếu dữ liệu', () => {
     profileStatement: 'Toi la ky su.',
     coreCompetencies: [],
     experiences: [],
+    projects: [],
     educations: [],
     skillGroups: [],
   };

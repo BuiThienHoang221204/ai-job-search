@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -24,6 +34,8 @@ export class RefreshBriefDto {
 @ApiBearerAuth()
 @Controller('companies')
 export class CompanyController {
+  private readonly logger = new Logger(CompanyController.name);
+
   constructor(
     private readonly companies: CompanyService,
     private readonly queue: QueueService,
@@ -50,5 +62,58 @@ export class CompanyController {
 
     await this.queue.send(QUEUE.COMPANY_BRIEF, payload);
     return { queued: true, company: payload.company };
+  }
+
+  @ThrottleAi()
+  @ApiOperation({
+    summary:
+      'Tìm hiểu công ty và đẩy về từng phần ngay khi AI viết ra (NDJSON)',
+  })
+  @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
+  @Post('brief/by-job/:jobId/stream')
+  async refreshStream(
+    @Param('jobId') jobId: string,
+    @Query('force') force: string | undefined,
+    @Res() response: Response,
+  ): Promise<void> {
+    const payload = await this.companies.planRefresh(jobId, force === 'true');
+
+    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+
+    if (!payload) {
+      response.write(
+        `${JSON.stringify({ type: 'done', result: await this.companies.forJob(jobId) })}\n`,
+      );
+      response.end();
+      return;
+    }
+
+    let finished = false;
+    response.on('close', () => {
+      if (finished) return;
+      this.logger.warn(
+        `Người dùng rời trang giữa lượt tìm hiểu ${payload.company}; xếp lại vào hàng đợi`,
+      );
+      void this.queue.send(QUEUE.COMPANY_BRIEF, payload);
+    });
+
+    try {
+      for await (const event of this.companies.streamBuild(payload.company)) {
+        response.write(`${JSON.stringify(event)}\n`);
+      }
+      finished = true;
+    } catch (error) {
+      finished = true;
+      this.logger.error(
+        `Stream tìm hiểu ${jobId} hỏng: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      response.destroy();
+      return;
+    }
+
+    response.end();
   }
 }

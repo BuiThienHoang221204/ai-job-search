@@ -5,40 +5,23 @@ export type TransitionActor = 'user' | 'system';
 
 /** Đơn đã khép lại, không còn chờ hồi âm. */
 export const FINAL_STATUSES = [
-  'HIRED',
-  'REJECTED',
-  'NO_RESPONSE',
-  'OFFER_DECLINED',
   'WITHDRAWN',
-  'EXPIRED',
 ] as const satisfies readonly ApplicationStatus[];
 
 /** Đơn còn đang chạy. */
 export const OPEN_STATUSES = [
   'VIEWED',
-  'RANKED',
   'APPLIED',
-  'INTERVIEW',
-  'OFFER',
-] as const satisfies readonly ApplicationStatus[];
-
-/** Hai trạng thái CHỈ người dùng mới được đặt. */
-export const USER_DECISION_ONLY = [
-  'HIRED',
-  'OFFER_DECLINED',
 ] as const satisfies readonly ApplicationStatus[];
 
 export const isFinal = (status: ApplicationStatus): boolean =>
   (FINAL_STATUSES as readonly ApplicationStatus[]).includes(status);
 
 /** Nhóm hiển thị trên màn hình Lịch sử ứng tuyển. */
-export type StatusGroup = 'open' | 'interview' | 'offer' | 'closed';
+export type StatusGroup = 'open' | 'closed';
 
-export const groupOf = (status: ApplicationStatus): StatusGroup => {
-  if (status === 'INTERVIEW') return 'interview';
-  if (status === 'OFFER') return 'offer';
-  return isFinal(status) ? 'closed' : 'open';
-};
+export const groupOf = (status: ApplicationStatus): StatusGroup =>
+  isFinal(status) ? 'closed' : 'open';
 
 /** Mọi trạng thái, dựng từ chính hai mảng trên chứ không gõ tay lại. */
 export const ALL_STATUSES = [
@@ -59,38 +42,22 @@ export type TransitionRequest = {
   from: ApplicationStatus;
   to: ApplicationStatus;
   actor: TransitionActor;
-  /**
-   * Đơn đã từng ở OFFER hay chưa, suy từ nhật ký sự kiện. Không thể chỉ nhìn
-   * `from`: một đơn có thể đi OFFER -> INTERVIEW (thêm vòng) rồi mới HIRED.
-   */
-  hadOffer: boolean;
 };
 
 export type TransitionResult = { ok: true } | { ok: false; reason: string };
 
-/** Kiểm tra một lần đổi trạng thái có hợp lệ không. */
+/**
+ * Kiểm tra một lần đổi trạng thái có hợp lệ không.
+ *
+ * Với ba trạng thái thì mọi đường đi đều hợp lý ngoài đời - nộp rồi huỷ, huỷ rồi
+ * nộp lại, đánh dấu nhầm rồi sửa - nên chỉ còn hai điều bị chặn: đổi sang chính
+ * trạng thái đang có, và HỆ THỐNG tự mở lại một đơn người dùng đã đóng.
+ */
 export function checkTransition(request: TransitionRequest): TransitionResult {
-  const { from, to, actor, hadOffer } = request;
+  const { from, to, actor } = request;
 
   if (from === to) {
     return { ok: false, reason: `Đơn đã ở trạng thái ${to}` };
-  }
-
-  if (
-    (USER_DECISION_ONLY as readonly ApplicationStatus[]).includes(to) &&
-    actor !== 'user'
-  ) {
-    return {
-      ok: false,
-      reason: `Chỉ người dùng mới đặt được trạng thái ${to}. Nhận việc hay từ chối offer là quyết định ngoài đời, hệ thống không được tự suy ra.`,
-    };
-  }
-
-  if ((to === 'HIRED' || to === 'OFFER_DECLINED') && !hadOffer) {
-    return {
-      ok: false,
-      reason: `Không thể chuyển sang ${to} khi đơn chưa từng ở trạng thái OFFER`,
-    };
   }
 
   if (isFinal(from) && actor !== 'user') {

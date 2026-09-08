@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { requiredCappedTextVi } from '../../common/model-output.js';
 
-const vn = (max: number, hint: string) =>
-  z.string().min(1).max(max).describe(`${hint} Viết bằng tiếng Việt có dấu.`);
+const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 
 /** Bốn nhãn phân loại lấy từ Step 4 của .claude/skills/upskill/SKILL.md. */
 export const gapCategory = z.enum(['domain', 'soft', 'tooling', 'credential']);
@@ -36,7 +36,7 @@ export const upskillGapsSchema = z.object({
         ),
       }),
     )
-    .max(12)
+    .transform((items) => items.slice(0, 12))
     .describe(
       'Kỹ năng kỹ thuật cụ thể mà tin tuyển dụng đòi hỏi nhưng hồ sơ chưa có.',
     ),
@@ -53,7 +53,7 @@ export const upskillGapsSchema = z.object({
         ),
       }),
     )
-    .max(8)
+    .transform((items) => items.slice(0, 8))
     .describe(
       'Khoảng trống về kiến thức ngành, cách làm việc, công cụ/quy trình, hoặc chứng chỉ. Không lặp lại hardGaps.',
     ),
@@ -80,11 +80,11 @@ export const upskillPlanSchema = z.object({
             ),
           )
           .min(1)
-          .max(4),
+          .transform((items) => items.slice(0, 4)),
       }),
     )
     .min(1)
-    .max(8)
+    .transform((items) => items.slice(0, 8))
     .describe(
       'Sắp theo thứ tự học, không phải theo độ quan trọng. Cái nào mở khóa được nhiều thứ khác thì học trước.',
     ),

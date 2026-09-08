@@ -14,6 +14,15 @@ export type CvContent = {
     period: string;
     bullets: string[];
   }>;
+  projects: Array<{
+    name: string;
+    role: string;
+    organization: string;
+    period: string;
+    description: string;
+    bullets: string[];
+    tools: string[];
+  }>;
   educations: Array<{
     degree: string;
     institution: string;

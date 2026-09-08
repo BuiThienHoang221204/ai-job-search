@@ -1,15 +1,16 @@
 import type { Ai } from '../ai/services/ai.types.js';
-import type { LatexCompiler } from '../documents/latex-compile.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import type { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import type { Storage } from '../storage/storage.interface.js';
+import type { DocumentsService } from '../documents/services/documents.service.js';
 
 /** Đầu vào người dùng đưa cho một lượt chạy. Lưu nguyên vào `AgentRun.input`. */
 export type AgentInput = {
   jobUrl?: string;
   jobDescription?: string;
   note?: string;
+  coverLetter?: boolean;
 };
 
 /** Câu mở đầu gồm đầu vào của người dùng và bối cảnh gom từ database. */
@@ -28,6 +29,8 @@ export type ToolContext = {
    * bên thứ ba viết ra.
    */
   sourceUrl?: string;
+  /** Tin tuyển dụng lượt chạy nhắm tới, để tài liệu sinh ra gắn đúng job. */
+  jobId?: string | null;
 };
 
 /**
@@ -44,11 +47,19 @@ export type ToolContext = {
  */
 export type ReadLog = Set<string>;
 
+export type SkillReference = {
+  file: string;
+  body: string;
+};
+
 /** File agent đã ghi ra trong một lượt chạy. */
 export type ArtifactRecord = {
   name: string;
   key: string;
   bytes: number;
+  /** Có giá trị khi file là một `Document` chứ không phải file rời trong Storage. */
+  documentId?: string;
+  kind?: string;
 };
 
 /**
@@ -75,6 +86,6 @@ export type ToolDeps = {
   skills: SkillRegistryService;
   prompts: PromptBuilderService;
   storage: Storage;
-  latex: LatexCompiler;
+  documents: DocumentsService;
   limits: AgentLimits;
 };

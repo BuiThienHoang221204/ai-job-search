@@ -139,6 +139,33 @@ Giao diện sửa bằng FORM chứ không sửa thẳng trên bản xem trướ
 
 **`escapeHtml` là ranh giới an toàn, gắt hơn `escapeLatex` một bậc.** Bản HTML không chỉ đi vào PDF mà còn được nhúng vào iframe trong phiên đăng nhập của người dùng, trong khi nội dung do model sinh từ mô tả công việc người lạ đăng lên. Route `/preview` gửi kèm `Content-Security-Policy: sandbox` làm lớp chặn thứ hai.
 
+### Bấm vào bản xem trước — vì sao `allow-same-origin` được bật còn `allow-scripts` thì không
+
+`CvPreview` khai `sandbox="allow-same-origin"`. Đây là một nới lỏng CÓ CHỦ Ý so với `sandbox=""` trước đây, và ranh giới thật sự vẫn nguyên vì hai cờ này làm hai việc khác nhau:
+
+| Cờ | Cho phép | Trạng thái |
+|---|---|---|
+| `allow-scripts` | script BÊN TRONG iframe chạy được | **TẮT** — đây mới là lớp chặn XSS |
+| `allow-same-origin` | trang CHA đọc được DOM của iframe | BẬT |
+
+Không có `allow-scripts` thì `<script>` và `onerror=` trong nội dung do model sinh đều chết cứng. `allow-same-origin` chỉ cho code của chính app đọc DOM từ bên ngoài — thứ cần để biết người dùng bấm vào mục nào và để cuộn tới đúng mục.
+
+**Bật CẢ HAI cùng lúc mới là tổ hợp nguy hiểm**: lúc đó trang bên trong tự gỡ được sandbox của chính nó. Đừng thêm `allow-scripts` vào đây.
+
+Chốt chặn thứ hai nằm trong `templates/html.ts`: tài liệu tự mang `<meta http-equiv="Content-Security-Policy" content="script-src 'none'">`, nên kể cả có ai thêm `allow-scripts` ở bản sau thì script vẫn không chạy. Có test đơn vị ghim cả hai điều này.
+
+**Mỗi mục mang `data-section="<khoá>"`** (`templates/body.ts`). Đó là toàn bộ thứ cần để nối hai chiều: bấm vào bản xem trước thì `closest('[data-section]')` cho ra khoá mục, còn mở một mục trong ô sửa thì `offsetTop` của chính phần tử đó nhân với `scale` cho ra chỗ phải cuộn tới. Mục bị ẩn không được vẽ nên cũng không có mỏ neo — đúng với quy tắc "mục ẩn không lọt vào tầng chữ".
+
+**KHÔNG cần backend tính toạ độ.** Đã từng định đi hướng đó và nó sai: server không hề dàn trang, chiều cao một mục phụ thuộc font và ngắt dòng nên chỉ trình duyệt dựng xong mới biết. Ai muốn "đồng bộ bản xem trước" thì dùng `data-section`, đừng thêm API trả vị trí.
+
+**Hai cái bẫy đã sập khi nối hai chiều, cả hai đều IM LẶNG — không lỗi, không log, tính năng chỉ đơn giản là không chạy:**
+
+1. **`instanceof` không đi qua được ranh giới realm.** `event.target` của một click trong iframe là phần tử thuộc `window` CỦA IFRAME, nên `target instanceof Element` so với `Element` của trang cha và luôn trả `false`. Bản đầu của `CvPreview` có đúng phép kiểm đó và cả tính năng chết câm. Dò theo hình dạng (`typeof node.closest === 'function'`) mới đi xuyên được. Cùng lý do này áp cho mọi `instanceof` khác nếu sau này có code chạm vào DOM của iframe.
+
+2. **Đếm số lần nạp, đừng dùng cờ boolean.** `srcDoc` đổi sau mỗi lần gõ phím (qua debounce), và mỗi lần đổi là một DOCUMENT MỚI — listener gắn vào document cũ đi theo nó vào sọt rác. Với `const [ready, setReady] = useState(false)` thì `setReady(true)` lần thứ hai là no-op nên effect không chạy lại, và từ lần xem trước thứ hai trở đi bấm vào bản CV không còn ăn. `CvPreview` đếm `loads` và mọi effect phụ thuộc vào con số đó.
+
+Cả hai lỗi đều lọt qua typecheck, lint, unit test và build. Bắt được bằng `test/visual/cv-editor.spec.ts` — spec `bam vao mot muc tren ban xem truoc thi o sua mo dung muc do` có mặt để canh đúng chỗ này.
+
 ## Xuất PDF (Pha 3) — ba điều đã trả giá để biết
 
 **Hai đường, chọn bằng `LATEX_SERVICE_URL`.** Có giá trị → `HttpLatexCompiler` gọi dịch vụ riêng (production). Bỏ trống → `SandboxLatexCompiler` gọi `docker run` qua SEAM 2 (máy phát triển, app chạy trực tiếp trên host). App ghi ra log lúc khởi động nó đang dùng đường nào.
@@ -180,20 +207,19 @@ Muốn dựng lại `cover.cls` (ví dụ sau khi đổi font của nó sang fon
 
 Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `\today`: `\today` theo ngôn ngữ document class, và moderncv mặc định tiếng Anh — đã thấy dòng "August 13, 2026" trong một thư tiếng Việt.
 
-## Nguồn tin: SEAM 5, hai adapter
+## Nguồn tin: SEAM 5
 
-`ScraperService` KHÔNG biết một nguồn là CLI hay HTTP — nó hỏi `JobSourceRouter`. Hai adapter:
+`ScraperService` KHÔNG biết một nguồn được lấy bằng cách nào — nó hỏi `JobSourceRouter`. Hiện chỉ có một adapter:
 
 - `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bốn portal Việt nằm ở đây.
-- `AtsSourceService` — gọi **API job board công khai** của Greenhouse/Lever/Ashby, khai bằng `ATS_BOARDS=greenhouse:gitlab,ashby:ramp`.
 
-**Vì sao có nguồn ATS: tin của chúng lấy được qua API công bố, có tài liệu, không cần key — đọc chúng không phải scrape.** Đây cũng là món trả nợ ToS mà lộ trình ghi ở mục 4: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Đã đo trên board GitLab: 201 tin có mô tả → 42 khớp "DevOps" → 12 lưu.
+Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn mới mà `ScraperService` không phải biết.
 
-Ba điều dễ làm sai ở adapter ATS:
+Từng có adapter thứ hai gọi API job board công khai của Greenhouse/Lever/Ashby (`AtsSourceService`, khai bằng `ATS_BOARDS`). **Đã gỡ 2026-08-27** cùng toàn bộ dữ liệu của hai board từng bật — `ashby:ramp` và `greenhouse:gitlab`. Đừng dựng lại theo trí nhớ: hãy đọc lại commit đó.
 
-1. **Lever trả MẢNG ở tầng ngoài**, Greenhouse và Ashby bọc trong `{ jobs: [...] }`. Đọc sai chỗ này thì luôn ra 0 tin và lượt quét vẫn được ghi là "thành công".
-2. **Greenhouse cần `?content=true`**, thiếu nó thì `content` vắng và phải gọi thêm một request cho từng tin. Cả ba đều trả mô tả sẵn, nên `AtsSourceService.detail()` cố ý **ném lỗi** — nó không bao giờ được gọi tới.
-3. **Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ.
+Món nợ ToS mà lộ trình ghi ở mục 4 vẫn còn nguyên: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Việc gỡ ATS KHÔNG trả món nợ đó, chỉ bỏ một hướng đã thử.
+
+**Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ. Bài học này nay sống ở `agent/utils/html-text.ts`.
 
 ### "Thẻ đã có mô tả" KHÔNG có nghĩa là mô tả đầy đủ
 
@@ -218,6 +244,24 @@ Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. V
 
 **Không có từ khoá mặc định nào.** Hồ sơ trống thì lần quét FAILED kèm lời nhắc đi điền hồ sơ, và **không gọi model**. Trước đây chỗ này lùi về `'developer'` và gọi đó là "quét rộng" — `developer` không rộng, nó là một nghề. Đừng thêm lại một giá trị mặc định: không có từ khoá trung lập nào tồn tại, `việc làm` trả về vài chục nghìn tin ngẫu nhiên.
 
+### `job.requirements` gộp LÔ 5 tin — khoản chi lớn nhất hệ thống
+
+Đo trên `ai_calls` ngày 2026-08-28: **`job.requirements` chiếm 633/1.311 lượt gọi model của cả hệ thống — 48%**, và một đêm cao điểm (26/08) đã chạm **261 lượt**. Nó là khoản chi lớn nhất, lớn hơn cả `match.evaluate` (271) lẫn `skill.canonicalize` (248) cộng lại thì gần bằng.
+
+Nó tốn nhiều vì **nhân tuyến tính 1:1 với số tin MỚI và không có phanh nào**: đầu vào từ crawl là `savedJobIds`, toàn tin chưa có bản ghi nên nhánh `sourceHash` không bao giờ ăn. Khác hẳn `skill.canonicalize` — cửa lọc "đã có trong danh bạ chưa" khiến nó tự tắt dần khi danh bạ bão hoà.
+
+Nay `scraper.service` xếp hàng theo **lô 5 tin** (`REQUIREMENTS_BATCH`) và `extractMany` hỏi model **một lượt cho cả lô**: một đêm 200 tin đi từ 200 lượt xuống **40**.
+
+**Ba đường lùi, và cả ba đều bắt buộc — gộp lô không được phép tệ hơn không gộp:**
+
+1. **Tin dài hơn 6.000 ký tự đi đường lẻ.** Đo trên 563 tin: p50 2.556, p95 5.993, dài nhất 20.265. Mức này giữ ~95% số tin ở đường gộp mà không để một tin khổng lồ thổi phồng prompt.
+2. **Lô hỏng thì rút lại từng tin.** `job.requirements` vốn đã đứng đầu bảng lỗi SCHEMA, gộp lô làm bán kính thiệt hại rộng ra 5 lần — nên `catch` phải chạy lại đường lẻ, không được để cả lô mất trắng.
+3. **Lô thiếu phần tử thì riêng tin đó rút lẻ.** Model bỏ sót một tin trong lô là chuyện có thật; ánh xạ theo `index` phát hiện được và chỉ tin đó phải trả giá.
+
+**Khoá dedup của hàng đợi nay là VÂN TAY của cả lô** (sha256 của danh sách id đã sắp xếp, cắt 32 ký tự) — nối chuỗi năm cuid sẽ dài hơn cột `singleton_key` của pg-boss. Hai lô khác nhau chứa chung một tin thì không dedup được, và đó là chấp nhận được: `extractMany` so `sourceHash` trước khi gọi model nên tin đã rút xong chỉ tốn một lượt đọc database.
+
+**`matching.controller` vẫn dùng `extract()` đường lẻ** — rút lại một tin theo yêu cầu người dùng thì không có lô nào để gộp.
+
 **Tin rác đắt gấp N lần bạn tưởng.** `planFanOut` chấm mỗi tin mới với MỌI người dùng đủ điều kiện, nên một tin lạc ngành tốn `số người dùng` lượt gọi model chứ không phải một. Đó là lý do độ chính xác của truy vấn quan trọng hơn số lượng truy vấn.
 
 **Lượt quét đêm có ba trần, đừng chỉnh một cái mà quên hai cái kia:** `SCRAPER_MAX_JOBS_PER_PORTAL` (50 tin/portal, gom qua nhiều trang), `SCRAPER_MAX_AGE_DAYS` (7 ngày, lọc **trước** `detail` chứ không phải sau) và `SCRAPER_MAX_PAGES`. Nâng trần tin mà quên cửa sổ ngày thì database đầy tin đã đóng; lọc ngày sau khi gọi `detail` thì đã trả tiền đúng phần đắt nhất rồi.
@@ -226,7 +270,30 @@ Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. V
 
 **ITviec chỉ có IT, và vẫn cố ý được gọi cho mọi người.** Chọn portal theo ngành cần một khái niệm "ngành của hồ sơ" mà `Profile` chưa có. Trong lúc đó, người dùng ngoài IT chịu một lượt quét rỗng — **giao diện phải phân biệt "0 tin vì portal không phục vụ ngành này" với "0 tin vì hỏng"**, không thì họ tưởng app lỗi.
 
-**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa, lý do ghi trong docblock của `planForSystem`.
+**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa.
+
+### Lượt quét hệ thống gom cụm theo NGHỀ, không theo nhóm ngành
+
+`clusterProfiles` gom hồ sơ theo `subOccupationCode` (**danh mục 77 nghề**), lùi về `occupationCode` khi không suy ra được nghề cụ thể. Đây là cùng một bài học đã có ở `Job.subOccupationCode`: **tầng nhóm một mình không thu hẹp được** — đo 2026-08-24, riêng `IT` ôm 235/386 tin. Bên lọc đã sửa từ hồi đó, bên quét thì tới 2026-08-28 mới sửa.
+
+Gom theo 19 nhóm thì cả `IT_QA`, `IT_DEVOPS` và `IT_SECURITY` chung một từ khoá duy nhất (`mostCommon` của headline trong cụm), và hai nghề thua cuộc **không bao giờ được quét**. Đó là chỗ 100 hồ sơ bị nén xuống 19 truy vấn, chứ không phải ở số IP hay nơi chạy code.
+
+**Trần độ phủ là TAXONOMY, không phải số người dùng.** `SCRAPER_SYSTEM_QUERY_LIMIT` (nay 20) quyết định chu kỳ phủ: 77 nghề / 20 mỗi đêm ≈ **bốn đêm** cho một vòng, xoay theo thứ tự cũ-trước của `OccupationCrawl.lastCrawledAt`. Muốn phủ nhanh hơn thì nâng biến đó, đừng đi tăng số nguồn quét.
+
+**Hạn ngạch trong `collectCards` làm tròn XUỐNG, và đó là một sửa lỗi chứ không phải sở thích.** `quota * số truy vấn` phải **≤** `SCRAPER_MAX_JOBS_PER_PORTAL`, nếu không lượt đầu đầy trần trước khi duyệt hết truy vấn và những truy vấn cuối bảng không gửi đi một request nào. Đo trên chính hàm đó:
+
+| Truy vấn | Trần tin | quota | Thật sự gọi |
+|---|---|---|---|
+| 10 | 50 | 5 | 10/10 |
+| 20 | 50 | **làm tròn LÊN → 3** | **17/20** |
+| 20 | 50 | làm tròn xuống → 2 | 20/20 |
+| 60 | 50 | 1 | 50/60 |
+
+**Và `markCrawled` chỉ đóng dấu nghề THẬT SỰ được gọi** — `collectCards` trả về `askedIndices` cho đúng việc này. Đóng dấu một nghề chưa gọi là lỗi **tự nuôi**: nghề đó nhận mốc thời gian mới nhất, tụt xuống cuối hàng xoay vòng, rồi vòng sau lại rơi đúng vào chỗ bị cắt. Vì tie-break là `size DESC` nên nạn nhân luôn là **cụm nhỏ nhất** — tức người dùng ngành ngách, đúng nhóm mà đề tài đa ngành muốn phục vụ. Không phải ngẫu nhiên mà có hệ thống.
+
+Ở 1.000 người dùng, số cụm vẫn ≤96 và **chi phí model không đổi** (nó tính theo số TIN, không theo số người). Thứ xấu đi theo quy mô là **độ đại diện của `mostCommon`**: cụm càng đông thì một chức danh đại diện càng ít người. Đó là giới hạn cố hữu của "một truy vấn cho một cụm", và cách gỡ là top-N chức danh mỗi cụm theo cỡ cụm — chưa làm.
+
+**Không có migration nào.** Mã nghề tính trong bộ nhớ từ `headline` + `primarySkills` lúc lập kế hoạch, nên `Profile` không cần cột mới. Cột `occupation_crawls.occupation_code` giữ nguyên tên nhưng **nay chứa mã nghề** (`FIN_ACCOUNTING`), hoặc mã nhóm khi cụm rơi vào nhánh lùi. Bản ghi cũ mang mã nhóm không phải rác: chúng vẫn khớp đúng những cụm đi nhánh lùi.
 
 `.claude/skills/job-scraper/search-queries.md` **được nạp vào `skill.references` nhưng không prompt nào đọc** — `refineQueries` tự dựng prompt riêng. Sửa file đó chỉ đổi hành vi runtime Claude Code, không đổi gì ở backend. Chỉ các file của `job-application-assistant` mới thật sự được nhồi vào prompt.
 
@@ -265,7 +332,7 @@ Gateway **không có model embedding nào**, nên vector search ở Pha 4 sẽ c
 
 ### Nhiều lõi model — mỗi lõi MỘT FILE, không phải một thư mục
 
-`src/modules/ai/providers/` có `opencode.ts` và `openrouter.ts`. **Thêm lõi = thêm một file + một dòng trong `index.ts`.** Đừng biến chúng thành class Nest: đã đếm, **146/185 provider trong catalog dùng chung đúng một adapter** `@ai-sdk/openai-compatible`, nên một class cho mỗi lõi sẽ là một class không có hàm nào — và làm việc thêm lõi **khó hơn**, đúng cái điều nó nhắm tới.
+`src/modules/ai/providers/` có `opencode.ts`, `openrouter.ts`, `omniroute.ts` và `kilo.ts`. **Thêm lõi = thêm một file + một dòng trong `index.ts`.** Đừng biến chúng thành class Nest: đã đếm, **146/185 provider trong catalog dùng chung đúng một adapter** `@ai-sdk/openai-compatible`, nên một class cho mỗi lõi sẽ là một class không có hàm nào — và làm việc thêm lõi **khó hơn**, đúng cái điều nó nhắm tới.
 
 `AiService` và `failure-*.ts` **cố ý ở nguyên `modules/ai/`**, không xuống `core/`: 10 module import `AiService`, **0 module** import `ModelCatalogService`. Cấu trúc thư mục đang nói đúng ranh giới đó, đừng xoá nó đi.
 
@@ -275,7 +342,63 @@ Chuỗi dự phòng đi xuyên lõi qua chuỗi `lõi/model`, tách ở dấu `/
 
 **Nhánh 5xx có thêm một phanh: chỉ đổi mắt xích khi lượt hỏng CHƯA đi được bước agent nào.** `runTools` chạy lại là chạy lại từ bước 0, nên bỏ mắt xích ở bước thứ chín là trả tiền lần hai cho chín bước đã xong — mà nhánh `FAILED` của `AgentRunnerService` lại không lưu `messages` nên cũng không có đường chạy tiếp. Lý do nhánh này tồn tại nằm ở một lượt hỏng thật ngày 2026-08-22: `agent.reviewer` nhận HTTP 500 hai lần liên tiếp (96 giây, payload chỉ 8,4KB) và cả tác vụ hỏng, trong khi **không một model dự phòng nào được thử** vì 5xx không nằm trong danh sách lý do đổi mắt xích.
 
-**Hai ràng buộc về tiền:** `resolve()` **không bao giờ tự thay model khác** (bản cũ lấy `models[0]`; OpenRouter có 413 model gồm loại đắt, và hàng đợi chấm điểm chạy theo cron), và `AI_ALLOW_PAID_MODELS` mặc định `false` với model **không khai giá bị coi là trả tiền**.
+**Ràng buộc về tiền:** `resolve()` **không bao giờ tự thay model khác** (bản cũ lấy `models[0]`; OpenRouter có 413 model gồm loại đắt, và hàng đợi chấm điểm chạy theo cron). Từ 2026-08-26 đây là chốt DUY NHẤT: `AI_ALLOW_PAID_MODELS` và `isFree()` đã gỡ, nên model trả tiền ghi trong `.env` sẽ chạy thật.
+
+### Lõi `omniroute` — gateway tại chỗ, và những gì đã ĐO ngày 2026-08-26
+
+`npx -y omniroute` mở `http://localhost:20128/v1`, OpenAI-compatible. Lõi này khác ba lõi kia ở một điểm cấu trúc: **nó không có trong catalog `models.opencode.ai`**, nên nó khai `baseURLEnv` và `ModelCatalogService.catalogFor()` dựng danh sách model từ chính `GET /v1/models` của nó. Đó là toàn bộ lý do `baseURLEnv` tồn tại — lõi nào khai biến này thì bỏ qua catalog ngoài.
+
+**Hai cái bẫy đã sập, cả hai đều im lặng:**
+
+1. **OmniRoute trả SSE cho request KHÔNG streaming.** AI SDK gọi `generateObject` mà không gửi trường `stream`, và gateway mặc định trả `text/event-stream` — SDK vỡ với `SyntaxError: Unexpected token 'd', "data: {"id"...`. Vá bằng `explicitStreamFlag` trong descriptor: `language-model.ts` chèn `stream: false` khi thân request **chưa có** trường đó. Điều kiện "chưa có" là bắt buộc — ghi đè vô điều kiện sẽ giết `streamText`.
+2. **Gateway tự nhồi "memory + skills" vào prompt và tự nén token.** Cả hai bật sẵn. `extraHeaders` của descriptor tắt chúng: `x-omniroute-compression: off` và `x-omniroute-no-memory: true`. App gửi đi CV người thật, nên nén có mất mát và chèn ngữ cảnh lạ đều không chấp nhận được.
+
+**Đo trên đúng 8 cặp của `probe-skill-merge`, cùng schema, cùng prompt, chỉ khác đường đi:**
+
+| Đường | Model | Điểm | Thời gian |
+|---|---|---|---|
+| OpenCode trực tiếp | `hy3-free` | **8/8** | 14,2s |
+| Qua OmniRoute | `oc/hy3-free` | **8/8** | 13,8–16,1s |
+
+Chất lượng không đổi, độ trễ thêm khoảng 10%.
+
+**Nhưng 115 model nó khai KHÔNG phải 115 model dùng được**, và đây là phần quan trọng nhất:
+
+- `oc/*` (6 model) — chính là bể OpenCode đang dùng. **Cùng một bể hạn mức**: `oc/mimo-v2.5-free` trả 429 y như gọi thẳng.
+- `aug/*` (28 model, gồm Opus 4.8, GPT-5.6, Gemini 3.1 Pro) — **không phải API**. Gateway shell ra CLI `auggie` trên máy: `502 'auggie' is not recognized`. Chỉ chạy nếu tự cài và tự đăng nhập bằng thuê bao của mình.
+- `tllm/*` (26 model) — **403: "blocked by Vercel for this server egress IP. Configure a residential provider or global proxy"**. Muốn dùng phải đi proxy dân cư để né chặn.
+- `felo/*`, `ddgw/*` — endpoint web scrape, trả 400.
+- **OpenRouter và Kilo KHÔNG được nối sẵn.** Muốn gộp ba lõi làm một thì phải tự nhập key vào dashboard của OmniRoute.
+
+**Ghim model thì KHÔNG có tự chuyển khi cạn hạn mức.** Đã đo: `oc/mimo-v2.5-free` gặp 429 và gateway trả thẳng 429 về. Header lượt đó **không có `x-omniroute-decision`** — nó không chạy bước định tuyến nào; lượt thành công thì header ghi `strategy=single`, tức "một mục tiêu, không có phương án hai".
+
+**Tự chuyển chỉ có ở combo `auto/*`, và combo thì hên xui theo từng cái.** Đo 6 combo cùng một lúc:
+
+| Combo | Kết quả |
+|---|---|
+| `auto/cheap`, `auto/coding:free`, `auto/fast`, `auto/best-chat`, `auto/smart` | 200 — cả năm cùng chọn `oc/hy3-free` |
+| `auto/best-free` | 400 — thử 6 nhà cung cấp, hỏng cả 6 |
+
+`auto/cheap` chạy đủ 8/8 trên bộ `probe-skill-merge` (18,9 giây). **Đừng suy từ một combo hỏng ra "đường auto không dùng được"** — đã mắc lỗi đó một lần.
+
+**Cái giá của `auto/*` là mất quyền chọn nhà cung cấp.** Hôm nay nó chọn `oc/hy3-free`; không có gì hứa ngày mai nó không chọn `felo/*` hay `ddgw/*` — hai bể endpoint web scrape. App gửi đi CV người thật, nên nếu điều đó thành vấn đề thì phải quay lại ghim tên model và dựa vào `ModelChain`.
+
+**Kết luận: `ModelChain` của repo vẫn là thứ làm việc dự phòng, OmniRoute không thay được nó.**
+
+**`OMNIROUTE_USER_AGENT=opencode` là BẮT BUỘC, và đây là chỗ đắt nhất đã học được.** Hạn mức free của OpenCode gắn với chuỗi `User-Agent: opencode` — điều `providers/opencode.ts` đã ghi từ trước, nhưng ban đầu không ai nối nó với việc đi qua gateway. OmniRoute là một CHẶNG RIÊNG: nó tự mở kết nối ra OpenCode, nên nếu ta không đặt UA thì nó gửi UA của chính nó. Đo cùng model, cùng key `public`, cùng thời điểm:
+
+| User-Agent gửi lên | Kết quả |
+|---|---|
+| `opencode` | **200** |
+| `omniroute/3.8.49` | 429 `FreeUsageLimitError` |
+| `curl/8.0` | 429 |
+| không gửi | 429 |
+
+May là **OmniRoute CHUYỂN TIẾP User-Agent của client lên nhà cung cấp**, nên chỉ cần khai `userAgentEnv` trong descriptor là xong. Hậu quả lúc chưa khai, đo trên một lượt cron thật: `oc/mimo-v2.5-free` hỏng **30/30**, mỗi tin đốt ~29 giây rồi mới rơi xuống `oc/hy3-free` chậm gấp tám (35s so với 4,2s).
+
+**Đừng kết luận "gateway trung tính về hạn mức" từ một mẫu.** Đã sai đúng như vậy: thấy cả hai đường cùng trả 200 một lần rồi kết luận chung bể. Thật ra nó tệ hơn hẳn cho tới khi UA được đặt đúng.
+
+Cổng 20128: đường **`/v1/*` không kiểm tra key** ở bản chạy tại chỗ (không header, `Bearer public`, chuỗi bừa — đều 200), trong khi API quản trị `/api/*` thì trả 401. Nghĩa là phần TIÊU hạn mức là phần không có cổng chặn. Lên VPS thì để `expose`, đừng `ports`, nếu không là mở một gateway model công khai cho cả internet.
 
 ### Catalog KHÔNG phải danh sách model dùng được
 
@@ -307,6 +430,22 @@ Nên `bench-models.mjs` kiểm thêm hai thứ schema không bắt được: **c
 **Bẫy đo lường đã sập một lần, đừng sập lại:** `hy3-free` và `nemotron` là model **reasoning** — chúng tiêu 700–2300 token vào `reasoning_content` TRƯỚC khi sinh `content`. Thử với `max_tokens: 8` thì `content` ra rỗng và trông y như model không làm được việc; tôi đã kết luận sai đúng như vậy. `AiService` cố ý KHÔNG đặt `maxOutputTokens`.
 
 **Chuỗi dự phòng KHÔNG cứu được tier free cho app này.** Đã chạy thật: chuỗi đổi model đúng cơ chế (deepseek → mimo → nemotron, ghi log và ghi `ai_calls` từng lượt), nhưng nemotron hết giờ trên cả `upskill.report` (240s) lẫn `match.evaluate` (90s) vì prompt thật mang theo cả khung đánh giá từ file skill. Chuỗi vẫn đáng giữ — nó đúng, rẻ, và sẽ có tác dụng khi một model nhanh còn hạn mức — nhưng **nó không thay thế được hạn mức**.
+
+## Token: `inputTokens` KHÔNG phải số token đã trả tiền
+
+Nhà cung cấp **tự cache phần đầu prompt**, và `inputTokens` **đã gộp cả phần cache đó**. Đo 2026-08-26 qua đúng đường app đi (`LanguageModelFactory` → OmniRoute → OpenCode, `@ai-sdk/openai-compatible`), ba lượt gọi cùng một system prompt:
+
+```
+lần 1: inputTokens=1377  cacheRead=0      noCache=1377
+lần 2: inputTokens=1377  cacheRead=1344   noCache=33     ← 97,6% là cache
+lần 3: inputTokens=1377  cacheRead=1344   noCache=33
+```
+
+Nên **mọi con số "token đã tiêu" đọc từ `inputTokens` đều thổi phồng**, và mọi quyết định cắt prompt dựa trên nó đều dựa trên một cái giá không có thật. Cột `ai_calls.cachedTokens` có mặt để tách hai thứ đó ra; số đáng tối ưu là `inputTokens - cachedTokens`.
+
+**Điều kiện để cache ăn: phần hằng phải đứng ĐẦU và giống hệt từng byte.** Hệ quả cho người viết prompt: đừng chèn dữ liệu người dùng vào GIỮA khung đặc tả. Khung `04-job-evaluation.md` hiện có 9 token `[YOUR_*]` được điền hồ sơ vào giữa thân, nên tiền tố khác nhau theo từng hồ sơ và cache chỉ ăn trong phạm vi một người dùng. Tách khung thuần lên trước, hồ sơ xuống sau, thì cache ăn xuyên mọi người dùng — nhưng phải đo lại chất lượng bằng `bench-models.mjs` trước khi chốt.
+
+**Đo trước khi cắt prompt.** Một lần đã suýt đi tối ưu `agent.apply` vì thấy `inputTokens` trung bình 116.761 — con số đó gồm cả cache, và phần thật sự trả tiền có thể nhỏ hơn nhiều.
 
 ## Vì sao không có hồ sơ ứng viên ở đây
 
@@ -352,8 +491,46 @@ Chạy trên "Công ty TNHH Smartbooks" — công ty nhỏ, và đó là ca đá
 
 Hỏng thật 2026-08-24 trên "ZIGExN VeNtura": model trả về bản tóm tắt **dùng được hoàn toàn** (verdict, 5 pros, 3 cons, rating 4.5, 59 lượt), nhưng một `usedFor` dài 250 ký tự trên trần 160. Zod từ chối, và vì **lỗi schema cố ý không đi tiếp chuỗi dự phòng**, cả 518 token đầu ra bị vứt. Người dùng mất trắng một lượt chạy vì 90 ký tự thừa.
 
-**Đổi sang model "có structured output" KHÔNG chữa được chỗ này.** Structured output ép **hình dạng** JSON, gần như không ép `maxLength` — `muse-spark-1.2` cũng viết dài y hệt. Đã tra catalog: trường tên là `structured_output` (số ít); `muse-spark-1.2` khai `true` nhưng **trả tiền** ($1.25/$4.25 mỗi triệu token) nên `AI_ALLOW_PAID_MODELS=false` sẽ từ chối nó; `mimo-v2.5-free` **không khai trường này** — đúng model mà lượt hỏng rơi vào.
+**Đổi sang model "có structured output" KHÔNG chữa được chỗ này.** Structured output ép **hình dạng** JSON, gần như không ép `maxLength` — `muse-spark-1.2` cũng viết dài y hệt. Đã tra catalog: trường tên là `structured_output` (số ít); `muse-spark-1.2` khai `true` nhưng **trả tiền** ($1.25/$4.25 mỗi triệu token); `mimo-v2.5-free` **không khai trường này** — đúng model mà lượt hỏng rơi vào.
 
 Cách làm nay: `.describe()` mang trần vào prompt để model biết viết ngắn, còn `.transform()` cắt lúc parse. Nhãn enum lạ dùng `.catch('unknown')`, số ngoài thang thành `null`, mảng thừa mục thì cắt và bỏ mục rỗng. Giữ nghiêm ngặt cho thứ mà cắt bừa sẽ sai nghĩa; nới cho chữ tự do.
 
-**Kèm theo đó là một cái bẫy thứ hai, và nó im lặng:** `z.toJSONSchema(schema)` **ném** `Transforms cannot be represented in JSON Schema`, mà `withSchemaInstruction` lại bắt lỗi rồi trả về system prompt gốc — model sẽ mất sạch phần nhắc schema và không có gì báo. Nên nó gọi `z.toJSONSchema(schema, { io: 'input' })`: bản đầu vào cũng đúng là thứ cần mô tả cho model, vì model sinh ra bản TRƯỚC transform. Có test đơn vị ghim điều này.
+**Từ 2026-08-26 khuôn này dùng chung cho MỌI schema, ở `src/common/model-output.ts`.** Trước đó chỉ `company-brief` được chữa, còn tám file kia vẫn có tổng cộng **93 `.max()`, 31 `.min(1)`, 0 `.catch`, 0 `.transform`** — mỗi cái là một cơ hội mất trắng lượt gọi.
+
+Số liệu từ `ai_calls` lúc dọn (70 lượt `failureKind='SCHEMA'`):
+
+| purpose | SCHEMA | Trường đã xác định |
+|---|---|---|
+| `job.requirements` | 34 | `requiredSkills` >10 mục; ba trường về `undefined` |
+| `match.evaluate` | 14 | `eligibility.quote` >600; `recommendation` `undefined` |
+| `skill.canonicalize` | 10 | `decisions` `undefined` |
+| `document.cv` | 3 | `profileStatement` >600; `coreCompetencies.0` >160 |
+| `company.brief` | 3 | `usedFor` >160; `cons.0` >140 (đều TRƯỚC bản chữa) |
+| `profile.synthesize` | 1 | `educations.0.degree` rỗng (đã chữa từ trước) |
+
+**Ranh giới phải giữ, đã suýt vượt một lần:**
+
+- **Chỉ nới schema của MODEL, không nới schema nhận input NGƯỜI DÙNG.** `document.schema.ts` chứa cả hai: `vn()` (model) nay cắt, còn `cvEditSchema` (người dùng, qua HTTP) giữ nguyên `.max()` từ chối — người dùng gõ quá dài phải nhận 400 để sửa, cắt lén là làm mất chữ của họ.
+- **Nghiêm ngặt cho thứ mà cắt bừa sẽ SAI NGHĨA.** Đã thử nới ba chỗ này và bộ test chặn lại đúng: `score` giữ `.int().min(0).max(100)` (kẹp 150 về 100 là bịa ra một điểm số), `eligibility.verdict` giữ `z.enum` cứng (nó lái Eligibility Gate — bộ lọc CỨNG), `strengths` giữ `.min(1)`.
+- **Trường bắt buộc thiếu hẳn thì VẪN để hỏng.** `requiredSkills` cố ý không có `.default([])`: một bản ghi 0 kỹ năng mà đánh dấu `DONE` sẽ hiện lên giao diện thành "Khớp 0/0 bắt buộc" như thể đã phân tích xong. Hỏng to hơn im lặng sai.
+
+**Bẫy này có HAI mặt, và đợt dọn đầu chỉ bịt được một.** `.max()` trên CHUỖI đã chuyển sang cắt từ 2026-08-26, nhưng `.max()` trên MẢNG thì còn nguyên tới 2026-08-27 — model liệt kê thừa một mục là mất trắng cả lượt gọi. Lộ ra khi thêm stream cho thư xin việc: `bodyParagraphs` có `.min(1).max(3)`, model viết 4 đoạn là hỏng cả lá thư dù ba đoạn đầu dùng được.
+
+Nay mọi trần SỐ LƯỢNG trên schema của model đều là `.transform((items) => items.slice(0, n))`, còn `.min(n)` giữ nguyên vì đó là **sàn chất lượng cố ý** (CV phải có ≥3 năng lực, phỏng vấn phải có ≥2 câu chuyện STAR). Đã đo trên payload thật:
+
+```
+interview   star 9→5,  tough 12→6,  hỏi 20→8,  ý 15→6,  probe 14→6
+upskill     hard 30→12, synth 20→8
+profile     primarySkills 60→30, missing 30→15
+search-plan 10 truy vấn→6, query 200 ký tự→60
+thư         bodyParagraphs 9→3
+```
+
+**`test/unit/modules/ai/schema-array-caps.spec.ts` là máy canh, đừng gỡ.** Nó SOI CẤU TRÚC zod lúc chạy (`_zod.def.type === 'array'` có check `max_length`) chứ không đọc chữ trong file — `.transform()` bọc mảng lại thành `pipe` nên regex trên mã nguồn báo sai cả hai chiều. Bản quét bằng regex đã bỏ sót đúng ba chỗ mà test này bắt được ngay: `applicationEmailSchema.paragraphs`, `formAnswerSchema.answers`, và `profileProposalSchema.projects.technologies` (lồng hai tầng, regex không thể thấy). Đã thử thêm lại một `.max()` để chắc là nó biết đỏ.
+
+**`cvEditSchema` cố ý KHÔNG cắt**
+ — nó nhận input NGƯỜI DÙNG qua HTTP, và ở đó `too_big` phải thành 400 để họ biết mà sửa. Cắt lén chữ người dùng gõ là làm mất dữ liệu của họ. Đã kiểm: 40 kinh nghiệm vẫn bị chặn đúng.
+
+**Kèm theo đó là một cái bẫy thứ hai, và nó im lặng:**
+
+ `z.toJSONSchema(schema)` **ném** `Transforms cannot be represented in JSON Schema`, mà `withSchemaInstruction` lại bắt lỗi rồi trả về system prompt gốc — model sẽ mất sạch phần nhắc schema và không có gì báo. Nên nó gọi `z.toJSONSchema(schema, { io: 'input' })`: bản đầu vào cũng đúng là thứ cần mô tả cho model, vì model sinh ra bản TRƯỚC transform. Có test đơn vị ghim điều này.

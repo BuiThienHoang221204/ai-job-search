@@ -1,15 +1,45 @@
 /** Bố cục CV: mục nào đứng trước, mục nào ẩn. Tách khỏi nội dung. */
 
-/** Khoá của năm mục cố định. Thứ tự ở đây là thứ tự mặc định. */
+/** Khoá của sáu mục cố định. Thứ tự ở đây là thứ tự mặc định. */
 export const SECTION_KEYS = [
   'profile',
   'competencies',
   'experience',
+  'projects',
   'education',
   'skills',
 ] as const;
 
 export type SectionKey = (typeof SECTION_KEYS)[number];
+
+export type DocumentLanguage = 'vi' | 'en';
+
+export const TOOLS_LABEL: Record<DocumentLanguage, string> = {
+  vi: 'Công cụ',
+  en: 'Tools',
+};
+
+export const SECTION_TITLES: Record<
+  DocumentLanguage,
+  Record<SectionKey, string>
+> = {
+  vi: {
+    profile: 'Giới thiệu',
+    competencies: 'Năng lực chính',
+    experience: 'Kinh nghiệm',
+    projects: 'Dự án',
+    education: 'Học vấn',
+    skills: 'Kỹ năng',
+  },
+  en: {
+    profile: 'Profile',
+    competencies: 'Core Competencies',
+    experience: 'Professional Experience',
+    projects: 'Projects',
+    education: 'Education',
+    skills: 'Skills',
+  },
+};
 
 export type CvLayout = {
   order: SectionKey[];

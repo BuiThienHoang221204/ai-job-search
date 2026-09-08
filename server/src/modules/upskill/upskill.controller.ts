@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -25,6 +35,8 @@ export class GenerateUpskillDto {
 @ApiBearerAuth()
 @Controller('upskill')
 export class UpskillController {
+  private readonly logger = new Logger(UpskillController.name);
+
   constructor(
     private readonly upskill: UpskillService,
     private readonly queue: QueueService,
@@ -71,7 +83,57 @@ export class UpskillController {
     return { queued: true, reportId: report.id, mode: report.mode };
   }
 
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo báo cáo upskill, đẩy về từng phần ngay khi AI viết (NDJSON)',
+  })
+  @Post('generate-stream')
+  async generateStream(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: GenerateUpskillDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    const report = await this.upskill.create(user.id, dto.jobId);
+
+    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+    response.write(
+      `${JSON.stringify({ type: 'partial', data: { step: 0, reportId: report.id } })}\n`,
+    );
+
+    let finished = false;
+    response.on('close', () => {
+      if (finished) return;
+      this.logger.warn(
+        `Người dùng rời trang giữa lượt upskill ${report.id}; xếp lại vào hàng đợi`,
+      );
+      void this.queue.send(QUEUE.UPSKILL_REPORT, {
+        userId: user.id,
+        reportId: report.id,
+      });
+    });
+
+    try {
+      for await (const event of this.upskill.streamGenerate(report.id)) {
+        response.write(`${JSON.stringify(event)}\n`);
+      }
+      finished = true;
+    } catch (error) {
+      finished = true;
+      this.logger.error(
+        `Stream upskill ${report.id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      response.destroy();
+      return;
+    }
+
+    response.end();
+  }
+
   /** Chạy ngay, dùng để thử nghiệm. */
+
   @ThrottleAi()
   @ApiOperation({
     summary: 'Tạo báo cáo upskill đồng bộ ngay lập tức (dùng để thử nghiệm)',

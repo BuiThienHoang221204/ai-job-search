@@ -2,20 +2,23 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ToolSet } from 'ai';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { DocumentsService } from '../../documents/services/documents.service.js';
 import { AiService } from '../../ai/services/ai.service.js';
 import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
 import { STORAGE, type Storage } from '../../storage/storage.interface.js';
-import {
-  LATEX_COMPILER,
-  type LatexCompiler,
-} from '../../documents/latex-compile.js';
 import type {
   AgentLimits,
   ArtifactRecord,
+  SkillReference,
   ToolContext,
   ToolDeps,
 } from '../agent.types.js';
+import {
+  PRELOADED_REFERENCES,
+  REFERENCE_SECTIONS,
+} from '../prompts/system-prompt.js';
+import { SKILL_NAME } from '../tools/read-skill-reference.tool.js';
 import { buildToolSet } from '../tools/index.js';
 
 /**
@@ -36,9 +39,9 @@ export class AgentToolsService {
     prompts: PromptBuilderService,
     private readonly config: ConfigService,
     @Inject(STORAGE) storage: Storage,
-    @Inject(LATEX_COMPILER) latex: LatexCompiler,
+    documents: DocumentsService,
   ) {
-    this.deps = { prisma, ai, skills, prompts, storage, latex };
+    this.deps = { prisma, ai, skills, prompts, storage, documents };
   }
 
   /** Đọc mọi trần từ cấu hình một lần, để tool không phải hỏi lại. */
@@ -60,10 +63,38 @@ export class AgentToolsService {
     };
   }
 
-  build(context: ToolContext): {
+  references(workflow: string): SkillReference[] {
+    const skill = this.deps.skills.get(SKILL_NAME);
+
+    return (PRELOADED_REFERENCES[workflow] ?? []).flatMap((file) => {
+      const body = skill.references.get(file);
+      if (!body) return [];
+
+      const sections = REFERENCE_SECTIONS[file];
+      const kept = sections
+        ? this.deps.prompts.keepSections(body, sections)
+        : body;
+
+      return kept ? [{ file, body: kept }] : [];
+    });
+  }
+
+  /** Phụ thuộc cho vòng phản biện chạy nền - nó dựng bộ tool riêng, hẹp hơn. */
+  reviewerDeps(): ToolDeps {
+    return { ...this.deps, limits: this.limits() };
+  }
+
+  build(
+    context: ToolContext,
+    preloaded: SkillReference[] = [],
+  ): {
     tools: ToolSet;
     artifacts: ArtifactRecord[];
   } {
-    return buildToolSet({ ...this.deps, limits: this.limits() }, context);
+    return buildToolSet(
+      { ...this.deps, limits: this.limits() },
+      context,
+      preloaded.map((entry) => entry.file),
+    );
   }
 }

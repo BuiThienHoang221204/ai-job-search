@@ -13,6 +13,9 @@ export type AiCallEntry = {
   errorMessage?: string;
   inputTokens?: number;
   outputTokens?: number;
+  cachedTokens?: number;
+  finishReason?: string;
+  responseText?: string;
 };
 
 /**
@@ -41,7 +44,10 @@ export class AiCallLog {
           failureKind: entry.failureKind ?? null,
           errorMessage: entry.errorMessage ?? null,
           inputTokens: entry.inputTokens ?? null,
+          cachedTokens: entry.cachedTokens ?? null,
           outputTokens: entry.outputTokens ?? null,
+          finishReason: entry.finishReason ?? null,
+          responseText: entry.responseText ?? null,
         },
       });
     } catch (error) {

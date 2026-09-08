@@ -30,16 +30,9 @@ export type InterviewDossier = {
 
 /** Nhãn tiếng Việt cho trạng thái đơn, dùng đúng chữ mà màn Lịch sử đang hiện. */
 const STATUS_LABEL: Record<string, string> = {
-  RANKED: 'Đã chọn, chưa nộp',
+  VIEWED: 'Đã xem tin, chưa nộp',
   APPLIED: 'Đã nộp, đang chờ hồi âm',
-  INTERVIEW: 'Đã được mời phỏng vấn',
-  OFFER: 'Đã nhận lời mời làm việc',
-  HIRED: 'Đã nhận việc',
-  REJECTED: 'Nhà tuyển dụng từ chối',
-  NO_RESPONSE: 'Không hồi âm',
-  OFFER_DECLINED: 'Đã từ chối lời mời',
-  WITHDRAWN: 'Đã tự rút đơn',
-  EXPIRED: 'Tin tuyển dụng đã đóng',
+  WITHDRAWN: 'Đã huỷ',
 };
 
 const bullets = (items: string[]): string[] => items.map((item) => `- ${item}`);
@@ -111,7 +104,18 @@ export function formatInterviewDossier(dossier: InterviewDossier): string {
     }
   }
 
-  lines.push('', 'Mô tả công việc:', dossier.job.description);
+  lines.push(
+    '',
+    'Mô tả công việc:',
+    truncateDescription(dossier.job.description),
+  );
 
   return lines.join('\n');
+}
+
+const MAX_DESCRIPTION_CHARS = 2000;
+
+function truncateDescription(description: string): string {
+  if (description.length <= MAX_DESCRIPTION_CHARS) return description;
+  return `${description.slice(0, MAX_DESCRIPTION_CHARS)}\n… [cắt ${description.length - MAX_DESCRIPTION_CHARS} ký tự, giữ 2000 đầu]`;
 }

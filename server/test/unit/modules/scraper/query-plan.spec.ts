@@ -125,7 +125,7 @@ describe('clusterProfiles', () => {
     primarySkills: string[] = [],
   ) => ({ headline, primarySkills, occupationCode });
 
-  it('gộp mọi hồ sơ cùng ngành thành MỘT truy vấn', () => {
+  it('gộp mọi hồ sơ cùng nghề thành MỘT truy vấn', () => {
     const clusters = clusterProfiles([
       p('Kế toán tổng hợp', 'FINANCE'),
       p('Kế toán thuế', 'FINANCE'),
@@ -135,10 +135,30 @@ describe('clusterProfiles', () => {
 
     expect(clusters).toHaveLength(2);
     expect(clusters[0]).toMatchObject({
-      occupationCode: 'FINANCE',
+      clusterCode: 'FIN_ACCOUNTING',
       query: 'Kế toán tổng hợp',
       size: 3,
     });
+  });
+
+  it('tách hai NGHỀ trong cùng một nhóm ngành thành hai truy vấn', () => {
+    const clusters = clusterProfiles([
+      p('Kiểm thử phần mềm', 'IT'),
+      p('DevOps Engineer', 'IT'),
+      p('Chuyên viên bảo mật', 'IT'),
+    ]);
+
+    expect(clusters.map((c) => c.clusterCode).sort()).toEqual([
+      'IT_DEVOPS',
+      'IT_QA',
+      'IT_SECURITY',
+    ]);
+  });
+
+  it('lùi về mã nhóm khi không suy được nghề cụ thể', () => {
+    const clusters = clusterProfiles([p('Nghề lạ chưa có mã', 'OTHER')]);
+
+    expect(clusters[0].clusterCode).toBe('OTHER');
   });
 
   it('số truy vấn KHÔNG tăng theo số người dùng', () => {
@@ -156,9 +176,9 @@ describe('clusterProfiles', () => {
       p('Kế toán tổng hợp', 'FINANCE'),
     ]);
 
-    expect(clusters.map((c) => c.occupationCode)).toEqual([
-      'FINANCE',
-      'HEALTHCARE',
+    expect(clusters.map((c) => c.clusterCode)).toEqual([
+      'FIN_ACCOUNTING',
+      'MED_NURSE',
     ]);
   });
 
@@ -202,19 +222,19 @@ describe('clusterProfiles', () => {
 describe('clusterQuery', () => {
   it('ghi rõ cụm nào và bao nhiêu hồ sơ', () => {
     const query = clusterQuery({
-      occupationCode: 'FINANCE',
+      clusterCode: 'FIN_ACCOUNTING',
       query: 'Kế toán tổng hợp',
       size: 3,
     });
 
     expect(query.query).toBe('Kế toán tổng hợp');
     expect(query.rationale).toContain('3');
-    expect(query.rationale).toContain('FINANCE');
+    expect(query.rationale).toContain('FIN_ACCOUNTING');
   });
 
   it('không lọc tỉnh: lượt quét hệ thống phục vụ mọi địa phương', () => {
     const query = clusterQuery({
-      occupationCode: 'IT',
+      clusterCode: 'IT_BACKEND',
       query: 'Backend Developer',
       size: 1,
     });

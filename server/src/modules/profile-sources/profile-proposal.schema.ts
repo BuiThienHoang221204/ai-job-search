@@ -1,9 +1,9 @@
 import { z } from 'zod';
+import { cappedText, requiredCappedText } from '../../common/model-output.js';
 
 /** Hình dạng hồ sơ do model đề xuất từ bằng chứng. */
 
-const line = (max: number, hint: string) =>
-  z.string().min(1).max(max).describe(hint);
+const line = (max: number, hint: string) => requiredCappedText(max, hint);
 
 /**
  * Trường MÔ TẢ mà CV có quyền không ghi.
@@ -23,7 +23,7 @@ const line = (max: number, hint: string) =>
  * và từ chối mới là đúng.
  */
 const optionalText = (max: number, hint: string) =>
-  z.string().max(max).default('').describe(hint);
+  cappedText(max, hint).default('');
 
 /**
  * Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh khi người
@@ -40,7 +40,7 @@ const experienceItem = z.object({
     .describe('Địa điểm làm việc, bỏ trống nếu CV không ghi.'),
   highlights: z
     .array(line(400, 'Một gạch đầu dòng thành tựu, giữ nguyên con số nếu có.'))
-    .max(8)
+    .transform((items) => items.slice(0, 8))
     .describe(
       'Các gạch đầu dòng của vị trí này. Giữ nguyên số liệu; KHÔNG tự thêm số nào không có trong CV.',
     ),
@@ -74,7 +74,9 @@ const certificateItem = z.object({
 const projectItem = z.object({
   name: line(200, 'Tên dự án.'),
   description: line(600, 'Dự án làm gì, một tới ba câu.'),
-  technologies: z.array(z.string().min(1).max(60)).max(20),
+  technologies: z
+    .array(cappedText(60, 'Một công nghệ.'))
+    .transform((items) => items.slice(0, 20)),
   period: z.string().max(60).optional(),
 });
 
@@ -100,41 +102,43 @@ export const profileProposalSchema = z.object({
       'Đoạn giới thiệu. Được viết lại cho gọn nhưng KHÔNG thêm thông tin mới.',
     ),
   languages: z
-    .array(z.string().min(1).max(80))
-    .max(12)
+    .array(cappedText(80, 'Một ngôn ngữ.'))
+    .transform((items) => items.slice(0, 12))
     .describe('Ngôn ngữ, kèm trình độ nếu CV ghi. Bỏ trống nếu CV không nhắc.'),
 
   primarySkills: z
-    .array(z.string().min(1).max(80))
-    .max(30)
+    .array(cappedText(80, 'Một kỹ năng.'))
+    .transform((items) => items.slice(0, 30))
     .describe(
       'Kỹ năng CV thể hiện là thành thạo: xuất hiện trong mục kỹ năng CHÍNH hoặc gắn với công việc thật.',
     ),
   secondarySkills: z
-    .array(z.string().min(1).max(80))
-    .max(30)
+    .array(cappedText(80, 'Một kỹ năng.'))
+    .transform((items) => items.slice(0, 30))
     .describe('Kỹ năng chỉ mới tiếp xúc hoặc dùng ở mức phụ.'),
 
   directExperienceDomains: z
-    .array(z.string().min(1).max(120))
-    .max(15)
+    .array(cappedText(120, 'Một lĩnh vực.'))
+    .transform((items) => items.slice(0, 15))
     .describe(
       'Lĩnh vực đã làm trực tiếp, ví dụ "thương mại điện tử", "fintech".',
     ),
   adjacentExperience: z
-    .array(z.string().min(1).max(120))
-    .max(15)
+    .array(cappedText(120, 'Một lĩnh vực.'))
+    .transform((items) => items.slice(0, 15))
     .describe('Lĩnh vực liên quan gần, chưa làm trực tiếp.'),
 
-  experiences: z.array(experienceItem).max(15),
-  educations: z.array(educationItem).max(10),
-  certificates: z.array(certificateItem).max(20),
-  projects: z.array(projectItem).max(15),
+  experiences: z.array(experienceItem).transform((items) => items.slice(0, 15)),
+  educations: z.array(educationItem).transform((items) => items.slice(0, 10)),
+  certificates: z
+    .array(certificateItem)
+    .transform((items) => items.slice(0, 20)),
+  projects: z.array(projectItem).transform((items) => items.slice(0, 15)),
 
   /** Những gì model KHÔNG tìm thấy trong bằng chứng. */
   missing: z
     .array(line(200, 'Một thông tin hồ sơ cần mà bằng chứng không có.'))
-    .max(15)
+    .transform((items) => items.slice(0, 15))
     .describe(
       'Liệt kê những phần KHÔNG suy ra được từ bằng chứng, để người dùng tự bổ sung. Viết bằng tiếng Việt.',
     ),
@@ -142,7 +146,7 @@ export const profileProposalSchema = z.object({
   /** Ghi chú của model về độ tin cậy của chính nó. */
   notes: z
     .array(line(300, 'Một điểm cần lưu ý về cách đọc bằng chứng.'))
-    .max(10),
+    .transform((items) => items.slice(0, 10)),
 });
 
 export type ProfileProposal = z.infer<typeof profileProposalSchema>;

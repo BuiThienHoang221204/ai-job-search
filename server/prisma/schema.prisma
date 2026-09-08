@@ -36,10 +36,6 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  /// Di tích của một tính năng thu hồi token đã bị revert: cột còn trong
-  /// database (một tài khoản mang giá trị 1) nhưng KHÔNG code nào đọc. Khai ở
-  /// đây để schema khớp database, đừng dựa vào nó.
-  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -126,12 +122,13 @@ model Profile {
   /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
   occupationCode String?
 
+  lastFanOutAt DateTime?
+
   completion Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  embedding ProfileEmbedding?
-
+  @@index([lastFanOutAt])
   @@map("profiles")
 }
 
@@ -207,7 +204,6 @@ model Job {
   documents      Document[]
   applications   Application[]
   agentRuns      AgentRun[]
-  embedding      JobEmbedding?
   requirements   JobRequirement?
 
   @@unique([source, externalId])
@@ -227,7 +223,6 @@ model Job {
   @@index([dedupeKey])
   @@index([duplicateOfId])
   @@index([salaryMax(sort: Desc)])
-  @@index([tags], type: Gin)
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("jobs")
 }
@@ -297,6 +292,7 @@ model JobRequirementMatch {
 
   @@id([userId, jobId])
   @@index([userId, percent(sort: Desc)])
+  @@index([jobId])
   @@map("job_requirement_matches")
 }
 
@@ -317,16 +313,6 @@ enum RemotePolicy {
   UNKNOWN
 }
 
-/// Vector ngữ nghĩa của một tin tuyển dụng, dùng để LỌC SƠ BỘ trước khi gọi
-/// model chấm điểm. Nó KHÔNG thay việc chấm điểm — chỉ quyết định tin nào đáng
-/// được chấm.
-///
-/// Để bảng riêng chứ không thêm cột vào `jobs`, vì hai lý do:
-/// 1. Đổi model hoặc đổi số chiều sau này không phải migrate cả bảng `jobs`.
-/// 2. Prisma không có kiểu `vector`, phải khai `Unsupported()` — mà trường
-///    `Unsupported` thì Prisma Client KHÔNG đọc được, mọi truy vấn phải qua
-///    `$queryRaw`. Giữ nó tách biệt để phần còn lại của `jobs` vẫn dùng client
-///    bình thường.
 /// Một kỹ năng CHUẨN: mọi cách gọi khác nhau của cùng một thứ đều trỏ về đây.
 ///
 /// Cùng ý tưởng với `PROVINCES.aliases` trong taxonomy — tin viết `Hà Nội`,
@@ -380,48 +366,6 @@ model SkillAlias {
   @@map("skill_aliases")
 }
 
-model JobEmbedding {
-  jobId String @id
-  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  /// Model đã sinh vector này. Đổi model thì vector cũ không so được với vector
-  /// mới, nên phải biết cái nào sinh ra cái nào.
-  model String
-  dim   Int
-
-  embedding Unsupported("vector(768)")
-
-  createdAt DateTime @default(now())
-
-  @@index([model])
-  @@map("job_embeddings")
-}
-
-/// Vector ngữ nghĩa của một hồ sơ. Cần để tìm "K tin gần hồ sơ này nhất".
-///
-/// Nội dung đưa vào embedding CỐ Ý không có thông tin định danh (tên, điện
-/// thoại, địa chỉ): tên riêng không giúp gì cho độ tương đồng ngữ nghĩa, mà lại
-/// là dữ liệu cá nhân gửi ra dịch vụ ngoài. Hai lý do độc lập cùng chỉ về một
-/// cách làm.
-model ProfileEmbedding {
-  profileId String  @id
-  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  model String
-  dim   Int
-
-  embedding Unsupported("vector(768)")
-
-  /// Hồ sơ đổi thì vector phải sinh lại. Giữ hash của phần văn bản đã embed để
-  /// biết khi nào cần làm mới mà không phải so cả hồ sơ.
-  sourceHash String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("profile_embeddings")
-}
-
 model SavedJob {
   id      String   @id @default(cuid())
   userId  String
@@ -432,6 +376,7 @@ model SavedJob {
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([userId, jobId])
+  @@index([jobId])
   @@map("saved_jobs")
 }
 
@@ -517,6 +462,7 @@ model JobMatch {
   @@unique([userId, jobId])
   @@index([userId, overallScore(sort: Desc)])
   @@index([userId, status])
+  @@index([jobId])
   @@map("job_matches")
 }
 
@@ -555,6 +501,7 @@ model InterviewPrep {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, jobId])
+  @@index([jobId])
   @@map("interview_preps")
 }
 
@@ -667,6 +614,15 @@ enum DocumentKind {
   FORM_ANSWER
 }
 
+/// Ngôn ngữ của tài liệu do model viết ra.
+///
+/// Thuộc về TỪNG tài liệu chứ không phải tài khoản: cùng một người có thể nộp
+/// cho công ty Việt và công ty nước ngoài trong cùng một tuần.
+enum DocumentLanguage {
+  VI
+  EN
+}
+
 model Document {
   id     String  @id @default(cuid())
   userId String
@@ -678,11 +634,26 @@ model Document {
   kind   DocumentKind
   status MatchStatus  @default(PENDING)
 
+  /// Ngôn ngữ model phải viết. Chỉ có nghĩa với tài liệu do model sinh; chữ
+  /// người dùng tự gõ khi sửa CV không đi qua trường này.
+  ///
+  /// Đổi giá trị này thì phải SINH LẠI, không phải vẽ lại: tiêu đề mục là phần
+  /// trình bày nên đổi ngay được, còn thân bài do model viết thì không.
+  language DocumentLanguage @default(VI)
+
   title String
 
   /// Nội dung có cấu trúc do model sinh ra. Đây mới là nguồn sự thật; bản .tex
   /// chỉ là một cách trình bày của nó.
   content Json?
+
+  /// Lượt chạy agent đã sinh ra tài liệu này, khi nó đến từ màn Ứng tuyển tự
+  /// động thay vì từ nút soạn tài liệu.
+  ///
+  /// `SetNull` chứ không `Cascade`: dọn nhật ký một lượt chạy cũ không có lý do
+  /// gì xoá luôn cái CV người dùng đang dùng để đi nộp.
+  agentRunId String?
+  agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
 
   /// Khóa trong Storage, dạng "<userId>/cv/main_fpt_senior-frontend.tex".
   /// Không lưu nội dung file vào DB: lên S3 sau này chỉ cần đổi driver.
@@ -720,6 +691,8 @@ model Document {
   updatedAt DateTime @updatedAt
 
   @@index([userId, kind, createdAt(sort: Desc)])
+  @@index([jobId])
+  @@index([agentRunId])
   @@map("documents")
 }
 
@@ -829,10 +802,33 @@ model AiCall {
   inputTokens  Int?
   outputTokens Int?
 
+  /// Trong `inputTokens`, bao nhiêu token là ĐỌC LẠI TỪ CACHE của nhà cung cấp.
+  ///
+  /// `inputTokens` ĐÃ GỘP cả phần này - đo 2026-08-26 trên OpenCode: prompt_tokens
+  /// giữ nguyên 1415 trong khi cached_tokens nhảy từ 0 lên 1408 ở lần gọi thứ hai.
+  /// Không tách ra thì mọi con số "token đã tiêu" đều thổi phồng, và mọi quyết
+  /// định tối ưu prompt đều dựa trên một cái giá không có thật.
+  cachedTokens Int?
+
+  /// Model dừng vì sao: "stop", "length", "tool-calls"… Chỉ ghi khi lượt gọi hỏng.
+  finishReason String?
+
+  /// Nguyên văn thứ model trả về, đã cắt hai đầu còn 2000 ký tự. CHỈ ghi khi hỏng.
+  ///
+  /// Có mặt để phân biệt "model trả RỖNG" với "model trả SAI HÌNH DẠNG" - hai
+  /// sự kiện khác nhau mà `failureKind = SCHEMA` đang gộp làm một, và 39/70 lượt
+  /// hỏng không bóc được chi tiết zod nên không có cách nào biết là cái nào.
+  ///
+  /// CHỨA DỮ LIỆU CÁ NHÂN: đầu ra của `document.cv` và `profile.synthesize` là CV
+  /// người thật. Hai truy vấn trong `admin.service.ts` đều dùng `select` liệt kê
+  /// tường minh nên cột này không lọt ra API - ĐỪNG đổi chúng thành select-tất-cả.
+  responseText String? @db.Text
+
   createdAt DateTime @default(now())
 
   @@index([createdAt(sort: Desc)])
   @@index([purpose, ok])
+  @@index([userId])
   @@map("ai_calls")
 }
 
@@ -843,29 +839,12 @@ model AiCall {
 /// liệu trong job_search_tracker.csv của bản CLI nói cùng một ngôn ngữ, và
 /// /outcome, /gmail-sync, /html-report vẫn hiểu được nếu sau này bắc cầu sang.
 enum ApplicationStatus {
-  /// Đã xem tin, nhưng chưa nộp (user bấm "Ứng tuyển ngay" từ trang job).
+  /// Đã xem tin, chưa nộp đơn.
   VIEWED
-  /// Đã chấm điểm, đã quyết định sẽ nộp, nhưng chưa nộp.
-  RANKED
   /// Đã nộp, đang chờ hồi âm.
   APPLIED
-  /// Đã được mời phỏng vấn (bất kỳ vòng nào).
-  INTERVIEW
-  /// Đã nhận lời mời làm việc, chưa quyết định.
-  OFFER
-  /// Đã nhận việc.
-  HIRED
-  /// Nhà tuyển dụng từ chối.
-  REJECTED
-  /// Không hồi âm. Framework CỐ Ý không đặt mốc thời gian cứng cho trạng thái
-  /// này - người dùng tự quyết khi nào coi là im lặng.
-  NO_RESPONSE
-  /// Có offer nhưng ứng viên từ chối.
-  OFFER_DECLINED
-  /// Ứng viên tự rút.
+  /// Đã huỷ - người dùng tự rút, hoặc thôi không theo tin này nữa.
   WITHDRAWN
-  /// Tin tuyển dụng đã đóng trước khi có kết quả.
-  EXPIRED
 }
 
 /// Một đơn ứng tuyển cho một cặp (người dùng, công việc).
@@ -882,7 +861,7 @@ model Application {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  status ApplicationStatus @default(RANKED)
+  status ApplicationStatus @default(VIEWED)
 
   /// Ngày thực sự bấm nộp, không phải ngày tạo bản ghi. Một đơn có thể nằm ở
   /// RANKED nhiều ngày trước khi nộp.
@@ -897,6 +876,7 @@ model Application {
 
   @@unique([userId, jobId])
   @@index([userId, status, updatedAt(sort: Desc)])
+  @@index([jobId])
   @@map("applications")
 }
 
@@ -972,6 +952,8 @@ model AgentRun {
   /// Kết quả cuối cùng agent trả về.
   result Json?
 
+  review Json?
+
   /// Câu hỏi agent đang chờ trả lời, và câu trả lời của người dùng. Có giá trị
   /// khi và chỉ khi lượt chạy đi qua trạng thái WAITING_USER.
   question String? @db.Text
@@ -990,10 +972,12 @@ model AgentRun {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  steps AgentStep[]
+  steps     AgentStep[]
+  documents Document[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, jobId, createdAt(sort: Desc)])
+  @@index([jobId])
   @@map("agent_runs")
 }
 
@@ -1087,4 +1071,61 @@ model QueueConfig {
   updatedAt DateTime @updatedAt
 
   @@map("queue_configs")
+}
+
+// ---------------------------------------------------------------------------
+// Tra cứu lương
+// ---------------------------------------------------------------------------
+
+enum SalaryRefVisibility {
+  INTERNAL
+  PUBLIC
+}
+
+/// Bảng lương THAM CHIẾU lấy từ nguồn ngoài.
+///
+/// `source` là cột cho phép RÚT LUI: gỡ một nguồn là xoá theo cột này, không phải
+/// rà từng dòng. Mặc định `INTERNAL` nên nạp về xong vẫn chưa có đường nào lộ ra
+/// web cho tới khi có người cố ý lật sang PUBLIC.
+model SalaryReference {
+  id         String              @id @default(cuid())
+  source     String
+  sourceUrl  String
+  fetchedAt  DateTime
+  visibility SalaryRefVisibility @default(INTERNAL)
+
+  industrySlug String
+  positionSlug String
+  positionName String
+  /// `null` = không xếp được về mã ngành nào, và bản ghi sẽ không được trả ra.
+  occupationCode String?
+
+  avgMonthly Int?
+  rangeMin   Int?
+  rangeMax   Int?
+  currency   String @default("VND")
+
+  bands SalaryReferenceBand[]
+
+  @@unique([source, positionSlug])
+  @@index([occupationCode, visibility])
+  @@map("salary_references")
+}
+
+/// Một mốc kinh nghiệm của một vị trí tham chiếu.
+///
+/// `experienceLabel` giữ NGUYÊN chữ của nguồn. Không quy về `JobSeniority` lúc ghi:
+/// bốn mốc theo số năm không khớp một-một với bảy cấp bậc, và quy đổi lúc ghi là
+/// mất dữ liệu vĩnh viễn.
+model SalaryReferenceBand {
+  id              String          @id @default(cuid())
+  referenceId     String
+  reference       SalaryReference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  experienceLabel String
+  minAmount       Int?
+  avgAmount       Int?
+  maxAmount       Int?
+
+  @@unique([referenceId, experienceLabel])
+  @@map("salary_reference_bands")
 }

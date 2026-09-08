@@ -58,7 +58,7 @@ describe('Phân trang trên các API danh sách', () => {
             },
           });
           await harness.prisma.application.create({
-            data: { userId, jobId: job.id, status: 'RANKED' },
+            data: { userId, jobId: job.id, status: 'VIEWED' },
           });
         }
       },
@@ -155,14 +155,14 @@ describe('Phân trang trên các API danh sách', () => {
 
   /// `counts` là thứ vẽ các tab trên màn Lịch sử ứng tuyển. Nó ĐẾM TRÊN TOÀN BỘ
   /// đơn, nên phải đứng yên khi người dùng đổi tab hoặc lật trang - nếu không,
-  /// bấm sang tab "Phỏng vấn" sẽ làm mọi con số khác tụt về 0.
+  /// bấm sang tab "Đã đóng" sẽ làm mọi con số khác tụt về 0.
   describe('GET /api/applications · counts', () => {
     beforeEach(async () => {
       for (const status of [
-        'RANKED',
-        'RANKED',
-        'INTERVIEW',
-        'HIRED',
+        'VIEWED',
+        'VIEWED',
+        'APPLIED',
+        'WITHDRAWN',
       ] as const) {
         const job = await harness.prisma.job.create({
           data: {
@@ -194,17 +194,17 @@ describe('Phân trang trên các API danh sách', () => {
     };
 
     test('không đổi khi lọc theo tab', async () => {
-      const expected = { all: 4, open: 2, interview: 1, offer: 0, closed: 1 };
+      const expected = { all: 4, open: 3, closed: 1 };
 
       expect((await countsOf({})).counts).toEqual(expected);
-      expect((await countsOf({ group: 'interview' })).counts).toEqual(expected);
+      expect((await countsOf({ group: 'open' })).counts).toEqual(expected);
       expect((await countsOf({ group: 'closed' })).counts).toEqual(expected);
     });
 
     test('total thì ĐỔI theo tab, vì nó đếm trên tập đã lọc', async () => {
       expect((await countsOf({})).total).toBe(4);
-      expect((await countsOf({ group: 'interview' })).total).toBe(1);
-      expect((await countsOf({ group: 'open' })).total).toBe(2);
+      expect((await countsOf({ group: 'closed' })).total).toBe(1);
+      expect((await countsOf({ group: 'open' })).total).toBe(3);
     });
 
     test('không đổi khi lật sang trang không còn bản ghi nào', async () => {

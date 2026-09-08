@@ -14,10 +14,17 @@ import {
   type CvContentResult,
   type FormAnswerResult,
 } from '../document.schema.js';
+import {
+  LANGUAGE_RULE,
+  type OutputLanguage,
+} from '../../../common/model-output.js';
 import type { Identity } from '../latex.js';
 import type { DocumentParams, LetterTarget } from '../letter-target.js';
 
 const SKILL_NAME = 'job-application-assistant';
+
+const documentLanguage = (document: Document): OutputLanguage =>
+  document.language === 'EN' ? 'en' : 'vi';
 
 /** Timeout cho việc soạn CV và thư xin việc. */
 const DOCUMENT_TIMEOUT_MS = 180_000;
@@ -88,13 +95,13 @@ export class DocumentComposer {
     );
   }
 
-  private groundingRules(): string[] {
+  private groundingRules(language: OutputLanguage = 'vi'): string[] {
     return [
       'Quy tắc không được phá:',
       '- Mọi câu phải được chứng minh bằng thông tin CÓ THẬT trong hồ sơ. Không thêm công ty, chức danh, con số, chứng chỉ hay kỹ năng không có trong đó.',
       '- Được phép viết lại cách diễn đạt, đổi thứ tự, chọn lọc thông tin để bám yêu cầu công việc. KHÔNG được phép thêm sự kiện mới.',
       '- Hồ sơ thiếu dữ liệu cho một yêu cầu nào đó thì bỏ qua yêu cầu đó, không lấp chỗ trống bằng phỏng đoán.',
-      '- Viết tiếng Việt có dấu. Không dùng dấu gạch ngang dài, không dùng sáo ngữ.',
+      `- ${LANGUAGE_RULE[language]} Không dùng dấu gạch ngang dài, không dùng sáo ngữ.`,
     ];
   }
 
@@ -122,11 +129,12 @@ export class DocumentComposer {
     ];
   }
 
-  private async cv(
+  private cvPrompt(
     document: Document,
     profile: Profile | null,
     target: LetterTarget | null,
-  ): Promise<ComposeResult> {
+  ): { system: string; prompt: string; language: OutputLanguage } {
+    const language = documentLanguage(document);
     const skill = this.skills.get(SKILL_NAME);
     const framework = this.prompts.render(
       this.prompts.keepSections(
@@ -139,7 +147,10 @@ export class DocumentComposer {
     const system = [
       'Bạn là chuyên gia viết CV. Soạn nội dung CV bám sát một vị trí cụ thể.',
       '',
-      ...this.groundingRules(),
+      ...this.groundingRules(language),
+      '- Dự án trong hồ sơ phải nằm ở mục projects. KHÔNG được viết dự án thành một mục kinh nghiệm làm việc: cả người đọc lẫn máy đọc CV sẽ hiểu nhầm thành nhiều nơi làm việc khác nhau.',
+      '- Chọn 3-4 dự án bám sát tin tuyển dụng nhất, không liệt kê hết. Hồ sơ không có dự án nào thì để projects là mảng rỗng.',
+      '- Trường tools của dự án là công cụ hoặc phương pháp thuộc NGÀNH của ứng viên, không mặc định là công nghệ phần mềm. Hồ sơ không nêu thì để rỗng.',
       '',
       '--- HƯỚNG DẪN TỪNG MỤC ---',
       framework,
@@ -149,6 +160,7 @@ export class DocumentComposer {
     ].join('\n');
 
     const prompt = [
+      `CV language: ${language === 'en' ? 'English' : 'Vietnamese'}`,
       '=== HỒ SƠ ỨNG VIÊN ===',
       this.prompts.profileSummary(profile),
       '',
@@ -161,8 +173,22 @@ export class DocumentComposer {
         : '=== KHÔNG CÓ VỊ TRÍ CỤ THỂ: soạn CV tổng quát theo định hướng nghề nghiệp ===',
     ].join('\n');
 
+    return { system, prompt, language };
+  }
+
+  private async cv(
+    document: Document,
+    profile: Profile | null,
+    target: LetterTarget | null,
+  ): Promise<ComposeResult> {
+    const { system, prompt, language } = this.cvPrompt(
+      document,
+      profile,
+      target,
+    );
+
     const { object, modelId } = await this.ai.generateObject<CvContentResult>({
-      schema: cvSchema,
+      schema: cvSchema(language),
       context: { purpose: 'document.cv', userId: document.userId },
       system,
       prompt,
@@ -172,11 +198,31 @@ export class DocumentComposer {
     return { content: object, modelId };
   }
 
-  private async coverLetter(
+  streamCv(
     document: Document,
     profile: Profile | null,
     target: LetterTarget | null,
-  ): Promise<ComposeResult> {
+  ) {
+    const { system, prompt, language } = this.cvPrompt(
+      document,
+      profile,
+      target,
+    );
+
+    return this.ai.streamObject<CvContentResult>({
+      schema: cvSchema(language),
+      context: { purpose: 'document.cv', userId: document.userId },
+      system,
+      prompt,
+      timeoutMs: DOCUMENT_TIMEOUT_MS,
+    });
+  }
+
+  private async coverLetterPrompt(
+    document: Document,
+    profile: Profile | null,
+    target: LetterTarget | null,
+  ): Promise<{ system: string; prompt: string }> {
     if (!target) {
       throw new NotFoundException(
         'Thư xin việc bắt buộc phải gắn với một công việc',
@@ -215,6 +261,20 @@ export class DocumentComposer {
       target.description,
     ].join('\n');
 
+    return { system, prompt };
+  }
+
+  private async coverLetter(
+    document: Document,
+    profile: Profile | null,
+    target: LetterTarget | null,
+  ): Promise<ComposeResult> {
+    const { system, prompt } = await this.coverLetterPrompt(
+      document,
+      profile,
+      target,
+    );
+
     const { object, modelId } = await this.ai.generateObject<CoverLetterResult>(
       {
         schema: coverLetterSchema,
@@ -226,6 +286,26 @@ export class DocumentComposer {
     );
 
     return { content: object, modelId };
+  }
+
+  async streamCoverLetter(
+    document: Document,
+    profile: Profile | null,
+    target: LetterTarget | null,
+  ) {
+    const { system, prompt } = await this.coverLetterPrompt(
+      document,
+      profile,
+      target,
+    );
+
+    return this.ai.streamObject<CoverLetterResult>({
+      schema: coverLetterSchema,
+      context: { purpose: 'document.coverLetter', userId: document.userId },
+      system,
+      prompt,
+      timeoutMs: DOCUMENT_TIMEOUT_MS,
+    });
   }
 
   /**

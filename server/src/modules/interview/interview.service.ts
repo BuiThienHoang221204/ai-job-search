@@ -9,7 +9,9 @@ import type {
 import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { AiService } from '../ai/services/ai.service.js';
+import type { ModelStreamEvent } from '../../common/stream-event.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
@@ -29,7 +31,63 @@ export class InterviewService {
     private readonly ai: AiService,
     private readonly skills: SkillRegistryService,
     private readonly prompts: PromptBuilderService,
+    private readonly queue: QueueService,
   ) {}
+
+  /**
+   * Xếp một lượt soạn vào hàng đợi VÀ ghi bản ghi ở trạng thái chờ ngay lập tức.
+   *
+   * Hai việc này phải đi cùng nhau. Trước đây controller chỉ gọi `queue.send`
+   * rồi trả về, còn bản ghi mãi tới lúc worker chạy - một tới ba giây sau - mới
+   * ra đời. Giao diện tải lại ngay sau khi bấm nên thấy đúng danh sách cũ, và
+   * người dùng không có gì để nhìn cho tới khi tự tải lại trang.
+   *
+   * KHÔNG đụng vào bản ghi đã DONE khi `force = false`: `generate` sẽ trả luôn
+   * bản cũ mà không gọi model, nên hạ nó xuống PENDING vừa nói dối trên màn hình
+   * vừa làm mất trạng thái đã xong.
+   */
+  async enqueue(
+    userId: string,
+    jobId: string,
+    force: boolean,
+  ): Promise<{ queued: true; queueJobId: string | null }> {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true },
+    });
+    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+
+    const existing = await this.prisma.interviewPrep.findUnique({
+      where: { userId_jobId: { userId, jobId } },
+      select: { status: true },
+    });
+    const willRun = force || existing?.status !== 'DONE';
+
+    if (willRun) {
+      await this.prisma.interviewPrep.upsert({
+        where: { userId_jobId: { userId, jobId } },
+        create: { userId, jobId, status: 'PENDING' },
+        update: { status: 'PENDING', error: null },
+      });
+    }
+
+    try {
+      const queueJobId = await this.queue.send(QUEUE.INTERVIEW_PREP, {
+        userId,
+        jobId,
+        force,
+      });
+      return { queued: true, queueJobId };
+    } catch (error) {
+      if (willRun) {
+        await this.prisma.interviewPrep.update({
+          where: { userId_jobId: { userId, jobId } },
+          data: { status: 'FAILED', error: 'Không xếp được vào hàng đợi' },
+        });
+      }
+      throw error;
+    }
+  }
 
   private buildPrompt(
     profile: Profile | null,
@@ -141,21 +199,7 @@ export class InterviewService {
           prompt,
         });
 
-      return await this.prisma.interviewPrep.update({
-        where: { userId_jobId: { userId, jobId } },
-        data: {
-          status: 'DONE',
-          starAnswers: object.starAnswers,
-          toughQuestions: object.toughQuestions,
-          questionsToAsk: object.questionsToAsk,
-          talkingPoints: object.talkingPoints,
-          likelyProbes: object.likelyProbes,
-          modelId,
-          promptHash: hash,
-          generatedAt: new Date(),
-          error: null,
-        },
-      });
+      return await this.persist(userId, jobId, object, modelId, hash);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Soạn câu hỏi thất bại (job=${jobId}): ${message}`);
@@ -163,6 +207,99 @@ export class InterviewService {
         where: { userId_jobId: { userId, jobId } },
         data: { status: 'FAILED', error: message },
       });
+    }
+  }
+
+  private persist(
+    userId: string,
+    jobId: string,
+    object: InterviewPrepResult,
+    modelId: string,
+    hash: string,
+  ) {
+    return this.prisma.interviewPrep.update({
+      where: { userId_jobId: { userId, jobId } },
+      data: {
+        status: 'DONE',
+        starAnswers: object.starAnswers,
+        toughQuestions: object.toughQuestions,
+        questionsToAsk: object.questionsToAsk,
+        talkingPoints: object.talkingPoints,
+        likelyProbes: object.likelyProbes,
+        modelId,
+        promptHash: hash,
+        generatedAt: new Date(),
+        error: null,
+      },
+    });
+  }
+
+  async *streamGenerate(
+    userId: string,
+    jobId: string,
+    force = false,
+  ): AsyncGenerator<ModelStreamEvent<InterviewPrep>> {
+    const [profile, job, match, existing] = await Promise.all([
+      this.prisma.profile.findUnique({ where: { userId } }),
+      this.prisma.job.findUnique({ where: { id: jobId } }),
+      this.prisma.jobMatch.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+      }),
+      this.prisma.interviewPrep.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+      }),
+    ]);
+
+    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+
+    const { system, prompt, skillHash } = this.buildPrompt(profile, job, match);
+    const hash = createHash('sha256')
+      .update(skillHash)
+      .update(profile ? JSON.stringify(profile) : 'no-profile')
+      .update(job.description)
+      .update(match?.gaps.join('|') ?? '')
+      .digest('hex')
+      .slice(0, 32);
+
+    if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
+      yield { type: 'done', result: existing };
+      return;
+    }
+
+    await this.prisma.interviewPrep.upsert({
+      where: { userId_jobId: { userId, jobId } },
+      create: { userId, jobId, status: 'RUNNING' },
+      update: { status: 'RUNNING', error: null },
+    });
+
+    try {
+      const { partials, object, modelId } =
+        await this.ai.streamObject<InterviewPrepResult>({
+          schema: interviewPrepSchema,
+          context: { purpose: 'interview.prep', userId },
+          system,
+          prompt,
+        });
+
+      for await (const partial of partials) {
+        yield { type: 'partial', data: partial };
+      }
+
+      const final = await object;
+      yield {
+        type: 'done',
+        result: await this.persist(userId, jobId, final, modelId, hash),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Soạn câu hỏi (stream) thất bại (job=${jobId}): ${message}`,
+      );
+      await this.prisma.interviewPrep.update({
+        where: { userId_jobId: { userId, jobId } },
+        data: { status: 'FAILED', error: message },
+      });
+      yield { type: 'error', message };
     }
   }
 
@@ -184,7 +321,16 @@ export class InterviewService {
         where,
         orderBy: { updatedAt: 'desc' },
         ...pageArgs(query),
-        include: { job: { select: { id: true, title: true, company: true } } },
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              company: true,
+              companyLogo: true,
+            },
+          },
+        },
       }),
       this.prisma.interviewPrep.count({ where }),
     ]);

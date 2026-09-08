@@ -12,6 +12,7 @@ import { AiService } from '../ai/services/ai.service.js';
 import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
+import type { ModelStreamEvent } from '../../common/stream-event.js';
 import {
   upskillGapsSchema,
   upskillPlanSchema,
@@ -99,6 +100,107 @@ export class UpskillService {
    * tách theo quan hệ dữ liệu chứ không phải cắt cho nhỏ — `learningPlan` vốn
    * phải suy từ khoảng trống, nên lời gọi 2 KHÔNG cần mô tả công việc.
    */
+  async *streamGenerate(
+    reportId: string,
+  ): AsyncGenerator<ModelStreamEvent<UpskillReport>> {
+    const report = await this.prisma.upskillReport.findUnique({
+      where: { id: reportId },
+    });
+    if (!report)
+      throw new NotFoundException(`Không tìm thấy báo cáo: ${reportId}`);
+
+    await this.prisma.upskillReport.update({
+      where: { id: reportId },
+      data: { status: 'RUNNING', error: null },
+    });
+
+    try {
+      const [profile, matches] = await Promise.all([
+        this.prisma.profile.findUnique({ where: { userId: report.userId } }),
+        this.collectJobs(report.userId, report.jobId ?? undefined),
+      ]);
+
+      if (!matches.length) {
+        throw new BadRequestException(
+          'Chưa có công việc nào được chấm điểm. Hãy nạp tin tuyển dụng trước.',
+        );
+      }
+      if (
+        report.mode === 'AGGREGATE' &&
+        matches.length < MIN_JOBS_FOR_AGGREGATE
+      ) {
+        throw new BadRequestException(
+          `Cần ít nhất ${MIN_JOBS_FOR_AGGREGATE} công việc đã chấm điểm để tổng hợp, hiện có ${matches.length}.`,
+        );
+      }
+
+      const gapsPrompt = this.buildGapsPrompt(profile, matches);
+      const gapsStream = await this.ai.streamObject<UpskillGaps>({
+        schema: upskillGapsSchema,
+        context: { purpose: 'upskill.gaps', userId: report.userId },
+        system: gapsPrompt.system,
+        prompt: gapsPrompt.prompt,
+        timeoutMs: GAPS_TIMEOUT_MS,
+      });
+
+      for await (const partial of gapsStream.partials) {
+        yield { type: 'partial', data: { step: 1, value: partial } };
+      }
+      const gaps = await gapsStream.object;
+
+      await this.prisma.upskillReport.update({
+        where: { id: reportId },
+        data: {
+          jobsAnalysed: matches.length,
+          hardGaps: gaps.hardGaps,
+          synthesisedGaps: gaps.synthesisedGaps,
+        },
+      });
+
+      const planPrompt = this.buildPlanPrompt(profile, gaps);
+      const planStream = await this.ai.streamObject<UpskillPlan>({
+        schema: upskillPlanSchema,
+        context: { purpose: 'upskill.plan', userId: report.userId },
+        system: planPrompt.system,
+        prompt: planPrompt.prompt,
+        timeoutMs: PLAN_TIMEOUT_MS,
+      });
+
+      for await (const partial of planStream.partials) {
+        yield { type: 'partial', data: { step: 2, value: partial } };
+      }
+      const plan = await planStream.object;
+
+      yield {
+        type: 'done',
+        result: await this.prisma.upskillReport.update({
+          where: { id: reportId },
+          data: {
+            status: 'DONE',
+            jobsAnalysed: matches.length,
+            hardGaps: gaps.hardGaps,
+            synthesisedGaps: gaps.synthesisedGaps,
+            learningPlan: plan.learningPlan,
+            summary: plan.summary,
+            modelId: modelIdOf(gapsStream.modelId, planStream.modelId),
+            generatedAt: new Date(),
+            error: null,
+          },
+        }),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Tạo báo cáo upskill (stream) thất bại (${reportId}): ${message}`,
+      );
+      await this.prisma.upskillReport.update({
+        where: { id: reportId },
+        data: { status: 'FAILED', error: message },
+      });
+      yield { type: 'error', message };
+    }
+  }
+
   async generate(reportId: string): Promise<UpskillReport> {
     const report = await this.prisma.upskillReport.findUnique({
       where: { id: reportId },
@@ -138,6 +240,15 @@ export class UpskillService {
         system: gapsPrompt.system,
         prompt: gapsPrompt.prompt,
         timeoutMs: GAPS_TIMEOUT_MS,
+      });
+
+      await this.prisma.upskillReport.update({
+        where: { id: reportId },
+        data: {
+          jobsAnalysed: matches.length,
+          hardGaps: gaps.object.hardGaps,
+          synthesisedGaps: gaps.object.synthesisedGaps,
+        },
       });
 
       const planPrompt = this.buildPlanPrompt(profile, gaps.object);

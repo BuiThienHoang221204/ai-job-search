@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import { requiredCappedTextVi } from '../../common/model-output.js';
 
-const vn = (max: number, hint: string) =>
-  z.string().min(1).max(max).describe(`${hint} Viết bằng tiếng Việt có dấu.`);
+const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 
 /**
  * Cấu trúc bộ câu hỏi phỏng vấn, dịch từ
@@ -21,7 +21,7 @@ export const interviewPrepSchema = z.object({
       }),
     )
     .min(2)
-    .max(5)
+    .transform((items) => items.slice(0, 5))
     .describe(
       'Các câu chuyện theo khung STAR, DÙNG từ kinh nghiệm có thật trong hồ sơ. Không bịa dự án.',
     ),
@@ -38,7 +38,7 @@ export const interviewPrepSchema = z.object({
       }),
     )
     .min(2)
-    .max(6)
+    .transform((items) => items.slice(0, 6))
     .describe(
       'Ưu tiên các câu đào vào khoảng trống thật giữa hồ sơ và yêu cầu tin tuyển dụng.',
     ),
@@ -46,7 +46,7 @@ export const interviewPrepSchema = z.object({
   questionsToAsk: z
     .array(vn(220, 'Câu ứng viên nên hỏi lại nhà tuyển dụng.'))
     .min(3)
-    .max(8)
+    .transform((items) => items.slice(0, 8))
     .describe(
       'Câu hỏi cụ thể cho công ty và vị trí này, không phải câu hỏi chung chung.',
     ),
@@ -54,11 +54,11 @@ export const interviewPrepSchema = z.object({
   talkingPoints: z
     .array(vn(220, 'Ý chính cần chủ động nhắc đến trong buổi phỏng vấn.'))
     .min(2)
-    .max(6),
+    .transform((items) => items.slice(0, 6)),
 
   likelyProbes: z
     .array(vn(220, 'Điểm yếu nhà tuyển dụng nhiều khả năng sẽ đào sâu.'))
-    .max(6)
+    .transform((items) => items.slice(0, 6))
     .describe(
       'Các chỗ hồ sơ còn mỏng so với yêu cầu, để ứng viên chuẩn bị trước.',
     ),

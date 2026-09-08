@@ -41,7 +41,19 @@ export class LanguageModelFactory {
       if (userAgent) {
         headers.set('User-Agent', userAgent);
       }
-      return originalFetch(input, { ...init, headers });
+      let body = init?.body;
+      if (resolved.explicitStreamFlag && typeof body === 'string') {
+        try {
+          const parsed = JSON.parse(body) as Record<string, unknown>;
+          if (!('stream' in parsed)) {
+            parsed.stream = false;
+            body = JSON.stringify(parsed);
+          }
+        } catch {
+          body = init?.body;
+        }
+      }
+      return originalFetch(input, { ...init, headers, body });
     };
 
     const provider = createOpenAICompatible({

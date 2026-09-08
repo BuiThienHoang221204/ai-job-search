@@ -8,6 +8,7 @@ import { AgentContextService } from './agent-context.service.js';
 import { ASK_USER_TOOL } from '../tools/ask-user.tool.js';
 import { AgentToolsService } from './agent-tools.service.js';
 import type { AgentInput, ArtifactRecord } from '../agent.types.js';
+import { compactHistory } from '../compact-history.js';
 import { CommandRegistryService } from './command-registry.service.js';
 import {
   buildOpeningPrompt,
@@ -68,24 +69,57 @@ export class AgentRunnerService {
       const command = await this.commands.get(run.workflow);
       const input = (run.input ?? {}) as AgentInput;
       const limits = this.toolbox.limits();
-      const { tools, artifacts } = this.toolbox.build({
-        runId: run.id,
-        userId: run.userId,
-        sourceUrl: input.jobUrl,
-      });
+      const references = this.toolbox.references(run.workflow);
+      const { tools, artifacts } = this.toolbox.build(
+        {
+          runId: run.id,
+          userId: run.userId,
+          sourceUrl: input.jobUrl,
+          jobId: run.jobId,
+        },
+        references,
+      );
       collected = artifacts;
 
       const startIndex = await this.nextStepIndex(runId);
+
+      /*
+       * `onStep` được gọi kiểu bắn-và-quên (`void options.onStep?.(...)` trong
+       * `AiService`), nên lượt ghi bước CUỐI có thể đáp xuống SAU lượt ghi kết
+       * quả ở dưới - và nó ghi `result` nên sẽ xoá mất `text` với
+       * `finishReason`. Đã xảy ra thật: một lượt DONE, câu kết luận hiện đủ ở
+       * bảng các bước, mà khối Kết quả lại báo "agent không viết câu kết luận
+       * nào".
+       *
+       * Nối các lượt ghi thành một chuỗi rồi đợi nó cạn trước khi ghi kết quả.
+       */
+      let writes: Promise<unknown> = Promise.resolve();
+      const record = (step: AgentStepLog): Promise<void> => {
+        const write = writes.then(() =>
+          this.recordStep(runId, startIndex + step.index, step, artifacts),
+        );
+        writes = write.catch(() => undefined);
+        return write;
+      };
+
       const result = await this.ai.runTools({
-        system: buildSystemPrompt(command.body, limits, run.workflow),
+        system: buildSystemPrompt(
+          command.body,
+          limits,
+          run.workflow,
+          references,
+        ),
         ...(await this.conversation(run, input)),
         tools,
         stopOnTool: ASK_USER_TOOL,
         context: { purpose: `agent.${run.workflow}`, userId: run.userId },
         maxSteps: limits.maxSteps,
         timeoutMs: limits.timeoutMs,
-        onStep: (step) => this.recordStep(runId, startIndex + step.index, step),
+        compact: compactHistory,
+        onStep: record,
       });
+
+      await writes;
 
       const question = this.pendingQuestion(result.steps);
 
@@ -118,6 +152,14 @@ export class AgentRunnerService {
         },
       });
     }
+  }
+
+  /** Đánh dấu "đang chờ phản biện" để giao diện biết còn thứ nữa sẽ tới. */
+  async markReviewPending(runId: string): Promise<void> {
+    await this.prisma.agentRun.update({
+      where: { id: runId },
+      data: { review: { status: 'PENDING' } },
+    });
   }
 
   /**
@@ -182,6 +224,7 @@ export class AgentRunnerService {
     runId: string,
     index: number,
     step: AgentStepLog,
+    artifacts: ArtifactRecord[],
   ): Promise<void> {
     await this.prisma.$transaction([
       this.prisma.agentStep.create({
@@ -198,6 +241,7 @@ export class AgentRunnerService {
         where: { id: runId },
         data: {
           messages: step.messages as unknown as Prisma.InputJsonValue,
+          result: { artifacts },
         },
       }),
     ]);

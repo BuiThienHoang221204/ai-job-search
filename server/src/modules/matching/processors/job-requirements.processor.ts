@@ -20,15 +20,16 @@ export class JobRequirementsProcessor implements OnModuleInit {
     await this.queue.work<ExtractRequirementsPayload>(
       QUEUE.EXTRACT_REQUIREMENTS,
       async (data) => {
-        this.logger.log(`Rút yêu cầu job=${data.jobId}`);
-        const result = await this.requirements.extract(
-          data.jobId,
+        this.logger.log(`Rút yêu cầu cho lô ${data.jobIds.length} tin`);
+        const results = await this.requirements.extractMany(
+          data.jobIds,
           data.force ?? false,
         );
 
-        if (result.status === 'DONE') {
+        for (const result of results) {
+          if (result.status !== 'DONE') continue;
           await this.queue.send(QUEUE.SKILL_CANONICALIZE, {
-            jobId: data.jobId,
+            jobId: result.jobId,
           });
         }
       },

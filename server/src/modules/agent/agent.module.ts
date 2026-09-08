@@ -8,6 +8,7 @@ import { AgentContextService } from './services/agent-context.service.js';
 import { AgentController } from './agent.controller.js';
 import { AgentProcessor } from './agent.processor.js';
 import { AgentRunnerService } from './services/agent-runner.service.js';
+import { AgentReviewService } from './services/agent-review.service.js';
 import { AgentService } from './services/agent.service.js';
 import { AgentToolsService } from './services/agent-tools.service.js';
 import { CommandRegistryService } from './services/command-registry.service.js';
@@ -31,6 +32,7 @@ import { InterviewTurnService } from './services/interview-turn.service.js';
   providers: [
     AgentService,
     AgentRunnerService,
+    AgentReviewService,
     AgentToolsService,
     AgentContextService,
     CommandRegistryService,

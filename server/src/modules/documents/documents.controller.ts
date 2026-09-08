@@ -6,10 +6,13 @@ import {
   HttpCode,
   StreamableFile,
   Param,
+  Logger,
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -18,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsObject,
@@ -43,6 +47,15 @@ import { CV_TEMPLATES } from './templates/registry.js';
 
 export class CreateCvDto {
   @IsOptional() @IsString() jobId?: string;
+
+  @IsOptional() @IsIn(['vi', 'en']) language?: 'vi' | 'en';
+
+  /**
+   * Người gọi sẽ tự stream bằng `POST :id/generate-stream`, nên ĐỪNG xếp hàng
+   * đợi. Thiếu cờ này thì cả worker lẫn stream cùng sinh một tài liệu - hai lượt
+   * gọi model cho một lần bấm, và bản ghi bị hai tiến trình cùng ghi đè.
+   */
+  @IsOptional() @IsBoolean() stream?: boolean;
 }
 
 /** Chọn đường sinh PDF. `@IsIn` để chuỗi lạ bị báo lỗi thay vì rơi về mặc định. */
@@ -94,6 +107,9 @@ export class SetTemplateDto {
 
 export class CreateCoverLetterDto {
   @IsString() jobId!: string;
+
+  /** Xem docblock của `CreateCvDto.stream`. */
+  @IsOptional() @IsBoolean() stream?: boolean;
 }
 
 /**
@@ -163,6 +179,8 @@ export class ListDocumentsDto extends PaginationQueryDto {
 @ApiBearerAuth()
 @Controller('documents')
 export class DocumentsController {
+  private readonly logger = new Logger(DocumentsController.name);
+
   constructor(
     private readonly documents: DocumentsService,
     private readonly queue: QueueService,
@@ -280,14 +298,50 @@ export class DocumentsController {
 
   @ThrottleAi()
   @ApiOperation({ summary: 'Tạo tài liệu CV mới bằng AI' })
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Sinh CV và đẩy về từng phần ngay khi AI viết ra (NDJSON)',
+  })
+  @ApiParam({ name: 'id', description: 'ID của tài liệu đã tạo' })
+  @Post(':id/generate-stream')
+  async generateStream(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+
+    try {
+      for await (const event of this.documents.streamGenerate(user.id, id)) {
+        response.write(`${JSON.stringify(event)}\n`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Stream sinh tài liệu ${id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      response.destroy();
+      return;
+    }
+
+    response.end();
+  }
+
   @Post('cv')
   async cv(@CurrentUser() user: AuthUser, @Body() dto: CreateCvDto) {
+    const english = dto.language === 'en';
     const document = await this.documents.create(
       user.id,
       'CV',
-      dto.jobId ? 'CV theo vị trí' : 'CV tổng quát',
+      ``,
       dto.jobId,
+      undefined,
+      english ? 'EN' : 'VI',
     );
+    if (dto.stream) return { queued: false, documentId: document.id };
+
     await this.queue.send(QUEUE.GENERATE_DOCUMENT, {
       userId: user.id,
       documentId: document.id,
@@ -310,6 +364,8 @@ export class DocumentsController {
       'Thư xin việc',
       dto.jobId,
     );
+    if (dto.stream) return { queued: false, documentId: document.id };
+
     await this.queue.send(QUEUE.GENERATE_DOCUMENT, {
       userId: user.id,
       documentId: document.id,

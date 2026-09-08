@@ -2,8 +2,7 @@
  * Bóc chữ ra khỏi HTML.
  *
  * Giải entity TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI - sai thứ tự thì `&lt;p&gt;`
- * biến thành `<p>` rồi bị xoá mất cả chữ bên trong. Cùng một bài học đã trả giá
- * ở `ats-source.service.ts`.
+ * biến thành `<p>` rồi bị xoá mất cả chữ bên trong.
  */
 export function htmlToText(html: string): string {
   const withoutBlocks = html

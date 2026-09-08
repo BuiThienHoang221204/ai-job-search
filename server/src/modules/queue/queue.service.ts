@@ -31,6 +31,13 @@ export const QUEUE = {
   COMPANY_BRIEF: 'company.brief',
   /** Chạy một kịch bản nhiều bước trong `.claude/commands/`. */
   AGENT_RUN: 'agent.run',
+  /**
+   * Phản biện hồ sơ SAU khi lượt chạy đã trả kết quả.
+   *
+   * Tách khỏi `AGENT_RUN` vì nó là 19,7% quãng chờ mà người dùng không cần đợi:
+   * CV đã nằm trên màn hình rồi, góp ý tới sau vẫn kịp.
+   */
+  AGENT_REVIEW: 'agent.review',
   /** Đối chiếu hồ sơ với yêu cầu đã rút. Thuần CPU, KHÔNG gọi model. */
   REQUIREMENT_MATCH: 'match.requirements',
   /** Quy các cách viết kỹ năng về một mã chuẩn. Chạy TRƯỚC bước đối chiếu. */
@@ -38,7 +45,7 @@ export const QUEUE = {
 } as const;
 
 export type ExtractRequirementsPayload = {
-  jobId: string;
+  jobIds: string[];
   force?: boolean;
 };
 
@@ -66,6 +73,11 @@ export type InterviewPrepPayload = {
 };
 
 export type AgentRunPayload = {
+  runId: string;
+  userId: string;
+};
+
+export type AgentReviewPayload = {
   runId: string;
   userId: string;
 };

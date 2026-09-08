@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Logger,
   Param,
   Post,
   Put,
@@ -37,6 +38,7 @@ import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
 import { cvPdfErrorMessage } from './cv-pdf.source.js';
 import { MAX_PDF_BYTES } from './pdf-text.js';
 import { ProfileDraftService } from './services/profile-draft.service.js';
+import { ProfileSynthesizerService } from './services/profile-synthesizer.service.js';
 
 export class ApplyDraftDto {
   /** Tên các trường người dùng đã tích ở màn xác nhận. */
@@ -51,7 +53,12 @@ export class ApplyDraftDto {
 @ApiBearerAuth()
 @Controller('profile-drafts')
 export class ProfileDraftController {
-  constructor(private readonly drafts: ProfileDraftService) {}
+  private readonly logger = new Logger(ProfileDraftController.name);
+
+  constructor(
+    private readonly drafts: ProfileDraftService,
+    private readonly synthesizer: ProfileSynthesizerService,
+  ) {}
 
   /** Nộp CV PDF. */
   @ThrottleAi()
@@ -74,6 +81,7 @@ export class ProfileDraftController {
   )
   async uploadCv(
     @CurrentUser() user: AuthUser,
+    @Query('stream') stream?: string,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     if (!file) {
@@ -89,14 +97,18 @@ export class ProfileDraftController {
     }
 
     try {
-      const { draftId, evidence } = await this.drafts.createFromCv(user.id, {
-        data: file.buffer,
-        filename: file.originalname,
-      });
+      const { draftId, evidence } = await this.drafts.createFromCv(
+        user.id,
+        {
+          data: file.buffer,
+          filename: file.originalname,
+        },
+        stream === 'true',
+      );
 
       return {
         draftId,
-        queued: true,
+        queued: stream !== 'true',
         /**
          * Trả lại số liệu trích xuất ngay trong response: người dùng biết được hệ
          * thống đọc ra bao nhiêu chữ TRƯỚC khi model chạy xong. Một CV 6 trang chỉ
@@ -166,6 +178,49 @@ export class ProfileDraftController {
     summary: 'Thử lại tiến trình trích xuất bản nháp hồ sơ bị lỗi',
   })
   @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
+  @ApiOperation({
+    summary: 'Đọc CV và đẩy về từng phần ngay khi AI viết ra (NDJSON)',
+  })
+  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
+  @Post(':id/synthesize-stream')
+  async synthesizeStream(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    await this.drafts.get(user.id, id);
+
+    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    response.setHeader('Cache-Control', 'no-cache, no-transform');
+    response.setHeader('X-Accel-Buffering', 'no');
+    response.flushHeaders();
+
+    let finished = false;
+    response.on('close', () => {
+      if (finished) return;
+      this.logger.warn(
+        `Người dùng rời trang giữa lượt đọc CV ${id}; xếp lại vào hàng đợi`,
+      );
+      void this.drafts.requeue(user.id, id);
+    });
+
+    try {
+      for await (const event of this.synthesizer.streamSynthesize(id)) {
+        response.write(`${JSON.stringify(event)}\n`);
+      }
+      finished = true;
+    } catch (error) {
+      finished = true;
+      this.logger.error(
+        `Stream đọc CV ${id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      response.destroy();
+      return;
+    }
+
+    response.end();
+  }
+
   @Post(':id/retry')
   @HttpCode(200)
   async retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {

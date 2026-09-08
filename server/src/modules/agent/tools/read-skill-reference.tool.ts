@@ -2,7 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { ReadLog, ToolDeps } from '../agent.types.js';
 
-const SKILL_NAME = 'job-application-assistant';
+export const SKILL_NAME = 'job-application-assistant';
 
 /** Khung đặc tả trong `.claude/skills/` - tri thức dùng chung với Claude Code. */
 export const readSkillReferenceTool = (deps: ToolDeps, seen: ReadLog) =>

@@ -1,5 +1,12 @@
 import type { CvContent, Identity } from '../content.types.js';
-import { DEFAULT_LAYOUT, type CvLayout, type SectionKey } from './cv-layout.js';
+import {
+  DEFAULT_LAYOUT,
+  SECTION_TITLES,
+  TOOLS_LABEL,
+  type CvLayout,
+  type DocumentLanguage,
+  type SectionKey,
+} from './cv-layout.js';
 import { escapeHtml, joinParts } from './html.js';
 
 /**
@@ -14,9 +21,9 @@ const bullets = (items: string[]): string =>
   items.length > 0 ? `<ul class="bullets">${items.map(li).join('')}</ul>` : '';
 
 /** Vẽ một mục, hoặc KHÔNG vẽ gì khi rỗng: tiêu đề trên khoảng trắng đọc như mất dữ liệu. */
-const section = (title: string, inner: string): string =>
+const section = (key: SectionKey, title: string, inner: string): string =>
   inner.trim().length > 0
-    ? `<section class="section"><h2 class="section-title">${escapeHtml(title)}</h2><div class="section-body">${inner}</div></section>`
+    ? `<section class="section" data-section="${key}"><h2 class="section-title">${escapeHtml(title)}</h2><div class="section-body">${inner}</div></section>`
     : '';
 
 /** Dòng đầu một mục: nhan đề trước, khoảng thời gian sau - kể cả khi CSS đẩy nó sang phải. */
@@ -44,6 +51,26 @@ const experienceEntry = (
   ].join('');
 };
 
+const projectEntry = (
+  project: CvContent['projects'][number],
+  language: DocumentLanguage,
+): string => {
+  const meta = joinParts([project.role, project.organization]);
+  return [
+    '<article class="entry">',
+    entryHead(project.name, project.period),
+    meta ? `<div class="entry-meta">${escapeHtml(meta)}</div>` : '',
+    project.description.trim()
+      ? `<div class="entry-detail">${escapeHtml(project.description)}</div>`
+      : '',
+    bullets(project.bullets),
+    project.tools.length > 0
+      ? `<div class="entry-detail">${TOOLS_LABEL[language]}: ${escapeHtml(project.tools.join(', '))}</div>`
+      : '',
+    '</article>',
+  ].join('');
+};
+
 /** Một mục học vấn. */
 const educationEntry = (education: CvContent['educations'][number]): string =>
   [
@@ -61,15 +88,6 @@ const educationEntry = (education: CvContent['educations'][number]): string =>
 /** Một nhóm kỹ năng. */
 const skillRow = (group: CvContent['skillGroups'][number]): string =>
   `<div class="skill-row"><span class="skill-label">${escapeHtml(group.label)}:</span><span class="skill-items">${escapeHtml(group.items.join(', '))}</span></div>`;
-
-/** Tên mục, gom một chỗ để mọi mẫu gọi giống nhau. */
-export const SECTION_TITLES: Record<SectionKey, string> = {
-  profile: 'Giới thiệu',
-  competencies: 'Năng lực chính',
-  experience: 'Kinh nghiệm',
-  education: 'Học vấn',
-  skills: 'Kỹ năng',
-};
 
 /** Phần đầu trang: tên, chức danh, dòng liên hệ. */
 export const buildCvHeader = (identity: Identity): string => {
@@ -91,12 +109,18 @@ export const buildCvHeader = (identity: Identity): string => {
 };
 
 /** Phần thân của từng mục, chưa gắn tiêu đề và chưa xét thứ tự. */
-const sectionBody = (content: CvContent): Record<SectionKey, string> => ({
+const sectionBody = (
+  content: CvContent,
+  language: DocumentLanguage,
+): Record<SectionKey, string> => ({
   profile: content.profileStatement.trim()
     ? `<p class="summary">${escapeHtml(content.profileStatement)}</p>`
     : '',
   competencies: bullets(content.coreCompetencies),
   experience: content.experiences.map(experienceEntry).join(''),
+  projects: content.projects
+    .map((project) => projectEntry(project, language))
+    .join(''),
   education: content.educations.map(educationEntry).join(''),
   skills: content.skillGroups.map(skillRow).join(''),
 });
@@ -110,11 +134,13 @@ const sectionBody = (content: CvContent): Record<SectionKey, string> => ({
 export const buildCvSections = (
   content: CvContent,
   layout: CvLayout = DEFAULT_LAYOUT,
+  language: DocumentLanguage = 'vi',
 ): string => {
-  const bodies = sectionBody(content);
+  const bodies = sectionBody(content, language);
+  const titles = SECTION_TITLES[language];
 
   return layout.order
     .filter((key) => !layout.hidden.includes(key))
-    .map((key) => section(SECTION_TITLES[key], bodies[key]))
+    .map((key) => section(key, titles[key], bodies[key]))
     .join('\n');
 };

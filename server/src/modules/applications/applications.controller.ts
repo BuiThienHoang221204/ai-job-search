@@ -26,8 +26,18 @@ export class CreateApplicationDto {
 
 export class ListApplicationsDto extends PaginationQueryDto {
   @IsOptional()
-  @IsIn(['open', 'interview', 'offer', 'closed'])
+  @IsIn(['open', 'closed'])
   group?: StatusGroup;
+
+  /**
+   * Lọc ĐÚNG một trạng thái, hẹp hơn `group`.
+   *
+   * Cần cho ô chọn tin ở màn Chuẩn bị phỏng vấn: nhóm `open` gồm cả đơn mới chỉ
+   * xem qua, mà soạn bộ đề thì chỉ có nghĩa với đơn đã nộp.
+   */
+  @IsOptional()
+  @IsIn(ALL_STATUSES)
+  status?: ApplicationStatus;
 }
 
 export class UpdateStatusDto {
@@ -55,7 +65,7 @@ export class ApplicationsController {
   })
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListApplicationsDto) {
-    return this.applications.list(user.id, query.group, query);
+    return this.applications.list(user.id, query.group, query, query.status);
   }
 
   @ApiOperation({ summary: 'Lấy thông tin chi tiết một đơn ứng tuyển theo ID' })

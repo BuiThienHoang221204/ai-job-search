@@ -1,3 +1,5 @@
+import { REMOTE_CODE } from '../jobs/taxonomy/provinces.js';
+import { resolveProvince } from '../jobs/taxonomy/resolve.js';
 import type { JobRequirements } from './schemas/job-requirements.schema.js';
 import { containsTerm, foldTerm } from './skill-term.js';
 
@@ -115,8 +117,14 @@ function checkLocation(
 ): boolean | null {
   if (requirements.remotePolicy === 'REMOTE') return true;
   if (!requirements.city || !profile.location) return null;
-  if (profile.willingToRelocate) return true;
-  return normalise(profile.location) === normalise(requirements.city);
+
+  const job = resolveProvince(requirements.city);
+  if (job === REMOTE_CODE) return true;
+
+  const home = resolveProvince(profile.location);
+  if (!job || !home) return null;
+
+  return home === job;
 }
 
 /**
@@ -173,12 +181,16 @@ export function matchRequirements(
 
   const locationPass = checkLocation(requirements, profile);
   if (locationPass !== null) {
+    const relocating = !locationPass && profile.willingToRelocate;
     checks.push({
       label: requirements.city
         ? `Địa điểm: ${requirements.city}`
         : 'Làm việc từ xa',
       kind: 'LOCATION',
-      met: locationPass,
+      met: locationPass || relocating,
+      note: relocating
+        ? 'Khác tỉnh với hồ sơ, nhưng bạn đã đánh dấu sẵn sàng chuyển chỗ.'
+        : undefined,
     });
   }
 

@@ -37,6 +37,7 @@ export class ProfileDraftService {
   async createFromCv(
     userId: string,
     input: CvPdfInput,
+    stream = false,
   ): Promise<{ draftId: string; evidence: Evidence[] }> {
     const evidence = await this.cvPdf.collect(input);
 
@@ -53,10 +54,15 @@ export class ProfileDraftService {
       },
     });
 
-    await this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
-      userId,
-      draftId: draft.id,
-    });
+    if (!stream) {
+      await this.queue.send<ProfileSynthesizePayload>(
+        QUEUE.PROFILE_SYNTHESIZE,
+        {
+          userId,
+          draftId: draft.id,
+        },
+      );
+    }
 
     return { draftId: draft.id, evidence };
   }
@@ -105,6 +111,22 @@ export class ProfileDraftService {
    * Chỉ nhận FAILED, và phải do người dùng bấm: tự xếp lại khi chưa có bộ đếm
    * số lần thử sẽ thành vòng lặp đốt hạn mức.
    */
+  async requeue(userId: string, draftId: string): Promise<void> {
+    const draft = await this.prisma.profileDraft.findFirst({
+      where: { id: draftId, userId },
+    });
+    if (!draft || draft.status === 'DONE') return;
+
+    await this.prisma.profileDraft.update({
+      where: { id: draftId },
+      data: { status: 'PENDING', error: null },
+    });
+    await this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
+      userId,
+      draftId,
+    });
+  }
+
   async retry(userId: string, draftId: string): Promise<ProfileDraft> {
     const draft = await this.get(userId, draftId);
 

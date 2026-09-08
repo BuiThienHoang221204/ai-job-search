@@ -28,7 +28,7 @@ const configuration = () => ({
      */
     fallbackModelIds: (
       process.env.MODEL_FALLBACK_IDS ??
-      'deepseek-v4-flash-free,mimo-v2.5-free,nemotron-3.5-lightning-free,hy3-free'
+      'mimo-v2.5-free,nemotron-3.5-lightning-free,hy3-free'
     )
       .split(',')
       .map((id) => id.trim())
@@ -41,6 +41,7 @@ const configuration = () => ({
     apiKeys: {
       opencode: process.env.AI_API_KEY ?? 'public',
       openrouter: process.env.OPENROUTER_API_KEY ?? '',
+      omniroute: process.env.OMNIROUTE_API_KEY ?? 'public',
       /**
        * Kilo nhận request mà KHÔNG cần key — đã đo, cả không header lẫn
        * `Bearer public` đều trả 200. Để mặc định `'public'` thay vì chuỗi rỗng
@@ -55,14 +56,12 @@ const configuration = () => ({
      */
     userAgents: {
       opencode: process.env.OPENCODE_USER_AGENT ?? 'opencode',
+      omniroute: process.env.OMNIROUTE_USER_AGENT ?? 'opencode',
     } as Record<string, string>,
 
-    /**
-     * Cho phép chuỗi chạm model TRẢ TIỀN. Mặc định TẮT, và mặc định đó là chủ
-     * đích: OpenRouter phục vụ 413 model gồm cả loại đắt tiền, còn hàng đợi
-     * chấm điểm thì chạy theo cron với số lượt bằng số tin nhân số người dùng.
-     */
-    allowPaidModels: process.env.AI_ALLOW_PAID_MODELS === 'true',
+    baseURLs: {
+      omniroute: process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
+    } as Record<string, string>,
 
     catalogUrl:
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
@@ -133,8 +132,6 @@ const configuration = () => ({
 
     portalDelayMs: parseInt(process.env.SCRAPER_PORTAL_DELAY_MS ?? '3000', 10),
 
-    atsBoards: process.env.ATS_BOARDS ?? '',
-
     defaultLocation: process.env.SCRAPER_DEFAULT_LOCATION ?? 'Vietnam',
 
     /** Trần số tin lấy về cho MỘT portal trong một lần quét. */
@@ -159,12 +156,13 @@ const configuration = () => ({
      * Trần số từ khoá cho một lần quét của HỆ THỐNG. Mỗi từ khoá là ít nhất
      * một request, nên đây là tải đặt lên portal.
      *
-     * Hiện từ khoá sinh theo TỪNG hồ sơ, nên con số này cũng đang giới hạn số
-     * người được phục vụ mỗi đêm. Khi từ khoá gom theo ngành thì nó quay về
-     * đúng vai trò trần tải, và không còn phải tăng theo số người dùng.
+     * Từ khoá gom theo NGHỀ (danh mục 77 mục), nên con số này là trần tải chứ
+     * không còn phải tăng theo số người dùng. Nó quyết định chu kỳ phủ hết
+     * danh mục: 20 nghề mỗi đêm thì mọi nghề có người dùng được quét sau
+     * khoảng bốn đêm, theo thứ tự cũ-trước của `OccupationCrawl`.
      */
     systemQueryLimit: parseInt(
-      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '10',
+      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '20',
       10,
     ),
 

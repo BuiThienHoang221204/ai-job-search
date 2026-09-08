@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { tool } from 'ai';
 import { z } from 'zod';
 import { userKey } from '../../storage/storage.interface.js';
@@ -20,15 +21,22 @@ import type { ArtifactRecord, ToolContext, ToolDeps } from '../agent.types.js';
 const SEGMENT = '[a-z0-9._-]{1,60}';
 const SAFE_NAME = new RegExp(`^(?:${SEGMENT}/){0,5}${SEGMENT}$`, 'i');
 
+const MAX_SAVES_PER_FILE = 3;
+
+const digest = (content: string): string =>
+  createHash('sha256').update(content).digest('hex');
+
 /** Ghi một file kết quả vào workspace của lượt chạy. */
 export const saveArtifactTool = (
   deps: ToolDeps,
   context: ToolContext,
   artifacts: ArtifactRecord[],
-) =>
-  tool({
+) => {
+  const saves = new Map<string, { count: number; hash: string }>();
+
+  return tool({
     description:
-      'Lưu một file kết quả của lượt chạy này, ví dụ CV dạng LaTeX hay thư xin việc. Gọi lại cùng tên sẽ ghi đè.',
+      'Lưu một file kết quả của lượt chạy này, ví dụ CV dạng LaTeX hay thư xin việc. Gọi lại cùng tên sẽ ghi đè. Chỉ lưu khi đã viết xong hẳn, đừng lưu bản nháp.',
     inputSchema: z.object({
       name: z
         .string()
@@ -44,8 +52,26 @@ export const saveArtifactTool = (
         };
       }
 
+      const hash = digest(content);
+      const seen = saves.get(name);
+
+      if (seen?.hash === hash) {
+        return {
+          saved: name,
+          unchanged: true,
+          note: 'Nội dung y hệt lần lưu trước nên không ghi lại. File đã nằm trong kết quả, đi tiếp đi.',
+        };
+      }
+
+      if (seen && seen.count >= MAX_SAVES_PER_FILE) {
+        return {
+          error: `Đã lưu "${name}" ${seen.count} lần trong lượt này - đủ rồi. Bản đang có vẫn nguyên và sẽ được giao cho người dùng. Đừng lưu lại nữa, hãy kết thúc.`,
+        };
+      }
+
       const key = userKey(context.userId, 'agent_runs', context.runId, name);
       await deps.storage.write(key, content);
+      saves.set(name, { count: (seen?.count ?? 0) + 1, hash });
 
       const record = { name, key, bytes: Buffer.byteLength(content) };
       const existing = artifacts.findIndex((item) => item.name === name);
@@ -55,3 +81,4 @@ export const saveArtifactTool = (
       return { saved: name, bytes: record.bytes };
     },
   });
+};

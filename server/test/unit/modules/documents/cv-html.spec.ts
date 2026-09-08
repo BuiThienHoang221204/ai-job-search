@@ -31,6 +31,17 @@ const content: CvContent = {
       bullets: ['Giảm thời gian tải trang 40%'],
     },
   ],
+  projects: [
+    {
+      name: 'Cổng tra cứu hóa đơn',
+      role: 'Trưởng nhóm',
+      organization: 'ATOM Solution',
+      period: '2025 - nay',
+      description: 'Nền tảng thu thập và đối soát hóa đơn điện tử.',
+      bullets: ['Rút thời gian xử lý một hóa đơn từ 5 phút xuống 15 giây.'],
+      tools: ['NestJS', 'PostgreSQL'],
+    },
+  ],
   educations: [
     {
       degree: 'Kỹ sư Công nghệ thông tin',
@@ -47,6 +58,7 @@ const emptyContent: CvContent = {
   profileStatement: '',
   coreCompetencies: [],
   experiences: [],
+  projects: [],
   educations: [],
   skillGroups: [],
 };
@@ -109,6 +121,7 @@ describe('renderCvHtml - nội dung ra đủ', () => {
     ['Giới thiệu', 'Kỹ sư frontend 5 năm kinh nghiệm.'],
     ['Năng lực chính', 'Kiểm thử tự động'],
     ['Kinh nghiệm', 'Giảm thời gian tải trang 40%'],
+    ['Dự án', 'Cổng tra cứu hóa đơn'],
     ['Học vấn', 'Đại học Bách khoa'],
     ['Kỹ năng', 'JavaScript, Go'],
   ])('mục %s có mặt cùng nội dung của nó', (title, sample) => {
@@ -118,6 +131,14 @@ describe('renderCvHtml - nội dung ra đủ', () => {
 
   test('công ty và nơi làm ghép thành một dòng', () => {
     expect(html).toContain('FPT Software · Đà Nẵng');
+  });
+
+  test('vai trò và tổ chức của dự án ghép thành một dòng', () => {
+    expect(html).toContain('Trưởng nhóm · ATOM Solution');
+  });
+
+  test('công cụ của dự án in thành dòng riêng', () => {
+    expect(html).toContain('Công cụ: NestJS, PostgreSQL');
   });
 
   test('là tài liệu HTML hoàn chỉnh', () => {
@@ -158,6 +179,7 @@ describe('renderCvHtml - mục rỗng thì ẩn hẳn', () => {
     'Giới thiệu',
     'Năng lực chính',
     'Kinh nghiệm',
+    'Dự án',
     'Học vấn',
     'Kỹ năng',
   ])('không in tiêu đề %s khi không có nội dung', (title) => {

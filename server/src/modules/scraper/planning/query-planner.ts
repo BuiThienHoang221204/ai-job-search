@@ -11,13 +11,6 @@ import {
 } from './query-plan.js';
 import { searchPlanSchema, type SearchPlan } from './search-plan.schema.js';
 
-/**
- * Quyết định lượt quét sẽ tìm bằng những từ khoá nào.
- *
- * Hai đường rất khác nhau và cố ý tách rời: lượt quét theo NGƯỜI DÙNG đi qua
- * model để tinh chỉnh từ khoá theo đúng ngành của họ, còn lượt quét của HỆ
- * THỐNG gom hồ sơ thành cụm ngành và không gọi model lần nào.
- */
 export class QueryPlanner {
   private readonly logger = new Logger(QueryPlanner.name);
 
@@ -28,12 +21,10 @@ export class QueryPlanner {
     private readonly systemQueryLimit: number,
   ) {}
 
-  /** Sinh truy vấn trực tiếp từ hồ sơ, không gọi AI. */
   private deterministicQueries(profile: Profile | null): SearchPlan {
     return { queries: planFromProfile(profile) };
   }
 
-  /** Tinh chỉnh truy vấn bằng AI. Tùy chọn: hỏng thì dùng bản tất định. */
   private async refineQueries(
     profile: Profile | null,
     userId: string,
@@ -94,16 +85,9 @@ export class QueryPlanner {
     }
   }
 
-  /**
-   * Từ khoá cho lần quét của hệ thống: MỘT từ khoá cho mỗi NGÀNH có người dùng.
-   *
-   * Khi số ngành vượt trần truy vấn, chọn theo độ cũ trước rồi mới tới số hồ sơ
-   * - nhờ vậy độ phủ là một chu kỳ vài đêm thay vì một nhóm cố định luôn thắng.
-   * Trả về cả danh sách ngành đã chọn để đóng dấu sau khi quét xong.
-   */
   async forSystem(
     portal: string,
-  ): Promise<{ plan: SearchPlan; occupations: string[] }> {
+  ): Promise<{ plan: SearchPlan; clusterCodes: string[] }> {
     const profiles = await this.prisma.profile.findMany({
       where: { completion: { gte: MIN_COMPLETION_TO_SCORE } },
       select: { headline: true, primarySkills: true, occupationCode: true },
@@ -113,7 +97,7 @@ export class QueryPlanner {
     const marks = await this.prisma.occupationCrawl.findMany({
       where: {
         portal,
-        occupationCode: { in: clusters.map((c) => c.occupationCode) },
+        occupationCode: { in: clusters.map((c) => c.clusterCode) },
       },
       select: { occupationCode: true, lastCrawledAt: true },
     });
@@ -122,25 +106,23 @@ export class QueryPlanner {
       marks.map((mark) => [mark.occupationCode, mark.lastCrawledAt.getTime()]),
     );
 
-    // Ngành chưa từng quét đứng trước tất cả: 0 nhỏ hơn mọi mốc thời gian thật.
     const picked = [...clusters]
       .sort(
         (a, b) =>
-          (crawledAt.get(a.occupationCode) ?? 0) -
-            (crawledAt.get(b.occupationCode) ?? 0) || b.size - a.size,
+          (crawledAt.get(a.clusterCode) ?? 0) -
+            (crawledAt.get(b.clusterCode) ?? 0) || b.size - a.size,
       )
       .slice(0, this.systemQueryLimit);
 
     return {
       plan: { queries: picked.map(clusterQuery) },
-      occupations: picked.map((cluster) => cluster.occupationCode),
+      clusterCodes: picked.map((cluster) => cluster.clusterCode),
     };
   }
 
-  /** Đóng dấu "đã quét" cho những ngành vừa dùng, để lượt sau nhường ngành khác. */
-  async markCrawled(portal: string, occupations: string[]): Promise<void> {
+  async markCrawled(portal: string, clusterCodes: string[]): Promise<void> {
     const now = new Date();
-    for (const occupationCode of occupations) {
+    for (const occupationCode of clusterCodes) {
       await this.prisma.occupationCrawl.upsert({
         where: { portal_occupationCode: { portal, occupationCode } },
         create: { portal, occupationCode, lastCrawledAt: now },

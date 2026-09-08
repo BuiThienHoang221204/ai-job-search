@@ -61,8 +61,7 @@ export class ApplicationsService {
       }
     }
 
-    // skipDocuments=true và không có cvDocumentId → tạo đơn ở trạng thái VIEWED
-    const initialStatus = skipDocuments && !cvDocumentId ? 'VIEWED' : 'RANKED';
+    const initialStatus = 'VIEWED';
 
     const application = await this.prisma.application
       .create({
@@ -142,10 +141,15 @@ export class ApplicationsService {
     userId: string,
     group: StatusGroup | undefined,
     query: PaginationQueryDto,
+    status?: ApplicationStatus,
   ) {
     const where = {
       userId,
-      ...(group ? { status: { in: statusesOfGroup(group) } } : {}),
+      ...(status
+        ? { status }
+        : group
+          ? { status: { in: statusesOfGroup(group) } }
+          : {}),
     };
 
     const [[items, total], grouped] = await Promise.all([
@@ -184,7 +188,7 @@ export class ApplicationsService {
         acc.all += row._count;
         return acc;
       },
-      { all: 0, open: 0, interview: 0, offer: 0, closed: 0 },
+      { all: 0, open: 0, closed: 0 },
     );
 
     const jobIds = [...new Set(items.map((item) => item.jobId))];
@@ -252,20 +256,14 @@ export class ApplicationsService {
   ) {
     const application = await this.prisma.application.findFirst({
       where: { id, userId },
-      include: { events: { select: { toStatus: true } } },
     });
     if (!application)
       throw new NotFoundException('Không tìm thấy đơn ứng tuyển');
-
-    const hadOffer =
-      application.status === 'OFFER' ||
-      application.events.some((event) => event.toStatus === 'OFFER');
 
     const check = checkTransition({
       from: application.status,
       to,
       actor,
-      hadOffer,
     });
     if (!check.ok) throw new BadRequestException(check.reason);
 
@@ -286,22 +284,6 @@ export class ApplicationsService {
       },
       include: { job: true, events: { orderBy: { createdAt: 'asc' } } },
     });
-
-    if (to === 'INTERVIEW') {
-      try {
-        await this.queue.send(QUEUE.INTERVIEW_PREP, {
-          userId,
-          jobId: application.jobId,
-          force: false,
-        });
-      } catch (error) {
-        this.logger.warn(
-          `Không xếp được hàng đợi chuẩn bị phỏng vấn cho đơn ${id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
 
     return updated;
   }
