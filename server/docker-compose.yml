@@ -1,6 +1,11 @@
-# Usage:
-#   Development: docker compose --env-file .env.development up -d
-#   Production:  docker compose --env-file .env.production up -d
+# Một file `.env` trong thư mục này phục vụ HAI việc, nên không cần `--env-file`:
+# `env_file` nạp biến vào trong container, còn Compose tự đọc cùng file đó để thay
+# `${POSTGRES_PASSWORD}` và `${OMNIROUTE_*}` bên dưới.
+#
+#   docker compose up -d
+#
+# `latex` và `pdf` build tại chỗ vì không có trên registry nào. `omniroute` nằm sau
+# profile `gateway`: MODEL_PROVIDER mặc định là opencode nên nó chỉ giữ RAM không.
 
 name: ai-job-search
 

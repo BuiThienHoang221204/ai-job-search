@@ -140,8 +140,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy-dev:
-    name: Deploy to Development
+  deploy:
+    name: Deploy to server
     runs-on: ubuntu-latest
     needs: docker-build
     if: github.ref == 'refs/heads/dev'
@@ -149,123 +149,42 @@ jobs:
     steps:
       - name: Validate deployment configuration
         env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_USER: ${{ secrets.DO_USER }}
-          DO_PASSWORD: ${{ secrets.DO_PASSWORD }}
-          DO_DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
         run: |
-          test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
-          test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
-          test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
-          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
+          test -n "$DEPLOY_HOST" || { echo "::error::Missing DEPLOY_HOST secret."; exit 1; }
+          test -n "$DEPLOY_USER" || { echo "::error::Missing DEPLOY_USER secret."; exit 1; }
+          test -n "$DEPLOY_SSH_KEY" || { echo "::error::Missing DEPLOY_SSH_KEY secret."; exit 1; }
+          test -n "$DEPLOY_PATH" || { echo "::error::Missing DEPLOY_PATH variable."; exit 1; }
 
       - name: Set lowercase image name
-        run: |
-          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Sync deploy files to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          password: ${{ secrets.DO_PASSWORD }}
-          source: "server/docker-compose.yml,latex-service,pdf-service"
-          target: ${{ vars.DO_DEPLOY_PATH }}
-          overwrite: true
-
-      - name: Deploy to DigitalOcean
+      - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.2
         env:
-          DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_TAG: dev
+          IMAGE_TAG: ${{ github.ref_name }}
         with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          password: ${{ secrets.DO_PASSWORD }}
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
           script: |
             set -euo pipefail
-            cd "$DEPLOY_PATH/server"
-            cp .env.development .env
+            cd "$DEPLOY_PATH"
+            git fetch --prune origin
+            git reset --hard "origin/$IMAGE_TAG"
+            cd server
+            test -f .env || { echo "::error::Thieu server/.env tren may chu."; exit 1; }
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull app postgres
-            if ! docker image inspect aijob-latex >/dev/null 2>&1; then
-              echo "Local image aijob-latex not found. Building it..."
-              docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
-            fi
-            if ! docker image inspect aijob-pdf >/dev/null 2>&1; then
-              echo "Local image aijob-pdf not found. Building it..."
-              docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
-            fi
+            docker image inspect aijob-latex >/dev/null 2>&1 || docker compose build latex
+            docker image inspect aijob-pdf >/dev/null 2>&1 || docker compose build pdf
             docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
-
-  deploy-prod:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: docker-build
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    steps:
-      - name: Validate deployment configuration
-        env:
-          DO_HOST: ${{ secrets.DO_HOST }}
-          DO_USER: ${{ secrets.DO_USER }}
-          DO_PASSWORD: ${{ secrets.DO_PASSWORD }}
-          DO_DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-        run: |
-          test -n "$DO_HOST" || { echo "::error::Missing DO_HOST secret."; exit 1; }
-          test -n "$DO_USER" || { echo "::error::Missing DO_USER secret."; exit 1; }
-          test -n "$DO_PASSWORD" || { echo "::error::Missing DO_PASSWORD secret."; exit 1; }
-          test -n "$DO_DEPLOY_PATH" || { echo "::error::Missing DO_DEPLOY_PATH variable."; exit 1; }
-
-      - name: Set lowercase image name
-        run: |
-          echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Sync deploy files to server
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          password: ${{ secrets.DO_PASSWORD }}
-          source: "server/docker-compose.yml,latex-service,pdf-service"
-          target: ${{ vars.DO_DEPLOY_PATH }}
-          overwrite: true
-
-      - name: Deploy to DigitalOcean
-        uses: appleboy/ssh-action@v1.2.2
-        env:
-          DEPLOY_PATH: ${{ vars.DO_DEPLOY_PATH }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_TAG: main
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USER }}
-          password: ${{ secrets.DO_PASSWORD }}
-          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
-          script: |
-            set -euo pipefail
-            cd "$DEPLOY_PATH/server"
-            cp .env.production .env
-            export GITHUB_REPOSITORY="$IMAGE_NAME"
-            export IMAGE_TAG="$IMAGE_TAG"
-            docker compose pull app postgres
-            if ! docker image inspect aijob-latex >/dev/null 2>&1; then
-              echo "Local image aijob-latex not found. Building it..."
-              docker build -t aijob-latex -f ../latex-service/Dockerfile ../latex-service
-            fi
-            if ! docker image inspect aijob-pdf >/dev/null 2>&1; then
-              echo "Local image aijob-pdf not found. Building it..."
-              docker build -t aijob-pdf -f ../pdf-service/Dockerfile ../pdf-service
-            fi
-            docker compose --profile migrate run --rm migrate
-            docker compose up -d --remove-orphans
+            docker image prune -f
