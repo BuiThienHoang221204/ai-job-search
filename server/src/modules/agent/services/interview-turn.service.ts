@@ -92,7 +92,7 @@ export class InterviewTurnService {
     }
 
     const startedAt = Date.now();
-    const openingPrompt = `${dossier}\n\n---\nHãy bắt đầu buổi phỏng vấn. Đây là lượt đầu tiên, chưa có câu trả lời nào của ứng viên, nên BỎ QUA phần nhận xét, viết thẳng "TIẾP" rồi xuống dòng rồi "${"@@HOI@@"}" rồi một câu hỏi mở đầu về động lực/Agile.`;
+    const openingPrompt = `${dossier}\n\n---\nHãy bắt đầu buổi phỏng vấn. Đây là lượt đầu tiên, chưa có câu trả lời nào của ứng viên, nên BỎ QUA phần nhận xét, viết thẳng "TIẾP" rồi xuống dòng rồi "${'@@HOI@@'}" rồi một câu hỏi mở đầu về động lực/Agile.`;
     const { result } = await this.ai.streamText({
       system: interviewTurnSystem(),
       messages: [{ role: 'user', content: openingPrompt }],
