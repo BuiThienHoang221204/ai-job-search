@@ -447,19 +447,53 @@ curl -X POST https://api.careelot.com/api/admin/scrape/run-now -b cookie.txt
 
 ---
 
-## PHẦN 5 — Điều chưa đo được
+## PHẦN 5 — TopCV chặn IP datacenter: ĐÃ ĐO 2026-09-09
 
-**IP của Oracle Singapore chưa chắc quét được portal Việt Nam.** TopCV đứng sau
-Cloudflare; ở máy dev tại Việt Nam thì `curl` qua được, nhưng từ IP datacenter
-Singapore thì chưa ai thử. Đây là phép đo cần làm ngay sau khi máy chủ chạy được:
+Đo từ trong container app trên máy Oracle Singapore, dùng **đúng bộ header và
+đúng cách gọi `curl`** của `topcv-search/cli/src/helpers.ts`, ba lượt xen kẽ:
 
-```bash
-docker compose exec app curl -sI -o /dev/null -w "%{http_code}\n" \
-  https://www.topcv.vn/tim-viec-lam-it
-```
+| Portal | Kết quả |
+|---|---|
+| topcv | **403** ba lượt |
+| itviec | 200 ba lượt |
+| vietnamworks | 200 ba lượt |
+| linkedin | 200 ba lượt |
 
-- `200` → quét bình thường
-- `403` → Cloudflare chặn IP datacenter, phải tính tới proxy dân cư hoặc chuyển
-  riêng phần quét về chạy ở máy trong nước
+**Nguyên nhân là IP, không phải vân tay TLS.** Docblock trong `helpers.ts` ghi
+rằng Cloudflare xếp bắt tay TLS của `bun` là bot còn `curl` thì qua — điều đó vẫn
+đúng, nhưng ở đây curl cũng 403. Cùng ngày, cùng đoạn code, chạy từ máy dev tại
+Việt Nam thì lượt quét TopCV trả về 50 tin (42 tin mới). Khác biệt duy nhất là địa
+chỉ nguồn: dải datacenter của Oracle Singapore bị chặn từ đầu.
 
-Kết quả phép đo này quyết định kiến trúc phần thu thập dữ liệu, nên làm sớm.
+**Thiệt hại lớn hơn con số 1/4 gợi ý.** ITviec chỉ có tin IT, nên với đề tài đa
+ngành thì TopCV mới là nguồn phủ rộng nhất cho kế toán, điều dưỡng, cơ khí, giáo
+viên. Mất nó là mất đúng nhóm mà lộ trình muốn phục vụ.
+
+Không có cascade: mỗi portal là một `ScrapeRun` riêng, ba portal còn lại vẫn chạy
+bình thường và lượt TopCV chỉ FAILED một mình.
+
+**Ba hướng gỡ, chưa chọn:**
+
+1. Chấp nhận 3/4 portal trên máy chủ, và ghi rõ trong báo cáo khoá luận rằng đây
+   là ràng buộc hạ tầng chứ không phải lỗi hệ thống.
+2. Tách riêng phần quét TopCV chạy từ một máy có IP Việt Nam (máy dev, hoặc một
+   máy nhỏ trong nước), đẩy kết quả lên qua một endpoint nhập liệu. Cần viết
+   endpoint đó — hiện chưa có.
+3. Proxy dân cư Việt Nam cho riêng TopCV. Chạy được nhưng tốn tiền hằng tháng, và
+   là thứ khó biện minh trong phạm vi khoá luận.
+
+Đừng thử đổi region: Always Free chỉ có ở home region, mà home region không đổi
+được sau khi tạo tenancy.
+
+## PHẦN 6 — Điều chưa đo được
+
+- **Lượt quét đêm thật trên máy chủ.** Cron đặt `59 09 * * *` giờ Việt Nam; chưa
+  có đêm nào chạy trên máy này để biết ba portal còn lại về được bao nhiêu tin và
+  chuỗi model chịu tải ra sao.
+- **`CORS_ORIGIN` chưa có trong `.env`.** Chưa ảnh hưởng vì UI chưa deploy, nhưng
+  thiếu nó thì trình duyệt chặn mọi request kèm cookie, và thông báo lỗi nói về
+  CORS chứ không nói về cookie.
+- **Chưa có HTTPS.** Cổng 3000 đang mở trần; Caddy và domain là bước còn thiếu
+  trước khi UI gọi được API từ trình duyệt.
+- **Máy A1 khi lấy được có thể vẫn bị TopCV chặn**, vì nó cùng dải IP Oracle với
+  máy AMD hiện tại. Đừng coi việc đổi sang A1 là cách gỡ chuyện 403.
