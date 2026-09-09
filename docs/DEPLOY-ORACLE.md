@@ -23,7 +23,7 @@ Chromium 1,2GB — hai thứ không nền tảng PaaS free nào chứa nổi.
 
 Đây không phải khuyến nghị, đây là bốn lỗi sẽ xảy ra nếu bê nguyên repo lên máy chủ.
 
-### 0.1 `.env.production` thiếu `LATEX_SERVICE_URL` và `PDF_SERVICE_URL`
+### 0.1 `.env` thiếu `LATEX_SERVICE_URL` và `PDF_SERVICE_URL`
 
 Thiếu hai biến này thì `documents.module.ts` rơi về `SandboxLatexCompiler`, tức
 gọi `docker run` từ bên trong container — mà container không có docker socket.
@@ -277,16 +277,25 @@ Repo private thì tạo Personal Access Token (scope `repo`) và dùng
 
 ### 2.2 Tạo file `.env`
 
-Compose cần **một** file tên đúng `.env` trong `server/`: các service đọc nó qua
-`env_file`, còn `${POSTGRES_PASSWORD}` và `${OMNIROUTE_*}` được nội suy từ đó.
+**Không còn `.env.development` / `.env.production`.** Mỗi máy giữ đúng một file
+`.env`: máy dev có bản trỏ `localhost`, máy chủ có bản trỏ `postgres`. File này
+nằm ngoài git và ngoài image, nên nó là bước thủ công duy nhất của deploy — CI chỉ
+kiểm tra nó tồn tại rồi dùng, không bao giờ ghi đè.
 
-```bash
-cd server
-cp .env.production .env
-nano .env
+Một file `.env` phục vụ hai việc: `env_file:` nạp biến vào container, và Compose
+tự đọc chính nó để thay `${POSTGRES_PASSWORD}` và `${OMNIROUTE_*}`.
+
+Đẩy từ máy Windows lên (chạy trong cmd dưới máy bạn, không phải trong SSH):
+
+```cmd
+scp -i "%USERPROFILE%\.ssh\oracle.key" server\.env ubuntu@<IP-MÁY>:~/ai-job-search/server/.env
 ```
 
-Sửa những dòng sau:
+Hoặc gõ trên máy chủ bằng `nano -w ~/ai-job-search/server/.env` — **phải có cờ
+`-w`**, không thì nano bẻ đôi dòng dài nhất (142 ký tự, `MODEL_FALLBACK_IDS`) và
+biến đó sai mà không có gì báo.
+
+Các giá trị phải đúng cho môi trường máy chủ:
 
 ```
 POSTGRES_PASSWORD=<mật khẩu mạnh mới>
@@ -301,8 +310,12 @@ OMNIROUTE_KEY_SECRET=<openssl rand -base64 32>
 OMNIROUTE_PASSWORD=<mật khẩu đăng nhập omniroute>
 ```
 
-`JWT_SECRET` trong `.env.production` đang là giá trị đã nằm trong repo — coi như
-đã lộ, phải sinh mới.
+`JWT_SECRET` phải là giá trị sinh mới cho máy chủ, đừng dùng lại giá trị của máy
+dev — đổi nó làm mọi token đã phát mất hiệu lực.
+
+Kiểm sau khi chép xong, ba số phải khớp với file gốc: `wc -l` ra 56,
+`grep -c "="` ra 40, và `awk '{print length}' .env | sort -n | tail -1` ra 142.
+Số cuối nhỏ hơn nghĩa là có dòng bị bẻ.
 
 Không dùng omniroute (hiện `MODEL_PROVIDER=opencode` gọi thẳng gateway ngoài) thì
 comment cả service đó trong `docker-compose.yml` cho nhẹ máy.
