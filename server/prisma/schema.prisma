@@ -1129,3 +1129,107 @@ model SalaryReferenceBand {
   @@unique([referenceId, experienceLabel])
   @@map("salary_reference_bands")
 }
+
+// ---------------------------------------------------------------------------
+// Ngân hàng câu hỏi phỏng vấn tĩnh
+// ---------------------------------------------------------------------------
+
+/// Nguồn của một câu hỏi. Cùng vai trò với `SalaryReference.source`: đây là cột
+/// cho phép RÚT LUI — gỡ một nguồn là xoá theo cột này, không phải rà từng dòng.
+///
+/// `X_INTERVIEW` là nội dung của bên thứ ba, thu ngày 06/09/2026. Điều khoản của
+/// họ cấm sao chép thương mại; chủ đầu tư đã cân nhắc và chốt dùng. Giữ nguyên
+/// `sourceId` để còn thay thế dần bằng câu tự sinh, hoặc gỡ sạch nếu đổi ý.
+enum InterviewQuestionSource {
+  X_INTERVIEW
+  GENERATED
+  USER
+}
+
+/// Loại câu hỏi. Đây KHÔNG phải nhãn phân loại cho đẹp — nó quyết định câu hỏi
+/// có được phép có đáp án mẫu hay không, xem `InterviewQuestion.sampleAnswer`.
+enum InterviewQuestionType {
+  /// Có đáp án đúng khách quan.
+  KIEN_THUC
+  /// Hỏi cách làm, quy trình, phương pháp.
+  QUY_TRINH
+  /// Yêu cầu kể lại một trải nghiệm có thật của ứng viên.
+  HANH_VI
+  /// Hỏi động cơ, nguyện vọng, lý do chọn công ty hoặc ngành.
+  DONG_CO
+}
+
+/// Vòng đời một câu hỏi. Mặc định `RAW` và trang danh sách chỉ đọc `READY`, nên
+/// nạp về xong vẫn chưa có đường nào lộ ra web — cùng lối `SalaryRefVisibility`
+/// mặc định `INTERNAL`.
+enum InterviewQuestionStatus {
+  /// Vừa nhập, chưa qua lượt dịch và phân loại.
+  RAW
+  /// Đã có `text`, `industry`, `type`. Hiển thị được.
+  READY
+  /// Cổng `isQuestion` loại: không phải câu hỏi mà là nhãn, mô tả công việc,
+  /// hoặc một danh sách nhiều câu nhồi vào một bản ghi. Giữ lại chứ không xoá,
+  /// để lượt sinh sau không đi bắt lại chính những dòng này.
+  REJECTED
+}
+
+/// Một câu hỏi trong ngân hàng luyện tập.
+///
+/// Hai nhóm trường sinh ra ở hai thời điểm khác nhau, và đó là quyết định thiết
+/// kế chính của bảng này:
+///
+/// - `text` / `industry` / `type` sinh TRƯỚC cho toàn kho. Không có chúng thì
+///   không duyệt được, không lọc được, không tìm được — 92% kho là tiếng Anh.
+///   Gộp 20 câu một lượt gọi nên chỉ tốn ~2,3 giây mỗi câu.
+/// - `why` / `keyPoints` / `answerGuide` / `sampleAnswer` sinh LƯỜI, lúc người
+///   đầu tiên mở câu đó, rồi cache vĩnh viễn. Tốn ~28 giây mỗi câu mà đo trên
+///   kho nguồn thì 91% câu chưa ai từng luyện — sinh trước là trả giá cho thứ
+///   không ai xem.
+model InterviewQuestion {
+  id String @id @default(cuid())
+
+  source   InterviewQuestionSource
+  /// Id ở hệ thống nguồn. `null` với câu tự sinh và câu do người dùng nhập.
+  sourceId String?
+  /// Nguyên văn lúc thu về, KHÔNG sửa. Cần để chạy lại lượt dịch khi đổi prompt.
+  sourceText String @db.Text
+
+  status InterviewQuestionStatus @default(RAW)
+
+  /// Câu hỏi tiếng Việt đem hiển thị.
+  text     String?               @db.Text
+  /// Mã nhóm ngành trong `OCCUPATIONS`. `null` khi chưa qua lượt phân loại.
+  industry String?
+  type     InterviewQuestionType?
+
+  /// Độ khó theo nguồn, giữ nguyên chữ. Kho x-interview chỉ có 3% câu "Dễ" nên
+  /// đừng tin cột này để xếp lộ trình luyện tập.
+  difficulty String?
+  /// Số lượt luyện tập ở nguồn. Dùng để chọn câu nào đáng sinh đáp án trước.
+  sourcePracticeCount Int @default(0)
+
+  why          String?  @db.Text
+  keyPoints    String[] @default([])
+  answerGuide  String?  @db.Text
+  /// Đáp án mẫu đầy đủ. BẮT BUỘC `null` khi `type` là `HANH_VI` hoặc `DONG_CO`:
+  /// câu trả lời phải là trải nghiệm thật của chính ứng viên. Lưu sẵn một câu
+  /// chuyện bịa ở đây là dạy ứng viên đọc thuộc, rồi chính `unsupportedClaims`
+  /// của mock interview sẽ gắn cờ nó là tuyên bố không có bằng chứng.
+  sampleAnswer String?  @db.Text
+
+  /// Mốc sinh xong phần đáp án. `null` = chưa ai mở câu này lần nào.
+  answeredAt DateTime?
+  modelId    String?
+  /// Đáp án do model sinh và CHƯA có người rà. Giao diện phải nói rõ điều đó —
+  /// một đáp án kỹ thuật sai khiến ứng viên trả lời sai trong phỏng vấn thật.
+  verified   Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([source, sourceId])
+  @@index([status, industry])
+  @@index([status, type])
+  @@index([status, sourcePracticeCount(sort: Desc)])
+  @@map("interview_questions")
+}
