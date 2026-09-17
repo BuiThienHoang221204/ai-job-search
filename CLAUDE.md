@@ -310,7 +310,18 @@ Gateway free đã đo trên 215 lượt `match.evaluate`: **95,3% thành công, 
 
 **`match.evaluate` là tác vụ NHẸ NHẤT, đừng lấy p50 của nó làm mức chung.** Đo tiếp ngày 2026-08-12, chỉ tính lượt thành công: `document.coverLetter` 54–61s, `document.cv` 39–84s, `interview.prep` ~50s, còn `upskill.report` chế độ AGGREGATE thì **luôn vượt mốc 90 giây** nên chưa từng tạo nổi một bản. Lý do: chấm điểm trả về vài con số, các tác vụ kia sinh ra cả một tài liệu — độ trễ đi theo **token đầu ra**.
 
-Nên `document.*` đã đổi sang timeout 180s. Thứ tự ba mốc này phải giữ, đừng nới một cái mà không xem hai cái còn lại: **timeout MỘT lời gọi model < `server.setTimeout` 5 phút (`main.ts`) < `STUCK_AFTER_MS` 10 phút (reconcile)**.
+Nên `document.*` đã đổi sang timeout 180s. Thứ tự ba mốc này phải giữ, đừng nới một cái mà không xem hai cái còn lại: **timeout MỘT lời gọi model < `AI_CHAIN_BUDGET_MS` 4 phút < `server.setTimeout` 5 phút (`main.ts`) < `STUCK_AFTER_MS` 10 phút (reconcile)**
+
+Mốc `AI_CHAIN_BUDGET_MS` thêm 2026-09-17 và nó bịt một lỗ mà ba mốc cũ không
+thấy: bất biến "timeout MỘT lời gọi" chỉ đúng cho MỘT lời gọi, còn `ModelChain`
+cấp cho **mỗi mắt xích một `AbortSignal.timeout` MỚI**. Chuỗi 6 mắt xích × 90s
+là **540 giây cho một tác vụ** — vượt `server.setTimeout` và sát
+`STUCK_AFTER_MS`, tức là request treo rồi reconcile xếp lại rồi treo tiếp.
+
+`ModelChain.run` nay xét ngân sách **giữa các mắt xích**; mắt xích đầu luôn được
+chạy trọn hạn của nó, vì cắt nó đi thì tác vụ không bao giờ có cơ hội nào. Đường
+agent nhận ngân sách riêng (`AGENT_TIMEOUT_MS + AI_CHAIN_BUDGET_MS`) vì nó là
+việc trong hàng đợi, không bị `server.setTimeout` chặn..
 
 **Báo cáo upskill là tác vụ duy nhất dùng HAI lời gọi model, và nới timeout đã được thử rồi bỏ.** Bản một-lời-gọi ở mức 240s vẫn hỏng: `deepseek-v4-flash-free` hết giờ đúng mốc 240s, còn `mimo-v2.5-free` viết xong sau 28,3s với `finishReason=stop` nhưng thiếu một dấu `{` nên cả JSON không parse được. Chẩn đoán: **một lời gọi đang đòi quá nhiều**, không phải timeout ngắn cũng không phải chọn nhầm model.
 
@@ -338,7 +349,25 @@ Gateway **không có model embedding nào**, nên vector search ở Pha 4 sẽ c
 
 Chuỗi dự phòng đi xuyên lõi qua chuỗi `lõi/model`, tách ở dấu `/` **đầu tiên** (91/91 model id của OpenCode không có `/`, 351/351 của OpenRouter thì có — nên không nhập nhằng). Không có tiền tố hợp lệ thì cả chuỗi là model id của lõi mặc định, nhờ vậy `.env` cũ vẫn chạy.
 
-**Chuỗi đi tiếp trong đúng bốn trường hợp**: hết hạn mức, `ModelUnavailableError` (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là hỏng schema), gateway đã rút model (`isModelRetired`), hoặc **lõi trả 5xx** (`isTransientUpstream`). Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
+**Chuỗi đi tiếp trong đúng NĂM trường hợp**: hết hạn mức, `ModelUnavailableError` (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là hỏng schema), gateway đã rút model (`isModelRetired`), **lõi từ chối khoá hoặc model** (`isAccessDenied` — 401/403), hoặc **lõi trả 5xx** (`isTransientUpstream`).
+
+`isAccessDenied` thêm ngày 2026-09-17 sau khi cả 30 lượt `match.evaluate` của một
+lượt phát suất hỏng sạch mà **không mắt xích dự phòng nào được thử**. Hai hình
+dạng lỗi trượt cả bốn điều kiện cũ: `[403] free tier can only be used from within
+OpenCode` (403 nên không phải 429, không phải 5xx, chữ không khớp mẫu "free
+promotion has ended") và `[401] Model hy3-free is not supported`. Cả hai đều có
+nghĩa "lõi này không phục vụ ta nữa" — đúng thứ chuỗi dự phòng sinh ra để xử lý.
+
+Nó **có mã trạng thái thì tin mã**, giống `isTransientUpstream`: 400 kèm chữ
+"unauthorized" trong thân vẫn là lỗi request, không phải từ chối quyền. Và nó
+chịu chung phanh `!progress.spent` với 5xx — bỏ mắt xích giữa chừng một lượt
+agent là trả tiền lại cho những bước đã xong.
+
+Đo sau khi sửa, một lượt `match.evaluate` thật: `oc/mimo-v2.5-free` (403, 4,2s)
+→ `oc/hy3-free` (401, 0,8s) → `opencode/mimo-v2.5-free` (403, 0,4s) →
+`opencode/hy3-free` (catalog) → `kilo/tencent/hy3:free` (thiếu key) →
+**`openrouter/nvidia/nemotron-3-super-120b-a12b:free` XONG sau 19,1 giây**.
+Tổng phí mắt xích chết khoảng 5,4 giây. Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
 
 **Nhánh 5xx có thêm một phanh: chỉ đổi mắt xích khi lượt hỏng CHƯA đi được bước agent nào.** `runTools` chạy lại là chạy lại từ bước 0, nên bỏ mắt xích ở bước thứ chín là trả tiền lần hai cho chín bước đã xong — mà nhánh `FAILED` của `AgentRunnerService` lại không lưu `messages` nên cũng không có đường chạy tiếp. Lý do nhánh này tồn tại nằm ở một lượt hỏng thật ngày 2026-08-22: `agent.reviewer` nhận HTTP 500 hai lần liên tiếp (96 giây, payload chỉ 8,4KB) và cả tác vụ hỏng, trong khi **không một model dự phòng nào được thử** vì 5xx không nằm trong danh sách lý do đổi mắt xích.
 
@@ -384,6 +413,43 @@ Chất lượng không đổi, độ trễ thêm khoảng 10%.
 **Cái giá của `auto/*` là mất quyền chọn nhà cung cấp.** Hôm nay nó chọn `oc/hy3-free`; không có gì hứa ngày mai nó không chọn `felo/*` hay `ddgw/*` — hai bể endpoint web scrape. App gửi đi CV người thật, nên nếu điều đó thành vấn đề thì phải quay lại ghim tên model và dựa vào `ModelChain`.
 
 **Kết luận: `ModelChain` của repo vẫn là thứ làm việc dự phòng, OmniRoute không thay được nó.**
+
+> **Cập nhật 2026-09-17 — đọc kỹ, phần dưới CHƯA đủ.** Bể free của OpenCode
+> **vẫn mở** và khoá `public` **vẫn hợp lệ**: CLI `opencode` trên máy phát triển
+> gọi `mimo-v2.5-free` thành công mà chưa hề đăng nhập (`opencode providers list`
+> chỉ có credential Google). Nhưng **app thì 403**, và lý do không phải khoá.
+>
+> Bắt gói thật từ CLI (trỏ `OPENCODE_CONFIG_CONTENT` về một server ghi header)
+> cho thấy nó gửi:
+>
+> ```
+> authorization: Bearer public
+> user-agent: opencode/1.18.31 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14
+> x-opencode-client: cli
+> x-opencode-project: global
+> x-opencode-session: ses_f520b15aaffejKKWBg0tZgCYSQ
+> x-opencode-request: msg_...
+> ```
+>
+> Đo từng phần: `User-Agent` phải có `/<version>` (chuỗi trần `opencode` bị từ
+> chối), và `x-opencode-session` là bắt buộc. App hiện sai **cả hai**: gửi UA
+> trần, và gửi `randomUUID()` cho session — giá trị mà nay bị từ chối, dù
+> docblock cũ ghi "chuỗi ngẫu nhiên nào cũng được" (đúng ở thời điểm đo cũ).
+>
+> **Nhưng sửa hai chỗ đó vẫn KHÔNG đủ.** Thử nhiều session tự sinh cho kết quả
+> không theo quy luật định dạng nào — có chuỗi qua, có chuỗi cùng độ dài bị
+> chặn. OpenCode không kiểm định dạng mà kiểm thứ gắn với một phiên OpenCode
+> THẬT. Câu báo lỗi nói đúng chủ ý: *free tier can only be used **from within
+> OpenCode***.
+>
+> **Đừng đi tiếp hướng giả dạng CLI** — đó là đi vòng qua chốt kiểm soát truy
+> cập của nhà cung cấp. Hai đường hợp lệ: đăng nhập OpenCode để có khoá thật,
+> hoặc dùng `openrouter` (key trong `.env` vẫn tốt, đã chấm điểm thật qua
+> `nvidia/nemotron-3-super-120b-a12b:free`).
+>
+> Riêng **`hy3-free` thì đã bị rút hẳn** khỏi OpenCode — `GET /zen/v1/models`
+> không còn nó, gọi trả `[401] Model hy3-free is not supported`. Việc này làm
+> hỏng `SKILL_DICTIONARY_MODEL_ID=hy3-free`.
 
 **`OMNIROUTE_USER_AGENT=opencode` là BẮT BUỘC, và đây là chỗ đắt nhất đã học được.** Hạn mức free của OpenCode gắn với chuỗi `User-Agent: opencode` — điều `providers/opencode.ts` đã ghi từ trước, nhưng ban đầu không ai nối nó với việc đi qua gateway. OmniRoute là một CHẶNG RIÊNG: nó tự mở kết nối ra OpenCode, nên nếu ta không đặt UA thì nó gửi UA của chính nó. Đo cùng model, cùng key `public`, cùng thời điểm:
 

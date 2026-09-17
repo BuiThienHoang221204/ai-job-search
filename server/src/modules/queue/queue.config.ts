@@ -35,6 +35,7 @@ const DEFAULTS: Record<string, QueueConfig> = {
   // --- CPU-only / lightweight ---
   'match.requirements': { concurrency: 15 },
   'skill.canonicalize': { concurrency: 10 },
+  'match.shortlist': { concurrency: 1, serial: true },
 
   // --- Serial: phải tuần tự để tránh bị chặn IP ---
   'scrape.run': { concurrency: 1, serial: true },

@@ -17,6 +17,7 @@ const AGENT_REVIEW = 'agent.review';
 const COMPANY_BRIEF = 'company.brief';
 const REQUIREMENT_MATCH = 'match.requirements';
 const SKILL_CANONICALIZE = 'skill.canonicalize';
+const AI_SHORTLIST = 'match.shortlist';
 
 export const QUEUES_WITH_KEY_RULE = [
   EVALUATE_MATCH,
@@ -31,6 +32,7 @@ export const QUEUES_WITH_KEY_RULE = [
   COMPANY_BRIEF,
   REQUIREMENT_MATCH,
   SKILL_CANONICALIZE,
+  AI_SHORTLIST,
 ] as const;
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
@@ -136,6 +138,12 @@ export function singletonKeyFor(queue: string, data: object): string {
       };
       if (typeof payload.round === 'number') return `sweep:${payload.round}`;
       if (payload.jobId) return `job:${requireField(queue, data, 'jobId')}`;
+      if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
+      return 'all';
+    }
+
+    case AI_SHORTLIST: {
+      const payload = data as { userId?: unknown };
       if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
       return 'all';
     }

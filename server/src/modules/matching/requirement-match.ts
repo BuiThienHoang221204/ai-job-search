@@ -32,12 +32,15 @@ export type MatchProfile = {
   years: number | null;
 };
 
+const UNMET_PRIOR_WEIGHT = 2;
+
 export type RequirementMatch = {
   checks: RequirementCheck[];
   met: number;
   total: number;
   /** 0-100. Bằng 0 khi eligibility FAIL, giống đường chấm bằng AI. */
   score: number;
+  rank: number;
   eligibility: 'PASS' | 'FAIL' | 'UNVERIFIED';
 };
 
@@ -219,5 +222,11 @@ export function matchRequirements(
         ? 0
         : Math.round((metWeight / totalWeight) * 100);
 
-  return { checks, met, total, score, eligibility };
+  const rank =
+    eligibility === 'FAIL' || totalWeight === 0
+      ? 0
+      : Math.round((metWeight / (totalWeight + UNMET_PRIOR_WEIGHT)) * 10_000) /
+        10_000;
+
+  return { checks, met, total, score, rank, eligibility };
 }

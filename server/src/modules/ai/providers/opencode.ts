@@ -25,7 +25,7 @@ export const opencode: ProviderDescriptor = {
   userAgentEnv: 'OPENCODE_USER_AGENT',
 
   extraHeaders: {
-    'x-opencode-session': randomUUID(),
+    'x-opencode-session': `ses_${randomUUID().replace(/-/g, '').slice(0, 26)}`,
   },
 
   knownNoStructuredOutput: [

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   cappedTextIn,
   cappedTextVi,
+  unwrapStrings,
   type OutputLanguage,
 } from '../../common/model-output.js';
 
@@ -192,15 +193,18 @@ export const coverLetterSchema = z.object({
     600,
     'Đoạn mở. KHÔNG được lặp lại lời chào ở đây - salutation đã là một trường riêng và sẽ được in ra trước đoạn này. Bắt đầu thẳng vào nội dung: vị trí ứng tuyển và lý do mạnh nhất.',
   ),
-  bodyParagraphs: z
-    .array(
-      vn(
-        700,
-        'Một đoạn thân bài, nối kinh nghiệm cụ thể với một yêu cầu cụ thể của công việc.',
-      ),
-    )
-    .min(1)
-    .transform((items) => items.slice(0, 3)),
+  bodyParagraphs: z.preprocess(
+    unwrapStrings,
+    z
+      .array(
+        vn(
+          700,
+          'Một đoạn thân bài, nối kinh nghiệm cụ thể với một yêu cầu cụ thể của công việc.',
+        ),
+      )
+      .min(1)
+      .transform((items) => items.slice(0, 3)),
+  ),
   motivation: vn(
     600,
     'Vì sao là công ty NÀY. Phải nhắc đến thứ cụ thể về công ty, không được chung chung.',

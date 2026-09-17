@@ -67,6 +67,7 @@ async function main() {
         met: result.met,
         total: result.total,
         percent: result.score,
+        rank: result.rank,
         eligibility: result.eligibility,
         locationPass:
           result.checks.find((check) => check.kind === 'LOCATION')?.met ?? null,

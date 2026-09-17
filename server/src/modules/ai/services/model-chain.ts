@@ -1,5 +1,6 @@
 import type { Logger } from '@nestjs/common';
 import {
+  isAccessDenied,
   isModelRetired,
   isRateLimited,
   isTransientUpstream,
@@ -21,10 +22,13 @@ import { ModelUnavailableError } from './model-catalog.service.js';
  */
 export type ChainProgress = { spent: boolean };
 
+export const DEFAULT_CHAIN_BUDGET_MS = 240_000;
+
 export type ModelChainOptions = {
   defaultModelId: string;
   defaultProviderId: string;
   fallbackModelIds: string[];
+  budgetMs?: number;
   /**
    * Logger của `AiService`, KHÔNG phải logger riêng: dòng "Bỏ qua ..." đã nằm
    * trong nhật ký production dưới tên đó.
@@ -76,11 +80,17 @@ export class ModelChain {
   /**
    * Chạy `attempt` lần lượt trên chuỗi model cho tới khi có cái chạy được.
    *
-   * Chuỗi đi tiếp trong đúng BỐN trường hợp, và cả bốn đều là "mắt xích này
+   * Chuỗi đi tiếp trong đúng NĂM trường hợp, và cả năm đều là "mắt xích này
    * không dùng được" chứ không phải "tác vụ này hỏng": hết hạn mức, model
-   * không khả dụng, gateway đã rút model, hoặc lõi trả 5xx lúc chưa đi được
-   * bước nào. Mọi lỗi khác ném ra ngay - đặc biệt là lỗi schema, vì đổi model
-   * khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu".
+   * không khả dụng, gateway đã rút model, lõi từ chối khoá hoặc model (401/403),
+   * hoặc lõi trả 5xx - hai cái cuối chỉ khi chưa đi được bước nào. Mọi lỗi khác
+   * ném ra ngay - đặc biệt là lỗi schema, vì đổi model khi model trả sai định
+   * dạng sẽ giấu mất tín hiệu "model này quá yếu".
+   *
+   * `budgetOverrideMs` chặn cả chuỗi, không chỉ từng mắt xích: mỗi lần `attempt`
+   * nhận một `AbortSignal.timeout` MỚI, nên n mắt xích chậm cộng lại thành n lần
+   * hạn một lời gọi. Ngân sách chỉ xét GIỮA các mắt xích, mắt đầu luôn được chạy
+   * trọn hạn của nó.
    */
   async run<T>(
     requested: string | undefined,
@@ -88,11 +98,23 @@ export class ModelChain {
       modelId: string | undefined,
       progress: ChainProgress,
     ) => Promise<T>,
+    budgetOverrideMs?: number,
   ): Promise<T> {
     const chain = this.links(requested);
+    const budgetMs =
+      budgetOverrideMs ?? this.options.budgetMs ?? DEFAULT_CHAIN_BUDGET_MS;
+    const startedAt = Date.now();
     let lastSkipped: unknown;
 
     for (const [index, modelId] of chain.entries()) {
+      const elapsed = Date.now() - startedAt;
+      if (index > 0 && elapsed >= budgetMs) {
+        this.options.logger.warn(
+          `Dừng chuỗi sau ${Math.round(elapsed / 1000)}s: đã vượt ngân sách ${Math.round(budgetMs / 1000)}s, còn ${chain.length - index} mắt xích chưa thử`,
+        );
+        throw lastSkipped;
+      }
+
       const progress: ChainProgress = { spent: false };
       try {
         return await attempt(modelId, progress);
@@ -100,8 +122,11 @@ export class ModelChain {
         const unavailable = error instanceof ModelUnavailableError;
         const retired = isModelRetired(error);
         const limited = isRateLimited(error);
+        const denied = isAccessDenied(error) && !progress.spent;
         const sick = isTransientUpstream(error) && !progress.spent;
-        if (!unavailable && !limited && !retired && !sick) throw error;
+        if (!unavailable && !limited && !retired && !denied && !sick) {
+          throw error;
+        }
 
         lastSkipped = error;
         const reason = unavailable
@@ -110,7 +135,9 @@ export class ModelChain {
             ? 'gateway đã rút model này'
             : limited
               ? 'hết hạn mức'
-              : 'lõi trả 5xx';
+              : denied
+                ? 'lõi từ chối khoá hoặc model này'
+                : 'lõi trả 5xx';
         const next = chain[index + 1];
         this.options.logger.warn(
           next

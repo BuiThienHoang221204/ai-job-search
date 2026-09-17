@@ -22,6 +22,7 @@ import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { EvaluateJobDto, ListMatchesQueryDto } from './matching.dto.js';
 import { MatchingService } from './services/matching.service.js';
 import { JobRequirementsService } from './services/job-requirements.service.js';
+import { AiShortlistService } from './services/ai-shortlist.service.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
@@ -35,6 +36,7 @@ export class MatchingController {
     private readonly matching: MatchingService,
     private readonly queue: QueueService,
     private readonly requirements: JobRequirementsService,
+    private readonly shortlist: AiShortlistService,
   ) {}
 
   /**
@@ -114,6 +116,23 @@ export class MatchingController {
   async rebuildDictionary() {
     const id = await this.queue.send(QUEUE.SKILL_CANONICALIZE, { round: 0 });
     return { queued: true, queueJobId: id };
+  }
+
+  /**
+   * Phát ngay suất AI cho top-N tin đầu danh sách "Việc làm phù hợp". Chạy
+   * đồng bộ để đọc được ngay số suất đã phát, thay vì đợi lượt quét kế.
+   */
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Phát suất AI cho top-N tin phù hợp nhất (Admin)' })
+  @ApiQuery({
+    name: 'userId',
+    type: String,
+    required: false,
+    description: 'Chỉ phát cho một hồ sơ; bỏ trống thì phát cho mọi hồ sơ',
+  })
+  @Post('shortlist/dispatch')
+  dispatchShortlist(@Query('userId') userId?: string) {
+    return this.shortlist.dispatch(userId);
   }
 
   /**

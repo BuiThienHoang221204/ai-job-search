@@ -1,4 +1,5 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { vietnameseValidationError } from './common/validation-message.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -40,6 +41,7 @@ export function configureApp(app: INestApplication): void {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      exceptionFactory: vietnameseValidationError,
     }),
   );
 

@@ -102,6 +102,9 @@ model Profile {
   targetSectors   String[] @default([])
   dealBreakers    String[] @default([])
 
+  currentSalary  Int?
+  expectedSalary Int?
+
   // Ràng buộc đi lại, dùng cho chiều Location (PASS/FAIL)
   commuteConstraint String?
   willingToRelocate Boolean @default(false)
@@ -283,6 +286,8 @@ model JobRequirementMatch {
   /// 0-100, bắt buộc tính 1 và ưu tiên tính 0,5. Cột LỌC và SẮP XẾP nên có index.
   percent Int
 
+  rank Float @default(0)
+
   eligibility  EligibilityVerdict?
   locationPass Boolean?
 
@@ -292,6 +297,7 @@ model JobRequirementMatch {
 
   @@id([userId, jobId])
   @@index([userId, percent(sort: Desc)])
+  @@index([userId, rank(sort: Desc)])
   @@index([jobId])
   @@map("job_requirement_matches")
 }

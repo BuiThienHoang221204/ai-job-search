@@ -23,6 +23,13 @@ const configuration = () => ({
     modelId: process.env.MODEL_ID ?? 'deepseek-v4-flash-free',
 
     /**
+     * Trần thời gian cho CẢ chuỗi dự phòng, không phải cho từng mắt xích. Mỗi
+     * mắt xích nhận một `AbortSignal.timeout` mới, nên n mắt xích chậm cộng lại
+     * thành n lần hạn một lời gọi - phải nhỏ hơn `server.setTimeout` 5 phút.
+     */
+    chainBudgetMs: parseInt(process.env.AI_CHAIN_BUDGET_MS ?? '240000', 10),
+
+    /**
      * Các mắt xích thử tiếp khi mắt xích đang dùng không chạy được. Viết
      * `lõi/model` để nhảy sang lõi khác, hoặc chỉ `model` cho lõi mặc định.
      */
@@ -195,6 +202,11 @@ const configuration = () => ({
      * sai tạo ra một mã hút mọi thứ liên quan vào nó.
      */
     dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID ?? 'hy3-free',
+
+    aiAuto: process.env.MATCH_AI_AUTO === 'true',
+    aiTopN: parseInt(process.env.MATCH_AI_TOP_N ?? '3', 10),
+    aiMaxPerRun: parseInt(process.env.MATCH_AI_MAX_PER_RUN ?? '300', 10),
+    aiCooldownHours: parseInt(process.env.MATCH_AI_COOLDOWN_HOURS ?? '6', 10),
   },
 
   cron: {

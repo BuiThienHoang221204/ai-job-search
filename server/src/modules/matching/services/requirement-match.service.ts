@@ -12,6 +12,8 @@ import { SkillDictionaryService } from './skill-dictionary.service.js';
 /** Bảng nhân theo (số người × số tin) nên cặp không khớp gì thì không ghi. */
 const MIN_MET_TO_STORE = 1;
 
+const FORMULA_VERSION = 'v2';
+
 const profileSelect = {
   userId: true,
   headline: true,
@@ -68,7 +70,7 @@ export class RequirementMatchService {
     stamp: string,
     dictionarySize: number,
   ): string {
-    return `${requirement.sourceHash ?? requirement.jobId}:${stamp}:d${dictionarySize}`;
+    return `${FORMULA_VERSION}:${requirement.sourceHash ?? requirement.jobId}:${stamp}:d${dictionarySize}`;
   }
 
   private async candidates(userId?: string): Promise<Candidate[]> {
@@ -157,6 +159,7 @@ export class RequirementMatchService {
           met: result.met,
           total: result.total,
           percent: result.score,
+          rank: result.rank,
           eligibility: result.eligibility,
           locationPass:
             result.checks.find((check) => check.kind === 'LOCATION')?.met ??

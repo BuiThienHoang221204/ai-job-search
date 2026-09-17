@@ -2,11 +2,46 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { OCCUPATIONS } from '../jobs/taxonomy/occupations.js';
 import type { ListPositionsQueryDto } from './salary.dto.js';
+import {
+  buildPositionIndex,
+  resolveJobPosition,
+  type PositionIndex,
+} from './job-position.js';
+import {
+  negotiationRange,
+  type NegotiationRange,
+  type Seniority,
+} from './negotiation.js';
 
 const OCCUPATION_NAMES = new Map(OCCUPATIONS.map((o) => [o.code, o.name]));
 
 /** Số vị trí cùng ngành hiển thị trong bảng xếp hạng. */
 const PEER_LIMIT = 6;
+
+const INDEX_CACHE_MS = 10 * 60_000;
+
+export interface SalaryGuideJob {
+  title: string;
+  occupationCode: string | null;
+  subOccupationCode: string | null;
+  salaryMin: number | null;
+  salaryMax: number | null;
+}
+
+export interface SalaryGuideRequirements {
+  minYears: number | null;
+  seniority: Seniority;
+}
+
+export interface SalaryGuideProfile {
+  candidateYears: number | null;
+  currentSalary: number | null;
+  expectedSalary: number | null;
+}
+
+export type SalaryGuide = NegotiationRange & {
+  positionSlug: string | null;
+};
 
 /**
  * Cửa DUY NHẤT để đọc dữ liệu lương.
@@ -18,6 +53,70 @@ const PEER_LIMIT = 6;
 @Injectable()
 export class SalaryService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private index: PositionIndex | null = null;
+  private indexUntil = 0;
+
+  private async positionIndex(): Promise<PositionIndex> {
+    if (this.index && Date.now() < this.indexUntil) return this.index;
+
+    const rows = await this.prisma.salaryReference.findMany({
+      where: { visibility: 'PUBLIC' },
+      select: {
+        positionSlug: true,
+        positionName: true,
+        occupationCode: true,
+        avgMonthly: true,
+        rangeMin: true,
+        rangeMax: true,
+        currency: true,
+        bands: {
+          select: {
+            experienceLabel: true,
+            minAmount: true,
+            avgAmount: true,
+            maxAmount: true,
+          },
+        },
+      },
+    });
+
+    this.index = buildPositionIndex(rows);
+    this.indexUntil = Date.now() + INDEX_CACHE_MS;
+    return this.index;
+  }
+
+  async guideForJob(
+    job: SalaryGuideJob,
+    requirements: SalaryGuideRequirements | null,
+    fitScore: number | null,
+    profile: SalaryGuideProfile | null = null,
+  ): Promise<SalaryGuide | null> {
+    const index = await this.positionIndex();
+    const resolved = resolveJobPosition(job, index);
+    if (!resolved) return null;
+
+    const range = negotiationRange({
+      resolved,
+      candidateYears: profile?.candidateYears ?? null,
+      minYears: requirements?.minYears ?? null,
+      seniority: requirements?.seniority ?? 'UNKNOWN',
+      fitScore,
+      postedMin: job.salaryMin,
+      postedMax: job.salaryMax,
+      currentSalary: profile?.currentSalary ?? null,
+      expectedSalary: profile?.expectedSalary ?? null,
+    });
+    if (!range) return null;
+
+    return {
+      ...range,
+      positionSlug:
+        resolved.basis === 'POSITION'
+          ? resolved.positions[0].positionSlug
+          : null,
+    };
+  }
 
   /** Danh mục ngành kèm số vị trí đang có số, để giao diện dựng thanh lọc. */
   async occupations() {

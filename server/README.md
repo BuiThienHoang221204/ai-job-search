@@ -263,6 +263,84 @@ tin:
   công việc, trong theo người dùng**, nên khi chạm trần thì mọi người đều được
   chấm vài tin đầu, thay vì vài người được chấm hết còn người xếp sau không có gì.
 
+### Phát suất AI theo thứ hạng: `match.shortlist`
+
+`planFanOut` ở trên chọn tin bằng `keywordOverlap` và chạy **ngay lúc lưu tin**,
+tức là trước khi AI rút xong yêu cầu — lúc đó `job_requirement_matches` còn
+rỗng. Nó đang TẮT (`SCRAPER_AUTO_SCORE=false`).
+
+Đường đang dùng là hàng đợi `match.shortlist`, chạy **sau** khi đối chiếu xong:
+
+```
+SCRAPE_RUN -> job.requirements -> skill.canonicalize -> match.requirements
+                                                             |
+                                            match.shortlist (hoãn 60s)
+                                                             |
+                                                       match.evaluate x N
+```
+
+Mỗi tin quét về sinh một lượt `match.requirements`, nên 100 tin là 100 lượt đẩy
+sang `match.shortlist`. Cả 100 gộp về **một** việc nhờ khoá dedup `all` cộng
+policy `exclusive`, và `startAfter: 60` giây cho cả lô lắng xuống trước khi phát.
+Đây là debounce không cần viết timer.
+
+**Định nghĩa của tính năng: N tin được AI chấm chính là N tin ĐẦU danh sách
+"Việc làm phù hợp".** Ràng buộc đó buộc danh sách và bộ chọn phải dùng **cùng
+một thứ tự**, nên cả hai đọc chung cột `rank`:
+
+```
+rank desc, met desc, job.scrapedAt desc, jobId desc
+```
+
+Bốn tầng, và ba tầng đầu đã đủ tất định trong thực tế — `jobId` (cuid, tức là
+ngẫu nhiên) chỉ còn là chốt chặn cuối, không phải bên quyết định. Bản trước sắp
+bằng `percent desc, jobId desc` và vì `percent` chỉ nhận vài giá trị rời rạc nên
+cuid mới là thứ quyết định thật.
+
+### Vì sao `rank` chứ không phải `percent`
+
+`percent = metWeight / totalWeight * 100` là tỉ lệ **đã chuẩn hoá theo từng
+tin**, nên tin rút ra được ít yêu cầu đạt 100 quá rẻ:
+
+| Tin | Yêu cầu | Khớp | percent | rank |
+|---|---|---|---|---|
+| A | 1 | 1 | 100 | 0,33 |
+| B | 3 | 3 | 100 | 0,60 |
+| C | 8 | 8 | 100 | 0,80 |
+| D | 12 | 11 | 92 | 0,79 |
+
+Xếp theo `percent` thì A thắng — nhưng A đạt 100 vì **JD viết sơ sài**, không
+phải vì ứng viên giỏi. Đó là sai lệch **có hướng**, và hướng đó ngược với thứ
+mình muốn đưa cho model xem.
+
+`rank = metWeight / (totalWeight + 2)` cộng hai yêu cầu ảo CHƯA ĐẠT vào mẫu số.
+Tin ít yêu cầu bị phạt nặng, tin nhiều yêu cầu gần như không đụng tới. Hằng số
+nằm ở `UNMET_PRIOR_WEIGHT` trong `requirement-match.ts`. `rank` về 0 khi
+eligibility FAIL, giống `score`.
+
+Vì đây là công thức mới, `fingerprint()` mang tiền tố `FORMULA_VERSION = 'v2'`:
+thiếu nó thì mọi cặp đã tính giữ nguyên `rank = 0` mặc định và cả tính năng thành
+vô hình — đúng loại bẫy mà `dictionarySize` đã gặp một lần.
+
+### Bốn chốt chặn của `match.shortlist`
+
+Tất cả đều **ghi ra log khi cắt**, không im lặng:
+
+- `MATCH_AI_AUTO` - cờ tổng, mặc định `false`. Mỗi suất là một lượt gọi model có
+  trả tiền, nên tính năng không tự bật.
+- `MATCH_AI_TOP_N` (3) - số tin mỗi người mỗi lượt.
+- `MATCH_AI_MAX_PER_RUN` (300) - trần toàn cục. Khác `planFanOut`: chạm trần thì
+  **dừng hẳn**, người chưa nhận suất nào giữ `lastFanOutAt` cũ nên lượt sau đứng
+  đầu hàng. `planFanOut` đếm `dropped` rồi chạy tiếp, nên cùng một nhóm người
+  thua mỗi đêm.
+- `MATCH_AI_COOLDOWN_HOURS` (6) - một người không được phát lại trong khoảng này.
+
+Và một điều kiện nữa trong chính câu truy vấn: **không tin nào mới hơn
+`lastFanOutAt` thì không phát suất nào cho người đó**. Đêm quét về không có gì
+đáng xem thì đêm đó không tốn lượt gọi model nào.
+
+`POST /matches/shortlist/dispatch` (ADMIN) chạy đồng bộ để thử không cần đợi cron.
+
 ### Cron
 
 ```bash
@@ -479,6 +557,95 @@ vài chục giây và phụ thuộc gateway, để đổi lấy đúng những k
 sẽ khuyên một lập trình viên React đi học React. Đã gặp đúng lỗi này khi chạy thử.
 Không dùng so khớp chuỗi con - `"JavaScript".includes("Java")` là đúng, và khi đó hệ
 thống sẽ im lặng về việc ứng viên thiếu Java.
+
+## Mức lương nên đề xuất — `modules/salary/`
+
+Panel "Mức lương nên đề xuất" ở trang chi tiết tin trả lời câu **"vị trí này nên deal
+bao nhiêu"**, khác với trang `/salary` vốn chỉ trả lời "thị trường trả bao nhiêu". Nó
+**không gọi model**: ba con số tính thuần bằng CPU từ bảng tham chiếu, `JobRequirement`
+và điểm đối chiếu hồ sơ đã có sẵn trong `GET /jobs/:id`.
+
+### Mốc kinh nghiệm lấy từ HỒ SƠ, không lấy từ tin
+
+> **Sửa 2026-09-17.** Bản đầu làm ngược: lấy mốc từ `JobRequirement.minYears` với lý lẽ
+> "tin đòi 3 năm thì 3–5 năm là mặt bằng phải deal". Lý lẽ đó chỉ đúng khi ứng viên
+> **đạt** mốc tin đòi. Khi không đạt, kết quả là một hồ sơ 1,8 năm được khuyên đòi
+> **45,5 triệu** cho tin đòi trên 5 năm — mức của band senior. Chủ đầu tư phát hiện
+> ngay lần xem đầu tiên. Cái cớ "`period` là chuỗi tự do, khó parse" cũng sai:
+> `modules/profile/experience-years.ts` đã có sẵn và `job-requirements.service` đã
+> dùng nó từ trước.
+
+`SalaryReferenceBand` chia bốn mốc theo số năm. Số năm chọn mốc là
+`yearsOfExperience(Profile.experiences)` — kinh nghiệm THẬT của ứng viên. Mốc của tin
+(`minYears`, hoặc suy từ `seniority`) đổi vai: nó không tính tiền nữa mà chỉ dựng cờ
+`experienceGap` để giao diện cảnh báo khoảng cách.
+
+Ba nhánh, và `experienceSource` nói rõ đang ở nhánh nào:
+
+| Tình huống | Mốc dùng | Cờ |
+|---|---|---|
+| Hồ sơ đọc được số năm | mốc của **ứng viên**, kể cả khi cao hơn tin đòi | `PROFILE` |
+| Hồ sơ chưa đọc được | tạm mượn mốc của tin, giao diện nói rõ là mượn | `POSTING` |
+| Không biết bên nào | bỏ band, dùng `avgMonthly` của cả vị trí | `null` |
+
+Người nhiều kinh nghiệm hơn tin đòi **không** bị ép xuống mốc của tin: 7 năm ứng tin
+đòi 1 năm vẫn tính theo band "Trên 5 năm", vì họ mang chừng đó kinh nghiệm vào việc.
+
+**`fitScore` KHÔNG đo thâm niên.** Nó là `JobRequirementMatch` — tỉ lệ đáp ứng yêu cầu
+**kỹ năng**, cố ý bỏ địa điểm và quốc tịch, và chưa bao giờ đếm số năm. Nó chỉ được
+phép dịch con số **bên trong** một band đã chọn đúng; dùng nó để nhảy band là đúng lỗi
+đã sửa ở trên.
+
+### Ba quy tắc khớp tiêu đề, cả ba đều do đo mà ra
+
+Đo trên 804 tin (`scripts/probe-salary-negotiation.mjs`), mỗi quy tắc dưới đây được
+thêm vào sau khi một vòng soát tay 30 cặp phát hiện khớp sai:
+
+1. **Bỏ nhiễu theo CỤM, không theo từ đơn.** Lọc `kinh`/`nghiem` để bỏ "kinh nghiệm"
+   thì giết luôn "kinh **doanh**": "Kỹ sư kinh doanh" teo còn một token và khớp bừa
+   với mọi tin sales.
+2. **Chỉ đọc phần đầu tiêu đề**, trước `-`, `(`, `|`, `,`. Đuôi tiêu đề là tên phòng
+   ban: mọi tin có hậu tố "- Khối Công nghệ thông tin" từng khớp 1,00 vào vị trí
+   "Nhân viên công nghệ thông tin", kể cả tin tuyển backend.
+3. **Giữ tiền tố chức danh** ("Kỹ sư" / "Nhân viên" / "Chuyên viên"). Bỏ nó thì
+   "Kỹ sư kinh doanh" (17tr) và "Nhân viên kinh doanh" (16tr) không phân biệt được.
+
+Ngưỡng là containment ≥ 0,8 trên token của **tên vị trí tham chiếu**. Hạ xuống 0,6 thì
+độ phủ tăng từ 18,3% lên 27,4% nhưng nhận ngay ca sai `Kỹ Sư Lập Trình Back-end →
+Kỹ sư DevOps` (0,67). Khi nhiều vị trí cùng điểm, vị trí **nhiều token hơn** thắng —
+nhờ đó "Nhân viên kinh doanh B2B" thắng "Nhân viên kinh doanh".
+
+### `sub-occupation-map.ts` vừa thu hẹp vừa CHẶN
+
+Tầng hai khớp theo `Job.subOccupationCode`. Bảng map tồn tại không chỉ để thu hẹp
+(nhóm `IT` có 23 vị trí trải 13–34tr, lấy trung vị cả nhóm là vô nghĩa) mà còn để
+**chặn những nghề bảng tham chiếu không phủ**. `LOG_IMPEXP` (40 tin) và `EDU_TEACHER`
+(42 tin) cố ý không có mục nào: `LOGISTICS` chỉ có 4 vị trí toàn về kho, `EDUCATION`
+có đúng 1 vị trí là "Tư vấn tuyển sinh". Map bừa xuất nhập khẩu về thủ kho thì con số
+hiện ra trông vẫn hợp lý mà sai hoàn toàn.
+
+Kết quả trên 804 tin: **POSITION 18,3% · SUB_OCCUPATION 44,9% · không có dữ liệu 36,8%**.
+Tin không khớp được thì panel biến mất, không hiện ô rỗng.
+
+### Vì sao không nới khoảng tới `rangeMin`/`rangeMax`
+
+Bản đầu cho hồ sơ mạnh nới trần thẳng tới `rangeMax` của cả vị trí. Chạy trên dữ liệu
+thật thì một tin Senior Full-stack nhảy từ `37–50tr` (fit 50) xuống `8–50tr` (fit 20),
+và tin không có mốc kinh nghiệm ra thẳng `8–50tr`. Khoảng đó vô dụng: `rangeMin`/
+`rangeMax` bao trọn mọi mốc, từ thực tập sinh tới lead. Nay nới tối đa `STRETCH_FOR_FIT`
+(15%) so với mốc, và khi không có mốc thì dùng `±SPREAD_WITHOUT_BAND` (25%) quanh trung
+bình vị trí. Test đơn vị với số đẹp **không** bắt được lỗi này — chỉ probe trên 804 tin
+thật mới bắt được.
+
+### `Profile.currentSalary` / `expectedSalary` — người dùng tự nhập
+
+Hai cột `Int?`, không bắt buộc, **model không được đề xuất** (cùng lý do với `phone`:
+một con số sai khiến người dùng mang nó đi đàm phán mà không biết). Không có thì sàn
+ước theo thị trường; có `currentSalary` thì sàn thành `max(sàn thị trường,
+currentSalary × 1,1)` và giao diện nói rõ điều đó. `expectedSalary` **không** thay đổi
+ba con số — nó chỉ sinh cờ `expectedAboveCeiling`/`expectedBelowFloor` để đối chiếu.
+Hai trường này cố ý nằm ngoài `SCORED_FIELDS`: chúng không được kéo tụt % hoàn thiện
+hồ sơ của ai.
 
 ## Đo sức khoẻ gateway
 

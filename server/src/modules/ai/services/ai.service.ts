@@ -22,7 +22,11 @@ import {
 import { AiCallLog } from './ai-call-log.js';
 import { LanguageModelFactory } from './language-model.js';
 import { ModelCatalogService } from './model-catalog.service.js';
-import { ModelChain, type ChainProgress } from './model-chain.js';
+import {
+  DEFAULT_CHAIN_BUDGET_MS,
+  ModelChain,
+  type ChainProgress,
+} from './model-chain.js';
 import type {
   Ai,
   AgentStepLog,
@@ -99,6 +103,7 @@ const DEFAULT_AGENT_TIMEOUT_MS = 540_000;
 export class AiService implements Ai {
   private readonly logger = new Logger(AiService.name);
   private readonly chain: ModelChain;
+  private readonly chainBudgetMs: number;
   private readonly callLog: AiCallLog;
   private readonly models: LanguageModelFactory;
 
@@ -109,10 +114,13 @@ export class AiService implements Ai {
   ) {
     this.structuredOutputs =
       config.get<boolean>('ai.structuredOutputs') ?? false;
+    this.chainBudgetMs =
+      config.get<number>('ai.chainBudgetMs') ?? DEFAULT_CHAIN_BUDGET_MS;
     this.chain = new ModelChain({
       defaultModelId: config.get<string>('ai.modelId') ?? '',
       defaultProviderId: config.get<string>('ai.provider') ?? '',
       fallbackModelIds: config.get<string[]>('ai.fallbackModelIds') ?? [],
+      budgetMs: config.get<number>('ai.chainBudgetMs'),
       logger: this.logger,
     });
     this.callLog = new AiCallLog(prisma, this.logger);
@@ -132,8 +140,10 @@ export class AiService implements Ai {
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
-    return this.chain.run(options.modelId, (modelId) =>
-      this.withFormatFallback({ ...options, modelId }),
+    return this.chain.run(
+      options.modelId,
+      (modelId) => this.withFormatFallback({ ...options, modelId }),
+      this.chainBudgetMs,
     );
   }
 
@@ -150,8 +160,11 @@ export class AiService implements Ai {
    * đi được bước nào mới được đổi model" - xem `ModelChain`.
    */
   async runTools(options: RunToolsOptions): Promise<RunToolsResult> {
-    return this.chain.run(options.modelId, (modelId, progress) =>
-      this.attemptTools({ ...options, modelId }, progress),
+    return this.chain.run(
+      options.modelId,
+      (modelId, progress) =>
+        this.attemptTools({ ...options, modelId }, progress),
+      (options.timeoutMs ?? DEFAULT_AGENT_TIMEOUT_MS) + this.chainBudgetMs,
     );
   }
 

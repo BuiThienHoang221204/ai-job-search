@@ -11,6 +11,8 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { JobRequirement } from '../../generated/prisma/client.js';
 import { JobRequirementsService } from '../matching/services/job-requirements.service.js';
 import { SkillDictionaryService } from '../matching/services/skill-dictionary.service.js';
+import { SalaryService } from '../salary/salary.service.js';
+import { yearsOfExperience } from '../profile/experience-years.js';
 import {
   matchRequirements,
   type MatchProfile,
@@ -49,6 +51,7 @@ export class JobsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly dictionary: SkillDictionaryService,
+    private readonly salary: SalaryService,
   ) {}
   private get minPercent(): number {
     return this.config.get<number>('matching.minPercent') ?? 50;
@@ -113,12 +116,16 @@ export class JobsService {
       match.evaluatedAt < profileUpdatedAt;
     return { ...rest, match: { ...match, stale } };
   }
-  private async profileUpdatedAt(userId: string): Promise<Date | null> {
-    const profile = await this.prisma.profile.findUnique({
+  private async profileMetaOf(userId: string) {
+    return this.prisma.profile.findUnique({
       where: { userId },
-      select: { updatedAt: true },
+      select: {
+        updatedAt: true,
+        currentSalary: true,
+        expectedSalary: true,
+        experiences: true,
+      },
     });
-    return profile?.updatedAt ?? null;
   }
   private readonly relations = (userId: string) => ({
     saves: { where: { userId }, select: { id: true } },
@@ -276,7 +283,12 @@ export class JobsService {
     const [rows, total, profile, dictionary] = await Promise.all([
       this.prisma.jobRequirementMatch.findMany({
         where,
-        orderBy: [{ percent: 'desc' }, { jobId: 'desc' }],
+        orderBy: [
+          { rank: 'desc' },
+          { met: 'desc' },
+          { job: { scrapedAt: 'desc' } },
+          { jobId: 'desc' },
+        ],
         ...pageArgs(query),
         select: { job: { select: this.cardSelect(userId) } },
       }),
@@ -352,21 +364,42 @@ export class JobsService {
   }
 
   async get(id: string, userId: string) {
-    const [job, skills, dictionary, profileUpdatedAt] = await Promise.all([
+    const [job, skills, dictionary, profileMeta] = await Promise.all([
       this.prisma.job.findUnique({
         where: { id },
         include: this.relations(userId),
       }),
       this.matchProfileOf(userId),
       this.dictionary.lookup(),
-      this.profileUpdatedAt(userId),
+      this.profileMetaOf(userId),
     ]);
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
-    return this.withSystemMatch(
-      this.withMatchDetail(this.withSavedFlag(job), profileUpdatedAt),
+
+    const scored = this.withSystemMatch(
+      this.withMatchDetail(
+        this.withSavedFlag(job),
+        profileMeta?.updatedAt ?? null,
+      ),
       skills,
       dictionary,
     );
+
+    const salaryGuide = await this.salary.guideForJob(
+      job,
+      job.requirements?.status === 'DONE' ? job.requirements : null,
+      scored.systemMatch?.kind === 'REQUIREMENTS'
+        ? scored.systemMatch.score
+        : null,
+      profileMeta
+        ? {
+            candidateYears: yearsOfExperience(profileMeta.experiences),
+            currentSalary: profileMeta.currentSalary,
+            expectedSalary: profileMeta.expectedSalary,
+          }
+        : null,
+    );
+
+    return { ...scored, salaryGuide };
   }
   async save(userId: string, jobId: string) {
     await this.get(jobId, userId);

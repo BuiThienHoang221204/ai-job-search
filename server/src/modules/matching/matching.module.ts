@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module.js';
+import { AiShortlistProcessor } from './processors/ai-shortlist.processor.js';
+import { AiShortlistService } from './services/ai-shortlist.service.js';
 import { SkillsModule } from '../skills/skills.module.js';
 import { SemanticModule } from '../semantic/semantic.module.js';
 import { JobRequirementsProcessor } from './processors/job-requirements.processor.js';
@@ -24,12 +26,15 @@ import { SkillCanonicalizeProcessor } from './processors/skill-canonicalize.proc
     RequirementMatchProcessor,
     SkillDictionaryService,
     SkillCanonicalizeProcessor,
+    AiShortlistService,
+    AiShortlistProcessor,
   ],
   exports: [
     MatchingService,
     JobRequirementsService,
     RequirementMatchService,
     SkillDictionaryService,
+    AiShortlistService,
   ],
 })
 export class MatchingModule {}

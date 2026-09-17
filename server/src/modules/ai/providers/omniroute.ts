@@ -17,7 +17,7 @@ export const omniroute: ProviderDescriptor = {
      * header này thì mọi model `oc/*` trả 400 `MissingSessionID` — đã đo qua
      * cổng ngày 2026-09-09. Lý do đầy đủ nằm ở `providers/opencode.ts`.
      */
-    'x-opencode-session': randomUUID(),
+    'x-opencode-session': `ses_${randomUUID().replace(/-/g, '').slice(0, 26)}`,
   },
 
   explicitStreamFlag: true,

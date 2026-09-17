@@ -101,6 +101,18 @@ export function isRateLimited(input: unknown): boolean {
   );
 }
 
+export function isAccessDenied(input: unknown): boolean {
+  const error = unwrap(input);
+  const status = (error as { statusCode?: unknown })?.statusCode;
+
+  if (status === 401 || status === 403) return true;
+  if (typeof status === 'number') return false;
+
+  return /\[(401|403)\]|free tier can only be used|is not supported|insufficient_quota|permission_error|unauthorized|forbidden/i.test(
+    messageOf(error),
+  );
+}
+
 /**
  * Lõi đang ỐM, chứ không phải request của ta sai.
  *

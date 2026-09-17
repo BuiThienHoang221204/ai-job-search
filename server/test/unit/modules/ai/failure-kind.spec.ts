@@ -1,5 +1,6 @@
 import {
   classifyFailure,
+  isAccessDenied,
   isModelRetired,
   isRateLimited,
   isTransientUpstream,
@@ -206,6 +207,68 @@ describe('isRateLimited', () => {
     expect(isRateLimited(new Error('Model xyz is not supported'))).toBe(false);
     expect(isRateLimited(undefined)).toBe(false);
     expect(isRateLimited('chuoi la')).toBe(false);
+  });
+});
+
+describe('isAccessDenied', () => {
+  test('nguyên văn lượt 403 ngày 2026-09-17: OpenCode đóng cửa free tier ẩn danh', () => {
+    const error = Object.assign(
+      new Error(
+        "[403]: Error from provider (Console): OpenCode's free tier can only be used from within OpenCode",
+      ),
+      { name: 'AI_APICallError', statusCode: 403 },
+    );
+    expect(isAccessDenied(error)).toBe(true);
+  });
+
+  test('nguyên văn lượt 401 khi gateway còn khai model đã bị rút', () => {
+    const error = Object.assign(
+      new Error('[401]: Model hy3-free is not supported'),
+      { name: 'AI_APICallError', statusCode: 401 },
+    );
+    expect(isAccessDenied(error)).toBe(true);
+  });
+
+  test('nhận ra qua chữ khi lỗi không mang mã trạng thái', () => {
+    expect(
+      isAccessDenied(
+        new Error('[403]: free tier can only be used from within'),
+      ),
+    ).toBe(true);
+    expect(isAccessDenied(new Error('Model hy3-free is not supported'))).toBe(
+      true,
+    );
+  });
+
+  test('nhận dạng qua RetryError đã bóc', () => {
+    const inner = Object.assign(new Error('forbidden'), { statusCode: 403 });
+    const wrapper = Object.assign(new Error('Failed after 3 attempts'), {
+      name: 'AI_RetryError',
+      lastError: inner,
+    });
+    expect(isAccessDenied(wrapper)).toBe(true);
+  });
+
+  test('có mã trạng thái thì TIN mã, không dò chữ nữa', () => {
+    const error = Object.assign(new Error('unauthorized something'), {
+      statusCode: 400,
+    });
+    expect(isAccessDenied(error)).toBe(false);
+  });
+
+  test('KHÔNG nhầm lỗi schema, timeout hay 5xx thành từ chối quyền', () => {
+    expect(isAccessDenied(new Error('did not match schema'))).toBe(false);
+    expect(
+      isAccessDenied(new Error('The operation was aborted due to timeout')),
+    ).toBe(false);
+    expect(
+      isAccessDenied(
+        Object.assign(new Error('internal server error'), { statusCode: 500 }),
+      ),
+    ).toBe(false);
+    expect(isAccessDenied(new Error('Rate limit exceeded'))).toBe(false);
+    expect(isAccessDenied(undefined)).toBe(false);
+    expect(isAccessDenied('chuoi la')).toBe(false);
   });
 });
 

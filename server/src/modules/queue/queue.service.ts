@@ -42,6 +42,7 @@ export const QUEUE = {
   REQUIREMENT_MATCH: 'match.requirements',
   /** Quy các cách viết kỹ năng về một mã chuẩn. Chạy TRƯỚC bước đối chiếu. */
   SKILL_CANONICALIZE: 'skill.canonicalize',
+  AI_SHORTLIST: 'match.shortlist',
 } as const;
 
 export type ExtractRequirementsPayload = {
@@ -59,6 +60,8 @@ export type RequirementMatchPayload = {
 export type SkillCanonicalizePayload = RequirementMatchPayload & {
   round?: number;
 };
+
+export type AiShortlistPayload = { userId?: string };
 
 export type EvaluateMatchPayload = {
   userId: string;
