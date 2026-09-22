@@ -32,6 +32,8 @@ export type ProviderDescriptor = {
 
   baseURLEnv?: string;
 
+  honorsResponseFormat?: boolean;
+
   extraHeaders?: Record<string, string>;
 
   explicitStreamFlag?: boolean;

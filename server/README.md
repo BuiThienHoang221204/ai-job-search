@@ -883,7 +883,7 @@ docker run -d --name ai-job-server --network <mạng-có-postgres> \
 
 ### Gateway `omniroute` — service riêng, KHÔNG cài vào `package.json`
 
-Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `LATEX_SERVICE_URL`.
+Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `LATEX_SERVICE_URL`. Dockerfile của nó nằm ở `omniroute-service/Dockerfile` ngang hàng `latex-service/` và `pdf-service/`, **không** nằm trong `server/` — build context vì thế chỉ có đúng một file thay vì cả thư mục `server/`.
 
 **Đừng `pnpm add omniroute`.** Gói đó là một app Next.js đầy đủ — **792MB giải nén, 21.765 file, 74 dependency** — mà cài vào rồi nó **vẫn** phải chạy như tiến trình riêng nghe cổng riêng. Trả toàn bộ cái giá, không nhận lại gì. Ảnh Docker chính thức là 483MB nén.
 

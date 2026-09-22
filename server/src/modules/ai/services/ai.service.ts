@@ -65,6 +65,20 @@ const LOG_TEXT_LIMIT = 4000;
  */
 const DB_TEXT_LIMIT = 2000;
 
+async function* emptyStream(): AsyncIterable<unknown> {}
+
+async function* streamFrom(
+  head: unknown,
+  rest: AsyncIterator<unknown>,
+): AsyncIterable<unknown> {
+  yield head;
+  while (true) {
+    const next = await rest.next();
+    if (next.done === true) return;
+    yield next.value;
+  }
+}
+
 /** Cắt giữa chứ không cắt đuôi: trường bị thiếu thường nằm ở cuối JSON. */
 const clipMiddle = (text: string, limit: number): string => {
   if (text.length <= limit) return text;
@@ -112,7 +126,7 @@ export class AiService implements Ai {
     prisma: PrismaService,
     config: ConfigService,
   ) {
-    this.structuredOutputs =
+    this.structuredOutputsDefault =
       config.get<boolean>('ai.structuredOutputs') ?? false;
     this.chainBudgetMs =
       config.get<number>('ai.chainBudgetMs') ?? DEFAULT_CHAIN_BUDGET_MS;
@@ -127,8 +141,8 @@ export class AiService implements Ai {
     this.models = new LanguageModelFactory(catalog, this.logger);
   }
 
-  /** Chế độ đang dùng để ép định dạng đầu ra. */
-  private structuredOutputs: boolean;
+  private readonly structuredOutputsDefault: boolean;
+  private readonly learnedModes = new Map<string, boolean>();
 
   /**
    * Sinh dữ liệu có cấu trúc theo schema Zod.
@@ -174,7 +188,7 @@ export class AiService implements Ai {
   ): Promise<RunToolsResult> {
     const { model, id, provider, ref } = await this.models.create(
       options.modelId,
-      this.structuredOutputs,
+      (await this.modeFor(options.modelId)).mode,
     );
     const startedAt = Date.now();
     const steps: AgentStepLog[] = [];
@@ -294,21 +308,45 @@ export class AiService implements Ai {
     }
   }
 
+  private async modeFor(
+    modelId: string | undefined,
+  ): Promise<{ providerId: string; mode: boolean }> {
+    const { providerId, structuredOutputs } =
+      await this.models.structuredOutputModeFor(
+        modelId,
+        this.structuredOutputsDefault,
+      );
+    return {
+      providerId,
+      mode: this.learnedModes.get(providerId) ?? structuredOutputs,
+    };
+  }
+
   /** Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng. */
   private async withFormatFallback<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
+    const { providerId, mode: primary } = await this.modeFor(options.modelId);
     try {
-      return await this.attempt(options, this.structuredOutputs);
+      return await this.attempt(options, primary);
     } catch (error) {
-      if (!isResponseFormatUnsupported(error)) throw error;
+      const fallback = !primary;
 
-      const fallback = !this.structuredOutputs;
+      if (isResponseFormatUnsupported(error)) {
+        this.logger.warn(
+          `Lõi ${providerId} không nhận response_format ở chế độ structuredOutputs=${primary}; ` +
+            `chuyển sang ${fallback} cho mọi lời gọi sau của lõi này`,
+        );
+        this.learnedModes.set(providerId, fallback);
+        return this.attempt(options, fallback);
+      }
+
+      if (!NoObjectGeneratedError.isInstance(error)) throw error;
+
       this.logger.warn(
-        `Gateway không nhận response_format ở chế độ structuredOutputs=${this.structuredOutputs}; ` +
-          `chuyển sang ${fallback} cho toàn bộ tiến trình`,
+        `Model không trả được object ở chế độ structuredOutputs=${primary}; ` +
+          `thử lại MỘT lần ở ${fallback}`,
       );
-      this.structuredOutputs = fallback;
       return this.attempt(options, fallback);
     }
   }
@@ -434,16 +472,35 @@ export class AiService implements Ai {
   async streamObject<T>(
     options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
+    const { mode: primary } = await this.modeFor(options.modelId);
+    try {
+      return await this.beginStream(options, primary);
+    } catch (error) {
+      if (!NoObjectGeneratedError.isInstance(error)) throw error;
+
+      const fallback = !primary;
+      this.logger.warn(
+        `streamObject không phát được mảnh nào ở chế độ structuredOutputs=${primary}; ` +
+          `thử lại MỘT lần ở ${fallback}`,
+      );
+      return this.beginStream(options, fallback);
+    }
+  }
+
+  private async beginStream<T>(
+    options: StreamObjectOptions<T>,
+    structuredOutputs: boolean,
+  ): Promise<StreamObjectResult<T>> {
     const { model, id, provider, ref } = await this.models.create(
       options.modelId,
-      this.structuredOutputs,
+      structuredOutputs,
     );
     const startedAt = Date.now();
 
     const result = streamObject({
       model,
       schema: options.schema,
-      system: this.structuredOutputs
+      system: structuredOutputs
         ? options.system
         : this.withSchemaInstruction(options.system, options.schema),
       prompt: options.prompt,
@@ -479,10 +536,25 @@ export class AiService implements Ai {
       },
     });
 
+    const object = result.object;
+    void object.catch(() => undefined);
+
+    const partials = result.partialObjectStream[Symbol.asyncIterator]();
+    const head = await partials
+      .next()
+      .catch(
+        () => ({ done: true, value: undefined }) as IteratorResult<unknown>,
+      );
+
+    if (head.done === true) {
+      await object;
+      return { modelId: id, partials: emptyStream(), object };
+    }
+
     return {
       modelId: id,
-      partials: result.partialObjectStream,
-      object: result.object,
+      partials: streamFrom(head.value, partials),
+      object,
     };
   }
 

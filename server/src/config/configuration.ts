@@ -19,8 +19,8 @@ const configuration = () => ({
 
   ai: {
     /** Lõi mặc định. Các lõi hệ thống biết nằm ở `modules/ai/providers/`. */
-    provider: process.env.MODEL_PROVIDER ?? 'opencode',
-    modelId: process.env.MODEL_ID ?? 'deepseek-v4-flash-free',
+    provider: process.env.MODEL_PROVIDER ?? 'omniroute',
+    modelId: process.env.MODEL_ID ?? 'auto/smart',
 
     /**
      * Trần thời gian cho CẢ chuỗi dự phòng, không phải cho từng mắt xích. Mỗi
@@ -35,7 +35,7 @@ const configuration = () => ({
      */
     fallbackModelIds: (
       process.env.MODEL_FALLBACK_IDS ??
-      'mimo-v2.5-free,nemotron-3.5-lightning-free,hy3-free'
+      'cl/openai/gpt-5.6-sol,ds-web/deepseek-v4-pro,kr/deepseek-3.2,openrouter/nex-agi/nex-n2.5-pro:free'
     )
       .split(',')
       .map((id) => id.trim())
@@ -63,7 +63,6 @@ const configuration = () => ({
      */
     userAgents: {
       opencode: process.env.OPENCODE_USER_AGENT ?? 'opencode',
-      omniroute: process.env.OMNIROUTE_USER_AGENT ?? 'opencode',
     } as Record<string, string>,
 
     baseURLs: {
@@ -73,7 +72,7 @@ const configuration = () => ({
     catalogUrl:
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
 
-    structuredOutputs: process.env.AI_STRUCTURED_OUTPUTS === 'true',
+    structuredOutputs: (process.env.AI_STRUCTURED_OUTPUTS ?? 'true') === 'true',
   },
 
   /**

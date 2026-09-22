@@ -6,6 +6,7 @@ import {
 } from 'src/modules/ai/providers/index.js';
 import { kilo } from 'src/modules/ai/providers/kilo.js';
 import { opencode } from 'src/modules/ai/providers/opencode.js';
+import { omniroute } from 'src/modules/ai/providers/omniroute.js';
 import { openrouter } from 'src/modules/ai/providers/openrouter.js';
 
 /*
@@ -111,5 +112,21 @@ describe('Lõi opencode — mù về capability', () => {
     expect(opencode.knownNoStructuredOutput).not.toContain(
       'deepseek-v4-flash-free',
     );
+  });
+});
+
+describe('Lõi omniroute — gateway không ép được response_format', () => {
+  test('khai honorsResponseFormat=false', () => {
+    // Đo 2026-09-22: `auto/smart` đi ra `ds-web`, gửi kèm
+    // `response_format: {type: json_schema, strict: true}` vẫn nhận lại văn xuôi
+    // (finishReason=stop, 648 token). Gỡ dòng này thì mọi tác vụ có schema đi qua
+    // gateway lại hỏng với "could not parse the response".
+    expect(omniroute.honorsResponseFormat).toBe(false);
+  });
+
+  test('các lõi gọi thẳng nhà cung cấp thì KHÔNG khai, tức vẫn ép được', () => {
+    expect(openrouter.honorsResponseFormat).toBeUndefined();
+    expect(kilo.honorsResponseFormat).toBeUndefined();
+    expect(opencode.honorsResponseFormat).toBeUndefined();
   });
 });

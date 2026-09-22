@@ -451,7 +451,11 @@ Chất lượng không đổi, độ trễ thêm khoảng 10%.
 > không còn nó, gọi trả `[401] Model hy3-free is not supported`. Việc này làm
 > hỏng `SKILL_DICTIONARY_MODEL_ID=hy3-free`.
 
-**`OMNIROUTE_USER_AGENT=opencode` là BẮT BUỘC, và đây là chỗ đắt nhất đã học được.** Hạn mức free của OpenCode gắn với chuỗi `User-Agent: opencode` — điều `providers/opencode.ts` đã ghi từ trước, nhưng ban đầu không ai nối nó với việc đi qua gateway. OmniRoute là một CHẶNG RIÊNG: nó tự mở kết nối ra OpenCode, nên nếu ta không đặt UA thì nó gửi UA của chính nó. Đo cùng model, cùng key `public`, cùng thời điểm:
+**Từ 2026-09-22, lõi `omniroute` chỉ còn gửi ĐÚNG hai header `x-omniroute-compression: off` và `x-omniroute-no-memory: true`.** `userAgentEnv` và `x-opencode-session` đã bị gỡ khỏi `providers/omniroute.ts`, và biến `OMNIROUTE_USER_AGENT` đã bị xoá khỏi `.env`/`configuration.ts`.
+
+Lý do gỡ: cả hai header đó tồn tại **chỉ để phục vụ các model `oc/*`** đi qua gateway, mà chuỗi dự phòng mặc định hiện nay (`cl/openai/gpt-5.6-sol`, `ds-web/deepseek-v4-pro`, `kr/deepseek-3.2`, `openrouter/nex-agi/nex-n2.5-pro:free`) **không còn mắt xích `oc/*` nào**. Đã đo lại ngày 2026-09-22, gửi và không gửi hai header, trên `auto/smart` (ra `ds-web`), `ds-web/deepseek-v4-pro` và `kr/deepseek-3.2`: **cả 6 lượt đều 200**, không khác gì nhau.
+
+**Nạp lại một model `oc/*` thì phải trả lại CẢ HAI header** — phần đo bên dưới vẫn còn nguyên giá trị, đừng đọc nó như chuyện đã hết hiệu lực. Hạn mức free của OpenCode gắn với chuỗi `User-Agent: opencode`; OmniRoute là một CHẶNG RIÊNG, tự mở kết nối ra OpenCode, nên không đặt UA thì nó gửi UA của chính nó. Đo cùng model, cùng key `public`, cùng thời điểm (2026-08-26):
 
 | User-Agent gửi lên | Kết quả |
 |---|---|
@@ -460,11 +464,30 @@ Chất lượng không đổi, độ trễ thêm khoảng 10%.
 | `curl/8.0` | 429 |
 | không gửi | 429 |
 
-May là **OmniRoute CHUYỂN TIẾP User-Agent của client lên nhà cung cấp**, nên chỉ cần khai `userAgentEnv` trong descriptor là xong. Hậu quả lúc chưa khai, đo trên một lượt cron thật: `oc/mimo-v2.5-free` hỏng **30/30**, mỗi tin đốt ~29 giây rồi mới rơi xuống `oc/hy3-free` chậm gấp tám (35s so với 4,2s).
+May là **OmniRoute CHUYỂN TIẾP User-Agent của client lên nhà cung cấp**, nên chỉ cần khai lại `userAgentEnv` trong descriptor là xong. Hậu quả lúc chưa khai, đo trên một lượt cron thật: `oc/mimo-v2.5-free` hỏng **30/30**, mỗi tin đốt ~29 giây rồi mới rơi xuống `oc/hy3-free` chậm gấp tám (35s so với 4,2s).
 
 **Đừng kết luận "gateway trung tính về hạn mức" từ một mẫu.** Đã sai đúng như vậy: thấy cả hai đường cùng trả 200 một lần rồi kết luận chung bể. Thật ra nó tệ hơn hẳn cho tới khi UA được đặt đúng.
 
 Cổng 20128: đường **`/v1/*` không kiểm tra key** ở bản chạy tại chỗ (không header, `Bearer public`, chuỗi bừa — đều 200), trong khi API quản trị `/api/*` thì trả 401. Nghĩa là phần TIÊU hạn mức là phần không có cổng chặn. Lên VPS thì để `expose`, đừng `ports`, nếu không là mở một gateway model công khai cho cả internet.
+
+### Ép định dạng đầu ra: chế độ theo LÕI, không phải một cờ toàn cục
+
+Có đúng hai đường bắt model trả JSON đúng schema, và **đường nào chạy được là tuỳ lõi**:
+
+| Đường | `structuredOutputs` | Cách làm |
+|---|---|---|
+| `response_format` | `true` | SDK gửi `json_schema` trong thân request, system prompt giữ nguyên |
+| Bơm schema vào prompt | `false` | `withSchemaInstruction` nối JSON Schema vào cuối system prompt, `unwrapFencedJson` bóc hàng rào ```` ```json ```` khi model trả về |
+
+**OmniRoute không ép được đường thứ nhất.** Đo 2026-09-22: gửi `response_format: {type: json_schema, strict: true}` cho `auto/smart`, gateway định tuyến sang `ds-web` (header `x-omniroute-decision: strategy=auto; provider=ds-web`) và trả về **văn xuôi**, `finishReason=stop`, 648 token. Gateway chỉ CHUYỂN TIẾP trường đó rồi mặc kệ; chỉ họ `cl/*` (cline) thật sự áp dụng, mà cline thì đang 402 `Insufficient balance`.
+
+Vì vậy descriptor có `honorsResponseFormat`. Bỏ trống = lõi ép được (mặc định của `openrouter`, `kilo`, `opencode`); `omniroute` khai `false`. `LanguageModelFactory.structuredOutputModeFor` gộp nó với `AI_STRUCTURED_OUTPUTS` để ra chế độ thật cho từng lời gọi.
+
+**Đừng quay lại một cờ toàn cục tự lật.** Bản cũ giữ `this.structuredOutputs` rồi đổi nó cho CẢ tiến trình khi gateway từ chối — với một chuỗi dự phòng trộn nhiều lõi thì giá trị nào cũng sai với một nửa chuỗi, và đó chính là lý do hai kết luận trái ngược nhau cùng đúng ("bật `true` mới chạy" cho lõi gọi thẳng, "phải `false`" cho omniroute). Phần học được vẫn giữ, nhưng **khoá theo `providerId`**: lõi nào từ chối `response_format` thì chỉ lõi đó chuyển chế độ.
+
+**`streamObject` có lưới y như `generateObject`.** Cả hai thử lại ĐÚNG MỘT lần ở chế độ còn lại. Với stream, thử lại trong suốt được là nhờ `beginStream` giữ lại tới khi có mảnh ĐẦU TIÊN mới trao cho người gọi: model trả văn xuôi thì `partialObjectStream` không phát mảnh nào, nên lúc đó chưa có byte nào rời máy chủ. Hỏng SAU mảnh đầu thì hỏng hẳn — trình duyệt đã vẽ nửa câu, không còn đường lùi, đúng nguyên tắc của `streamText`.
+
+Đo trên tác vụ thật (viết thư xin việc, qua đúng `AiService` → OmniRoute → ds-web) ngày 2026-09-22: chế độ đúng ngay từ đầu **9,3 giây / 198 mảnh**; ép chạy nhánh dự phòng thì **18,2 giây / 203 mảnh** và người gọi vẫn nhận đủ object, chỉ có thêm một dòng `WARN`.
 
 ### Catalog KHÔNG phải danh sách model dùng được
 

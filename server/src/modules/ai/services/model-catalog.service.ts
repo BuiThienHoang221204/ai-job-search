@@ -30,6 +30,7 @@ export type ResolvedModel = {
   /** Header thêm vào mỗi request. Rỗng với hầu hết lõi — xem `userAgentEnv`. */
   headers: Record<string, string>;
   explicitStreamFlag: boolean;
+  honorsResponseFormat: boolean;
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -268,6 +269,7 @@ export class ModelCatalogService {
       apiKey,
       headers,
       explicitStreamFlag: descriptor.explicitStreamFlag === true,
+      honorsResponseFormat: descriptor.honorsResponseFormat !== false,
     };
   }
 

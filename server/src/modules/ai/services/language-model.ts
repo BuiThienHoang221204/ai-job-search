@@ -12,6 +12,57 @@ export type ResolvedLanguageModel = {
   ref: string;
 };
 
+const FENCED_BLOCK = /^```[a-zA-Z]*[^\S\r\n]*\r?\n([\s\S]*?)\r?\n?```$/;
+
+function unwrapFence(text: string): string {
+  const match = FENCED_BLOCK.exec(text.trim());
+  if (!match) return text;
+
+  const inner = match[1].trim();
+  try {
+    JSON.parse(inner);
+    return inner;
+  } catch {
+    return text;
+  }
+}
+
+async function unwrapFencedJson(response: Response): Promise<Response> {
+  if (!response.ok) return response;
+  if (
+    !(response.headers.get('content-type') ?? '').includes('application/json')
+  )
+    return response;
+
+  const raw = await response.text();
+  const rebuild = (body: string): Response =>
+    new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+
+  try {
+    const payload = JSON.parse(raw) as {
+      choices?: { message?: { content?: unknown } }[];
+    };
+    let changed = false;
+    for (const choice of payload?.choices ?? []) {
+      const content = choice?.message?.content;
+      if (typeof content !== 'string') continue;
+
+      const unwrapped = unwrapFence(content);
+      if (unwrapped === content) continue;
+
+      choice.message!.content = unwrapped;
+      changed = true;
+    }
+    return rebuild(changed ? JSON.stringify(payload) : raw);
+  } catch {
+    return rebuild(raw);
+  }
+}
+
 /**
  * Dựng đối tượng model của SDK từ một id.
  *
@@ -25,6 +76,18 @@ export class LanguageModelFactory {
     private readonly logger: Logger,
   ) {}
 
+  async structuredOutputModeFor(
+    modelId: string | undefined,
+    fallbackDefault: boolean,
+  ): Promise<{ providerId: string; structuredOutputs: boolean }> {
+    const resolved = await this.catalog.resolve(modelId);
+    return {
+      providerId: resolved.providerId,
+      structuredOutputs:
+        resolved.honorsResponseFormat !== false && fallbackDefault,
+    };
+  }
+
   async create(
     modelId: string | undefined,
     structuredOutputs: boolean,
@@ -36,7 +99,10 @@ export class LanguageModelFactory {
     );
 
     const originalFetch = globalThis.fetch;
-    const forceUserAgentFetch: typeof globalThis.fetch = (input, init) => {
+    const forceUserAgentFetch: typeof globalThis.fetch = async (
+      input,
+      init,
+    ) => {
       const headers = new Headers(init?.headers);
       if (userAgent) {
         headers.set('User-Agent', userAgent);
@@ -53,7 +119,8 @@ export class LanguageModelFactory {
           body = init?.body;
         }
       }
-      return originalFetch(input, { ...init, headers, body });
+      const response = await originalFetch(input, { ...init, headers, body });
+      return structuredOutputs ? response : unwrapFencedJson(response);
     };
 
     const provider = createOpenAICompatible({

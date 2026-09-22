@@ -44,6 +44,18 @@ type GenerateTextArgs = {
 
 const generateTextMock = jest.fn<Promise<unknown>, [GenerateTextArgs]>();
 
+type StreamObjectArgs = {
+  model: { id: string };
+  system: string;
+};
+
+type FakeStream = {
+  partialObjectStream: AsyncIterable<unknown>;
+  object: Promise<unknown>;
+};
+
+const streamObjectMock = jest.fn<FakeStream, [StreamObjectArgs]>();
+
 jest.mock('ai', () => ({
   generateObject: (args: GenerateObjectArgs) => generateObjectMock(args),
   generateText: (args: GenerateTextArgs) => generateTextMock(args),
@@ -53,6 +65,7 @@ jest.mock('ai', () => ({
   stepCountIs: () => 'stop-when',
   hasToolCall: () => 'stop-on-tool',
   streamText: jest.fn(),
+  streamObject: (args: StreamObjectArgs) => streamObjectMock(args),
   NoObjectGeneratedError: actualAi.NoObjectGeneratedError,
 }));
 
@@ -94,6 +107,43 @@ const rateLimit = (model: string) =>
 
 const formatUnsupported = () =>
   new Error('This response_format type is unavailable now');
+
+/// Model nói hết câu nhưng nói bằng văn xuôi — đúng hình dạng lỗi đã gặp thật
+/// ngày 2026-09-22 khi OmniRoute định tuyến sang `ds-web`.
+const proseInsteadOfJson = () =>
+  new actualAi.NoObjectGeneratedError({
+    message: 'No object generated: could not parse the response.',
+    text: 'Dear FPT hiring team, I am writing to apply...',
+    response: { id: 'r1', timestamp: new Date(0), modelId: 'a-free' },
+    usage: {
+      inputTokens: 10,
+      outputTokens: 648,
+      totalTokens: 658,
+      inputTokenDetails: {
+        noCacheTokens: 10,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      },
+      outputTokenDetails: { textTokens: 648, reasoningTokens: 0 },
+    },
+    finishReason: 'stop',
+  });
+
+const fakeStream = (
+  partials: unknown[],
+  object: Promise<unknown>,
+): FakeStream => ({
+  partialObjectStream: (async function* () {
+    for (const partial of partials) yield await Promise.resolve(partial);
+  })(),
+  object,
+});
+
+const drain = async (partials: AsyncIterable<unknown>) => {
+  const seen: unknown[] = [];
+  for await (const partial of partials) seen.push(partial);
+  return seen;
+};
 
 type Recorded = {
   modelId: string;
@@ -160,6 +210,7 @@ const argsOf = (index: number): GenerateObjectArgs =>
 beforeEach(() => {
   generateObjectMock.mockReset();
   generateTextMock.mockReset();
+  streamObjectMock.mockReset();
   providerCalls.length = 0;
 });
 
@@ -445,6 +496,83 @@ describe('AiService.generateObject - chế độ ép định dạng', () => {
     await service.generateObject(call('a-free'));
 
     expect(argsOf(0).system).toBe('Bạn là người đánh giá.');
+  });
+});
+
+describe('AiService.streamObject - lưới đổi chế độ ép định dạng', () => {
+  test('chưa phát mảnh nào thì thử lại ở chế độ kia, và người gọi không thấy lần hỏng', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(proseInsteadOfJson())))
+      .mockReturnValueOnce(
+        fakeStream([{ diem: 4 }, { diem: 9 }], Promise.resolve({ diem: 9 })),
+      );
+
+    const { service } = build({ structuredOutputs: true });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(await drain(stream.partials)).toEqual([{ diem: 4 }, { diem: 9 }]);
+    await expect(stream.object).resolves.toEqual({ diem: 9 });
+    expect(providerCalls.map((c) => c.supportsStructuredOutputs)).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  test('lần thử lại mới bơm JSON Schema vào system prompt', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(proseInsteadOfJson())))
+      .mockReturnValueOnce(
+        fakeStream([{ diem: 9 }], Promise.resolve({ diem: 9 })),
+      );
+
+    const { service } = build({ structuredOutputs: true });
+    await service.streamObject(call('a-free'));
+
+    expect(streamObjectMock.mock.calls[0][0].system).toBe(
+      'Bạn là người đánh giá.',
+    );
+    expect(streamObjectMock.mock.calls[1][0].system).toContain(
+      'ĐỊNH DẠNG ĐẦU RA BẮT BUỘC',
+    );
+  });
+
+  test('đã phát một mảnh rồi thì KHÔNG thử lại: trình duyệt đã vẽ nửa câu', async () => {
+    const loi = proseInsteadOfJson();
+    streamObjectMock.mockReturnValueOnce(
+      fakeStream([{ diem: 4 }], Promise.reject(loi)),
+    );
+
+    const { service } = build({ structuredOutputs: true });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(await drain(stream.partials)).toEqual([{ diem: 4 }]);
+    await expect(stream.object).rejects.toBe(loi);
+    expect(streamObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('lỗi KHÔNG phải schema thì ném thẳng, không đốt thêm một lượt', async () => {
+    const loi = rateLimit('a-free');
+    streamObjectMock.mockReturnValueOnce(fakeStream([], Promise.reject(loi)));
+
+    const { service } = build({ structuredOutputs: true });
+
+    await expect(service.streamObject(call('a-free'))).rejects.toBe(loi);
+    expect(streamObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('chỉ đổi MỘT lần: chế độ kia cũng trả văn xuôi thì ném ra thật', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(proseInsteadOfJson())))
+      .mockReturnValueOnce(
+        fakeStream([], Promise.reject(proseInsteadOfJson())),
+      );
+
+    const { service } = build({ structuredOutputs: true });
+
+    await expect(service.streamObject(call('a-free'))).rejects.toThrow(
+      'could not parse the response',
+    );
+    expect(streamObjectMock).toHaveBeenCalledTimes(2);
   });
 });
 
