@@ -12,13 +12,18 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { AiService } from '../ai/services/ai.service.js';
 import type { ModelStreamEvent } from '../../common/stream-event.js';
-import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import {
   interviewPrepSchema,
   type InterviewPrepResult,
 } from './interview.schema.js';
+import {
+  BEHAVIOURAL_SECTIONS,
+  buildPrepPrompt,
+  PREP_SECTIONS,
+} from './utils/interview-prep.prompt.js';
 
 const SKILL_NAME = 'job-application-assistant';
 
@@ -34,18 +39,7 @@ export class InterviewService {
     private readonly queue: QueueService,
   ) {}
 
-  /**
-   * Xếp một lượt soạn vào hàng đợi VÀ ghi bản ghi ở trạng thái chờ ngay lập tức.
-   *
-   * Hai việc này phải đi cùng nhau. Trước đây controller chỉ gọi `queue.send`
-   * rồi trả về, còn bản ghi mãi tới lúc worker chạy - một tới ba giây sau - mới
-   * ra đời. Giao diện tải lại ngay sau khi bấm nên thấy đúng danh sách cũ, và
-   * người dùng không có gì để nhìn cho tới khi tự tải lại trang.
-   *
-   * KHÔNG đụng vào bản ghi đã DONE khi `force = false`: `generate` sẽ trả luôn
-   * bản cũ mà không gọi model, nên hạ nó xuống PENDING vừa nói dối trên màn hình
-   * vừa làm mất trạng thái đã xong.
-   */
+  /** Xếp hàng đợi VÀ ghi bản ghi PENDING ngay, nếu không giao diện tải lại vẫn thấy danh sách cũ; bản DONE thì để yên. */
   async enqueue(
     userId: string,
     jobId: string,
@@ -96,68 +90,32 @@ export class InterviewService {
   ) {
     const skill = this.skills.get(SKILL_NAME);
 
-    const framework = this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('07-interview-prep.md') ?? '',
-        ['star format', 'common tough questions', 'questions you should ask'],
-      ),
-      profile,
-    );
-    const behavioural = this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('02-behavioral-profile.md') ?? '',
-        ['behavioral', 'strengths', 'communication', 'working style'],
-      ),
-      profile,
-    );
+    const section = (file: string, keep: string[]) =>
+      this.prompts.render(
+        this.prompts.keepSections(skill.references.get(file) ?? '', keep),
+        profile,
+      );
 
-    const system = [
-      'Bạn là huấn luyện viên phỏng vấn. Soạn bộ chuẩn bị phỏng vấn cho một ứng viên trước một vị trí cụ thể.',
-      '',
-      'Quy tắc bắt buộc:',
-      '- Mọi câu chuyện STAR phải dựa trên kinh nghiệm CÓ THẬT trong hồ sơ. Tuyệt đối không bịa dự án, con số hay công ty.',
-      '- Hồ sơ thiếu dữ liệu cho một năng lực nào đó thì đưa năng lực đó vào likelyProbes, không dùng câu chuyện tưởng tượng để lấp chỗ trống.',
-      '- Câu hỏi đề nghị ứng viên hỏi lại phải gắn với công ty và vị trí này, không phải câu hỏi chung chung.',
-      '- Viết tiếng Việt có dấu. Mỗi trường là một đoạn văn hoàn chỉnh, không phải cụm từ rời rạc.',
-      '',
-      '--- KHUNG CHUẨN BỊ PHỎNG VẤN ---',
-      framework,
-      '',
-      '--- HỒ SƠ HÀNH VI ---',
-      behavioural,
-    ].join('\n');
-
-    const gapsBlock = match?.gaps.length
-      ? [
-          '',
-          '=== KHOẢNG TRỐNG ĐÃ XÁC ĐỊNH KHI CHẤM ĐIỂM ===',
-          ...match.gaps.map((gap) => `- ${gap}`),
-          'Nhà tuyển dụng nhiều khả năng sẽ đào vào đúng những điểm này.',
-        ].join('\n')
-      : '';
-
-    const prompt = [
-      '=== HỒ SƠ ỨNG VIÊN ===',
-      this.prompts.profileSummary(profile),
-      gapsBlock,
-      '',
-      '=== VỊ TRÍ ỨNG TUYỂN ===',
-      `Chức danh: ${job.title}`,
-      `Công ty: ${job.company}`,
-      `Địa điểm: ${job.location ?? 'không rõ'}`,
-      '',
-      'Mô tả:',
-      job.description,
-    ].join('\n');
+    const { system, prompt } = buildPrepPrompt({
+      framework: section('07-interview-prep.md', PREP_SECTIONS),
+      behavioural: section('02-behavioral-profile.md', BEHAVIOURAL_SECTIONS),
+      profileSummary: this.prompts.profileSummary(profile),
+      job,
+      gaps: match?.gaps ?? [],
+    });
 
     return { system, prompt, skillHash: skill.contentHash };
   }
 
-  async generate(
+  /** Phần chung của đường đồng bộ và đường stream: đọc dữ liệu, dựng prompt, tính hash, giành chỗ RUNNING. */
+  private async prepare(
     userId: string,
     jobId: string,
-    force = false,
-  ): Promise<InterviewPrep> {
+    force: boolean,
+  ): Promise<
+    | { cached: InterviewPrep }
+    | { cached?: never; system: string; prompt: string; hash: string }
+  > {
     const [profile, job, match, existing] = await Promise.all([
       this.prisma.profile.findUnique({ where: { userId } }),
       this.prisma.job.findUnique({ where: { id: jobId } }),
@@ -181,7 +139,7 @@ export class InterviewService {
       .slice(0, 32);
 
     if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
-      return existing;
+      return { cached: existing };
     }
 
     await this.prisma.interviewPrep.upsert({
@@ -189,6 +147,34 @@ export class InterviewService {
       create: { userId, jobId, status: 'RUNNING' },
       update: { status: 'RUNNING', error: null },
     });
+
+    return { system, prompt, hash };
+  }
+
+  /** Ghi lỗi vào bản ghi rồi trả lại câu lỗi cho người gọi tự quyết cách báo. */
+  private async fail(
+    userId: string,
+    jobId: string,
+    error: unknown,
+    label: string,
+  ): Promise<{ prep: InterviewPrep; message: string }> {
+    const message = error instanceof Error ? error.message : String(error);
+    this.logger.error(`${label} thất bại (job=${jobId}): ${message}`);
+    const prep = await this.prisma.interviewPrep.update({
+      where: { userId_jobId: { userId, jobId } },
+      data: { status: 'FAILED', error: message },
+    });
+    return { prep, message };
+  }
+
+  async generate(
+    userId: string,
+    jobId: string,
+    force = false,
+  ): Promise<InterviewPrep> {
+    const ready = await this.prepare(userId, jobId, force);
+    if (ready.cached) return ready.cached;
+    const { system, prompt, hash } = ready;
 
     try {
       const { object, modelId } =
@@ -201,12 +187,8 @@ export class InterviewService {
 
       return await this.persist(userId, jobId, object, modelId, hash);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Soạn câu hỏi thất bại (job=${jobId}): ${message}`);
-      return this.prisma.interviewPrep.update({
-        where: { userId_jobId: { userId, jobId } },
-        data: { status: 'FAILED', error: message },
-      });
+      const { prep } = await this.fail(userId, jobId, error, 'Soạn câu hỏi');
+      return prep;
     }
   }
 
@@ -239,38 +221,12 @@ export class InterviewService {
     jobId: string,
     force = false,
   ): AsyncGenerator<ModelStreamEvent<InterviewPrep>> {
-    const [profile, job, match, existing] = await Promise.all([
-      this.prisma.profile.findUnique({ where: { userId } }),
-      this.prisma.job.findUnique({ where: { id: jobId } }),
-      this.prisma.jobMatch.findUnique({
-        where: { userId_jobId: { userId, jobId } },
-      }),
-      this.prisma.interviewPrep.findUnique({
-        where: { userId_jobId: { userId, jobId } },
-      }),
-    ]);
-
-    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
-
-    const { system, prompt, skillHash } = this.buildPrompt(profile, job, match);
-    const hash = createHash('sha256')
-      .update(skillHash)
-      .update(profile ? JSON.stringify(profile) : 'no-profile')
-      .update(job.description)
-      .update(match?.gaps.join('|') ?? '')
-      .digest('hex')
-      .slice(0, 32);
-
-    if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
-      yield { type: 'done', result: existing };
+    const ready = await this.prepare(userId, jobId, force);
+    if (ready.cached) {
+      yield { type: 'done', result: ready.cached };
       return;
     }
-
-    await this.prisma.interviewPrep.upsert({
-      where: { userId_jobId: { userId, jobId } },
-      create: { userId, jobId, status: 'RUNNING' },
-      update: { status: 'RUNNING', error: null },
-    });
+    const { system, prompt, hash } = ready;
 
     try {
       const { partials, object, modelId } =
@@ -291,14 +247,12 @@ export class InterviewService {
         result: await this.persist(userId, jobId, final, modelId, hash),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Soạn câu hỏi (stream) thất bại (job=${jobId}): ${message}`,
+      const { message } = await this.fail(
+        userId,
+        jobId,
+        error,
+        'Soạn câu hỏi (stream)',
       );
-      await this.prisma.interviewPrep.update({
-        where: { userId_jobId: { userId, jobId } },
-        data: { status: 'FAILED', error: message },
-      });
       yield { type: 'error', message };
     }
   }

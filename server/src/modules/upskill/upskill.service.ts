@@ -9,7 +9,7 @@ import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/services/ai.service.js';
-import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import type { ModelStreamEvent } from '../../common/stream-event.js';
@@ -19,6 +19,13 @@ import {
   type UpskillGaps,
   type UpskillPlan,
 } from './upskill.schema.js';
+import {
+  gapsPrompt,
+  planPrompt,
+  GAPS_SECTIONS,
+  PLAN_SECTIONS,
+  type ScoredJob,
+} from './utils/upskill.prompt.js';
 
 const SKILL_NAME = 'upskill';
 
@@ -47,17 +54,6 @@ function modelIdOf(gapsModelId: string, planModelId: string): string {
     : `${gapsModelId} + ${planModelId}`;
 }
 
-type ScoredJob = {
-  overallScore: number | null;
-  gaps: string[];
-  job: {
-    title: string;
-    company: string;
-    tags: string[];
-    description: string;
-  };
-};
-
 @Injectable()
 export class UpskillService {
   private readonly logger = new Logger(UpskillService.name);
@@ -74,10 +70,12 @@ export class UpskillService {
    * job_matches đóng đúng vai trò đó, còn `overallScore` chính là fit_rating.
    */
   private async collectJobs(userId: string, jobId?: string) {
+    const include = { job: { include: { requirements: true } } };
+
     if (jobId) {
       const match = await this.prisma.jobMatch.findUnique({
         where: { userId_jobId: { userId, jobId } },
-        include: { job: true },
+        include,
       });
       if (!match)
         throw new NotFoundException('Công việc này chưa được chấm điểm');
@@ -88,7 +86,7 @@ export class UpskillService {
       where: { userId, status: 'DONE' },
       orderBy: { overallScore: 'asc' },
       take: 30,
-      include: { job: true },
+      include,
     });
   }
 
@@ -295,93 +293,22 @@ export class UpskillService {
     );
   }
 
-  /** Lời gọi 1 — mô tả công việc vào, khoảng trống ra. */
+  /** Lời gọi 1 — yêu cầu của tin vào, khoảng trống ra. */
   private buildGapsPrompt(profile: Profile | null, matches: ScoredJob[]) {
-    const system = [
-      'Bạn là cố vấn phát triển nghề nghiệp. Nhiệm vụ của bạn ở bước này là TÌM KHOẢNG TRỐNG giữa hồ sơ ứng viên và các vị trí họ đang nhắm tới.',
-      'Chưa đề xuất lộ trình học ở bước này — sẽ có một bước riêng làm việc đó.',
-      '',
-      'Quy tắc bắt buộc:',
-      '- Chỉ liệt kê kỹ năng mà tin tuyển dụng THẬT SỰ đòi hỏi và hồ sơ THẬT SỰ chưa có. Kỹ năng hồ sơ đã có dù chỉ ở dạng tương đương thì bỏ qua.',
-      '- Công việc có điểm phù hợp thấp đóng góp nhiều hơn vào độ ưu tiên: trọng số là (100 - điểm) / 100.',
-      '- synthesisedGaps không được lặp lại bất kỳ mục nào trong hardGaps.',
-      '- Viết tiếng Việt có dấu, mỗi trường là câu hoàn chỉnh.',
-      '',
-      '--- KHUNG PHÂN TÍCH ---',
-      this.framework(profile, ['step 3', 'step 4', 'step 5']),
-    ].join('\n');
-
-    const jobLines = matches.map((match, index) => {
-      const fit = match.overallScore ?? 0;
-      const weight = ((100 - fit) / 100).toFixed(2);
-      return [
-        `${index + 1}. ${match.job.title} @ ${match.job.company}`,
-        `   điểm phù hợp: ${fit}/100, trọng số gap: ${weight}`,
-        `   từ khóa: ${match.job.tags.join(', ') || 'không có'}`,
-        match.gaps.length
-          ? `   khoảng trống đã ghi nhận: ${match.gaps.join('; ')}`
-          : '',
-        `   trích mô tả: ${match.job.description.slice(0, 600)}`,
-      ]
-        .filter(Boolean)
-        .join('\n');
-    });
-
-    const prompt = [
-      '=== HỒ SƠ ỨNG VIÊN ===',
+    return gapsPrompt(
+      this.framework(profile, GAPS_SECTIONS),
       this.prompts.profileSummary(profile),
-      '',
-      `=== ${matches.length} CÔNG VIỆC ĐÃ CHẤM ĐIỂM (sắp theo điểm tăng dần) ===`,
-      ...jobLines,
-    ].join('\n');
-
-    return { system, prompt };
+      matches,
+    );
   }
 
-  /**
-   * Lời gọi 2 — khoảng trống vào, lộ trình học ra. Hồ sơ vẫn phải có mặt: lời
-   * khuyên "bỏ qua phần cơ bản, vào thẳng mục X" chỉ đúng khi biết ứng viên đã
-   * biết gì. Nhưng mô tả công việc thì KHÔNG, và đó là chỗ prompt nhỏ đi.
-   */
+  /** Lời gọi 2 — hồ sơ vẫn phải có mặt để biết chỗ nào bỏ qua được, nhưng mô tả công việc thì KHÔNG. */
   private buildPlanPrompt(profile: Profile | null, gaps: UpskillGaps) {
-    const system = [
-      'Bạn là cố vấn phát triển nghề nghiệp. Danh sách khoảng trống đã được phân tích xong ở bước trước; nhiệm vụ của bạn là biến nó thành LỘ TRÌNH HỌC.',
-      '',
-      'Quy tắc bắt buộc:',
-      '- Chỉ lập lộ trình cho những khoảng trống được liệt kê dưới đây. Không thêm kỹ năng mới, không bỏ qua khoảng trống có priority cao.',
-      '- Nguồn học phải là thứ có thật và gọi tên được. Không bịa URL.',
-      '- Thứ tự học đi theo phụ thuộc trước, độ ưu tiên sau: cái nào mở khóa được nhiều thứ khác thì học trước.',
-      '- Lời khuyên phải bám vào hồ sơ ứng viên: nói rõ chỗ nào bỏ qua được vì họ đã biết, chỗ nào phải học từ đầu.',
-      '- Viết tiếng Việt có dấu, mỗi trường là câu hoàn chỉnh.',
-      '',
-      '--- KHUNG PHÂN TÍCH ---',
-      this.framework(profile, ['step 6', 'step 7']),
-    ].join('\n');
-
-    // Sắp ở TypeScript chứ không tin model đã sắp: nhãn "sắp theo độ ưu tiên"
-    // trong prompt phải đúng, không thì nó là một câu nói dối gửi cho model.
-    const hardLines = [...gaps.hardGaps]
-      .sort((a, b) => b.priority - a.priority)
-      .map(
-        (gap) =>
-          `- ${gap.skill} (ưu tiên ${gap.priority}/100, ${gap.demandCount} công việc đòi hỏi): ${gap.evidence}`,
-      );
-    const synthesisedLines = gaps.synthesisedGaps.map(
-      (gap) => `- [${gap.category}] ${gap.gap}: ${gap.why}`,
-    );
-
-    const prompt = [
-      '=== HỒ SƠ ỨNG VIÊN ===',
+    return planPrompt(
+      this.framework(profile, PLAN_SECTIONS),
       this.prompts.profileSummary(profile),
-      '',
-      '=== KHOẢNG TRỐNG KỸ NĂNG CỨNG (sắp theo độ ưu tiên) ===',
-      ...(hardLines.length ? hardLines : ['(không có)']),
-      '',
-      '=== KHOẢNG TRỐNG SUY LUẬN ===',
-      ...(synthesisedLines.length ? synthesisedLines : ['(không có)']),
-    ].join('\n');
-
-    return { system, prompt };
+      gaps,
+    );
   }
 
   async create(userId: string, jobId?: string) {

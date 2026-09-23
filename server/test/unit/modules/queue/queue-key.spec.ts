@@ -1,19 +1,23 @@
-import {
-  QUEUES_WITH_KEY_RULE,
-  singletonKeyFor,
-} from 'src/modules/queue/queue-key.js';
-import { QUEUE } from 'src/modules/queue/queue.service.js';
+import { singletonKeyFor } from 'src/modules/queue/queue-key.js';
+import { QUEUE } from 'src/modules/queue/queue.constants.js';
 
 describe('singletonKeyFor', () => {
-  /// Đây là test giữ cho hai danh sách không lệch nhau. `queue-key.ts` viết tên
-  /// hàng đợi bằng chuỗi để tránh phụ thuộc vòng với `queue.service.ts`, nên nếu
-  /// thêm một hàng đợi vào `QUEUE` mà quên khai khoá thì chỉ chỗ này phát hiện -
+  /// Thêm một hàng đợi vào `QUEUE` mà quên khai khoá thì CHỈ chỗ này phát hiện,
   /// và hậu quả của việc quên là policy `exclusive` coi cả hàng đợi là một khoá,
   /// chặn toàn bộ việc xuống còn một job.
-  test('mọi hàng đợi trong QUEUE đều có luật khoá', () => {
-    expect([...QUEUES_WITH_KEY_RULE].sort()).toEqual(
-      Object.values(QUEUE).sort(),
-    );
+  ///
+  /// Gọi với payload RỖNG là cố ý: ta chỉ hỏi "nhánh này có tồn tại không". Một
+  /// lỗi "thiếu trường" chứng minh nhánh có; rơi vào `default` mới là quên. Bản
+  /// cũ so hai danh sách tên hàng đợi, nhưng danh sách thứ hai đã bị xoá - nó
+  /// chỉ tồn tại để tránh một phụ thuộc vòng nay không còn.
+  test('mọi hàng đợi trong QUEUE đều có nhánh khoá riêng', () => {
+    for (const queue of Object.values(QUEUE)) {
+      try {
+        singletonKeyFor(queue, {});
+      } catch (error) {
+        expect((error as Error).message).not.toMatch(/chưa khai khoá dedup/);
+      }
+    }
   });
 
   test('mỗi hàng đợi dựng được khoá từ payload hợp lệ', () => {

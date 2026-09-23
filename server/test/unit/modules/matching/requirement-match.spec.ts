@@ -1,8 +1,6 @@
-import type { JobRequirements } from 'src/modules/matching/schemas/job-requirements.schema.js';
-import {
-  matchRequirements,
-  type MatchProfile,
-} from 'src/modules/matching/requirement-match.js';
+import type { JobRequirements } from 'src/modules/matching/ai/schemas/job-requirements.schema.js';
+import { matchRequirements } from 'src/modules/matching/rules/requirement-match.js';
+import type { MatchProfile } from 'src/modules/matching/rules/types.js';
 
 const requirements = (
   overrides: Partial<JobRequirements> = {},

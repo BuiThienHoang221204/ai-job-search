@@ -1,4 +1,4 @@
-import { JobRequirementsService } from 'src/modules/matching/services/job-requirements.service.js';
+import { JobRequirementsService } from 'src/modules/matching/ai/services/job-requirements.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import { FakeAi } from 'src/testing/fake-ai.js';

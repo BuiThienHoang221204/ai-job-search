@@ -15,17 +15,13 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
+import { PrepDto } from './interview.dto.js';
 import { InterviewService } from './interview.service.js';
+import { streamNdjson } from '../../common/ndjson.js';
 import { ThrottleAi } from '../../common/throttle.js';
-
-export class PrepDto {
-  @IsString() jobId!: string;
-  @IsOptional() @IsBoolean() force?: boolean;
-}
 
 @ApiTags('Interview Preparation')
 @ApiBearerAuth()
@@ -62,11 +58,6 @@ export class InterviewController {
     return this.interview.enqueue(user.id, dto.jobId, dto.force ?? false);
   }
 
-  /** Chạy ngay, dùng để thử nghiệm và đo chất lượng model. */
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Tạo tài liệu chuẩn bị phỏng vấn đồng bộ ngay lập tức',
-  })
   @ThrottleAi()
   @ApiOperation({
     summary: 'Soạn câu hỏi và đẩy về từng phần ngay khi AI viết ra (NDJSON)',
@@ -79,30 +70,19 @@ export class InterviewController {
     @Query('force') force: string | undefined,
     @Res() response: Response,
   ): Promise<void> {
-    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-cache, no-transform');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.flushHeaders();
-
-    try {
-      for await (const event of this.interview.streamGenerate(
-        user.id,
-        jobId,
-        force === 'true',
-      )) {
-        response.write(`${JSON.stringify(event)}\n`);
-      }
-    } catch (error) {
-      this.logger.error(
-        `Stream soạn câu hỏi ${jobId} hỏng: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      response.destroy();
-      return;
-    }
-
-    response.end();
+    await streamNdjson({
+      response,
+      logger: this.logger,
+      label: `soạn câu hỏi ${jobId}`,
+      events: this.interview.streamGenerate(user.id, jobId, force === 'true'),
+    });
   }
 
+  /** Chạy ngay, dùng để thử nghiệm và đo chất lượng model. */
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Tạo tài liệu chuẩn bị phỏng vấn đồng bộ ngay lập tức',
+  })
   @Post('prep-sync')
   prepNow(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
     return this.interview.generate(user.id, dto.jobId, dto.force ?? false);

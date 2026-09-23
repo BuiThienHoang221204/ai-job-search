@@ -21,13 +21,11 @@ import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
-import {
-  QueueConfigService,
-  type QueueConfigItem,
-} from '../queue/queue-config.service.js';
+import { QueueConfigService } from '../queue/queue-config.service.js';
+import type { QueueConfigItem } from '../queue/queue.types.js';
 import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
 import { ReconcileService } from '../reconcile/services/reconcile.service.js';
-import { ScrapeCronService } from '../scraper/scrape-cron.service.js';
+import { ScrapeCronService } from '../scraper/services/scrape-cron.service.js';
 import { AdminService } from './admin.service.js';
 
 export class AiHealthQueryDto {

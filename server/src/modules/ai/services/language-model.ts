@@ -1,7 +1,7 @@
 import type { Logger } from '@nestjs/common';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
-import { formatModelRef } from '../model-ref.js';
+import { formatModelRef } from '../utils/model-ref.js';
 import type { ModelCatalogService } from './model-catalog.service.js';
 
 export type ResolvedLanguageModel = {
@@ -63,13 +63,7 @@ async function unwrapFencedJson(response: Response): Promise<Response> {
   }
 }
 
-/**
- * Dựng đối tượng model của SDK từ một id.
- *
- * Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó
- * là OpenAI-compatible nên không cần adapter thứ hai. Cái thay đổi theo lõi
- * chỉ là `baseURL` và `apiKey`, và cả hai đến từ `catalog.resolve()`.
- */
+/** Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó là OpenAI-compatible nên không cần adapter thứ hai. */
 export class LanguageModelFactory {
   constructor(
     private readonly catalog: ModelCatalogService,

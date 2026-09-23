@@ -5,102 +5,27 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type {
-  Document,
-  DocumentKind,
-} from '../../../generated/prisma/client.js';
+import type { Document } from '../../../generated/prisma/client.js';
 import {
   STORAGE,
   userKey,
   type Storage,
 } from '../../storage/storage.interface.js';
-import type { CvContent, Identity } from '../content.types.js';
-import type { CoverLetterResult, CvContentResult } from '../document.schema.js';
-import { LATEX_COMPILER, type LatexCompiler } from '../latex-compile.js';
-import { renderCoverLetter, renderCv, slugify } from '../latex.js';
-import type { LetterTarget } from '../letter-target.js';
+import type { Identity } from '../content.types.js';
+import type { CoverLetterResult } from '../schemas/document.schema.js';
+import { renderCoverLetter, renderCv, slugify } from '../templates/latex.js';
+import type { LetterTarget } from '../utils/letter-target.js';
 import {
   EXPECTED_MAX_PAGES,
+  LATEX_COMPILER,
   PDF_RENDERER,
+  type LatexCompiler,
   type PdfRenderer,
-} from '../pdf-render.js';
+} from '../pdf/seam.js';
 import { renderCvHtml } from '../templates/registry.js';
-import type { DocumentLanguage } from '../templates/cv-layout.js';
+import { cvContent, renderLanguage } from '../utils/cv-content.js';
 
-/**
- * Loại tài liệu có bản LaTeX để in ra.
- *
- * Trước khi tách, quy tắc này tồn tại dưới dạng hai chỗ viết cứng
- * `storageKey: null` nằm cách nhau 160 dòng, nên "mail ứng tuyển có in được
- * không" là câu chỉ trả lời được bằng cách đọc cả bốn hàm sinh nội dung.
- */
-const PRINTABLE: readonly DocumentKind[] = ['CV', 'COVER_LETTER'];
-
-export const isPrintable = (kind: DocumentKind): boolean =>
-  PRINTABLE.includes(kind);
-
-const renderLanguage = (document: Document): DocumentLanguage =>
-  document.language === 'EN' ? 'en' : 'vi';
-
-const hasText = (...parts: Array<string | null | undefined>): boolean =>
-  parts.some((part) => (part ?? '').trim().length > 0);
-
-/**
- * Điền trường tuỳ chọn model được phép bỏ trống, và BỎ QUA dòng chưa có gì.
- *
- * Dòng rỗng là chuyện bình thường: bấm "Thêm kinh nghiệm" sinh ra một dòng trống
- * chờ người dùng gõ vào. Nó được LƯU (để họ quay lại vẫn thấy) nhưng không được vẽ
- * ra CV - một khối kinh nghiệm không có chữ nào đọc như lỗi trình bày.
- *
- * Lọc ở đây chứ không ở từng mẫu: cả đường HTML lẫn đường LaTeX đều đi qua hàm này.
- */
-const cvContent = (content: unknown): CvContent => {
-  const cv = content as CvContentResult;
-  return {
-    ...cv,
-    experiences: cv.experiences
-      .map((experience) => ({
-        ...experience,
-        location: experience.location ?? '',
-      }))
-      .filter(
-        (experience) =>
-          hasText(experience.position, experience.company) ||
-          experience.bullets.length > 0,
-      ),
-    projects: (cv.projects ?? [])
-      .map((project) => ({
-        ...project,
-        role: project.role ?? '',
-        organization: project.organization ?? '',
-        period: project.period ?? '',
-        description: project.description ?? '',
-        bullets: project.bullets ?? [],
-        tools: project.tools ?? [],
-      }))
-      .filter(
-        (project) =>
-          hasText(project.name, project.organization) ||
-          project.bullets.length > 0,
-      ),
-    educations: cv.educations
-      .map((education) => ({
-        ...education,
-        period: education.period ?? '',
-        detail: education.detail ?? '',
-      }))
-      .filter((education) => hasText(education.degree, education.institution)),
-    skillGroups: cv.skillGroups.filter(
-      (group) => hasText(group.label) || group.items.length > 0,
-    ),
-  };
-};
-
-/**
- * Biến nội dung đã soạn thành file `.tex` trong Storage, và thành PDF khi được
- * hỏi tới. **KHÔNG gọi model** - mọi hàm ở đây chạy lại bao nhiêu lần cũng
- * không tốn một lượt gọi nào.
- */
+/** Nội dung đã soạn → `.tex` trong Storage → PDF. KHÔNG gọi model, chạy lại bao nhiêu lần cũng miễn phí. */
 @Injectable()
 export class DocumentRenderer {
   private readonly logger = new Logger(DocumentRenderer.name);
@@ -111,14 +36,7 @@ export class DocumentRenderer {
     @Inject(PDF_RENDERER) private readonly pdfRenderer: PdfRenderer,
   ) {}
 
-  /**
-   * Render `content` thành `.tex` rồi ghi vào Storage.
-   *
-   * Trả `null` với loại tài liệu không in được, thay vì ném lỗi: đường sinh nội
-   * dung gọi hàm này cho MỌI loại, nên "không có gì để render" là kết quả bình
-   * thường chứ không phải sự cố. Caller nào coi đó là lỗi thì tự kiểm bằng
-   * `isPrintable` trước khi gọi.
-   */
+  /** Trả `null` với loại không in được chứ không ném lỗi — đường sinh gọi hàm này cho MỌI loại; ai cần chặt thì kiểm `isPrintable` trước. */
   async render(
     document: Document,
     target: LetterTarget | null,
@@ -166,10 +84,7 @@ export class DocumentRenderer {
     return null;
   }
 
-  /**
-   * Đọc file `.tex` từ Storage. Khóa luôn bắt đầu bằng userId nên không thể đọc
-   * chéo workspace của người khác.
-   */
+  /** Khoá luôn bắt đầu bằng `userId` nên không thể đọc chéo workspace của người khác. */
   readSource(storageKey: string): Promise<string> {
     return this.storage.readText(storageKey);
   }
@@ -191,10 +106,7 @@ export class DocumentRenderer {
     return result.pdf;
   }
 
-  /**
-   * Render CV thành HTML tự chứa. KHÔNG ghi Storage: sinh lại từ `content` trong
-   * vài mili giây. Trả `null` với loại chưa có mẫu HTML (thư xin việc).
-   */
+  /** KHÔNG ghi Storage vì sinh lại từ `content` chỉ mất vài mili giây; `null` với loại chưa có mẫu HTML. */
   toHtml(
     document: Document,
     content: unknown,

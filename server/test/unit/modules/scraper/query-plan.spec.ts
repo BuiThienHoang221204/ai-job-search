@@ -3,8 +3,8 @@ import {
   clusterProfiles,
   clusterQuery,
   planFromProfile,
-  type QueryProfile,
-} from 'src/modules/scraper/planning/query-plan.js';
+} from 'src/modules/scraper/utils/query-plan.js';
+import type { QueryProfile } from 'src/modules/scraper/types.js';
 
 const profile = (overrides: Partial<QueryProfile> = {}): QueryProfile => ({
   headline: null,

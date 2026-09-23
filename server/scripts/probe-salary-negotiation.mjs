@@ -6,7 +6,7 @@ import {
   resolveJobPosition,
 } from '../dist/modules/salary/job-position.js';
 import { negotiationRange } from '../dist/modules/salary/negotiation.js';
-import { yearsOfExperience } from '../dist/modules/profile/experience-years.js';
+import { yearsOfExperience } from '../dist/modules/profile/utils/experience-years.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

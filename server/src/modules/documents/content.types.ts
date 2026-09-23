@@ -1,8 +1,4 @@
-/**
- * Hình dạng nội dung tài liệu SAU KHI đã điền giá trị mặc định, dùng chung cho cả
- * hai bên trình bày (LaTeX và HTML). Ràng buộc output của model nằm ở
- * `document.schema.ts`.
- */
+/** Nội dung SAU KHI điền mặc định, dùng chung cho LaTeX và HTML; ràng buộc model nằm ở `schemas/document.schema.ts`. */
 
 export type CvContent = {
   profileStatement: string;

@@ -95,40 +95,26 @@ const configuration = () => ({
   },
 
   /**
-   * Agent nhiều bước. `commandsDir` là thư mục kịch bản `.claude/commands/` -
-   * cùng bộ file Claude Code chạy, để hai runtime không trôi khỏi nhau.
+   * Trần cho mọi lượt ra mạng: tool `fetch_url`/`web_search` của agent và luồng
+   * tìm hiểu công ty đều đọc ở đây.
+   *
+   * TÊN BIẾN MÔI TRƯỜNG GIỮ NGUYÊN `AGENT_FETCH_*` và `SERPER_*`. Đổi tên biến
+   * là đúng cái đã gây ra sự cố ngày 2026-08-24: `configuration.ts` đọc
+   * `WEB_SEARCH_API_KEY` trong khi `.env` khai `SERPER_API_KEY`, nên khoá luôn
+   * rỗng và tool `web_search` chưa từng chạy mà không có lỗi nào.
    */
-  agent: {
-    commandsDir: fromServerRoot(
-      process.env.COMMANDS_DIR ?? '../.claude/commands',
-    ),
-    maxSteps: parseInt(process.env.AGENT_MAX_STEPS ?? '12', 10),
-    /**
-     * Gốc để đọc template LaTeX (`cv/`, `cover_letters/`). Chính là gốc repo,
-     * nơi kịch bản `apply.md` trỏ tới - agent phải đọc được đúng file mà
-     * Claude Code đọc, nếu không nó sẽ tự bịa ra một bản template.
-     */
-    templatesRoot: fromServerRoot(process.env.TEMPLATES_ROOT ?? '..'),
-    /**
-     * Trần bước cho agent PHẢN BIỆN. Thấp hơn hẳn agent chính vì việc của nó
-     * hẹp: đọc bản nháp, tra công ty, nêu vấn đề. Mỗi bước là một lượt gọi tính
-     * vào cùng hạn mức với agent chính.
-     */
-    reviewerMaxSteps: parseInt(process.env.AGENT_REVIEWER_MAX_STEPS ?? '6', 10),
-    timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS ?? '540000', 10),
-    /** Trần byte cho một lần `fetch_url`. Trang tuyển dụng thật xa mức này. */
+  web: {
     fetchMaxBytes: parseInt(process.env.AGENT_FETCH_MAX_BYTES ?? '2000000', 10),
     fetchTimeoutMs: parseInt(process.env.AGENT_FETCH_TIMEOUT_MS ?? '20000', 10),
     /**
      * Serper. Không có key thì tool `web_search` KHÔNG được đăng ký - agent
      * thấy nó vắng mặt và tự xoay xở, thay vì gọi rồi nhận lỗi ở mọi bước.
-     *
-     * Tên biến phải là `SERPER_*`: `parseSerper` đọc định dạng của
-     * google.serper.dev, còn `.env` và `.env.example` vốn đã khai bằng tên đó.
      */
-    searchApiKey: process.env.SERPER_API_KEY ?? '',
-    searchUrl: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
-    searchMaxResults: parseInt(process.env.SERPER_MAX_RESULTS ?? '5', 10),
+    search: {
+      apiKey: process.env.SERPER_API_KEY ?? '',
+      url: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
+      maxResults: parseInt(process.env.SERPER_MAX_RESULTS ?? '5', 10),
+    },
   },
 
   scraper: {

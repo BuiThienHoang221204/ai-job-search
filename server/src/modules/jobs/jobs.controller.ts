@@ -38,10 +38,7 @@ export class JobsController {
     return this.jobs.list(query, user.id);
   }
 
-  /**
-   * Danh mục tỉnh/thành và ngành nghề kèm số tin, để giao diện dựng thanh lọc.
-   * Phải khai TRƯỚC ':id', nếu không Nest sẽ coi "filters" là một id.
-   */
+  /** Phải khai TRƯỚC `:id`, nếu không Nest coi "filters" là một id. */
   @ApiOperation({
     summary: 'Lấy danh mục tỉnh thành và ngành nghề kèm số lượng tin để lọc',
   })
@@ -84,10 +81,7 @@ export class JobsController {
     return this.jobs.unsave(user.id, id);
   }
 
-  /**
-   * Nạp tin tuyển dụng rồi đưa ngay vào hàng đợi chấm điểm cho người dùng
-   * hiện tại.
-   */
+  /** Nạp tin rồi xếp luôn vào hàng đợi chấm điểm cho người đang đăng nhập. */
   @ApiOperation({ summary: 'Tạo/nạp tin tuyển dụng mới và bắt đầu chấm điểm' })
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {

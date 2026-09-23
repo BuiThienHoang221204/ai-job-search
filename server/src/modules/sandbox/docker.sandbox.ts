@@ -12,16 +12,10 @@ import {
   type SandboxSpec,
 } from './sandbox.interface.js';
 
-/**
- * Bao lâu thì bỏ cuộc chờ `docker version`. Kiểm tra sẵn sàng phải nhanh, vì nó
- * nằm trên đường `/ready` — probe treo còn tệ hơn probe báo hỏng.
- */
+/** Kiểm tra sẵn sàng phải nhanh vì nó nằm trên đường `/ready` — probe treo còn tệ hơn probe báo hỏng. */
 const AVAILABILITY_TIMEOUT_MS = 5_000;
 
-/**
- * Mức mặc định, đo trên một lượt compile CV thật: 512MB và 1 CPU là đủ, lượt chạy
- * mất khoảng 5 giây.
- */
+/** Đo trên một lượt compile CV thật: 512MB và 1 CPU là đủ, mất khoảng 5 giây. */
 const DEFAULT_MEMORY_MB = 512;
 const DEFAULT_CPUS = 1;
 
@@ -32,7 +26,24 @@ type Spawned = {
   timedOut: boolean;
 };
 
-/** Tham số của `docker run`. */
+const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+/** Phân loại theo DẤU HIỆU của tiến trình con: `docker` báo lỗi qua stderr và mã thoát chứ không qua lớp lỗi. */
+function classify(error: unknown): SandboxErrorKind {
+  const message = messageOf(error);
+
+  if (/ENOENT/.test(message)) return 'RUNTIME_UNAVAILABLE';
+  if (/daemon|pipe\/docker|cannot connect/i.test(message)) {
+    return 'RUNTIME_UNAVAILABLE';
+  }
+  if (/no such image|manifest unknown|pull access denied/i.test(message)) {
+    return 'IMAGE_MISSING';
+  }
+  return 'OTHER';
+}
+
+/** Bốn cờ cách ly nằm ở đây, và mất cái nào thì PDF vẫn in ra bình thường — không lỗi, không log. Có test canh từng cờ. */
 export function dockerArgs(
   name: string,
   work: string,
@@ -46,12 +57,14 @@ export function dockerArgs(
     '--rm',
     '--name',
     name,
+    // Danh sách TRẮNG: phải khai `egress` mới có mạng, mọi giá trị khác đều là chặn.
     '--network',
     spec.network === 'egress' ? 'bridge' : 'none',
     '--memory',
     `${memory}m`,
     '--cpus',
     String(cpus),
+    // Thiếu ảnh phải là lỗi nói rõ, không phải một lượt tải vài GB giữa request của người dùng.
     '--pull',
     'never',
     '-v',
@@ -63,10 +76,12 @@ export function dockerArgs(
   ];
 }
 
+/** SEAM 2 qua `docker run` trên máy host. Production đi đường HTTP tới `latex-service`/`pdf-service` — xem CLAUDE.md. */
 @Injectable()
 export class DockerSandbox implements SandboxRunner {
   private readonly logger = new Logger(DockerSandbox.name);
 
+  /** Hỏi `docker version`: nó chạm tới daemon chứ không chỉ kiểm có file thực thi hay không. */
   async available(): Promise<boolean> {
     try {
       const result = await this.spawn(
@@ -79,9 +94,9 @@ export class DockerSandbox implements SandboxRunner {
     }
   }
 
+  /** Ghi file vào thư mục tạm, chạy container gắn vào đó, lấy artifact ra, rồi dọn sạch dù hỏng hay không. */
   async run(spec: SandboxSpec): Promise<SandboxResult> {
     const work = await mkdtemp(join(tmpdir(), 'aijob-sandbox-'));
-
     const name = `aijob-${randomUUID()}`;
 
     try {
@@ -104,6 +119,7 @@ export class DockerSandbox implements SandboxRunner {
         );
       }
 
+      // Có stdout nghĩa là công cụ ĐÃ chạy: lúc đó lỗi thuộc về tài liệu, không phải về sandbox.
       if (result.code !== 0 && !result.stdout && result.stderr) {
         const errorKind = classify(result.stderr);
         if (errorKind !== 'OTHER') {
@@ -128,6 +144,7 @@ export class DockerSandbox implements SandboxRunner {
     }
   }
 
+  /** Artifact vắng mặt là chuyện BÌNH THƯỜNG — compile hỏng thì không có PDF, và caller mới là nơi quyết định. */
   private async collect(
     work: string,
     paths: string[],
@@ -138,13 +155,14 @@ export class DockerSandbox implements SandboxRunner {
       try {
         artifacts[path] = await readFile(join(work, path));
       } catch {
-        // Vắng mặt là bình thường: compile hỏng thì không có PDF.
+        // Cố ý nuốt: xem docblock trên.
       }
     }
 
     return artifacts;
   }
 
+  /** `--rm` không dọn container bị SIGKILL giữa chừng, nên hết giờ thì phải xoá tay. */
   private async forceRemove(name: string): Promise<void> {
     await this.spawn(['rm', '-f', name], AVAILABILITY_TIMEOUT_MS).catch(
       (error: unknown) =>
@@ -154,7 +172,7 @@ export class DockerSandbox implements SandboxRunner {
     );
   }
 
-  /** Gọi `docker` và thu stdout/stderr, có hạn thời gian. */
+  /** Gọi `docker` và thu stdout/stderr, có hạn thời gian. `shell: false` để tham số không bị shell diễn giải lại. */
   private spawn(args: string[], timeoutMs: number): Promise<Spawned> {
     return new Promise((resolve, reject) => {
       const child = spawn('docker', args, { shell: false });
@@ -182,24 +200,4 @@ export class DockerSandbox implements SandboxRunner {
       });
     });
   }
-}
-
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
-/**
- * Phân loại theo dấu hiệu của tiến trình con, vì `docker` báo lỗi qua stderr và
- * mã thoát chứ không qua lớp lỗi.
- */
-function classify(error: unknown): SandboxErrorKind {
-  const message = messageOf(error);
-
-  if (/ENOENT/.test(message)) return 'RUNTIME_UNAVAILABLE';
-  if (/daemon|pipe\/docker|cannot connect/i.test(message)) {
-    return 'RUNTIME_UNAVAILABLE';
-  }
-  if (/no such image|manifest unknown|pull access denied/i.test(message)) {
-    return 'IMAGE_MISSING';
-  }
-  return 'OTHER';
 }

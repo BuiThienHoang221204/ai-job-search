@@ -6,16 +6,7 @@ import {
 
 const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 
-/**
- * Phần đáp án sinh lười cho một câu hỏi trong ngân hàng.
- *
- * `sampleAnswer` là `nullable` chứ không optional, và đó là chủ đích: với câu
- * HANH_VI hoặc DONG_CO thì model PHẢI trả `null`. Nhưng schema không phải chốt
- * chặn duy nhất — `QuestionBankService` ép `null` lại một lần nữa ở tầng mã,
- * vì một câu chuyện bịa lưu sẵn trong ngân hàng sẽ dạy ứng viên đọc thuộc thứ
- * không phải của họ, rồi chính `unsupportedClaims` của mock interview gắn cờ nó
- * là tuyên bố không có bằng chứng.
- */
+/** `sampleAnswer` nullable là chủ đích; service còn ép `null` một lần nữa ở tầng mã. */
 export const questionAnswerSchema = z.object({
   why: vn(400, 'Nhà tuyển dụng hỏi câu này để dò năng lực gì.'),
   keyPoints: boundedList(

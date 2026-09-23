@@ -28,22 +28,6 @@ type GenerateObjectArgs = {
 /// đó `mock.calls[i][0]` là `any` — eslint đỏ, còn kiểm tra kiểu thì mất.
 const generateObjectMock = jest.fn<Promise<unknown>, [GenerateObjectArgs]>();
 
-/// Một bước của vòng lặp agent, đúng những trường mà `attemptTools` đọc tới.
-type AgentStep = {
-  text: string;
-  toolCalls: unknown[];
-  toolResults: unknown[];
-  response: { messages: unknown[] };
-};
-
-type GenerateTextArgs = {
-  model: { id: string };
-  maxRetries: number;
-  onStepFinish?: (step: AgentStep) => void;
-};
-
-const generateTextMock = jest.fn<Promise<unknown>, [GenerateTextArgs]>();
-
 type StreamObjectArgs = {
   model: { id: string };
   system: string;
@@ -58,12 +42,6 @@ const streamObjectMock = jest.fn<FakeStream, [StreamObjectArgs]>();
 
 jest.mock('ai', () => ({
   generateObject: (args: GenerateObjectArgs) => generateObjectMock(args),
-  generateText: (args: GenerateTextArgs) => generateTextMock(args),
-  /// Hai hàm này chỉ dựng điều kiện dừng rồi đưa thẳng cho SDK, nên trả về gì
-  /// cũng được — miễn là CÓ, vì thiếu export thì `stepCountIs(...)` ném TypeError
-  /// trước khi chạm tới nhánh đang kiểm.
-  stepCountIs: () => 'stop-when',
-  hasToolCall: () => 'stop-on-tool',
   streamText: jest.fn(),
   streamObject: (args: StreamObjectArgs) => streamObjectMock(args),
   NoObjectGeneratedError: actualAi.NoObjectGeneratedError,
@@ -209,7 +187,6 @@ const argsOf = (index: number): GenerateObjectArgs =>
 
 beforeEach(() => {
   generateObjectMock.mockReset();
-  generateTextMock.mockReset();
   streamObjectMock.mockReset();
   providerCalls.length = 0;
 });
@@ -337,28 +314,6 @@ describe('AiService - lõi trả 5xx', () => {
       },
     );
 
-  const runToolsCall = (modelId?: string) => ({
-    system: 'Bạn là nhà tuyển dụng.',
-    prompt: 'Đọc bản nháp này.',
-    tools: {},
-    context: { purpose: 'agent.reviewer', userId: 'u1' },
-    modelId,
-  });
-
-  const finished = {
-    text: 'Hồ sơ này yếu ở phần số liệu.',
-    finishReason: 'stop',
-    usage: {},
-    response: { messages: [] },
-  };
-
-  const oneStep: AgentStep = {
-    text: 'đã đọc hồ sơ',
-    toolCalls: [],
-    toolResults: [],
-    response: { messages: [] },
-  };
-
   test('generateObject: 500 thì ĐỔI MODEL', () => {
     generateObjectMock
       .mockRejectedValueOnce(serverError())
@@ -371,19 +326,16 @@ describe('AiService - lõi trả 5xx', () => {
     });
   });
 
-  test('runTools: 500 khi CHƯA đi bước nào thì đổi model', async () => {
-    generateTextMock
+  /// Cả hai lượt phải nằm trong nhật ký, nếu không màn Admin không cho biết
+  /// model nào đang ốm.
+  test('generateObject: 500 thì ghi CẢ lượt hỏng lẫn lượt xong', async () => {
+    generateObjectMock
       .mockRejectedValueOnce(serverError())
-      .mockResolvedValueOnce(finished);
+      .mockResolvedValueOnce({ object: { diem: 8 }, usage: {} });
 
     const { service, recorded } = build({ fallbackModelIds: ['b-free'] });
+    await service.generateObject(call('a-free'));
 
-    const result = await service.runTools(runToolsCall('a-free'));
-
-    expect(result.modelId).toBe('b-free');
-    expect(generateTextMock).toHaveBeenCalledTimes(2);
-    // Cả hai lượt phải nằm trong nhật ký, nếu không màn Admin không cho biết
-    // model nào đang ốm.
     expect(recorded.map((row) => [row.modelId, row.ok])).toEqual([
       ['a-free', false],
       ['b-free', true],
@@ -391,33 +343,15 @@ describe('AiService - lõi trả 5xx', () => {
     expect(recorded[0].failureKind).toBe('UPSTREAM');
   });
 
-  test('runTools: 500 SAU khi đã đi được một bước thì ném NGAY', async () => {
-    /*
-     * Phanh chi phí. Đổi model nghĩa là chạy lại vòng lặp TỪ BƯỚC 0, nên bỏ mắt
-     * xích ở giữa chừng là trả tiền lần hai cho mọi bước đã xong — và một bước
-     * agent có thể là một lượt soạn CV kéo dài vài phút.
-     */
-    const loi = serverError();
-    generateTextMock.mockImplementationOnce((args) => {
-      args.onStepFinish?.(oneStep);
-      return Promise.reject(loi);
-    });
-
-    const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
-
-    await expect(service.runTools(runToolsCall('a-free'))).rejects.toBe(loi);
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('runTools: lỗi KHÔNG phải 5xx vẫn ném ngay như cũ', async () => {
+  test('lỗi KHÔNG phải 5xx thì ném NGAY, không đi hết chuỗi', async () => {
     // 400 thì model nào cũng từ chối; chạy hết chuỗi chỉ nhân số lần chờ lên.
     const loi = Object.assign(new Error('bad request'), { statusCode: 400 });
-    generateTextMock.mockRejectedValue(loi);
+    generateObjectMock.mockRejectedValue(loi);
 
     const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
 
-    await expect(service.runTools(runToolsCall('a-free'))).rejects.toBe(loi);
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    await expect(service.generateObject(call('a-free'))).rejects.toBe(loi);
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
   });
 });
 

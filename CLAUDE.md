@@ -46,10 +46,21 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 - **Route mới phải có kiểm tra quyền sở hữu VÀ test cho chính nó.** `JwtAuthGuard` là guard toàn cục theo chiều mặc-định-đóng; mở một route bằng `@Public()`. Đừng gắn lại `@UseGuards(JwtAuthGuard)` ở controller — làm vậy khiến người đọc tưởng những controller không gắn là công khai.
 - **Truy vấn dữ liệu người dùng luôn khoá theo `userId`**, và tốt nhất để `userId` thành tham số **bắt buộc** trong chữ ký hàm service (xem `DocumentsService.generate`) để caller thêm sau không thể quên.
-- **Đường ĐỌC không bao giờ gọi AI.** Dashboard, danh sách match, chi tiết job chỉ truy vấn SQL; kết quả chấm điểm cache theo `promptHash`.
+- **Đường ĐỌC không bao giờ gọi AI.** Dashboard, danh sách match, chi tiết job chỉ truy vấn SQL; kết quả chấm điểm cache theo `promptHash`. Trong `modules/matching/` ranh giới này nằm ngay trên cây thư mục: **`ai/` là mọi thứ tốn một lượt gọi model** (`match.evaluate`, `job.requirements`, `skill.canonicalize` + schema output của chúng), **`rules/` thì không chạm `AiService` dòng nào** — đối chiếu kỹ năng bằng code và chọn suất cho AI. Thêm một lời gọi model vào `rules/` là phá bất biến; `utils/` giữ phần dùng chung hai bên.
 - **Không tự xếp lại việc ở trạng thái `FAILED`.** Đó là trạng thái cuối người dùng bấm lại được; tự động thử lại khi chưa có bộ đếm số lần thử sẽ thành vòng lặp tốn tiền.
+- **Bảng nào có `status: MatchStatus` thì PHẢI có mặt trong `ReconcileService`.** Một bản ghi chỉ chuyển sang `FAILED` từ trong khối `catch` của chính worker; tiến trình chết giữa chừng — deploy, restart — thì không `catch` nào chạy và bản ghi nằm `RUNNING` vĩnh viễn. Tới 2026-09-23 `reconcile` chỉ quét `Document`, `JobMatch`, `AgentRun`, nên **`ProfileDraft` kẹt là NGÕ CỤT THẬT**: `retry()` chỉ nhận `FAILED` nên người dùng bấm chạy lại bao nhiêu lần cũng nhận 400 *"đang ở trạng thái RUNNING"*, và `requeue()` thì chỉ chạy từ `onAbandon` của stream — tức khi trình duyệt ngắt mà server còn sống, không cứu được ca server chết. Còn `UpskillReport` kẹt thì giao diện hết 80 lượt poll rồi hiện *"Nó vẫn đang trong hàng đợi; tải lại trang sau ít phút"* — một câu **sai**, việc đã chết và tải lại bao nhiêu lần cũng vô ích. `test/unit/modules/reconcile/reconcile.service.spec.ts` ghim danh sách năm bảng, thêm bảng mới mà quên là đỏ.
 - **Trọng số điểm tổng thuộc về code**, không hỏi model (`computeOverall`). Model rất hay tự làm tròn điểm tổng cho khớp cảm nhận của nó.
 - **Thay mẫu kiểm-tra-rồi-tạo bằng `isUniqueViolation`** (`src/prisma/prisma-errors.ts`): để `create` chạy rồi bắt `P2002`. Nested write của Prisma vốn đã nguyên tử nên phần lớn chỗ **không cần** `$transaction`.
+
+## Cách viết code trong `server/src`
+
+**Comment chỉ được MỘT DÒNG.** Dạng `/** ... */` một dòng đặt ngay trên khai báo, hoặc `//`. Không docblock nhiều dòng, không khối chú thích kể lể bên trong thân hàm. Lý do dài (đo được gì, vì sao chọn cách này, bẫy đã sập) thì viết vào chính file này hoặc `server/README.md` — chỗ đó người ta còn đọc, còn docblock 20 dòng nằm giữa code thì vừa đẩy hàm ra khỏi màn hình vừa mục nát khi code đổi. Quy ước này thay quy ước "không comment" chốt 2026-08-24 và quy ước docblock trước đó.
+
+**Service chỉ giữ phần chạm DATABASE.** Truy vấn Prisma, transaction, phân trang, kiểm quyền sở hữu — ở lại service. Mọi thứ khác (thuần hàm, định dạng chuỗi, dựng prompt, suy ra nhãn, ánh xạ dữ liệu) tách sang `utils/` cùng module. Kiểm nhanh: hàm không đụng `this.prisma` thì nó không thuộc về service.
+
+**DTO nằm ở file riêng**, không khai trong controller. Một `<tên>.dto.ts` cho mỗi module.
+
+**Hàm phụ mà NHIỀU module dùng thì lên `src/common/`**, không để một module import xuyên sang module khác. Đang có: `common/pagination.ts`, `common/model-output.ts`, `common/duration.ts`, `common/text/`, `common/web/`. Ngược lại, thứ chỉ một module dùng thì **đừng** đẩy lên `common/` — `common/` là hạ tầng, không phải kho từ vựng nghiệp vụ (đó là lý do `jobs/taxonomy/*` ở nguyên chỗ cũ dù 5 module đọc nó).
 
 ## Các seam và bản giả
 
@@ -66,11 +77,15 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 **Đừng tạo seam mới khi chỉ có một adapter**, trừ khi adapter thứ hai đã nằm trong lộ trình.
 
-## Đọc CV (Agent 1) — hai điều dễ làm sai
+## Đọc CV (Agent 1) — ba điều dễ làm sai
 
 **1. Không có gì được ghi vào bảng `Profile` cho tới khi người dùng bấm áp dụng.** Model ghi vào `ProfileDraft.proposal`; `apply()` mới chép sang `Profile`, và chỉ chép đúng những trường người dùng tích. Danh sách được phép chép là **danh sách trắng** (`APPLICABLE_FIELDS`) chứ không phải danh sách đen — `fields` đến từ HTTP request, nên danh sách đen sẽ tự động cho qua mọi trường mới thêm sau này.
 
-**2. Có những trường model bị CẤM đề xuất**, và lý do nằm trong docblock của `profile-proposal.schema.ts`: `careerGoals`/`energizingTasks`/`drainingTasks`/`targetSectors`/`dealBreakers` là **sở thích** (CV không nói việc gì làm bạn kiệt sức, mà chúng chiếm 30% điểm phù hợp); `citizenship`/`workPermit` là **tình trạng pháp lý** (đoán sai làm sai Eligibility Gate — bộ lọc CỨNG); `lackingSkills` suy ra từ việc đối chiếu với tin tuyển dụng, không đọc từ CV.
+**2. Có những trường model bị CẤM đề xuất**, và lý do là: `careerGoals`/`energizingTasks`/`drainingTasks`/`targetSectors`/`dealBreakers` là **sở thích** (CV không nói việc gì làm bạn kiệt sức, mà chúng chiếm 30% điểm phù hợp); `citizenship`/`workPermit` là **tình trạng pháp lý** (đoán sai làm sai Eligibility Gate — bộ lọc CỨNG); `lackingSkills` suy ra từ việc đối chiếu với tin tuyển dụng, không đọc từ CV.
+
+**3. Trường MÔ TẢ mà CV có quyền không ghi thì dùng `.default('')`, KHÔNG dùng `.min(1)`.** Ép một thứ bằng chứng không có thì model chỉ còn hai đường: bịa ra, hoặc trả chuỗi rỗng rồi làm hỏng cả lượt đọc. Đã hỏng thật 2026-08-23 — một CV ghi *"Industrial University of Ho Chi Minh City (IUH), Software Engineering, GPA 3.31/4.0"* mà không ghi bậc bằng; model điền `degree: ""` cho đúng sự thật, zod chặn, và TOÀN BỘ bản đọc CV mất trắng sau 19 giây cùng một lượt gọi model — vì một trường phụ. Chỗ để nói "cái này CV không có" là mảng `missing`, không phải một lỗi schema.
+
+**Ranh giới:** thứ làm nên DANH TÍNH của một mục (`school`, `company`, `position`, tên dự án) vẫn dùng `line()` bắt buộc — thiếu chúng thì cả mục vô nghĩa, và từ chối mới là đúng. Hai helper trong `profile-proposal.schema.ts` đặt tên theo đúng ranh giới đó: `line()` bắt buộc, `optionalText()` cho phép rỗng.
 
 Bộ test đơn vị chạy qua **`test/run-unit.mjs`**, không phải `jest` trực tiếp: `pdf-parse` nạp worker pdfjs bằng `import()` động nên jest cần `--experimental-vm-modules`. Docblock của file đó ghi những cách đã thử mà không tránh được — đừng thử lại.
 
@@ -209,23 +224,39 @@ Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `
 
 ## Nguồn tin: SEAM 5
 
+**Sáu class trong `scraper/services/`, mỗi cái trả lời MỘT câu hỏi khác nhau.** Đọc theo thứ tự này là ra luồng một lượt quét:
+
+| Class | Câu hỏi nó trả lời | Ghi chú |
+|---|---|---|
+| `ScrapeCronService` | **khi nào** quét | Mỗi đêm xếp một `ScrapeRun` cho từng portal rồi thôi |
+| `ScraperProcessor` | — | Nhận `SCRAPE_RUN` khỏi hàng đợi; đây là chỗ lượt quét thật sự chạy |
+| `ScraperService` | **điều phối** | Nối bốn cái dưới lại; không tự chạm portal dòng nào |
+| `QueryPlanner` | quét **cái gì** | Sinh từ khoá: từ hồ sơ (lượt người dùng) hoặc cụm nghề (lượt cron) |
+| `JobSourceRouter` | lấy **ở đâu** | Chọn adapter theo khoá portal — SEAM 5 phía người gọi |
+| `PortalCliService` | lấy **bằng cách nào** | Adapter duy nhất: chạy CLI + giữ nhịp chống chặn IP |
+| `JobWriter` | **lưu** thế nào | Tách tin mới, lấy mô tả đầy đủ, nhận ra bản sao giữa portal |
+
+`QueryPlanner` và `JobWriter` **không phải provider Nest** — `ScraperService` tự `new` chúng trong constructor. Đó là lý do chúng không xuất hiện trong `scraper.module.ts` và không inject được ở nơi khác.
+
 `ScraperService` KHÔNG biết một nguồn được lấy bằng cách nào — nó hỏi `JobSourceRouter`. Hiện chỉ có một adapter:
 
 - `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bốn portal Việt nằm ở đây.
 
 Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn mới mà `ScraperService` không phải biết.
 
+**Nhịp chống chặn IP nằm TRỌN trong `PortalCliService.pace()`, đừng thêm `sleep` ở phía người gọi.** Tới 2026-09-23 nó nằm ở hai chỗ: `pace()` giữ 3.000ms giữa hai lần GỌI, còn `collect-cards.ts` và `job-writer.service.ts` mỗi nơi tự `sleep(1.200ms)` sau khi gọi xong. Hai phanh chồng nhau cho khoảng cách thật là `max(3000, T + 1200)` với `T` là thời gian một lượt CLI — tức 1.200ms kia **chỉ có tác dụng khi một lượt chạy quá 1,8 giây**, và muốn đổi nhịp thì phải nhớ hai nơi, một ở `.env` một nằm cứng trong code. Nay `pace()` giữ cả hai ràng buộc (mốc GỌI và mốc XONG, hai `Map` riêng) nên hành vi không đổi mà chỉ còn một chỗ sửa. Quan trọng hơn: `invoke()` là chốt bắt buộc — code mới gọi `portals.search()` vẫn được giữ nhịp dù tác giả không biết gì về nó, còn một `sleep` ở phía người gọi thì quên là mất. `test/unit/modules/scraper/portal-pace.spec.ts` ghim cả hai ràng buộc, vì hỏng chỗ này **không có gì báo** — chỉ là portal bắt đầu chặn IP sau vài đêm.
+
 Từng có adapter thứ hai gọi API job board công khai của Greenhouse/Lever/Ashby (`AtsSourceService`, khai bằng `ATS_BOARDS`). **Đã gỡ 2026-08-27** cùng toàn bộ dữ liệu của hai board từng bật — `ashby:ramp` và `greenhouse:gitlab`. Đừng dựng lại theo trí nhớ: hãy đọc lại commit đó.
 
 Món nợ ToS mà lộ trình ghi ở mục 4 vẫn còn nguyên: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Việc gỡ ATS KHÔNG trả món nợ đó, chỉ bỏ một hướng đã thử.
 
-**Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ. Bài học này nay sống ở `agent/utils/html-text.ts`.
+**Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ. Bài học này nay sống ở `common/web/html-text.ts`.
 
 ### "Thẻ đã có mô tả" KHÔNG có nghĩa là mô tả đầy đủ
 
 API tìm kiếm của VietnamWorks **cắt** `jobDescription` và `jobRequirement` rồi thêm dấu ba chấm. Scraper cũ chỉ gọi `detail` khi thẻ **không** có mô tả, nên bản cụt được lưu thẳng: 16/16 tin VietnamWorks trong database có mô tả trung bình 771 ký tự, trong khi mọi nguồn khác là 2.600–11.000. Bản cụt vẫn dài hơn ngưỡng 80 nên không nhánh nào chặn được, và giao diện hiện đúng cái đã lưu — trông y như lỗi hiển thị.
 
-Nay `scraper.service.ts` gọi `detail` khi mô tả **trống HOẶC kết thúc bằng dấu ba chấm** (`looksTruncated`), và lỗi ở bước đó bị nuốt để tin vẫn được lưu với bản cụt thay vì mất hẳn. Sửa lại dữ liệu cũ bằng `node scripts/backfill-truncated-description.mjs`.
+Nay `services/job-writer.service.ts` gọi `detail` khi mô tả **trống HOẶC kết thúc bằng dấu ba chấm** (`looksTruncated`), và lỗi ở bước đó bị nuốt để tin vẫn được lưu với bản cụt thay vì mất hẳn. Sửa lại dữ liệu cũ bằng `node scripts/backfill-truncated-description.mjs`.
 
 Hai điều riêng của VietnamWorks:
 
@@ -238,7 +269,7 @@ Hai điều riêng của VietnamWorks:
 
 Không có chỗ nào trong đề tài giới hạn phạm vi ở ngành CNTT. Việc hệ thống từng chỉ mang về tin IT là hệ quả tình cờ của việc người dùng thử đầu tiên là dân IT, và nó đã được sửa ngày 2026-08-15. Đừng "sửa" ngược lại.
 
-**Ngôn ngữ từ khoá đi theo ngành, và đây là chỗ dễ làm hỏng nhất.** Chức danh IT/kỹ thuật ở Việt Nam đăng bằng tiếng Anh (`frontend developer`); mọi ngành còn lại đăng bằng tiếng Việt có dấu (`kế toán tổng hợp`, `nhân viên kinh doanh`). Chọn sai ngôn ngữ **không** trả về tin sai — nó trả về **không gì cả**, một triệu chứng trông y hệt portal hỏng. Quy tắc này nằm ở hai nơi và phải giữ khớp nhau: prompt trong `planning/query-planner.ts` và `.describe()` của trường `query` trong `planning/search-plan.schema.ts`. Mô tả zod đi thẳng vào JSON schema gửi cho model, nên nó là mệnh lệnh sống chứ không phải chú thích.
+**Ngôn ngữ từ khoá đi theo ngành, và đây là chỗ dễ làm hỏng nhất.** Chức danh IT/kỹ thuật ở Việt Nam đăng bằng tiếng Anh (`frontend developer`); mọi ngành còn lại đăng bằng tiếng Việt có dấu (`kế toán tổng hợp`, `nhân viên kinh doanh`). Chọn sai ngôn ngữ **không** trả về tin sai — nó trả về **không gì cả**, một triệu chứng trông y hệt portal hỏng. Quy tắc này nằm ở hai nơi và phải giữ khớp nhau: `SEARCH_PLAN_SYSTEM` trong `planning/search-plan.prompt.ts` và `.describe()` của trường `query` trong `planning/search-plan.schema.ts`. Mô tả zod đi thẳng vào JSON schema gửi cho model, nên nó là mệnh lệnh sống chứ không phải chú thích.
 
 **Truy vấn xếp theo CHỨC DANH trước, kỹ năng sau** (`query-plan.ts`). Với hồ sơ IT thì kỹ năng cũng là tên tin tuyển dụng nên xếp kiểu nào cũng chạy; với mọi ngành khác thì không — kỹ năng chính của một kế toán là `Excel`, `Misa`, `giao tiếp`. Lĩnh vực mục tiêu được **ghép** với chức danh, không bao giờ đứng một mình: `Ngân hàng` trả về mọi vị trí trong ngành từ giao dịch viên tới bảo vệ.
 
@@ -299,8 +330,23 @@ Gom theo 19 nhóm thì cả `IT_QA`, `IT_DEVOPS` và `IT_SECURITY` chung một t
 
 ## Hàng đợi
 
-- Khoá chặn trùng được **suy ra từ payload** trong `queue-key.ts`, không do người gọi truyền vào. Thêm hàng đợi mới thì phải thêm một nhánh khoá — có test đối chiếu `QUEUE` với danh sách khoá nên quên là đỏ ngay.
+Bảy file, mỗi file một việc. `queue.service.ts` **re-export** `QUEUE` và mọi type, nên 37 file gọi tới vẫn chỉ import một đường và không cần biết bên trong chia thế nào:
+
+| File | Giữ gì |
+|---|---|
+| `queue.constants.ts` | `QUEUE` + `QUEUE_POLICY`. **KHÔNG import gì** — đó là điều kiện để `queue-key.ts` dùng được mà không tạo phụ thuộc vòng |
+| `queue.types.ts` | 11 payload + `Queue`/`QueueStatus`/`QueueStats`/`QueueConfigItem` |
+| `queue.defaults.ts` | Bảng concurrency MẶC ĐỊNH, chỉ dùng khi database chưa có dòng |
+| `queue-config.service.ts` | Concurrency SỐNG đọc từ database, admin đổi được lúc đang chạy |
+| `queue-key.ts` | `singletonKeyFor` |
+| `queue.service.ts` | Chỉ còn class |
+
+Tới 2026-09-23 `queue-key.ts` **chép lại 11 tên hàng đợi** dưới dạng chuỗi, kèm một test đối chiếu hai danh sách, vì `QUEUE` nằm chung file với class nên import ngược sẽ thành vòng. Tách `QUEUE` ra file riêng là vòng biến mất; **đừng dựng lại danh sách thứ hai đó**.
+
+- Khoá chặn trùng được **suy ra từ payload** trong `queue-key.ts`, không do người gọi truyền vào. Thêm hàng đợi mới thì phải thêm một nhánh khoá — `queue-key.spec.ts` gọi `singletonKeyFor(<mọi queue>, {})` và bắt lỗi nếu rơi vào nhánh `default`, nên quên là đỏ ngay kèm tên hàng đợi bị quên.
 - Policy là `exclusive`. `singletonKey` một mình **không** chặn trùng trên policy `standard`.
+- **`batchSize` giữ nguyên 1, song song lấy từ `localConcurrency`, không phải ngược lại.** pg-boss áp kết quả handler cho CẢ lô (*"throwing from the handler still fails the whole batch"*), nên gom lô khiến một việc hỏng kéo đổ những việc lành cùng lô. `localConcurrency` sinh nhiều worker poll độc lập, mỗi worker một việc, lỗi không lây.
+- **Vai `api` thoát ngay trong `QueueService.work`**, không để từng processor tự kiểm: đây là seam duy nhất cả 7 processor đều đi qua, nên processor thêm sau này tự thừa hưởng.
 - Đổi policy trên database đã chạy cần `QUEUE_POLICY_MIGRATE=true` một lần, và việc đang chờ sẽ mất. Nếu hàng đợi khởi tạo thất bại thì **app không lên** — đó là chủ đích, không phải lỗi.
 - Dùng `sendMany` cho lô lớn. `insert` của pg-boss cần `{ returnId: true }` mới trả về số đã xếp; thiếu nó thì luôn trả `null` và log báo 0.
 
@@ -369,7 +415,15 @@ agent là trả tiền lại cho những bước đã xong.
 **`openrouter/nvidia/nemotron-3-super-120b-a12b:free` XONG sau 19,1 giây**.
 Tổng phí mắt xích chết khoảng 5,4 giây. Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
 
-**Nhánh 5xx có thêm một phanh: chỉ đổi mắt xích khi lượt hỏng CHƯA đi được bước agent nào.** `runTools` chạy lại là chạy lại từ bước 0, nên bỏ mắt xích ở bước thứ chín là trả tiền lần hai cho chín bước đã xong — mà nhánh `FAILED` của `AgentRunnerService` lại không lưu `messages` nên cũng không có đường chạy tiếp. Lý do nhánh này tồn tại nằm ở một lượt hỏng thật ngày 2026-08-22: `agent.reviewer` nhận HTTP 500 hai lần liên tiếp (96 giây, payload chỉ 8,4KB) và cả tác vụ hỏng, trong khi **không một model dự phòng nào được thử** vì 5xx không nằm trong danh sách lý do đổi mắt xích.
+**Vì sao 5xx nằm trong danh sách đổi mắt xích:** lý do nằm ở một lượt hỏng thật ngày 2026-08-22: `agent.reviewer` nhận HTTP 500 hai lần liên tiếp (96 giây, payload chỉ 8,4KB) và cả tác vụ hỏng, trong khi **không một model dự phòng nào được thử** vì 5xx không nằm trong danh sách lý do đổi mắt xích.
+
+`runTools` và cả phanh `ChainProgress` **đã bị xoá ngày 2026-09-23** — vòng lặp agent gỡ cùng `/apply` từ trước, nhưng code thì ở lại tới hôm đó, sống bằng chính test và bản giả của nó (~380 dòng). Gỡ `!progress.spent` là TRUNG TÍNH về hành vi: chỉ `attemptTools` đặt cờ đó, nên không còn nó thì điều kiện vốn đã luôn đúng. Cùng lúc gỡ `ModelCatalogService.resolve(ref, requireToolCall)` — không caller nào từng truyền `true`.
+
+**Ba điều về từng lõi, gỡ khỏi docblock ngày 2026-09-23 để code còn một dòng:**
+
+- **`opencode`** — `400 MissingSessionID` kèm câu *"OpenCode's free tier can only be used in OpenCode"* rất dễ đọc nhầm thành "bể free đã đóng", và **đã bị đọc nhầm đúng như vậy ngày 2026-09-09**, kéo theo cả một vòng đổi sang nhà cung cấp khác không cần thiết. Thấy câu đó thì kiểm `x-opencode-session` trước khi kết luận.
+- **`kilo`** — nhận request **không cần API key** (cả không header lẫn `Bearer public` đều 200), nên nó cứu được lúc hai lõi kia cùng cạn. Ba lý do không làm lõi chính: không key nghĩa là không hợp đồng (y hệt bẫy chuỗi `"public"` bên OpenCode); **14/14 model free tự khai `mayTrainOnYourPrompts: true`**, mà app gửi đi CV người thật; và bể model của nó gần trùng khít OpenRouter nên thêm nó không mở rộng được tập model.
+- **`openrouter`** — lời khai `supported_parameters` đã được đối chiếu với các phép đo tay trên OpenCode và **khớp**: `nemotron-3.5-lightning` và `laguna-s-2.1` đều bị khai là không hỗ trợ, đúng như đo được.
 
 **Ràng buộc về tiền:** `resolve()` **không bao giờ tự thay model khác** (bản cũ lấy `models[0]`; OpenRouter có 413 model gồm loại đắt, và hàng đợi chấm điểm chạy theo cron). Từ 2026-08-26 đây là chốt DUY NHẤT: `AI_ALLOW_PAID_MODELS` và `isFree()` đã gỡ, nên model trả tiền ghi trong `.env` sẽ chạy thật.
 
@@ -552,7 +606,7 @@ Hai điều cần biết nếu muốn hồi sinh runtime Claude Code: `/setup` s
 
 Người dùng trước đây phải: nộp đơn xong → mở Google → gõ "review công ty X" → mở từng link → tự tổng hợp → đóng tab, mất sạch. `modules/companies/` tự động hoá đúng chuỗi đó.
 
-**Luồng cố định nên KHÔNG đi qua `AgentRunnerService`.** Agent để model điều khiển luồng, tốn 5–8 lượt gọi model mỗi lần và không có schema đảm bảo. Ở đây code thường chạy tìm kiếm và tải trang, rồi gọi `generateObject` **đúng một lần** — `ai_calls.purpose = 'company.brief'`.
+**Luồng cố định nên code thường điều khiển, không để model điều khiển.** Ở đây code chạy tìm kiếm và tải trang, rồi gọi `generateObject` **đúng một lần** — `ai_calls.purpose = 'company.brief'`. Đường ngược lại (vòng lặp agent tự quyết gọi tool nào) tốn 5–8 lượt gọi model mỗi lần và không có schema đảm bảo; nó từng tồn tại ở `/apply` và đã bị gỡ, xem `server/README.md`.
 
 **Chỉ lưu bản phân tích của mình, không lưu nguyên văn đánh giá của người khác.** Điều khoản ITviec (mục 2.2) cấm sao chép nội dung, và ITviec còn làm mờ thân đánh giá bằng CSS để bắt đăng nhập — lấy phần đó là vượt rào kiểm soát truy cập. `sources` trong `CompanyBrief` dẫn link về bài gốc, và đó là phần thay thế đúng danh sách link Google từng đưa.
 

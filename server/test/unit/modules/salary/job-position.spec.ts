@@ -2,8 +2,8 @@ import {
   buildPositionIndex,
   resolveJobPosition,
   roleTokens,
-  type ReferencePosition,
-} from 'src/modules/salary/job-position.js';
+} from 'src/modules/salary/utils/job-position.js';
+import type { ReferencePosition } from 'src/modules/salary/salary.types.js';
 
 const position = (
   positionSlug: string,

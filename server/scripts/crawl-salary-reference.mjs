@@ -125,7 +125,7 @@ function parsePage(html, slug) {
 async function parseAll() {
   const { PrismaPg } = await import('@prisma/adapter-pg');
   const { PrismaClient } = await import('../dist/generated/prisma/client.js');
-  const { referenceOccupation } = await import('../dist/modules/salary/reference-map.js');
+  const { referenceOccupation } = await import('../dist/modules/salary/utils/reference-map.js');
 
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {

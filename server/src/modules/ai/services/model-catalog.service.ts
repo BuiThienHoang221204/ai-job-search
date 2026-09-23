@@ -1,63 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { formatModelRef, parseModelRef, type ModelRef } from '../model-ref.js';
+import { parseModelRef, formatModelRef } from '../utils/model-ref.js';
+import { ModelUnavailableError } from '../utils/failure-kind.js';
+import { selectModel, toListing, usableAdapter } from '../utils/catalog.js';
 import {
   findProvider,
   providerIds,
   type ProviderDescriptor,
 } from '../providers/index.js';
-
-export type CatalogModel = {
-  id: string;
-  name: string;
-  tool_call?: boolean;
-  provider?: { npm?: string; api?: string };
-};
-
-export type CatalogProvider = {
-  id: string;
-  name: string;
-  api?: string;
-  npm?: string;
-  models: Record<string, CatalogModel>;
-};
-
-export type ResolvedModel = {
-  providerId: string;
-  model: CatalogModel;
-  baseURL: string;
-  apiKey: string;
-  /** Header thêm vào mỗi request. Rỗng với hầu hết lõi — xem `userAgentEnv`. */
-  headers: Record<string, string>;
-  explicitStreamFlag: boolean;
-  honorsResponseFormat: boolean;
-};
+import type {
+  CatalogProvider,
+  ModelListing,
+  ResolvedModel,
+} from '../ai.types.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/**
- * Adapter mà dự án thật sự cài. OpenRouter khai `@openrouter/ai-sdk-provider`
- * trong catalog nhưng API của nó là OpenAI-compatible, nên nó chạy bằng chính
- * `@ai-sdk/openai-compatible` — không cài thêm package nào.
- */
-const SUPPORTED_NPMS = new Set([
-  '@ai-sdk/openai-compatible',
-  '@openrouter/ai-sdk-provider',
-]);
-
-/**
- * Model này không dùng được, hãy thử mắt xích tiếp theo trong chuỗi. Tách khỏi
- * lỗi thường vì nó KHÔNG phải một lần gọi model thất bại — chưa có lần gọi nào
- * cả. `AiService` bắt riêng lớp này để đi tiếp thay vì làm hỏng cả tác vụ.
- */
-export class ModelUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ModelUnavailableError';
-  }
-}
-
-/** Port từ ai-skill-chat/src/models.ts. */
+/** Nơi DUY NHẤT đi hỏi model catalog và gateway. Mọi phép lọc, chọn, xếp thứ tự nằm ở `utils/catalog.ts`. */
 @Injectable()
 export class ModelCatalogService {
   private readonly logger = new Logger(ModelCatalogService.name);
@@ -85,10 +44,7 @@ export class ModelCatalogService {
     return this.config.get<string>('ai.modelId')!;
   }
 
-  /**
-   * Header riêng của một lõi. Hiện chỉ có `User-Agent`, và chỉ `opencode` dùng
-   * tới — lý do đầy đủ nằm trong docblock của `providers/opencode.ts`.
-   */
+  /** Header riêng của một lõi. Hiện chỉ có `User-Agent`, và chỉ `opencode` dùng tới. */
   private headersFor(descriptor: ProviderDescriptor): Record<string, string> {
     const headers = { ...(descriptor.extraHeaders ?? {}) };
     if (!descriptor.userAgentEnv) return headers;
@@ -110,12 +66,14 @@ export class ModelCatalogService {
     return key;
   }
 
+  /** Lõi nào khai `baseURLEnv` thì bỏ qua catalog ngoài và tự dựng danh sách từ chính `/models` của nó. */
   private baseURLFor(descriptor: ProviderDescriptor): string | undefined {
     if (!descriptor.baseURLEnv) return undefined;
     const urls = this.config.get<Record<string, string>>('ai.baseURLs') ?? {};
     return urls[descriptor.id] || undefined;
   }
 
+  /** Danh sách model của một lõi: từ catalog ngoài, hoặc từ chính gateway khi lõi khai `baseURLEnv`. */
   private async catalogFor(
     descriptor: ProviderDescriptor,
     apiKey: string,
@@ -149,7 +107,7 @@ export class ModelCatalogService {
       );
     }
 
-    const models: Record<string, CatalogModel> = {};
+    const models: CatalogProvider['models'] = {};
     for (const [id, entry] of live) {
       models[id] = {
         id,
@@ -159,6 +117,7 @@ export class ModelCatalogService {
     return { id: descriptor.id, name: descriptor.label, api: declared, models };
   }
 
+  /** Catalog dùng chung cho mọi lõi, cache 5 phút. */
   async loadCatalog(): Promise<Record<string, CatalogProvider>> {
     if (this.catalogCache && this.catalogCache.expiresAt > Date.now()) {
       return this.catalogCache.value;
@@ -180,11 +139,7 @@ export class ModelCatalogService {
     return value;
   }
 
-  /**
-   * Danh sách model gateway ĐANG phục vụ, giữ nguyên phần thân để lõi nào biết
-   * đọc capability thì đọc. Catalog không thay được cái này: nó ghi OpenCode có
-   * 27 model free trong khi gateway chỉ phục vụ 7.
-   */
+  /** Model gateway ĐANG phục vụ, giữ nguyên phần thân để lõi nào biết đọc capability thì đọc. Catalog ghi OpenCode có 27 model free trong khi gateway chỉ phục vụ 7. */
   private async liveModels(
     baseURL: string,
     apiKey: string,
@@ -217,25 +172,8 @@ export class ModelCatalogService {
     return entries;
   }
 
-  private usableAdapter(
-    model: CatalogModel,
-    provider: CatalogProvider,
-  ): boolean {
-    return SUPPORTED_NPMS.has(
-      model.provider?.npm ?? provider.npm ?? '@ai-sdk/openai-compatible',
-    );
-  }
-
-  /**
-   * Chọn model để chạy. `ref` có thể là `lõi/model` hoặc chỉ `model` (dùng lõi
-   * mặc định). `requireToolCall` dành cho các skill cần gọi tool.
-   *
-   * KHÔNG bao giờ tự thay thế bằng model khác. Bản cũ có: không tìm thấy model
-   * được yêu cầu thì nó lấy `models[0]`. Với OpenCode toàn model free thì vô
-   * hại, nhưng OpenRouter có 351 model gồm cả loại trả tiền đắt — gõ sai một ký
-   * tự trong `.env` sẽ thành một hoá đơn chạy theo cron.
-   */
-  async resolve(ref?: string, requireToolCall = false): Promise<ResolvedModel> {
+  /** KHÔNG bao giờ tự thay model khác: bản cũ lấy `models[0]` khi không tìm thấy, mà OpenRouter có 351 model gồm loại trả tiền — gõ sai một ký tự trong `.env` thành hoá đơn chạy theo cron. */
+  async resolve(ref?: string): Promise<ResolvedModel> {
     const target = parseModelRef(
       ref ?? this.defaultModelId,
       providerIds(),
@@ -252,7 +190,7 @@ export class ModelCatalogService {
     const headers = this.headersFor(descriptor);
     const provider = await this.catalogFor(descriptor, apiKey, headers);
 
-    const selected = this.select(provider, descriptor, target, requireToolCall);
+    const selected = selectModel(provider, descriptor, target);
     const baseURL = selected.provider?.api ?? provider.api;
     if (!baseURL) {
       throw new ModelUnavailableError(
@@ -260,7 +198,7 @@ export class ModelCatalogService {
       );
     }
 
-    await this.assertServed(descriptor, selected, baseURL, apiKey, headers);
+    await this.assertServed(descriptor, selected.id, baseURL, apiKey, headers);
 
     return {
       providerId: provider.id,
@@ -273,46 +211,10 @@ export class ModelCatalogService {
     };
   }
 
-  /** Tìm đúng model được yêu cầu, và nói rõ vì sao khi không dùng được. */
-  private select(
-    provider: CatalogProvider,
-    descriptor: ProviderDescriptor,
-    target: ModelRef,
-    requireToolCall: boolean,
-  ): CatalogModel {
-    const all = Object.values(provider.models);
-    const found = all.find((model) => model.id === target.modelId);
-    if (!found) {
-      throw new ModelUnavailableError(
-        `Lõi ${descriptor.label} không có model "${target.modelId}".`,
-      );
-    }
-    if (!this.usableAdapter(found, provider)) {
-      throw new ModelUnavailableError(
-        `Model ${formatModelRef(target)} cần adapter ${found.provider?.npm ?? provider.npm}, dự án không cài.`,
-      );
-    }
-    if (requireToolCall && found.tool_call === false) {
-      throw new ModelUnavailableError(
-        `Model ${formatModelRef(target)} không gọi được tool.`,
-      );
-    }
-    if (descriptor.knownNoStructuredOutput?.includes(found.id)) {
-      throw new ModelUnavailableError(
-        `Model ${formatModelRef(target)} đã ĐO là không giữ được structured output.`,
-      );
-    }
-    return found;
-  }
-
-  /**
-   * Gateway có đang phục vụ model này không, và nếu nó khai capability thì model
-   * này có làm được structured output không. Hỏi được thì tin, không hỏi được
-   * thì bỏ qua — mất `/models` không đáng làm đổ cả tác vụ.
-   */
+  /** Không hỏi được `/models` thì BỎ QUA chứ không ném — mất một lượt kiểm không đáng làm đổ cả tác vụ. */
   private async assertServed(
     descriptor: ProviderDescriptor,
-    model: CatalogModel,
+    modelId: string,
     baseURL: string,
     apiKey: string,
     headers: Record<string, string> = {},
@@ -325,79 +227,44 @@ export class ModelCatalogService {
     }
     if (!live?.size) return;
 
-    const entry = live.get(model.id);
+    const entry = live.get(modelId);
     if (!entry) {
       throw new ModelUnavailableError(
-        `Lõi ${descriptor.label} hiện không phục vụ model "${model.id}".`,
+        `Lõi ${descriptor.label} hiện không phục vụ model "${modelId}".`,
       );
     }
     if (descriptor.declaresStructuredOutput?.(entry) === false) {
       throw new ModelUnavailableError(
-        `Lõi ${descriptor.label} khai model "${model.id}" không hỗ trợ structured output.`,
+        `Lõi ${descriptor.label} khai model "${modelId}" không hỗ trợ structured output.`,
       );
     }
   }
 
   /** Model dùng được của một lõi, đã áp đúng bộ lọc mà `resolve()` áp. */
-  async listModels(providerId?: string): Promise<
-    Array<{
-      id: string;
-      ref: string;
-      name: string;
-      toolCall: boolean;
-      structuredOutput: boolean | null;
-    }>
-  > {
+  async listModels(providerId?: string): Promise<ModelListing[]> {
     const id = providerId ?? this.defaultProviderId;
     const descriptor = findProvider(id);
     if (!descriptor) throw new Error(`Không biết lõi model: ${id}`);
 
+    const apiKey = this.apiKeyFor(descriptor);
     const provider = await this.catalogFor(
       descriptor,
-      this.apiKeyFor(descriptor),
+      apiKey,
       this.headersFor(descriptor),
     );
 
     const models = Object.values(provider.models).filter((model) =>
-      this.usableAdapter(model, provider),
+      usableAdapter(model, provider),
     );
 
     let live: Map<string, Record<string, unknown>> | undefined;
     try {
-      const baseURL = provider.api;
-      if (baseURL) {
-        live = await this.liveModels(baseURL, this.apiKeyFor(descriptor));
-      }
+      if (provider.api) live = await this.liveModels(provider.api, apiKey);
     } catch {
       live = undefined;
     }
 
     const served = live?.size ? models.filter((m) => live.has(m.id)) : models;
-
-    return served
-      .map((model) => {
-        const entry = live?.get(model.id);
-        const declared =
-          entry && descriptor.declaresStructuredOutput
-            ? descriptor.declaresStructuredOutput(entry)
-            : null;
-        return {
-          id: model.id,
-          ref: formatModelRef({ providerId: id, modelId: model.id }),
-          name: model.name,
-          toolCall: model.tool_call !== false,
-          structuredOutput: descriptor.knownNoStructuredOutput?.includes(
-            model.id,
-          )
-            ? false
-            : declared,
-        };
-      })
-      .sort(
-        (a, b) =>
-          Number(b.id === this.defaultModelId) -
-            Number(a.id === this.defaultModelId) ||
-          a.name.localeCompare(b.name),
-      );
+    return toListing(served, descriptor, live, this.defaultModelId);
   }
 }

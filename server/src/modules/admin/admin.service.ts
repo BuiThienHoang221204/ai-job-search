@@ -46,11 +46,6 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
         ...pageArgs(query),
         select: {
-          /**
-           * `id` và `provider` từng bị bỏ ở đây, và cả hai đều gây lỗi thấy được
-           * trên màn quản trị: giao diện dùng `id` làm key của React nên mọi hàng
-           * nhận `key={undefined}` (React cảnh báo, và việc so sánh hàng khi cập
-           */
           id: true,
           purpose: true,
           provider: true,

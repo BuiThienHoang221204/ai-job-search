@@ -1,15 +1,9 @@
+import { dedupeKeyOf } from './dedupe.js';
 import { OCCUPATIONS, OTHER_CODE } from './occupations.js';
 import { PROVINCES, REMOTE_CODE } from './provinces.js';
 import { SUB_OCCUPATIONS } from './sub-occupations.js';
 
-/**
- * Hạ chữ thường, bỏ dấu tiếng Việt, gộp mọi thứ không phải chữ và số về một dấu
- * cách. Là dạng chuẩn duy nhất mà cả ba hàm dưới đây và cột `searchText` cùng
- * dùng - hai bên chuẩn hoá khác nhau thì ô tìm kiếm không bao giờ khớp.
- *
- * `đ` phải xử lý riêng: nó không phải `d` có dấu phụ nên `normalize('NFD')`
- * không tách ra được.
- */
+/** Dạng chuẩn DUY NHẤT mà ba hàm dưới và cột `searchText` cùng dùng; `đ` phải xử lý riêng vì `NFD` không tách được nó. */
 export function normalizeText(value: string): string {
   return value
     .toLowerCase()
@@ -25,13 +19,7 @@ const padded = (value: string) => ` ${value} `;
 
 const REMOTE_HINTS = ['remote', 'lam viec tu xa', 'tu xa', 'work from home'];
 
-/**
- * Suy mã tỉnh/thành từ chuỗi địa điểm thô của portal.
- *
- * Trả `null` khi không chắc, KHÔNG đoán bừa: một tin bị gán sai tỉnh sẽ nổi lên
- * trong bộ lọc của người ở tỉnh khác, còn tin không gán thì chỉ vắng mặt - sai
- * kiểu thứ hai dễ phát hiện và ít gây hại hơn.
- */
+/** Trả `null` khi không chắc, KHÔNG đoán bừa: gán sai tỉnh thì tin nổi lên ở bộ lọc người tỉnh khác, còn không gán thì chỉ vắng mặt. */
 const ALIASES: ReadonlyArray<{ name: string; code: string }> =
   PROVINCES.flatMap((province) =>
     [normalizeText(province.name), ...province.aliases].map((name) => ({
@@ -56,14 +44,7 @@ export function resolveProvince(location: string | null): string | null {
   return null;
 }
 
-/**
- * Suy mã nhóm ngành từ tiêu đề và thẻ của tin.
- *
- * Tiêu đề được xét TRƯỚC toàn bộ thẻ: thẻ là thứ portal gắn rộng tay ("IT" trên
- * một tin tuyển kế toán cho công ty phần mềm), còn tiêu đề là thứ nhà tuyển
- * dụng phải viết đúng. Trả `OTHER` chứ không trả `null` - mọi tin đều thuộc một
- * ngành nào đó, và "khác" là một lựa chọn hợp lệ trên bộ lọc.
- */
+/** Tiêu đề xét TRƯỚC thẻ (portal gắn "IT" cho tin kế toán ở công ty phần mềm); trả `OTHER` chứ không `null`. */
 export function resolveOccupation(title: string, tags: string[]): string {
   const fromTitle = matchOccupation(padded(normalizeText(title)));
   if (fromTitle) return fromTitle;
@@ -72,14 +53,7 @@ export function resolveOccupation(title: string, tags: string[]): string {
   return fromTags ?? OTHER_CODE;
 }
 
-/**
- * Khớp theo TỪ, cộng thêm khớp theo TIỀN TỐ cho từ khoá một chữ.
- *
- * Chỉ khớp trọn từ thì thẻ `ReactJS`, `NodeJS`, `VueJS` - đúng dạng portal hay
- * gắn - đều trượt, vì `reactjs` là một từ chứ không phải `react` + `js`. Tiền
- * tố chỉ mở cho từ khoá từ bốn ký tự trở lên: dưới mức đó thì `pr` sẽ nuốt
- * `production` và mọi tin sản xuất rơi vào nhóm truyền thông.
- */
+/** Khớp TỪ + khớp TIỀN TỐ cho từ khoá ≥4 ký tự: thiếu tiền tố thì `ReactJS` trượt, mở rộng hơn thì `pr` nuốt `production`. */
 const PREFIX_MIN_LENGTH = 4;
 
 function matchOccupation(haystack: string): string | null {
@@ -119,15 +93,36 @@ export function resolveSubOccupation(
   return firstMatch(padded(normalizeText(tags.join(' '))), subs);
 }
 
-/**
- * Văn bản mà ô tìm kiếm chạy `LIKE` lên. Gộp tiêu đề, công ty và thẻ vì đó là
- * ba thứ người dùng gõ vào ô tìm kiếm; KHÔNG gộp `description` - mô tả dài tới
- * 60KB sẽ làm index trigram phình ra và khiến gần như mọi từ khoá đều khớp.
- */
+/** Tiêu đề + công ty + thẻ. KHÔNG gộp `description`: mô tả 60KB làm index trigram phình và mọi từ khoá đều khớp. */
 export function buildSearchText(
   title: string,
   company: string,
   tags: string[],
 ): string {
   return normalizeText([title, company, ...tags].join(' '));
+}
+
+/** Gọi trọn bộ resolver một lượt — đây là thứ DUY NHẤT đường ghi tin nên gọi, để mọi tin có cùng bộ cột dẫn xuất. */
+export function derivedFields(
+  title: string,
+  company: string,
+  location: string | null | undefined,
+  tags: string[],
+): {
+  provinceCode: string | null;
+  occupationCode: string;
+  subOccupationCode: string | null;
+  searchText: string;
+  dedupeKey: string | null;
+} {
+  const provinceCode = resolveProvince(location ?? null);
+  const occupationCode = resolveOccupation(title, tags);
+
+  return {
+    provinceCode,
+    occupationCode,
+    subOccupationCode: resolveSubOccupation(occupationCode, title, tags),
+    searchText: buildSearchText(title, company, tags),
+    dedupeKey: dedupeKeyOf(title, company, provinceCode),
+  };
 }

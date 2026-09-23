@@ -1,4 +1,4 @@
-import { concurrencyForQueue } from 'src/modules/queue/queue.config.js';
+import { concurrencyForQueue } from 'src/modules/queue/queue.defaults.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 
 describe('concurrencyForQueue', () => {

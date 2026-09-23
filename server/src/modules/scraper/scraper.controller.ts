@@ -14,25 +14,16 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { JobSourceRouter } from './sources/job-source.router.js';
-import { ScraperService } from './scraper.service.js';
+import { JobSourceRouter } from './services/job-source.router.js';
+import { ScraperService } from './services/scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
-
-/**
- * Cố ý KHÔNG dùng @IsIn với danh sách cứng: danh sách portal được quét lúc
- * khởi động nên decorator (chạy lúc nạp class) không thể biết trước. Kiểm tra
- * ở thân hàm, nơi đọc được registry thật.
- */
-export class StartScrapeDto {
-  @IsOptional() @IsString() portal?: string;
-}
+import { StartScrapeDto } from './scraper.dto.js';
 
 @ApiTags('Scraper')
 @ApiBearerAuth()
@@ -54,10 +45,7 @@ export class ScraperController {
     return { portals: this.portals.describePortals() };
   }
 
-  /**
-   * Quét lại thư mục portal mà không phải khởi động lại máy chủ. Dùng sau khi
-   * thêm một thư mục portal mới hoặc đổi cờ `enabled:` trong SKILL.md.
-   */
+  /** Nhận portal mới mà không khởi động lại máy chủ — dùng sau khi thêm thư mục portal hoặc đổi cờ `enabled:`. */
   @ApiOperation({
     summary: 'Tải lại danh sách cổng thông tin cấu hình từ đĩa (Admin)',
   })
@@ -84,10 +72,7 @@ export class ScraperController {
     return this.scraper.get(user.id, id);
   }
 
-  /**
-   * Đường GHI. Tạo bản ghi PENDING rồi đẩy vào hàng đợi; một lần quét mất
-   * vài phút vì phải tôn trọng nhịp request tới portal.
-   */
+  /** Đường GHI: tạo bản ghi PENDING rồi xếp hàng đợi — một lượt quét mất vài phút vì phải giữ nhịp với portal. */
   @ThrottleScrape()
   @ApiOperation({
     summary: 'Bắt đầu một lượt quét tin tuyển dụng mới từ cổng thông tin',
