@@ -172,6 +172,8 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          # Mặc định 10 phút; lần đầu `compose up` phải build omniroute (Playwright + Chromium) và opencode.
+          command_timeout: 30m
           envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
           script: |
             set -euo pipefail
@@ -185,6 +187,8 @@ jobs:
             docker compose pull app postgres
             docker image inspect aijob-latex >/dev/null 2>&1 || docker compose build latex
             docker image inspect aijob-pdf >/dev/null 2>&1 || docker compose build pdf
+            docker image inspect aijob-omniroute:latest >/dev/null 2>&1 || docker compose build omniroute
+            docker image inspect aijob-opencode >/dev/null 2>&1 || docker compose build opencode
             docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
             docker image prune -f
