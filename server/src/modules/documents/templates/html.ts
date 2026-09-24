@@ -1,9 +1,6 @@
 /** Hạ tầng dùng chung cho mọi mẫu CV dạng HTML. Dáng vẻ nằm ở `themes.ts`. */
 
-/**
- * Escape văn bản trước khi nhúng vào HTML. Ranh giới an toàn: bản HTML này còn
- * được nhúng vào iframe trong phiên đăng nhập, nên sót một dấu `<` là một lỗ XSS.
- */
+/** Ranh giới an toàn: bản HTML này nhúng vào iframe trong phiên đăng nhập, sót một dấu `<` là một lỗ XSS. */
 export const escapeHtml = (input: string): string =>
   input
     .replace(/&/g, '&amp;')
@@ -22,11 +19,7 @@ export const joinParts = (
     .filter((part): part is string => Boolean(part))
     .join(separator);
 
-/**
- * Bọc phần thân và CSS thành một tài liệu HTML TỰ CHỨA. Bắt buộc tự chứa:
- * `pdf-service` chặn mọi tên miền nên tài nguyên ngoài rơi về font thay thế mà
- * không báo lỗi.
- */
+/** HTML phải TỰ CHỨA: `pdf-service` chặn mọi tên miền, tài nguyên ngoài rơi về font thay thế mà không báo lỗi. */
 export const htmlDocument = (options: {
   title: string;
   css: string;
@@ -47,13 +40,9 @@ ${options.body}
 </html>
 `;
 
-/**
- * CSS chống vỡ trang, mọi mẫu đều cần. Mỗi luật sửa một kiểu hỏng cụ thể của
- * đường HTML sang PDF - chi tiết trong CLAUDE.md, mục CV đi đường HTML.
- */
+/** CSS chống vỡ trang; mỗi luật sửa một kiểu hỏng cụ thể — chi tiết ở CLAUDE.md, mục "CV đi đường HTML". */
 export const printBaseCss = `
-/* Chromium mặc định không in màu nền: thiếu dòng này thì mẫu có dải màu in ra
-   trắng trơn, dù bản xem trước vẫn đúng. */
+/* Chromium không in màu nền: thiếu dòng này thì mẫu có dải màu in ra trắng trơn, dù xem trước vẫn đúng. */
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

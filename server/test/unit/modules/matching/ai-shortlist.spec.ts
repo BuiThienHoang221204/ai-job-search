@@ -1,12 +1,8 @@
-import type { JobRequirements } from 'src/modules/matching/schemas/job-requirements.schema.js';
-import {
-  matchRequirements,
-  type MatchProfile,
-} from 'src/modules/matching/requirement-match.js';
-import {
-  planShortlist,
-  type ShortlistRow,
-} from 'src/modules/matching/ai-shortlist.js';
+import type { JobRequirements } from 'src/modules/matching/ai/schemas/job-requirements.schema.js';
+import { matchRequirements } from 'src/modules/matching/rules/requirement-match.js';
+import type { MatchProfile } from 'src/modules/matching/rules/types.js';
+import { planShortlist } from 'src/modules/matching/rules/ai-shortlist.js';
+import type { ShortlistRow } from 'src/modules/matching/rules/types.js';
 
 const requirements = (
   overrides: Partial<JobRequirements> = {},

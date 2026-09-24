@@ -1,12 +1,4 @@
-/**
- * Một "lõi" — gateway phục vụ model. Mỗi lõi một file trong thư mục này; thêm
- * lõi mới là thêm một file rồi khai một dòng trong `index.ts`.
- *
- * Cố ý là DỮ LIỆU chứ không phải class Nest. Đã đo: trong 185 provider của
- * catalog, 146 cái dùng chung đúng một adapter (`@ai-sdk/openai-compatible`),
- * nên giữa chúng chỉ khác nhau baseURL, tên biến chứa key, và cách biết một
- * model làm được gì. Một class cho mỗi lõi sẽ là một class không có hàm nào.
- */
+/** Một "lõi" — gateway phục vụ model. Cố ý là DỮ LIỆU chứ không phải class Nest: 146/185 provider của catalog dùng chung một adapter, nên class cho mỗi lõi sẽ là class không có hàm nào. */
 export type ProviderDescriptor = {
   /** Khoá trong model catalog, và tiền tố trong `MODEL_FALLBACK_IDS`. */
   id: string;
@@ -14,39 +6,26 @@ export type ProviderDescriptor = {
   /** Tên hiển thị trong log. */
   label: string;
 
-  /**
-   * Tên biến môi trường chứa API key. Chỉ dùng để câu báo lỗi nói đúng chỗ cần
-   * sửa; giá trị thật do `configuration.ts` đọc.
-   */
+  /** Chỉ dùng để câu báo lỗi nói đúng chỗ cần sửa; giá trị thật do `configuration.ts` đọc. */
   apiKeyEnv: string;
 
-  /**
-   * Tên biến môi trường chứa `User-Agent` gửi kèm mỗi request. Bỏ trống thì
-   * dùng User-Agent mặc định của thư viện HTTP.
-   *
-   * Có mặt vì một lõi đã đo được là **phân biệt đối xử theo User-Agent** — xem
-   * docblock của `opencode.ts`. Khai bằng biến môi trường chứ không cứng trong
-   * code để tắt được mà không phải build lại.
-   */
+  /** Có mặt vì một lõi đã ĐO được là phân biệt đối xử theo User-Agent. Khai bằng biến môi trường để tắt được mà không phải build lại. */
   userAgentEnv?: string;
 
   baseURLEnv?: string;
+
+  honorsResponseFormat?: boolean;
 
   extraHeaders?: Record<string, string>;
 
   explicitStreamFlag?: boolean;
 
-  /**
-   * Đọc MỘT phần tử `data[]` của `GET /models`: gateway có KHAI là model này
-   * giữ được structured output không. Bỏ trống nghĩa là gateway không khai gì,
-   * và khi đó chỉ `knownNoStructuredOutput` mới biết.
-   */
+  /** Đọc MỘT phần tử `data[]` của `GET /models`: gateway có KHAI model này giữ được structured output không. Bỏ trống = gateway không khai gì. */
   declaresStructuredOutput?: (entry: Record<string, unknown>) => boolean;
 
-  /**
-   * Model đã ĐO là không giữ nổi structured output. Đây là danh sách CHẶN, cố ý
-   * không phải danh sách cho phép: model chưa đo thì vẫn được thử, còn model đã
-   * biết là hỏng thì không bao giờ tốn thêm một lượt gọi nào nữa.
-   */
+  /** Danh sách CHẶN, cố ý không phải danh sách cho phép: model chưa đo thì vẫn được thử, model đã biết là hỏng thì không tốn thêm lượt gọi nào. */
   knownNoStructuredOutput?: readonly string[];
+
+  /** Ngược lại là danh sách CHO PHÉP, chỉ dùng cho lõi `honorsResponseFormat: false`: model đã ĐO là stream ra JSON parse dần được. */
+  streamsJson?: readonly string[];
 };

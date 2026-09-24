@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -14,25 +13,16 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
-import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { JobSourceRouter } from './sources/job-source.router.js';
-import { ScraperService } from './scraper.service.js';
+import { JobSourceRouter } from './services/job-source.router.js';
+import { ScraperService } from './services/scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
-
-/**
- * Cố ý KHÔNG dùng @IsIn với danh sách cứng: danh sách portal được quét lúc
- * khởi động nên decorator (chạy lúc nạp class) không thể biết trước. Kiểm tra
- * ở thân hàm, nơi đọc được registry thật.
- */
-export class StartScrapeDto {
-  @IsOptional() @IsString() portal?: string;
-}
+import { StartScrapeDto } from './scraper.dto.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 
 @ApiTags('Scraper')
 @ApiBearerAuth()
@@ -54,15 +44,11 @@ export class ScraperController {
     return { portals: this.portals.describePortals() };
   }
 
-  /**
-   * Quét lại thư mục portal mà không phải khởi động lại máy chủ. Dùng sau khi
-   * thêm một thư mục portal mới hoặc đổi cờ `enabled:` trong SKILL.md.
-   */
+  /** Nhận portal mới mà không khởi động lại máy chủ — dùng sau khi thêm thư mục portal hoặc đổi cờ `enabled:`. */
   @ApiOperation({
     summary: 'Tải lại danh sách cổng thông tin cấu hình từ đĩa (Admin)',
   })
   @Post('portals/reload')
-  @UseGuards(RolesGuard)
   @Roles('ADMIN')
   async reloadPortals() {
     const portals = await this.portals.reload();
@@ -73,21 +59,23 @@ export class ScraperController {
     summary: 'Lấy lịch sử các lượt chạy scraper của người dùng hiện tại',
   })
   @Get('runs')
-  history(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
-    return this.scraper.history(user.id, query);
+  async history(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const page = await this.scraper.history(user.id, query);
+    return { ...page, items: withFailureKinds(page.items) };
   }
 
   @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy scraper theo ID' })
   @ApiParam({ name: 'id', description: 'ID của lượt chạy scraper' })
   @Get('runs/:id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.scraper.get(user.id, id);
+  // Lỗi thô của lượt quét chứa lệnh CLI và đường dẫn trên máy chủ; người dùng chỉ cần biết loại lỗi.
+  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.scraper.get(user.id, id));
   }
 
-  /**
-   * Đường GHI. Tạo bản ghi PENDING rồi đẩy vào hàng đợi; một lần quét mất
-   * vài phút vì phải tôn trọng nhịp request tới portal.
-   */
+  /** Đường GHI: tạo bản ghi PENDING rồi xếp hàng đợi — một lượt quét mất vài phút vì phải giữ nhịp với portal. */
   @ThrottleScrape()
   @ApiOperation({
     summary: 'Bắt đầu một lượt quét tin tuyển dụng mới từ cổng thông tin',

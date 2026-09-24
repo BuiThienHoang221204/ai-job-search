@@ -1,7 +1,6 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator.js';
-import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { SkillRegistryService } from './services/skill-registry.service.js';
 
 /**
@@ -12,7 +11,6 @@ import { SkillRegistryService } from './services/skill-registry.service.js';
 @ApiTags('Skills Registry')
 @ApiBearerAuth()
 @Controller('skills')
-@UseGuards(RolesGuard)
 @Roles('ADMIN')
 export class SkillsController {
   constructor(private readonly registry: SkillRegistryService) {}

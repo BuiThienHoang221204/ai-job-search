@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service.js';
-import { derivedFields } from './derived.js';
+import { derivedFields } from './resolve.js';
 
 /** Số tin xử lý mỗi lượt. Đủ nhỏ để không giữ cả bảng trong bộ nhớ. */
 const BATCH_SIZE = 500;
@@ -12,28 +12,14 @@ export interface BackfillResult {
   missingDedupeKey: number;
 }
 
-/**
- * Điền ba trường dẫn xuất cho những tin đã có trước khi chúng ra đời.
- *
- * Là một service trong app chứ không phải script chạy rời: nó phải gọi đúng
- * `derivedFields` mà đường ghi thật gọi, và một script node trần thì không nạp
- * được TypeScript của app nên sẽ phải chép lại logic - bản chép đó lệch ngay
- * lần đầu ai đó sửa danh mục.
- */
+/** Là service trong app chứ không phải script rời, để gọi ĐÚNG `derivedFields` mà đường ghi thật gọi. */
 @Injectable()
 export class TaxonomyBackfillService {
   private readonly logger = new Logger(TaxonomyBackfillService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * `all = true` tính lại TẤT CẢ, dùng sau khi sửa danh mục tỉnh hoặc ngành.
-   *
-   * Chế độ tăng dần chỉ nhặt tin thiếu `searchText`, nên sau khi thêm một
-   * trường dẫn xuất MỚI (như `dedupeKey`) thì phải chạy với `all = true`. Lọc
-   * theo `dedupeKey: null` thay thế không được: khoá đó null một cách hợp lệ ở
-   * tin ẩn tên công ty, và vòng lặp sẽ không bao giờ thoát.
-   */
+  /** Thêm trường dẫn xuất MỚI thì phải chạy `all = true`; lọc theo `dedupeKey: null` sẽ lặp vô tận vì tin ẩn tên công ty null hợp lệ. */
   async run(all = false): Promise<BackfillResult> {
     const where = all ? {} : { searchText: null };
     let processed = 0;

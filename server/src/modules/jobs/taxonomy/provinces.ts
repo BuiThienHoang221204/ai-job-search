@@ -1,14 +1,4 @@
-/**
- * Danh mục 34 tỉnh/thành sau lần sáp nhập có hiệu lực 1/7/2025.
- *
- * `aliases` là những cách viết THẬT gặp trong dữ liệu portal, không phải cách
- * viết đúng chuẩn: tin từ TopCV ghi "TP.HCM", tin từ LinkedIn ghi
- * "Ho Chi Minh City", tin nhập tay ghi "Quận 1, Hồ Chí Minh". Cả ba phải rơi
- * vào cùng một mã, nếu không thì bộ lọc chia một tỉnh thành ba.
- *
- * Tên tỉnh cũ đã sáp nhập cũng nằm trong `aliases` chứ không bị xoá: dữ liệu đã
- * quét trước đó vẫn ghi tên cũ, và người dùng vẫn gõ tên cũ.
- */
+/** 34 tỉnh sau sáp nhập 1/7/2025. `aliases` là cách viết THẬT của portal (kể cả tên tỉnh cũ), không phải cách viết chuẩn. */
 export interface Province {
   code: string;
   name: string;

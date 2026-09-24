@@ -1,9 +1,9 @@
-import {
-  collectCards,
-  type CollectLimits,
-} from 'src/modules/scraper/ingest/collect-cards.js';
-import type { PlannedQuery } from 'src/modules/scraper/planning/query-plan.js';
-import type { PortalJobCard } from 'src/modules/scraper/sources/portal-cli.service.js';
+import { collectCards } from 'src/modules/scraper/utils/collect-cards.js';
+import type {
+  CollectLimits,
+  PlannedQuery,
+  PortalJobCard,
+} from 'src/modules/scraper/types.js';
 
 const card = (id: string): PortalJobCard => ({
   id,

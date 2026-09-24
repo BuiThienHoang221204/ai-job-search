@@ -15,7 +15,7 @@ process.env.APP_ROLE = 'api';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../dist/app.module.js';
-import { SkillDictionaryService } from '../dist/modules/matching/services/skill-dictionary.service.js';
+import { SkillDictionaryService } from '../dist/modules/matching/ai/services/skill-dictionary.service.js';
 
 const at = process.argv.indexOf('--rounds');
 const MAX_ROUNDS = at >= 0 ? Number(process.argv[at + 1]) : Infinity;

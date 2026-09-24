@@ -23,6 +23,15 @@ export function pageArgs(query: PaginationQueryDto = {}): {
   return { take: query.limit ?? DEFAULT_PAGE_SIZE, skip: query.offset ?? 0 };
 }
 
+/** Cắt một danh sách đã nằm sẵn trong bộ nhớ (cache, cấu hình) thành trang. */
+export function pageFromArray<T>(
+  all: T[],
+  query: PaginationQueryDto = {},
+): Page<T> {
+  const { take, skip } = pageArgs(query);
+  return pageOf(all.slice(skip, skip + take), all.length, query);
+}
+
 /** Gói kết quả `findMany` + `count` lại thành một trang. */
 export function pageOf<T>(
   items: T[],

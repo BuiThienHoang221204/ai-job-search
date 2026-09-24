@@ -7,6 +7,5 @@ import { QuestionBankService } from './question-bank.service.js';
   imports: [AiModule],
   controllers: [QuestionBankController],
   providers: [QuestionBankService],
-  exports: [QuestionBankService],
 })
 export class QuestionBankModule {}

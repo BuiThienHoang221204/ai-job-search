@@ -28,31 +28,22 @@ type GenerateObjectArgs = {
 /// đó `mock.calls[i][0]` là `any` — eslint đỏ, còn kiểm tra kiểu thì mất.
 const generateObjectMock = jest.fn<Promise<unknown>, [GenerateObjectArgs]>();
 
-/// Một bước của vòng lặp agent, đúng những trường mà `attemptTools` đọc tới.
-type AgentStep = {
-  text: string;
-  toolCalls: unknown[];
-  toolResults: unknown[];
-  response: { messages: unknown[] };
-};
-
-type GenerateTextArgs = {
+type StreamObjectArgs = {
   model: { id: string };
-  maxRetries: number;
-  onStepFinish?: (step: AgentStep) => void;
+  system: string;
 };
 
-const generateTextMock = jest.fn<Promise<unknown>, [GenerateTextArgs]>();
+type FakeStream = {
+  partialObjectStream: AsyncIterable<unknown>;
+  object: Promise<unknown>;
+};
+
+const streamObjectMock = jest.fn<FakeStream, [StreamObjectArgs]>();
 
 jest.mock('ai', () => ({
   generateObject: (args: GenerateObjectArgs) => generateObjectMock(args),
-  generateText: (args: GenerateTextArgs) => generateTextMock(args),
-  /// Hai hàm này chỉ dựng điều kiện dừng rồi đưa thẳng cho SDK, nên trả về gì
-  /// cũng được — miễn là CÓ, vì thiếu export thì `stepCountIs(...)` ném TypeError
-  /// trước khi chạm tới nhánh đang kiểm.
-  stepCountIs: () => 'stop-when',
-  hasToolCall: () => 'stop-on-tool',
   streamText: jest.fn(),
+  streamObject: (args: StreamObjectArgs) => streamObjectMock(args),
   NoObjectGeneratedError: actualAi.NoObjectGeneratedError,
 }));
 
@@ -95,6 +86,43 @@ const rateLimit = (model: string) =>
 const formatUnsupported = () =>
   new Error('This response_format type is unavailable now');
 
+/// Model nói hết câu nhưng nói bằng văn xuôi — đúng hình dạng lỗi đã gặp thật
+/// ngày 2026-09-22 khi OmniRoute định tuyến sang `ds-web`.
+const proseInsteadOfJson = () =>
+  new actualAi.NoObjectGeneratedError({
+    message: 'No object generated: could not parse the response.',
+    text: 'Dear FPT hiring team, I am writing to apply...',
+    response: { id: 'r1', timestamp: new Date(0), modelId: 'a-free' },
+    usage: {
+      inputTokens: 10,
+      outputTokens: 648,
+      totalTokens: 658,
+      inputTokenDetails: {
+        noCacheTokens: 10,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      },
+      outputTokenDetails: { textTokens: 648, reasoningTokens: 0 },
+    },
+    finishReason: 'stop',
+  });
+
+const fakeStream = (
+  partials: unknown[],
+  object: Promise<unknown>,
+): FakeStream => ({
+  partialObjectStream: (async function* () {
+    for (const partial of partials) yield await Promise.resolve(partial);
+  })(),
+  object,
+});
+
+const drain = async (partials: AsyncIterable<unknown>) => {
+  const seen: unknown[] = [];
+  for await (const partial of partials) seen.push(partial);
+  return seen;
+};
+
 type Recorded = {
   modelId: string;
   ok: boolean;
@@ -110,6 +138,10 @@ function build(options?: {
   fallbackModelIds?: string[];
   structuredOutputs?: boolean;
   recordFails?: boolean;
+  /// `false` = lõi chỉ ÁP DỤNG được một chế độ ép định dạng (omniroute).
+  honorsResponseFormat?: boolean;
+  /// `true` = model NÀY đã đo là stream ra JSON parse dần được.
+  streamsJson?: boolean;
 }) {
   const recorded: Recorded[] = [];
 
@@ -138,6 +170,8 @@ function build(options?: {
         // suite đỏ với `Cannot read properties of undefined`, và bản thật của
         // `ModelCatalogService` luôn trả về ít nhất `{}`.
         headers: {},
+        honorsResponseFormat: options?.honorsResponseFormat ?? true,
+        streamsJson: options?.streamsJson ?? false,
       }),
   } as unknown as ModelCatalogService;
 
@@ -159,7 +193,7 @@ const argsOf = (index: number): GenerateObjectArgs =>
 
 beforeEach(() => {
   generateObjectMock.mockReset();
-  generateTextMock.mockReset();
+  streamObjectMock.mockReset();
   providerCalls.length = 0;
 });
 
@@ -286,28 +320,6 @@ describe('AiService - lõi trả 5xx', () => {
       },
     );
 
-  const runToolsCall = (modelId?: string) => ({
-    system: 'Bạn là nhà tuyển dụng.',
-    prompt: 'Đọc bản nháp này.',
-    tools: {},
-    context: { purpose: 'agent.reviewer', userId: 'u1' },
-    modelId,
-  });
-
-  const finished = {
-    text: 'Hồ sơ này yếu ở phần số liệu.',
-    finishReason: 'stop',
-    usage: {},
-    response: { messages: [] },
-  };
-
-  const oneStep: AgentStep = {
-    text: 'đã đọc hồ sơ',
-    toolCalls: [],
-    toolResults: [],
-    response: { messages: [] },
-  };
-
   test('generateObject: 500 thì ĐỔI MODEL', () => {
     generateObjectMock
       .mockRejectedValueOnce(serverError())
@@ -320,19 +332,16 @@ describe('AiService - lõi trả 5xx', () => {
     });
   });
 
-  test('runTools: 500 khi CHƯA đi bước nào thì đổi model', async () => {
-    generateTextMock
+  /// Cả hai lượt phải nằm trong nhật ký, nếu không màn Admin không cho biết
+  /// model nào đang ốm.
+  test('generateObject: 500 thì ghi CẢ lượt hỏng lẫn lượt xong', async () => {
+    generateObjectMock
       .mockRejectedValueOnce(serverError())
-      .mockResolvedValueOnce(finished);
+      .mockResolvedValueOnce({ object: { diem: 8 }, usage: {} });
 
     const { service, recorded } = build({ fallbackModelIds: ['b-free'] });
+    await service.generateObject(call('a-free'));
 
-    const result = await service.runTools(runToolsCall('a-free'));
-
-    expect(result.modelId).toBe('b-free');
-    expect(generateTextMock).toHaveBeenCalledTimes(2);
-    // Cả hai lượt phải nằm trong nhật ký, nếu không màn Admin không cho biết
-    // model nào đang ốm.
     expect(recorded.map((row) => [row.modelId, row.ok])).toEqual([
       ['a-free', false],
       ['b-free', true],
@@ -340,33 +349,138 @@ describe('AiService - lõi trả 5xx', () => {
     expect(recorded[0].failureKind).toBe('UPSTREAM');
   });
 
-  test('runTools: 500 SAU khi đã đi được một bước thì ném NGAY', async () => {
-    /*
-     * Phanh chi phí. Đổi model nghĩa là chạy lại vòng lặp TỪ BƯỚC 0, nên bỏ mắt
-     * xích ở giữa chừng là trả tiền lần hai cho mọi bước đã xong — và một bước
-     * agent có thể là một lượt soạn CV kéo dài vài phút.
-     */
-    const loi = serverError();
-    generateTextMock.mockImplementationOnce((args) => {
-      args.onStepFinish?.(oneStep);
-      return Promise.reject(loi);
-    });
-
-    const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
-
-    await expect(service.runTools(runToolsCall('a-free'))).rejects.toBe(loi);
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('runTools: lỗi KHÔNG phải 5xx vẫn ném ngay như cũ', async () => {
+  test('lỗi KHÔNG phải 5xx thì ném NGAY, không đi hết chuỗi', async () => {
     // 400 thì model nào cũng từ chối; chạy hết chuỗi chỉ nhân số lần chờ lên.
     const loi = Object.assign(new Error('bad request'), { statusCode: 400 });
-    generateTextMock.mockRejectedValue(loi);
+    generateObjectMock.mockRejectedValue(loi);
 
     const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
 
-    await expect(service.runTools(runToolsCall('a-free'))).rejects.toBe(loi);
-    expect(generateTextMock).toHaveBeenCalledTimes(1);
+    await expect(service.generateObject(call('a-free'))).rejects.toBe(loi);
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AiService - lõi chỉ có MỘT chế độ ép định dạng', () => {
+  /// Hỏng thật 2026-09-23 trên `omniroute/auto/smart`: lượt 1 chạy đúng chế độ
+  /// `false` (schema bơm vào system prompt) nhưng không ra object, rồi lượt thử
+  /// lại ở `true` BỎ luôn phần schema trong prompt — mà omniroute chỉ chuyển
+  /// tiếp `response_format` rồi mặc kệ. Model không còn lời nhắc nào về hình
+  /// dạng, và lỗi người dùng thấy là "could not parse the response" của lượt
+  /// THỨ HAI, che mất lỗi thật của lượt đầu.
+  test('generateObject: KHÔNG thử lại ở chế độ kia, ném lỗi của lượt đầu', async () => {
+    const loi = proseInsteadOfJson();
+    generateObjectMock.mockRejectedValue(loi);
+
+    const { service } = build({ honorsResponseFormat: false });
+
+    await expect(service.generateObject(call('auto/smart'))).rejects.toBe(loi);
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  /// Chế độ duy nhất chạy được với lõi này là `false`, và chỉ chế độ đó mới bơm
+  /// JSON Schema vào system prompt.
+  test('lượt DUY NHẤT đó vẫn mang JSON Schema trong system prompt', async () => {
+    generateObjectMock.mockRejectedValue(proseInsteadOfJson());
+
+    const { service } = build({ honorsResponseFormat: false });
+    await expect(service.generateObject(call('auto/smart'))).rejects.toThrow();
+
+    expect(argsOf(0).system).toContain('ĐỊNH DẠNG ĐẦU RA BẮT BUỘC');
+  });
+
+  /// Đường stream KHÔNG có lưới: phản hồi là `text/event-stream` nên `extractJson`
+  /// không chạm tới được. Thử nó trước rồi mới rơi về là trả 28 giây và ~6.800
+  /// token cho một hiệu ứng KHÔNG hiện ra — lúc stream hỏng thì giao diện cũng
+  /// chỉ quay vòng rồi hiện kết quả một lần, y như đường không stream.
+  test('streamObject: KHÔNG gọi stream lấy một lần', async () => {
+    generateObjectMock.mockResolvedValueOnce({
+      object: { diem: 7 },
+      usage: {},
+    });
+
+    const { service } = build({ honorsResponseFormat: false });
+    const stream = await service.streamObject(call('auto/smart'));
+
+    // Người gọi nhận đủ object; chỉ mất hiệu ứng chạy dần.
+    expect(await drain(stream.partials)).toEqual([]);
+    await expect(stream.object).resolves.toEqual({ diem: 7 });
+
+    expect(streamObjectMock).not.toHaveBeenCalled();
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  /// Lượt gọi lại chỉ có nghĩa nếu nó MANG THEO lời nhắc schema — đó là thứ duy
+  /// nhất còn giữ định dạng khi lõi bỏ qua `response_format`.
+  test('lượt gọi lại vẫn mang JSON Schema trong system prompt', async () => {
+    generateObjectMock.mockResolvedValueOnce({
+      object: { diem: 7 },
+      usage: {},
+    });
+
+    const { service } = build({ honorsResponseFormat: false });
+    await service.streamObject(call('auto/smart'));
+
+    expect(argsOf(0).system).toContain('ĐỊNH DẠNG ĐẦU RA BẮT BUỘC');
+  });
+
+  test('lượt duy nhất đó hỏng thì ném ra thật, không thử thêm', async () => {
+    const loi = proseInsteadOfJson();
+    generateObjectMock.mockRejectedValue(loi);
+
+    const { service } = build({ honorsResponseFormat: false });
+
+    await expect(service.streamObject(call('auto/smart'))).rejects.toBe(loi);
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  /// Quyết định stream là theo TỪNG MODEL, không theo lõi: cùng lõi omniroute,
+  /// `kc/openrouter/free` stream ra JSON sạch còn model khác trả văn xuôi.
+  test('model ĐÃ ĐO là stream được thì VẪN stream, dù lõi không ép được định dạng', async () => {
+    streamObjectMock.mockReturnValueOnce(
+      fakeStream([{ diem: 4 }, { diem: 9 }], Promise.resolve({ diem: 9 })),
+    );
+
+    const { service } = build({
+      honorsResponseFormat: false,
+      streamsJson: true,
+    });
+    const stream = await service.streamObject(call('kc/openrouter/free'));
+
+    expect(await drain(stream.partials)).toEqual([{ diem: 4 }, { diem: 9 }]);
+    expect(streamObjectMock).toHaveBeenCalledTimes(1);
+    expect(generateObjectMock).not.toHaveBeenCalled();
+  });
+
+  /// Có trong danh sách mà vẫn hỏng thì vẫn còn lưới, không để mất trắng.
+  test('model trong danh sách mà stream hỏng thì rơi về KHÔNG stream', async () => {
+    streamObjectMock.mockReturnValueOnce(
+      fakeStream([], Promise.reject(proseInsteadOfJson())),
+    );
+    generateObjectMock.mockResolvedValueOnce({
+      object: { diem: 7 },
+      usage: {},
+    });
+
+    const { service } = build({
+      honorsResponseFormat: false,
+      streamsJson: true,
+    });
+    const stream = await service.streamObject(call('kc/openrouter/free'));
+
+    await expect(stream.object).resolves.toEqual({ diem: 7 });
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('lõi ÁP DỤNG được response_format thì vẫn thử lại như cũ', async () => {
+    generateObjectMock
+      .mockRejectedValueOnce(proseInsteadOfJson())
+      .mockResolvedValueOnce({ object: { diem: 5 }, usage: {} });
+
+    const { service } = build({ honorsResponseFormat: true });
+
+    await service.generateObject(call('a-free'));
+    expect(generateObjectMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -445,6 +559,83 @@ describe('AiService.generateObject - chế độ ép định dạng', () => {
     await service.generateObject(call('a-free'));
 
     expect(argsOf(0).system).toBe('Bạn là người đánh giá.');
+  });
+});
+
+describe('AiService.streamObject - lưới đổi chế độ ép định dạng', () => {
+  test('chưa phát mảnh nào thì thử lại ở chế độ kia, và người gọi không thấy lần hỏng', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(proseInsteadOfJson())))
+      .mockReturnValueOnce(
+        fakeStream([{ diem: 4 }, { diem: 9 }], Promise.resolve({ diem: 9 })),
+      );
+
+    const { service } = build({ structuredOutputs: true });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(await drain(stream.partials)).toEqual([{ diem: 4 }, { diem: 9 }]);
+    await expect(stream.object).resolves.toEqual({ diem: 9 });
+    expect(providerCalls.map((c) => c.supportsStructuredOutputs)).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  test('lần thử lại mới bơm JSON Schema vào system prompt', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(proseInsteadOfJson())))
+      .mockReturnValueOnce(
+        fakeStream([{ diem: 9 }], Promise.resolve({ diem: 9 })),
+      );
+
+    const { service } = build({ structuredOutputs: true });
+    await service.streamObject(call('a-free'));
+
+    expect(streamObjectMock.mock.calls[0][0].system).toBe(
+      'Bạn là người đánh giá.',
+    );
+    expect(streamObjectMock.mock.calls[1][0].system).toContain(
+      'ĐỊNH DẠNG ĐẦU RA BẮT BUỘC',
+    );
+  });
+
+  test('đã phát một mảnh rồi thì KHÔNG thử lại: trình duyệt đã vẽ nửa câu', async () => {
+    const loi = proseInsteadOfJson();
+    streamObjectMock.mockReturnValueOnce(
+      fakeStream([{ diem: 4 }], Promise.reject(loi)),
+    );
+
+    const { service } = build({ structuredOutputs: true });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(await drain(stream.partials)).toEqual([{ diem: 4 }]);
+    await expect(stream.object).rejects.toBe(loi);
+    expect(streamObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('lỗi KHÔNG phải schema thì ném thẳng, không đốt thêm một lượt', async () => {
+    const loi = rateLimit('a-free');
+    streamObjectMock.mockReturnValueOnce(fakeStream([], Promise.reject(loi)));
+
+    const { service } = build({ structuredOutputs: true });
+
+    await expect(service.streamObject(call('a-free'))).rejects.toBe(loi);
+    expect(streamObjectMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('chỉ đổi MỘT lần: chế độ kia cũng trả văn xuôi thì ném ra thật', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(proseInsteadOfJson())))
+      .mockReturnValueOnce(
+        fakeStream([], Promise.reject(proseInsteadOfJson())),
+      );
+
+    const { service } = build({ structuredOutputs: true });
+
+    await expect(service.streamObject(call('a-free'))).rejects.toThrow(
+      'could not parse the response',
+    );
+    expect(streamObjectMock).toHaveBeenCalledTimes(2);
   });
 });
 

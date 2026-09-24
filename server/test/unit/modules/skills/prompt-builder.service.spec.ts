@@ -158,6 +158,57 @@ describe('dropSubsection', () => {
     expect(output).toContain('Technical Skills');
     expect(output).toContain('Kỹ thuật 30%');
   });
+
+  test('bỏ hết mục con dù nội dung có chữ z', () => {
+    const withZ = [
+      '## Tailoring',
+      '### Bullet Lists',
+      'Wrap the itemize block in fontspec.',
+      '',
+      '## Checklist',
+      'Fits on one page.',
+    ].join('\n');
+
+    const output = service.dropSubsection(withZ, 'Bullet Lists');
+
+    expect(output).not.toContain('itemize');
+    expect(output).not.toContain('fontspec');
+    expect(output).toContain('Fits on one page.');
+  });
+
+  test('bỏ được mục con nằm cuối file, không còn tiêu đề nào phía sau', () => {
+    const last = ['## Tailoring', '### Bullet Lists', 'Dùng itemize.'].join(
+      '\n',
+    );
+
+    expect(service.dropSubsection(last, 'Bullet Lists')).toBe('## Tailoring\n');
+  });
+
+  /*
+   * `04-job-evaluation.md` có HAI mục "Salary Benchmark". Thiếu cờ `g` thì
+   * `.replace` chỉ xoá cái đầu, và model chấm điểm vẫn nhận hướng dẫn tự ước
+   * lượng lương - việc đã chuyển hẳn sang module salary.
+   */
+  test('bỏ HẾT mục con trùng tên, không chỉ cái đầu tiên', () => {
+    const twice = [
+      '## Scoring Dimensions',
+      '### 6. Salary Benchmark (Optional)',
+      'Chạy salary_lookup.py.',
+      '',
+      '### Salary Benchmark',
+      'Ước lượng dải lương thị trường.',
+      '',
+      '## Weighting',
+      'Kỹ thuật 30%.',
+    ].join('\n');
+
+    const output = service.dropSubsection(twice, 'Salary Benchmark');
+
+    expect(output).not.toContain('Salary Benchmark');
+    expect(output).not.toContain('salary_lookup.py');
+    expect(output).not.toContain('Ước lượng dải lương');
+    expect(output).toContain('Kỹ thuật 30%');
+  });
 });
 
 describe('profileSummary', () => {

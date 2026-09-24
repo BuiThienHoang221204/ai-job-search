@@ -364,11 +364,15 @@ Thấy `Tạo PDF bằng docker run` nghĩa là mục 0.1 chưa làm.
 ### 2.6 Seed dữ liệu demo (tuỳ chọn)
 
 ```bash
-docker compose exec app node scripts/seed-demo.mjs
+docker compose exec -e SEED_ALLOW_REMOTE=1 app node scripts/seed-demo.mjs
 ```
 
 Tạo 10 tài khoản đa ngành, mật khẩu chung `Demo@12345`. **Đổi mật khẩu
 `admin@aijob.local` ngay nếu máy chủ mở ra Internet.**
+
+Script từ chối chạy khi database không nằm ở localhost, trừ khi có
+`SEED_ALLOW_REMOTE=1`: mật khẩu admin seed nằm công khai trong repo, nên chạy
+nhầm vào database thật là trao quyền admin cho bất kỳ ai đọc code.
 
 ---
 
@@ -398,6 +402,10 @@ docker run -d --name caddy --restart unless-stopped --network host \
 
 Caddy tự xin chứng chỉ Let's Encrypt. Sửa lại cổng của app trong compose thành
 `127.0.0.1:3000:3000` để không ai vào thẳng được cổng 3000.
+
+Thêm `TRUST_PROXY=1` vào `server/.env` rồi khởi động lại app. Thiếu dòng này thì
+API thấy mọi request đến từ IP của Caddy: rate limit theo IP (đăng nhập 10
+lần/phút) thành trần chung của cả site.
 
 Kiểm: `curl https://api.careelot.com/api/health`
 

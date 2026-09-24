@@ -11,7 +11,96 @@
  * phòng mà script không hề dùng tới.
  */
 
+import { spawn } from 'node:child_process';
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Tiền tố chọn đường CLI. `opencode-cli/big-pickle` chạy `opencode run --model opencode/big-pickle`. */
+const CLI_PREFIX = 'opencode-cli/';
+
+const CLI_BIN = process.env.OPENCODE_CLI_BIN ?? 'opencode';
+const CLI_TIMEOUT_MS = Number(process.env.OPENCODE_CLI_TIMEOUT_MS ?? 180_000);
+
+/** Trần argv của Windows là 32767 ký tự; vượt thì lỗi báo ra rất khó truy. */
+const CLI_MESSAGE_LIMIT = 30_000;
+
+const CLI_RATE_LIMITED = /429|rate.?limit|FreeUsageLimit|free tier|quota/i;
+
+/** CLI báo hết hạn mức bằng chữ trong stdout/stderr chứ không có mã HTTP. */
+class CliRateLimited extends Error {}
+
+/** Gom theo id của part: một part được cập nhật nhiều lần khi chữ chảy dần, lấy bản cuối. */
+function collectCliText(stdout) {
+  const parts = new Map();
+  for (const line of stdout.split('\n')) {
+    if (!line.trim()) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (event?.type !== 'text') continue;
+    const part = event.part;
+    if (part?.id && typeof part.text === 'string') parts.set(part.id, part.text);
+  }
+  return [...parts.values()].join('');
+}
+
+/** Chạy một lượt qua CLI. `temperature` bị BỎ QUA vì `opencode run` không có cờ tương ứng. */
+function callViaCli({ model, system, user }) {
+  const message = system ? `${system}\n\n---\n\n${user}` : user;
+  if (message.length > CLI_MESSAGE_LIMIT) {
+    return Promise.reject(
+      new Error(`prompt ${message.length} ký tự, quá trần argv ${CLI_MESSAGE_LIMIT}`),
+    );
+  }
+
+  const args = ['run', message, '--model', model, '--format', 'json'];
+  if (process.env.OPENCODE_CLI_AGENT) {
+    args.push('--agent', process.env.OPENCODE_CLI_AGENT);
+  }
+  if (process.env.OPENCODE_CLI_DIR) {
+    args.push('--dir', process.env.OPENCODE_CLI_DIR);
+  }
+
+  return new Promise((resolve, reject) => {
+    // stdin PHẢI đóng: không có TTY mà vẫn để ngỏ thì CLI treo tới hết timeout, không in gì.
+    const child = spawn(CLI_BIN, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    let settled = false;
+
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(reject, new Error(`CLI không xong trong ${CLI_TIMEOUT_MS}ms`));
+    }, CLI_TIMEOUT_MS);
+
+    child.stdout.on('data', (chunk) => {
+      out += chunk;
+    });
+    child.stderr.on('data', (chunk) => {
+      err += chunk;
+    });
+    child.on('error', (error) => finish(reject, error));
+    child.on('close', (code) => {
+      if (CLI_RATE_LIMITED.test(`${out}\n${err}`)) {
+        return finish(reject, new CliRateLimited('CLI báo hết hạn mức'));
+      }
+      if (code !== 0) {
+        return finish(reject, new Error(`CLI thoát mã ${code}: ${err.trim().slice(0, 200)}`));
+      }
+      finish(resolve, collectCliText(out));
+    });
+  });
+}
 
 /**
  * `SCRIPT_MODEL_IDS` ghi đè chuỗi cho RIÊNG các script chạy tay, không đụng tới
@@ -97,6 +186,26 @@ export async function callModel({ system, user, temperature = 0.3, attempts = 2 
 
   for (const modelId of chain) {
     for (let attempt = 0; attempt <= attempts; attempt++) {
+      if (modelId.startsWith(CLI_PREFIX)) {
+        try {
+          const text = await callViaCli({
+            model: modelId.slice(CLI_PREFIX.length),
+            system,
+            user,
+          });
+          if (!text.trim()) throw new Error('phản hồi rỗng');
+          return { text, modelId };
+        } catch (err) {
+          if (err instanceof CliRateLimited) {
+            sawRateLimit = true;
+            break;
+          }
+          lastError = err;
+          if (attempt < attempts) await sleep(1500 * (attempt + 1));
+        }
+        continue;
+      }
+
       const endpoint = endpointFor(modelId);
       if (!endpoint.key) break;
       try {

@@ -4,9 +4,9 @@ import { PrismaClient } from '../dist/generated/prisma/client.js';
 import {
   buildPositionIndex,
   resolveJobPosition,
-} from '../dist/modules/salary/job-position.js';
-import { negotiationRange } from '../dist/modules/salary/negotiation.js';
-import { yearsOfExperience } from '../dist/modules/profile/experience-years.js';
+} from '../dist/modules/salary/utils/job-position.js';
+import { negotiationRange } from '../dist/modules/salary/utils/negotiation.js';
+import { yearsOfExperience } from '../dist/modules/profile/utils/experience-years.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

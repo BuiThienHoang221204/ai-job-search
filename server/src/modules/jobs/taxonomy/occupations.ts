@@ -1,15 +1,4 @@
-/**
- * Danh mục nhóm ngành, dùng cho bộ lọc "Ngành nghề" trên trang tìm việc.
- *
- * Phẳng một tầng, KHÔNG phân cấp: đề tài phục vụ mọi ngành nên một cây ngành
- * đúng chuẩn sẽ có hàng trăm nút, mà bộ lọc chỉ cần đủ để thu hẹp từ vài nghìn
- * tin xuống vài trăm. Ai muốn hẹp hơn thì gõ vào ô tìm kiếm.
- *
- * `keywords` đã ở dạng thường và không dấu, khớp bằng cách tìm chuỗi con trong
- * `title` và `tags` đã chuẩn hoá. Thứ tự trong mảng CÓ nghĩa: mục đứng trước
- * thắng khi một tin khớp nhiều nhóm, nên nhóm nào có từ khoá đặc trưng hơn thì
- * đặt lên trên.
- */
+/** Phẳng một tầng, cố ý không phân cấp. THỨ TỰ CÓ NGHĨA: mục đứng trước thắng khi một tin khớp nhiều nhóm. */
 export interface Occupation {
   code: string;
   name: string;

@@ -1,9 +1,6 @@
 import { printBaseCss } from './html.js';
 
-/**
- * Sáu mẫu CV, khác nhau hoàn toàn bằng CSS. CẢ SÁU ĐỀU MỘT CỘT vì bố cục hai cột
- * làm ATS đọc sai thứ tự dòng - xem CLAUDE.md, mục CV đi đường HTML.
- */
+/** Sáu mẫu, khác nhau hoàn toàn bằng CSS. CẢ SÁU MỘT CỘT: đo trên ATS 2026, một cột 100/100, hai cột 85/100. */
 
 /** Phong cách, dùng để nhóm mẫu ở kho chọn mẫu. */
 export type CvTemplateStyle = 'don-gian' | 'chuyen-nghiep' | 'hien-dai';
@@ -24,18 +21,12 @@ export type CvTheme = {
   css: (accent: string) => string;
 };
 
-/**
- * Font phải là font ĐÃ CÀI trong image `pdf-service`: webfont ngoài không tải được,
- * và trang sẽ lặng lẽ rơi về font thay thế mà không báo lỗi.
- */
+/** Phải là font ĐÃ CÀI trong image `pdf-service`: webfont ngoài không tải được và rơi về font thay thế, không báo lỗi. */
 const SANS = '"Noto Sans", "Liberation Sans", "DejaVu Sans", Arial, sans-serif';
 const SERIF =
   '"Noto Serif", "Liberation Serif", "DejaVu Serif", Georgia, serif';
 
-/**
- * CSS nền mọi mẫu đều cần. Cỡ chữ là tham số vì mọi khoảng cách tính theo `em`
- * nên đổi một chỗ là cả mẫu co lại cân đối - đó là cách mẫu "Gọn" hoạt động.
- */
+/** Cỡ chữ là tham số vì mọi khoảng cách tính theo `em`: đổi một chỗ là cả mẫu co cân đối — mẫu "Gọn" chạy như vậy. */
 const base = (options: {
   font: string;
   fontSize: string;
@@ -49,8 +40,7 @@ ${printBaseCss}
   margin: ${options.margin};
 }
 
-/* @page chỉ có tác dụng khi IN. Không có luật này thì khung xem trước dí chữ sát
-   mép iframe và trông không giống tờ giấy. Lặp lại đúng lề của @page. */
+/* @page chỉ có tác dụng khi IN; thiếu luật này thì khung xem trước dí chữ sát mép iframe. Lặp đúng lề @page. */
 @media screen {
   body { padding: ${options.margin}; }
 }
@@ -77,8 +67,7 @@ body {
   gap: 1em;
 }
 .entry-role { font-weight: 700; }
-/* Không cho khoảng thời gian xuống dòng: "01/2022 -" ở cuối dòng này và "06/2024"
-   ở đầu dòng sau đọc như hai mốc rời nhau. */
+/* Không cho khoảng thời gian xuống dòng: "01/2022 -" cuối dòng và "06/2024" đầu dòng sau đọc như hai mốc rời. */
 .entry-period { font-size: 0.9em; color: #555; white-space: nowrap; }
 .entry-meta { font-size: 0.95em; color: #333; font-style: italic; margin-bottom: 0.15em; }
 .entry-detail { font-size: 0.95em; color: #333; }
@@ -101,8 +90,7 @@ const classic: CvTheme = {
   css: (accent) => `
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 15mm' })}
 
-/* Cỡ đầu trang đã cân lại sau khi đo: bản đầu đẩy một CV thật sang trang 2 với
-   đúng một dòng nằm lẻ. */
+/* Cỡ đầu trang đã cân lại sau khi đo: bản đầu đẩy một CV thật sang trang 2 với đúng một dòng nằm lẻ. */
 .cv-header { text-align: center; padding-bottom: 0.35em; }
 .cv-name { font-size: 1.95em; font-weight: 700; letter-spacing: 0.02em; color: ${accent}; }
 .cv-title { font-size: 1.05em; color: #444; margin-top: 0.15em; }
@@ -162,8 +150,7 @@ const modern: CvTheme = {
   css: (accent) => `
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 0 14mm 0' })}
 
-/* Dải màu chạm mép trên tờ giấy, nhưng CHỈ trang đầu: bỏ lề trên ở mọi trang thì
-   dòng đầu trang 2 dí sát rìa và máy in cắt mất. Đã đo, Chromium hỗ trợ @page :first. */
+/* Bỏ lề trên CHỈ ở trang đầu: bỏ ở mọi trang thì dòng đầu trang 2 dí rìa và bị cắt. Chromium có @page :first. */
 @page :first { margin-top: 0; }
 @media screen { body { padding-top: 0; } }
 
@@ -198,9 +185,7 @@ const accentBar: CvTheme = {
     usesAccent: true,
   },
   css: (accent) => `
-/* Lề trái bằng 0 vì left:0 của phần tử fixed neo vào mép VÙNG NỘI DUNG chứ không
-   phải mép giấy; để lề 22mm thì dải màu đè lên đầu mỗi dòng chữ. Bù bằng offset âm
-   cũng không được, Chromium cắt mất. Chi tiết trong CLAUDE.md. */
+/* Lề trái 0 vì left:0 của fixed neo vào mép VÙNG NỘI DUNG, không phải mép giấy; offset âm cũng bị cắt. Xem CLAUDE.md. */
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 15mm 14mm 0' })}
 
 .page-bar {
@@ -210,8 +195,7 @@ ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 15mm 
   background: ${accent};
 }
 
-/* Thụt vào cho khỏi đè lên dải màu. Đặt trên từng khối chứ không trên body:
-   padding của body chỉ có tác dụng ở trang đầu và trang cuối. */
+/* Thụt vào cho khỏi đè dải màu. Đặt trên từng KHỐI, vì padding của body chỉ ăn ở trang đầu và trang cuối. */
 .cv-header, .section { padding-left: 22mm; }
 
 .cv-header { padding-bottom: 0.6em; }

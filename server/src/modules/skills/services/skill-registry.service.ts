@@ -10,6 +10,7 @@ import type { Dirent } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import matter from 'gray-matter';
+import { toManifest } from '../utils/skill-manifest.js';
 
 export type SkillManifest = {
   name: string;
@@ -20,9 +21,15 @@ export type SkillManifest = {
    */
   allowedTools: string[];
   frameworkVersion?: string;
+  contentHash: string;
+  bodyBytes: number;
+  references: { name: string; bytes: number }[];
 };
 
-export type LoadedSkill = SkillManifest & {
+export type LoadedSkill = Pick<
+  SkillManifest,
+  'name' | 'description' | 'allowedTools' | 'frameworkVersion'
+> & {
   /** Phần thân của SKILL.md, đã bỏ frontmatter. */
   body: string;
   /** Các file tham chiếu cùng thư mục, ví dụ "04-job-evaluation.md". */
@@ -117,14 +124,7 @@ export class SkillRegistryService implements OnModuleInit {
   }
 
   list(): SkillManifest[] {
-    return [...new Set(this.skills.values())].map(
-      ({ name, description, allowedTools, frameworkVersion }) => ({
-        name,
-        description,
-        allowedTools,
-        frameworkVersion,
-      }),
-    );
+    return [...new Set(this.skills.values())].map(toManifest);
   }
 
   get(name: string): LoadedSkill {

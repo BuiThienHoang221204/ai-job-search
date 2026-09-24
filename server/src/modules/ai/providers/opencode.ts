@@ -1,32 +1,17 @@
-import { randomUUID } from 'node:crypto';
 import type { ProviderDescriptor } from './types.js';
 
-/**
- * OpenCode Zen — lõi mặc định, và là lõi MÙ về capability.
- *
- * `GET /zen/v1/models` trả đúng bốn trường cho mỗi model: `id`, `object`,
- * `created`, `owned_by`. Không có gì cho biết model làm được gì. Nên ở lõi này
- * chỉ phép đo mới biết, và danh sách dưới đây là kết quả đo thật chứ không suy
- * ra từ metadata — xem bảng model trong `CLAUDE.md`.
- *
- * `x-opencode-session` là ĐIỀU KIỆN THỨ HAI để tier free chạy, bên cạnh
- * `User-Agent: opencode`. Thiếu nó thì mọi request trả **400 `MissingSessionID`**
- * kèm câu "OpenCode's free tier can only be used in OpenCode" — một thông báo
- * dễ đọc nhầm thành "bể free đã đóng", và đã bị đọc nhầm đúng như vậy ngày
- * 2026-09-09, dẫn tới cả một vòng đổi sang nhà cung cấp khác không cần thiết.
- *
- * Đo được: giá trị KHÔNG cần đúng session thật nào — một chuỗi ngẫu nhiên cũng
- * được chấp nhận. Sinh một lần cho mỗi tiến trình là đủ.
- */
+/** Lõi MÙ về capability: `/zen/v1/models` chỉ trả `id`/`object`/`created`/`owned_by`, nên ở đây chỉ phép ĐO mới biết model làm được gì. */
 export const opencode: ProviderDescriptor = {
   id: 'opencode',
   label: 'OpenCode Zen',
   apiKeyEnv: 'AI_API_KEY',
   userAgentEnv: 'OPENCODE_USER_AGENT',
 
-  extraHeaders: {
-    'x-opencode-session': `ses_${randomUUID().replace(/-/g, '').slice(0, 26)}`,
-  },
+  /** Trỏ sang container bọc `opencode run`; bỏ trống thì rơi về đường thẳng tới opencode.ai, và đường đó 403 chắc chắn. */
+  baseURLEnv: 'OPENCODE_SERVICE_URL',
+
+  /** Wrapper CLI chỉ chuyển tiếp thân request, không ép định dạng — schema phải đi đường bơm vào prompt. */
+  honorsResponseFormat: false,
 
   knownNoStructuredOutput: [
     // Trả content rỗng dù đã cho tới 1500 token.

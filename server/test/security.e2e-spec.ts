@@ -64,6 +64,8 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       ['POST', '/api/skills/reload'],
       ['POST', '/api/scrape/portals/reload'],
       ['POST', '/api/admin/reconcile/run-now'],
+      // Tin tuyển dụng dùng chung: người thường từng ghi đè được url của tin đã quét.
+      ['POST', '/api/jobs'],
     ])('%s %s trả 403', async (method, path) => {
       const user = await harness.signUp();
       const call = method === 'GET' ? get(path, user) : post(path, user);

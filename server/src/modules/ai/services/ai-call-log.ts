@@ -1,7 +1,7 @@
 import type { Logger } from '@nestjs/common';
 import type { PrismaService } from '../../../prisma/prisma.service.js';
-import type { FailureKind } from '../failure-kind.js';
-import type { AiCallContext } from './ai.types.js';
+import type { FailureKind } from '../utils/failure-kind.js';
+import type { AiCallContext } from '../ai.types.js';
 
 export type AiCallEntry = {
   context: AiCallContext;
@@ -18,12 +18,7 @@ export type AiCallEntry = {
   responseText?: string;
 };
 
-/**
- * Sổ ghi mọi lượt gọi model - nguồn của bảng `ai_calls` và màn `ai-health`.
- *
- * Ghi được hay không là việc PHỤ, nên `record` nuốt lỗi của chính nó: một
- * bảng hỏng không được phép giết một lời gọi model đã tốn tiền và đã xong.
- */
+/** Sổ ghi mọi lượt gọi model — nguồn của bảng `ai_calls` và màn `ai-health`. Ghi được hay không là việc PHỤ, nên `record` nuốt lỗi của chính nó. */
 export class AiCallLog {
   constructor(
     private readonly prisma: PrismaService,

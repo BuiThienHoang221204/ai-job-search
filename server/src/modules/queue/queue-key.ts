@@ -1,39 +1,5 @@
 import { createHash } from 'node:crypto';
-
-/**
- * Tên hàng đợi, viết bằng chuỗi thay vì tham chiếu `QUEUE` của
- * queue.service.ts: file kia import file này lúc chạy, nên tham chiếu ngược lại
- * sẽ thành phụ thuộc vòng. `queue-key.spec.ts` đối chiếu hai danh sách với nhau
- */
-const EVALUATE_MATCH = 'match.evaluate';
-const INTERVIEW_PREP = 'interview.prep';
-const UPSKILL_REPORT = 'upskill.report';
-const GENERATE_DOCUMENT = 'document.generate';
-const SCRAPE_RUN = 'scrape.run';
-const PROFILE_SYNTHESIZE = 'profile.synthesize';
-const EXTRACT_REQUIREMENTS = 'job.requirements';
-const AGENT_RUN = 'agent.run';
-const AGENT_REVIEW = 'agent.review';
-const COMPANY_BRIEF = 'company.brief';
-const REQUIREMENT_MATCH = 'match.requirements';
-const SKILL_CANONICALIZE = 'skill.canonicalize';
-const AI_SHORTLIST = 'match.shortlist';
-
-export const QUEUES_WITH_KEY_RULE = [
-  EVALUATE_MATCH,
-  INTERVIEW_PREP,
-  UPSKILL_REPORT,
-  GENERATE_DOCUMENT,
-  SCRAPE_RUN,
-  PROFILE_SYNTHESIZE,
-  EXTRACT_REQUIREMENTS,
-  AGENT_RUN,
-  AGENT_REVIEW,
-  COMPANY_BRIEF,
-  REQUIREMENT_MATCH,
-  SKILL_CANONICALIZE,
-  AI_SHORTLIST,
-] as const;
+import { QUEUE } from './queue.constants.js';
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
 function requireField(queue: string, data: object, field: string): string {
@@ -50,110 +16,89 @@ function isForced(data: object): boolean {
   return (data as { force?: unknown }).force === true;
 }
 
-/** Khoá dedup cho một việc sắp xếp vào hàng đợi. */
+/** Vân tay của cả lô. Băm thay vì nối chuỗi: năm cuid nối lại dài hơn cột `singleton_key` của pg-boss. */
+function batchFingerprint(queue: string, data: object): string {
+  const ids = (data as { jobIds?: unknown }).jobIds;
+  if (!Array.isArray(ids) || !ids.length) {
+    throw new Error(
+      `Payload của hàng đợi "${queue}" thiếu mảng "jobIds", không dựng được khoá dedup.`,
+    );
+  }
+  return createHash('sha256')
+    .update(
+      ids
+        .map((id) => String(id))
+        .sort()
+        .join(','),
+    )
+    .digest('hex')
+    .slice(0, 32);
+}
+
+/** Ba hình dạng payload, ba khoá. `round` phải vào khoá vì lượt quét kho tự xếp lượt kế TRƯỚC khi nó kết thúc. */
+function scopeKey(queue: string, data: object): string {
+  const payload = data as {
+    round?: unknown;
+    jobId?: unknown;
+    userId?: unknown;
+  };
+  if (typeof payload.round === 'number') return `sweep:${payload.round}`;
+  if (payload.jobId) return `job:${requireField(queue, data, 'jobId')}`;
+  if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
+  return 'all';
+}
+
+/** Khoá dedup cho một việc sắp xếp vào hàng đợi. Suy ra từ payload, người gọi không truyền vào được. */
 export function singletonKeyFor(queue: string, data: object): string {
   switch (queue) {
-    /**
-     * `force` đi vào khoá: một yêu cầu chấm LẠI không được gộp vào job đang chờ,
-     * vì job đó sẽ thấy promptHash không đổi và trả kết quả cache - đúng thứ mà
-     * người dùng vừa nói là không muốn.
-     */
-    case EVALUATE_MATCH:
-    case INTERVIEW_PREP:
+    /** `force` đi vào khoá: yêu cầu chấm LẠI không được gộp vào job đang chờ, vì job đó sẽ trả kết quả cache. */
+    case QUEUE.EVALUATE_MATCH:
+    case QUEUE.INTERVIEW_PREP:
       return [
         requireField(queue, data, 'userId'),
         requireField(queue, data, 'jobId'),
         isForced(data) ? 'force' : 'cache',
       ].join(':');
 
-    /**
-     * Ba hàng đợi dưới đây đã có bản ghi riêng trong database trước khi việc
-     * được xếp, nên chính id của bản ghi là khoá tự nhiên: xếp hai lần cho cùng
-     * một bản ghi luôn là trùng lặp, không bao giờ là hai việc khác nhau.
-     */
-    case UPSKILL_REPORT:
+    /** Bốn hàng đợi dưới đã có bản ghi riêng trước khi việc được xếp, nên id của bản ghi là khoá tự nhiên. */
+    case QUEUE.UPSKILL_REPORT:
       return requireField(queue, data, 'reportId');
 
-    case GENERATE_DOCUMENT:
+    case QUEUE.GENERATE_DOCUMENT:
       return requireField(queue, data, 'documentId');
 
-    case SCRAPE_RUN:
+    case QUEUE.SCRAPE_RUN:
       return requireField(queue, data, 'runId');
 
-    case PROFILE_SYNTHESIZE:
+    case QUEUE.PROFILE_SYNTHESIZE:
       return requireField(queue, data, 'draftId');
 
-    case AGENT_RUN:
-    case AGENT_REVIEW:
-      return requireField(queue, data, 'runId');
-
-    /** Khoá theo CÔNG TY, không theo người dùng: hai người mở cùng một tin thì
-     * lượt thứ hai gộp vào lượt đầu thay vì trả tiền hai lần. */
-    case COMPANY_BRIEF:
+    /** Khoá theo CÔNG TY, không theo người dùng: hai người mở cùng một tin thì lượt sau gộp vào lượt đầu. */
+    case QUEUE.COMPANY_BRIEF:
       return [
         requireField(queue, data, 'nameKey'),
         isForced(data) ? 'force' : 'cache',
       ].join(':');
 
-    /**
-     * Rút trích đi theo LÔ, nên khoá là vân tay của cả lô. Băm thay vì nối
-     * chuỗi: năm cuid nối lại dài hơn cột `singleton_key` của pg-boss.
-     *
-     * Hai lô khác nhau chứa chung một tin thì không dedup được, và đó là chấp
-     * nhận được: `extractMany` so `sourceHash` trước khi gọi model, nên tin đã
-     * rút xong chỉ tốn một lượt đọc database.
-     */
-    case EXTRACT_REQUIREMENTS: {
-      const ids = (data as { jobIds?: unknown }).jobIds;
-      if (!Array.isArray(ids) || !ids.length) {
-        throw new Error(
-          `Payload của hàng đợi "${queue}" thiếu mảng "jobIds", không dựng được khoá dedup.`,
-        );
-      }
-      const sorted = (ids as unknown[]).map((id) => String(id)).sort();
-      const fingerprint = createHash('sha256')
-        .update(sorted.join(','))
-        .digest('hex')
-        .slice(0, 32);
-      return [fingerprint, isForced(data) ? 'force' : 'cache'].join(':');
-    }
+    /** Rút trích đi theo LÔ — hai lô khác nhau chứa chung một tin thì không dedup được, và `extractMany` so `sourceHash` nên chỉ tốn một lượt đọc. */
+    case QUEUE.EXTRACT_REQUIREMENTS:
+      return [
+        batchFingerprint(queue, data),
+        isForced(data) ? 'force' : 'cache',
+      ].join(':');
 
-    /**
-     * Đối chiếu KHÔNG gọi model nên trùng lặp chỉ tốn vài mili giây CPU, nhưng
-     * khoá vẫn phải riêng cho từng phía: một lượt tính lại theo tin và một lượt
-     * tính lại theo hồ sơ là hai việc khác nhau, gộp lại là mất một trong hai.
-     */
-    /**
-     * Ba hình dạng payload, ba khoá. `round` phải nằm trong khoá vì lượt quét
-     * toàn kho tự xếp lượt kế trước khi nó kết thúc, mà policy `exclusive` sẽ
-     * nuốt mất lượt kế nếu hai lượt trùng khoá. Payload rỗng nghĩa là làm lại
-     * tất cả, và hai yêu cầu như vậy gộp làm một là đúng.
-     */
-    case SKILL_CANONICALIZE:
-    case REQUIREMENT_MATCH: {
-      const payload = data as {
-        round?: unknown;
-        jobId?: unknown;
-        userId?: unknown;
-      };
-      if (typeof payload.round === 'number') return `sweep:${payload.round}`;
-      if (payload.jobId) return `job:${requireField(queue, data, 'jobId')}`;
-      if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
-      return 'all';
-    }
+    /** Khoá riêng cho từng phía: tính lại theo tin và tính lại theo hồ sơ là hai việc khác nhau, gộp là mất một. */
+    case QUEUE.SKILL_CANONICALIZE:
+    case QUEUE.REQUIREMENT_MATCH:
+      return scopeKey(queue, data);
 
-    case AI_SHORTLIST: {
-      const payload = data as { userId?: unknown };
-      if (payload.userId) return `user:${requireField(queue, data, 'userId')}`;
-      return 'all';
-    }
+    case QUEUE.AI_SHORTLIST:
+      return (data as { userId?: unknown }).userId
+        ? `user:${requireField(queue, data, 'userId')}`
+        : 'all';
 
+    /** KHÔNG có khoá mặc định: để trống thì policy `exclusive` coi cả hàng đợi là một khoá và chặn mọi thứ xuống một job. */
     default:
-      /**
-       * KHÔNG có khoá mặc định. Thêm hàng đợi mới thì buộc phải quyết định khoá
-       * của nó: đoán sai thì gộp mất việc, còn để trống thì policy `exclusive`
-       * coi cả hàng đợi là một khoá và chặn mọi thứ xuống còn một job.
-       */
       throw new Error(
         `Hàng đợi "${queue}" chưa khai khoá dedup. Thêm một nhánh vào singletonKeyFor().`,
       );

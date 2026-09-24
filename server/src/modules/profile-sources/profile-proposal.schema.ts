@@ -1,34 +1,14 @@
 import { z } from 'zod';
 import { cappedText, requiredCappedText } from '../../common/model-output.js';
 
-/** Hình dạng hồ sơ do model đề xuất từ bằng chứng. */
-
+/** DANH TÍNH của một mục: thiếu là cả mục vô nghĩa, từ chối mới đúng. */
 const line = (max: number, hint: string) => requiredCappedText(max, hint);
 
-/**
- * Trường MÔ TẢ mà CV có quyền không ghi.
- *
- * `.default('')` chứ không `.min(1)`: ép một thứ bằng chứng không có thì model
- * chỉ còn hai đường — bịa ra, hoặc trả chuỗi rỗng rồi làm hỏng cả lượt đọc. Đã
- * hỏng thật ngày 2026-08-23: một CV ghi "Industrial University of Ho Chi Minh
- * City (IUH), Software Engineering, GPA 3.31/4.0" mà không ghi bậc bằng. Model
- * điền `degree: ""` cho đúng sự thật, zod chặn, và TOÀN BỘ bản đọc CV mất trắng
- * sau 19 giây cùng một lượt gọi model — vì một trường phụ.
- *
- * Chỗ để nói "cái này CV không có" là mảng `missing`, không phải một lỗi schema.
- * `cvEditSchema` đã chọn đúng cách này cho đúng những trường đó.
- *
- * Ranh giới: thứ làm nên DANH TÍNH của một mục (`school`, `company`,
- * `position`, tên dự án) vẫn dùng `line()` — thiếu chúng thì cả mục vô nghĩa,
- * và từ chối mới là đúng.
- */
+/** Trường MÔ TẢ mà CV có quyền không ghi — `.min(1)` ở đây làm mất trắng cả lượt đọc, xem CLAUDE.md. */
 const optionalText = (max: number, hint: string) =>
   cappedText(max, hint).default('');
 
-/**
- * Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh khi người
- * dùng áp dụng bản nháp. Model không được đặt id.
- */
+/** Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh, model không được đặt. */
 const experienceItem = z.object({
   company: line(160, 'Tên công ty, ghi đúng như trong CV.'),
   position: line(160, 'Chức danh.'),
@@ -80,6 +60,7 @@ const projectItem = z.object({
   period: z.string().max(60).optional(),
 });
 
+/** Hình dạng hồ sơ do model đề xuất từ bằng chứng. */
 export const profileProposalSchema = z.object({
   headline: z
     .string()

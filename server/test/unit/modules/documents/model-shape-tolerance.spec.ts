@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { coverLetterSchema } from 'src/modules/documents/document.schema.js';
+import { coverLetterSchema } from 'src/modules/documents/schemas/document.schema.js';
 import { boundedList, cappedTextVi } from 'src/common/model-output.js';
 
 const letter = (bodyParagraphs: unknown) => ({

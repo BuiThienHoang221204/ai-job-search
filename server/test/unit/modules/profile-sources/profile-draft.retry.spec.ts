@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { ProfileDraft } from 'src/generated/prisma/client.js';
 import type { CvPdfSource } from 'src/modules/profile-sources/cv-pdf.source.js';
+import type { ProfileService } from 'src/modules/profile/profile.service.js';
 import { ProfileDraftService } from 'src/modules/profile-sources/services/profile-draft.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
@@ -50,6 +51,7 @@ function build(found: ProfileDraft | null) {
     prisma,
     { send } as unknown as QueueService,
     {} as unknown as CvPdfSource,
+    {} as unknown as ProfileService,
     {} as unknown as Storage,
   );
 
