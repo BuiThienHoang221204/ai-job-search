@@ -4,10 +4,7 @@ import { omniroute } from './omniroute.js';
 import { openrouter } from './openrouter.js';
 import type { ProviderDescriptor } from './types.js';
 
-/**
- * Mọi lõi hệ thống biết. **Thêm lõi mới = thêm một file rồi thêm một dòng ở
- * đây.** Không có class nào phải viết, không có gì phải đăng ký với Nest.
- */
+/** Thêm lõi mới = thêm một file rồi thêm một dòng ở đây. Không class nào phải viết, không gì phải đăng ký với Nest. */
 export const PROVIDERS: readonly ProviderDescriptor[] = [
   opencode,
   openrouter,
@@ -20,6 +17,7 @@ export function providerIds(): string[] {
   return PROVIDERS.map((provider) => provider.id);
 }
 
+/** Lõi theo id, `undefined` khi id lạ — người gọi biến nó thành `ModelUnavailableError` có kèm danh sách lõi đang khai. */
 export function findProvider(id: string): ProviderDescriptor | undefined {
   return PROVIDERS.find((provider) => provider.id === id);
 }

@@ -1,6 +1,19 @@
-# Usage:
-#   Development: docker compose --env-file .env.development up -d
-#   Production:  docker compose --env-file .env.production up -d
+# Một file `.env` trong thư mục này phục vụ HAI việc, nên không cần `--env-file`:
+# `env_file` nạp biến vào trong container, còn Compose tự đọc cùng file đó để thay
+# `${POSTGRES_PASSWORD}` và `${OMNIROUTE_*}` bên dưới.
+#
+#   docker compose up -d
+#
+# `latex`, `pdf`, `omniroute` và `opencode` build tại chỗ vì không có trên
+# registry nào, mỗi dịch vụ một thư mục riêng ngang hàng `server/`.
+#
+# Chỉ `migrate` còn nằm sau profile; số còn lại lên theo `up -d`. Lưu ý
+# `app` cũng không có profile và nó giữ cổng 3000 - đúng cổng dev server chạy trên
+# host, nên khi dev hãy gọi tên service thay vì `up -d` trần.
+#
+# `MODEL_PROVIDER` mặc định là `omniroute` (khai trong `configuration.ts`, không
+# phải ở `.env`), nhưng lõi mặc định CHỈ áp cho model id không có tiền tố - mà
+# chuỗi hiện tại thì mắt xích nào cũng có tiền tố lõi.
 
 name: ai-job-search
 
@@ -16,6 +29,9 @@ services:
       - .env
     ports:
       - "3000:3000"
+    networks:
+      - default
+      - opencode
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,9 +71,12 @@ services:
       retries: 10
 
   omniroute:
-    image: diegosouzapw/omniroute:3.8.49
+    build:
+      context: ../omniroute-service
+    image: aijob-omniroute:latest
     container_name: aijob-omniroute
     restart: unless-stopped
+    shm_size: "1gb"
     expose:
       - "20128"
     ports:
@@ -70,6 +89,9 @@ services:
       API_KEY_SECRET: ${OMNIROUTE_KEY_SECRET}
       INITIAL_PASSWORD: ${OMNIROUTE_PASSWORD}
       DISABLE_SQLITE_AUTO_BACKUP: "true"
+      PLAYWRIGHT_BROWSERS_PATH: /app/ms-playwright
+      # Hạn THỰC THI sau dispatch, không phải hạn xếp hàng; trần UI là 30000ms nên đừng lưu ở Settings → Resilience.
+      RATE_LIMIT_MAX_WAIT_MS: "90000"
     volumes:
       - omniroute_data:/data
     healthcheck:
@@ -81,10 +103,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 3G
 
   latex:
     image: aijob-latex
+    build:
+      context: ../latex-service
     container_name: aijob-latex
     restart: unless-stopped
     expose:
@@ -97,6 +121,8 @@ services:
 
   pdf:
     image: aijob-pdf
+    build:
+      context: ../pdf-service
     container_name: aijob-pdf
     restart: unless-stopped
     expose:
@@ -107,6 +133,39 @@ services:
           memory: 1G
           cpus: "1"
 
+  # Mạng riêng `opencode`: container này chạy LLM còn nguyên tool bash/read.
+  opencode:
+    image: aijob-opencode
+    build:
+      context: ../opencode-service
+    container_name: aijob-opencode
+    restart: unless-stopped
+    expose:
+      - "8080"
+    # Chỉ loopback: app chạy trên host bằng pnpm không với tới mạng `opencode` được.
+    ports:
+      - "127.0.0.1:8091:8080"
+    networks:
+      - opencode
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /work
+    volumes:
+      - opencode_data:/home/opencode/.local/share/opencode
+    environment:
+      OPENCODE_MAX_CONCURRENCY: "2"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+
 volumes:
   postgres_data_pgvector:
   omniroute_data:
+  opencode_data:
+
+networks:
+  default:
+  opencode:

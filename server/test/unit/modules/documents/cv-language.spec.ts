@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import type { Document } from 'src/generated/prisma/client.js';
-import { cvSchema } from 'src/modules/documents/document.schema.js';
+import { cvSchema } from 'src/modules/documents/schemas/document.schema.js';
 import type {
   CvContent,
   Identity,
 } from 'src/modules/documents/content.types.js';
-import { renderCv } from 'src/modules/documents/latex.js';
+import { renderCv } from 'src/modules/documents/templates/latex.js';
 import { renderCvHtml } from 'src/modules/documents/templates/registry.js';
 import { SECTION_TITLES } from 'src/modules/documents/templates/cv-layout.js';
 import { DocumentRenderer } from 'src/modules/documents/services/document-renderer.service.js';

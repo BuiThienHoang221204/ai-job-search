@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module.js';
+import { ProfileModule } from '../profile/profile.module.js';
 import { StorageModule } from '../storage/storage.module.js';
 import { CvPdfSource } from './cv-pdf.source.js';
 import { ProfileDraftController } from './profile-draft.controller.js';
@@ -9,7 +10,7 @@ import { ProfileSynthesizerService } from './services/profile-synthesizer.servic
 
 /** SEAM 3 · đọc hồ sơ từ nguồn ngoài — Agent 1 của đề tài. */
 @Module({
-  imports: [AiModule, StorageModule],
+  imports: [AiModule, ProfileModule, StorageModule],
   controllers: [ProfileDraftController],
   providers: [
     CvPdfSource,

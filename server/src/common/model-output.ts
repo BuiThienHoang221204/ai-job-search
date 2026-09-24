@@ -39,10 +39,24 @@ export const optionalCappedText = (max: number, hint: string) =>
     )
     .default(null);
 
+const unwrapString = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const inner = Object.values(value as Record<string, unknown>).find(
+    (candidate) => typeof candidate === 'string',
+  );
+  return inner ?? value;
+};
+
+export const unwrapStrings = (value: unknown): unknown =>
+  Array.isArray(value) ? value.map(unwrapString) : value;
+
 export const boundedList = (item: z.ZodType<string, string>, max: number) =>
-  z
-    .array(item)
-    .transform((items) => items.filter((s) => s.length > 0).slice(0, max));
+  z.preprocess(
+    unwrapStrings,
+    z
+      .array(item)
+      .transform((items) => items.filter((s) => s.length > 0).slice(0, max)),
+  );
 
 export const boundedObjectList = <T>(
   item: z.ZodType<T, unknown>,

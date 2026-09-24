@@ -11,6 +11,8 @@ const configuration = () => ({
   port: parseInt(process.env.PORT ?? '4000', 10),
   nodeEnv: process.env.NODE_ENV ?? 'development',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  // Số proxy tin được phía trước (Caddy = 1); 0 = không tin X-Forwarded-For, tránh client tự khai IP để né rate limit.
+  trustProxyHops: parseInt(process.env.TRUST_PROXY ?? '0', 10) || 0,
 
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? '',
@@ -19,16 +21,26 @@ const configuration = () => ({
 
   ai: {
     /** Lõi mặc định. Các lõi hệ thống biết nằm ở `modules/ai/providers/`. */
-    provider: process.env.MODEL_PROVIDER ?? 'opencode',
-    modelId: process.env.MODEL_ID ?? 'deepseek-v4-flash-free',
+    provider: process.env.MODEL_PROVIDER ?? 'omniroute',
+    modelId: process.env.MODEL_ID ?? 'kc/openrouter/free',
+
+    /**
+     * Trần thời gian cho CẢ chuỗi dự phòng, không phải cho từng mắt xích. Mỗi
+     * mắt xích nhận một `AbortSignal.timeout` mới, nên n mắt xích chậm cộng lại
+     * thành n lần hạn một lời gọi - phải nhỏ hơn `server.setTimeout` 5 phút.
+     */
+    chainBudgetMs: parseInt(process.env.AI_CHAIN_BUDGET_MS ?? '240000', 10),
 
     /**
      * Các mắt xích thử tiếp khi mắt xích đang dùng không chạy được. Viết
      * `lõi/model` để nhảy sang lõi khác, hoặc chỉ `model` cho lõi mặc định.
+     *
+     * Mắt xích CUỐI cố ý không đi qua omniroute: gateway sập thì cả họ `auto/*`
+     * sập theo, riêng nó vẫn sống vì gọi thẳng OpenRouter bằng key riêng.
      */
     fallbackModelIds: (
       process.env.MODEL_FALLBACK_IDS ??
-      'mimo-v2.5-free,nemotron-3.5-lightning-free,hy3-free'
+      'auto/fast,auto/best-chat,openrouter/nex-agi/nex-n2.5-pro:free'
     )
       .split(',')
       .map((id) => id.trim())
@@ -56,17 +68,18 @@ const configuration = () => ({
      */
     userAgents: {
       opencode: process.env.OPENCODE_USER_AGENT ?? 'opencode',
-      omniroute: process.env.OMNIROUTE_USER_AGENT ?? 'opencode',
     } as Record<string, string>,
 
     baseURLs: {
       omniroute: process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
+      /** Bỏ trống có chủ ý: container `opencode` nằm sau profile riêng, chưa bật thì lõi này phải tự vắng mặt. */
+      opencode: process.env.OPENCODE_SERVICE_URL ?? '',
     } as Record<string, string>,
 
     catalogUrl:
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
 
-    structuredOutputs: process.env.AI_STRUCTURED_OUTPUTS === 'true',
+    structuredOutputs: (process.env.AI_STRUCTURED_OUTPUTS ?? 'true') === 'true',
   },
 
   /**
@@ -89,40 +102,26 @@ const configuration = () => ({
   },
 
   /**
-   * Agent nhiều bước. `commandsDir` là thư mục kịch bản `.claude/commands/` -
-   * cùng bộ file Claude Code chạy, để hai runtime không trôi khỏi nhau.
+   * Trần cho mọi lượt ra mạng: tool `fetch_url`/`web_search` của agent và luồng
+   * tìm hiểu công ty đều đọc ở đây.
+   *
+   * TÊN BIẾN MÔI TRƯỜNG GIỮ NGUYÊN `AGENT_FETCH_*` và `SERPER_*`. Đổi tên biến
+   * là đúng cái đã gây ra sự cố ngày 2026-08-24: `configuration.ts` đọc
+   * `WEB_SEARCH_API_KEY` trong khi `.env` khai `SERPER_API_KEY`, nên khoá luôn
+   * rỗng và tool `web_search` chưa từng chạy mà không có lỗi nào.
    */
-  agent: {
-    commandsDir: fromServerRoot(
-      process.env.COMMANDS_DIR ?? '../.claude/commands',
-    ),
-    maxSteps: parseInt(process.env.AGENT_MAX_STEPS ?? '12', 10),
-    /**
-     * Gốc để đọc template LaTeX (`cv/`, `cover_letters/`). Chính là gốc repo,
-     * nơi kịch bản `apply.md` trỏ tới - agent phải đọc được đúng file mà
-     * Claude Code đọc, nếu không nó sẽ tự bịa ra một bản template.
-     */
-    templatesRoot: fromServerRoot(process.env.TEMPLATES_ROOT ?? '..'),
-    /**
-     * Trần bước cho agent PHẢN BIỆN. Thấp hơn hẳn agent chính vì việc của nó
-     * hẹp: đọc bản nháp, tra công ty, nêu vấn đề. Mỗi bước là một lượt gọi tính
-     * vào cùng hạn mức với agent chính.
-     */
-    reviewerMaxSteps: parseInt(process.env.AGENT_REVIEWER_MAX_STEPS ?? '6', 10),
-    timeoutMs: parseInt(process.env.AGENT_TIMEOUT_MS ?? '540000', 10),
-    /** Trần byte cho một lần `fetch_url`. Trang tuyển dụng thật xa mức này. */
+  web: {
     fetchMaxBytes: parseInt(process.env.AGENT_FETCH_MAX_BYTES ?? '2000000', 10),
     fetchTimeoutMs: parseInt(process.env.AGENT_FETCH_TIMEOUT_MS ?? '20000', 10),
     /**
      * Serper. Không có key thì tool `web_search` KHÔNG được đăng ký - agent
      * thấy nó vắng mặt và tự xoay xở, thay vì gọi rồi nhận lỗi ở mọi bước.
-     *
-     * Tên biến phải là `SERPER_*`: `parseSerper` đọc định dạng của
-     * google.serper.dev, còn `.env` và `.env.example` vốn đã khai bằng tên đó.
      */
-    searchApiKey: process.env.SERPER_API_KEY ?? '',
-    searchUrl: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
-    searchMaxResults: parseInt(process.env.SERPER_MAX_RESULTS ?? '5', 10),
+    search: {
+      apiKey: process.env.SERPER_API_KEY ?? '',
+      url: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
+      maxResults: parseInt(process.env.SERPER_MAX_RESULTS ?? '5', 10),
+    },
   },
 
   scraper: {
@@ -188,13 +187,13 @@ const configuration = () => ({
      */
     minPercent: parseInt(process.env.MATCH_MIN_PERCENT ?? '50', 10),
 
-    /**
-     * Model phân loại kỹ năng cho danh bạ. GHIM riêng, không dùng model mặc
-     * định: đo trên 8 cặp biết trước đáp án, `hy3-free` đúng 8/8 còn
-     * `mimo-v2.5-free` đúng 7/8 và gộp `manual testing` vào `QA`. Một lần gộp
-     * sai tạo ra một mã hút mọi thứ liên quan vào nó.
-     */
-    dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID ?? 'hy3-free',
+    /** Bỏ trống = dùng model mặc định. Đo 2026-09-24 bằng `probe-skill-merge`: model mặc định đúng 8/8 ba lượt liền, nên không cần ghim riêng nữa. */
+    dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID || undefined,
+
+    aiAuto: process.env.MATCH_AI_AUTO === 'true',
+    aiTopN: parseInt(process.env.MATCH_AI_TOP_N ?? '3', 10),
+    aiMaxPerRun: parseInt(process.env.MATCH_AI_MAX_PER_RUN ?? '300', 10),
+    aiCooldownHours: parseInt(process.env.MATCH_AI_COOLDOWN_HOURS ?? '6', 10),
   },
 
   cron: {

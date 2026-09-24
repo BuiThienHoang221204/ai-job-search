@@ -1,5 +1,15 @@
 import { QUEUE, QueueService } from 'src/modules/queue/queue.service.js';
+import type { QueueConfigService } from 'src/modules/queue/queue-config.service.js';
 import { purgePgBossJobs, testDatabaseUrl } from './support/test-database.js';
+
+/// `QueueService` chỉ hỏi `QueueConfigService` hai điều - số worker song song và
+/// một lệnh nạp lại cache - và không điều nào dính tới hợp đồng chặn trùng đang
+/// kiểm ở đây. Dựng bản thật sẽ kéo theo Prisma và một lượt seed vào database.
+const stubQueueConfig = () =>
+  ({
+    getConcurrency: () => 1,
+    refreshCache: () => Promise.resolve(),
+  }) as unknown as QueueConfigService;
 
 /// Hợp đồng chặn trùng của hàng đợi, kiểm trên pg-boss THẬT.
 ///
@@ -16,7 +26,7 @@ describe('Chặn trùng trên hàng đợi thật', () => {
   let queue: QueueService;
 
   beforeAll(async () => {
-    queue = new QueueService();
+    queue = new QueueService(stubQueueConfig());
     queue.onModuleInit();
 
     // Một lời gọi rỗng để chờ pg-boss khởi động xong (nó cài schema và tạo hàng
@@ -184,7 +194,7 @@ describe('Chặn trùng trên hàng đợi thật', () => {
     /// đáng tin để máy tự quyết định thay người.
     test('mặc định thì từ chối khởi động thay vì tự xoá hàng đợi', async () => {
       const boss = await openBoss();
-      const fresh = new QueueService();
+      const fresh = new QueueService(stubQueueConfig());
       try {
         await boss.deleteQueue(target);
         await boss.createQueue(target, { policy: 'standard' });
@@ -203,7 +213,7 @@ describe('Chặn trùng trên hàng đợi thật', () => {
 
     test('có QUEUE_POLICY_MIGRATE=true thì nâng cấp policy', async () => {
       const boss = await openBoss();
-      const fresh = new QueueService();
+      const fresh = new QueueService(stubQueueConfig());
       try {
         await boss.deleteQueue(target);
         await boss.createQueue(target, { policy: 'standard' });

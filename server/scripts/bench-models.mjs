@@ -8,6 +8,7 @@
 // lõi mặc định.
 import 'dotenv/config';
 import { readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
@@ -15,6 +16,8 @@ import { generateObject, NoObjectGeneratedError } from 'ai';
 import { z } from 'zod';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+const sessionId = () => `ses_${randomUUID().replace(/-/g, '').slice(0, 26)}`;
 
 /**
  * Các lõi script này gọi được. Giữ khớp với `src/modules/ai/providers/`; đây là
@@ -24,6 +27,21 @@ const PROVIDERS = {
   opencode: {
     baseURL: 'https://opencode.ai/zen/v1',
     apiKey: () => process.env.AI_API_KEY ?? 'public',
+    headers: () => ({
+      'User-Agent': process.env.OPENCODE_USER_AGENT ?? 'opencode',
+      'x-opencode-session': sessionId(),
+    }),
+  },
+  oc: {
+    baseURL: () => process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
+    apiKey: () => process.env.OMNIROUTE_API_KEY ?? '',
+    headers: () => ({
+      'User-Agent': process.env.OMNIROUTE_USER_AGENT ?? 'opencode',
+      'x-omniroute-compression': 'off',
+      'x-omniroute-no-memory': 'true',
+      'x-opencode-session': sessionId(),
+    }),
+    explicitStreamFlag: true,
   },
   openrouter: {
     baseURL: 'https://openrouter.ai/api/v1',
@@ -54,10 +72,33 @@ const parseRef = (raw) => {
 const clientFor = (providerId) => {
   const spec = PROVIDERS[providerId];
   if (!spec) throw new Error(`Không biết lõi: ${providerId}`);
+  const extra = spec.headers?.() ?? {};
+  const userAgent = extra['User-Agent'];
+  const originalFetch = globalThis.fetch;
+  const forceUserAgentFetch = (input, init) => {
+    const headers = new Headers(init?.headers);
+    if (userAgent) headers.set('User-Agent', userAgent);
+    let body = init?.body;
+    if (spec.explicitStreamFlag && typeof body === 'string') {
+      try {
+        const parsed = JSON.parse(body);
+        if (!('stream' in parsed)) {
+          parsed.stream = false;
+          body = JSON.stringify(parsed);
+        }
+      } catch {
+        body = init?.body;
+      }
+    }
+    return originalFetch(input, { ...init, headers, body });
+  };
+
   return createOpenAICompatible({
     name: providerId,
-    baseURL: spec.baseURL,
+    baseURL: typeof spec.baseURL === 'function' ? spec.baseURL() : spec.baseURL,
     apiKey: spec.apiKey(),
+    headers: extra,
+    fetch: forceUserAgentFetch,
     supportsStructuredOutputs: true,
   });
 };

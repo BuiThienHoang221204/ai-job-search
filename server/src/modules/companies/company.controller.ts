@@ -15,21 +15,13 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { justDone, streamNdjson } from '../../common/ndjson.js';
 import { ThrottleAi } from '../../common/throttle.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { CompanyService } from './company.service.js';
+import { RefreshBriefDto } from './company.dto.js';
+import { CompanyService } from './service/company.service.js';
 
-export class RefreshBriefDto {
-  /** Chạy lại dù bản hiện có còn hạn. */
-  @IsOptional() @IsBoolean() force?: boolean;
-}
-
-/**
- * Không có kiểm tra quyền sở hữu vì `Job` và `CompanyBrief` đều là dữ liệu
- * chung, không thuộc về người dùng nào. Tra theo `jobId` chứ không theo tên tự
- * do là để chỉ công ty đã có tin trong database mới tốn được một lượt gọi model.
- */
+/** Không kiểm quyền sở hữu: `Job` và `CompanyBrief` là dữ liệu chung. */
 @ApiTags('Companies')
 @ApiBearerAuth()
 @Controller('companies')
@@ -78,42 +70,22 @@ export class CompanyController {
   ): Promise<void> {
     const payload = await this.companies.planRefresh(jobId, force === 'true');
 
-    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-cache, no-transform');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.flushHeaders();
-
     if (!payload) {
-      response.write(
-        `${JSON.stringify({ type: 'done', result: await this.companies.forJob(jobId) })}\n`,
-      );
-      response.end();
+      await streamNdjson({
+        response,
+        logger: this.logger,
+        label: `tìm hiểu ${jobId}`,
+        events: justDone(await this.companies.forJob(jobId)),
+      });
       return;
     }
 
-    let finished = false;
-    response.on('close', () => {
-      if (finished) return;
-      this.logger.warn(
-        `Người dùng rời trang giữa lượt tìm hiểu ${payload.company}; xếp lại vào hàng đợi`,
-      );
-      void this.queue.send(QUEUE.COMPANY_BRIEF, payload);
+    await streamNdjson({
+      response,
+      logger: this.logger,
+      label: `tìm hiểu ${jobId}`,
+      events: this.companies.streamBuild(payload.company),
+      onAbandon: () => void this.queue.send(QUEUE.COMPANY_BRIEF, payload),
     });
-
-    try {
-      for await (const event of this.companies.streamBuild(payload.company)) {
-        response.write(`${JSON.stringify(event)}\n`);
-      }
-      finished = true;
-    } catch (error) {
-      finished = true;
-      this.logger.error(
-        `Stream tìm hiểu ${jobId} hỏng: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      response.destroy();
-      return;
-    }
-
-    response.end();
   }
 }

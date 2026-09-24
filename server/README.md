@@ -32,7 +32,7 @@ Màn hình danh sách không được gọi AI lúc render: 24 công việc sẽ
 ```
 src/
 ├─ common/        thứ cắt ngang mọi module - KHÔNG import gì từ modules/
-│  ├─ guards/       JwtAuthGuard (toàn cục), RolesGuard
+│  ├─ guards/       JwtAuthGuard, RolesGuard (cả hai toàn cục)
 │  ├─ decorators/   @CurrentUser, @Roles, @Public
 │  ├─ filters/      PrismaExceptionFilter
 │  ├─ middleware/   RequestLogMiddleware
@@ -246,7 +246,7 @@ Tin ẩn tên công ty ("Không rõ", "Confidential") có `dedupeKey = null` và
 giờ bị gộp: gộp mọi tin ẩn danh cùng tỉnh vào một là sai nặng.
 
 Thêm một trường dẫn xuất mới thì phải chạy `POST /api/admin/jobs/backfill-taxonomy?all=true`
-(hoặc `node scripts/backfill-dedupe.mjs` khi chưa muốn dựng máy chủ). Chế độ tăng
+(nút ở trang Bảo trì dữ liệu của app admin). Chế độ tăng
 dần chỉ nhặt tin thiếu `searchText`.
 
 ### Fan-out là chỗ số lượt gọi model bùng lên
@@ -258,10 +258,92 @@ nào. Số lượt là **tích** chứ không phải tổng: 11 tin mới × 13 
 tin:
 
 - `MIN_COMPLETION_TO_SCORE` - hồ sơ dưới ngưỡng thì bỏ qua, vì chấm một hồ sơ
-  trống chỉ tốn tiền để nhận về "không đủ dữ liệu".
+  trống chỉ tốn tiền để nhận về "không đủ dữ liệu". Hằng này sống ở
+  `matching/rules/match-write.ts` chứ không phải trong `scraper`: cả `planFanOut`
+  lẫn `match.shortlist` lẫn đường đối chiếu đều hỏi cùng một câu "hồ sơ đã đủ đầy
+  để đáng chấm chưa". Để nó ở `scraper` từng tạo vòng phụ thuộc hai chiều
+  `matching ↔ scraper`.
 - `MAX_EVALUATIONS_PER_RUN` - trần cho một lần quét. Vòng lặp đi **ngoài theo
   công việc, trong theo người dùng**, nên khi chạm trần thì mọi người đều được
   chấm vài tin đầu, thay vì vài người được chấm hết còn người xếp sau không có gì.
+
+### Phát suất AI theo thứ hạng: `match.shortlist`
+
+`planFanOut` ở trên chọn tin bằng `keywordOverlap` và chạy **ngay lúc lưu tin**,
+tức là trước khi AI rút xong yêu cầu — lúc đó `job_requirement_matches` còn
+rỗng. Nó đang TẮT (`SCRAPER_AUTO_SCORE=false`).
+
+Đường đang dùng là hàng đợi `match.shortlist`, chạy **sau** khi đối chiếu xong:
+
+```
+SCRAPE_RUN -> job.requirements -> skill.canonicalize -> match.requirements
+                                                             |
+                                            match.shortlist (hoãn 60s)
+                                                             |
+                                                       match.evaluate x N
+```
+
+Mỗi tin quét về sinh một lượt `match.requirements`, nên 100 tin là 100 lượt đẩy
+sang `match.shortlist`. Cả 100 gộp về **một** việc nhờ khoá dedup `all` cộng
+policy `exclusive`, và `startAfter: 60` giây cho cả lô lắng xuống trước khi phát.
+Đây là debounce không cần viết timer.
+
+**Định nghĩa của tính năng: N tin được AI chấm chính là N tin ĐẦU danh sách
+"Việc làm phù hợp".** Ràng buộc đó buộc danh sách và bộ chọn phải dùng **cùng
+một thứ tự**, nên cả hai đọc chung cột `rank`:
+
+```
+rank desc, met desc, job.scrapedAt desc, jobId desc
+```
+
+Bốn tầng, và ba tầng đầu đã đủ tất định trong thực tế — `jobId` (cuid, tức là
+ngẫu nhiên) chỉ còn là chốt chặn cuối, không phải bên quyết định. Bản trước sắp
+bằng `percent desc, jobId desc` và vì `percent` chỉ nhận vài giá trị rời rạc nên
+cuid mới là thứ quyết định thật.
+
+### Vì sao `rank` chứ không phải `percent`
+
+`percent = metWeight / totalWeight * 100` là tỉ lệ **đã chuẩn hoá theo từng
+tin**, nên tin rút ra được ít yêu cầu đạt 100 quá rẻ:
+
+| Tin | Yêu cầu | Khớp | percent | rank |
+|---|---|---|---|---|
+| A | 1 | 1 | 100 | 0,33 |
+| B | 3 | 3 | 100 | 0,60 |
+| C | 8 | 8 | 100 | 0,80 |
+| D | 12 | 11 | 92 | 0,79 |
+
+Xếp theo `percent` thì A thắng — nhưng A đạt 100 vì **JD viết sơ sài**, không
+phải vì ứng viên giỏi. Đó là sai lệch **có hướng**, và hướng đó ngược với thứ
+mình muốn đưa cho model xem.
+
+`rank = metWeight / (totalWeight + 2)` cộng hai yêu cầu ảo CHƯA ĐẠT vào mẫu số.
+Tin ít yêu cầu bị phạt nặng, tin nhiều yêu cầu gần như không đụng tới. Hằng số
+nằm ở `UNMET_PRIOR_WEIGHT` trong `requirement-match.ts`. `rank` về 0 khi
+eligibility FAIL, giống `score`.
+
+Vì đây là công thức mới, `fingerprint()` mang tiền tố `FORMULA_VERSION = 'v2'`:
+thiếu nó thì mọi cặp đã tính giữ nguyên `rank = 0` mặc định và cả tính năng thành
+vô hình — đúng loại bẫy mà `dictionarySize` đã gặp một lần.
+
+### Bốn chốt chặn của `match.shortlist`
+
+Tất cả đều **ghi ra log khi cắt**, không im lặng:
+
+- `MATCH_AI_AUTO` - cờ tổng, mặc định `false`. Mỗi suất là một lượt gọi model có
+  trả tiền, nên tính năng không tự bật.
+- `MATCH_AI_TOP_N` (3) - số tin mỗi người mỗi lượt.
+- `MATCH_AI_MAX_PER_RUN` (300) - trần toàn cục. Khác `planFanOut`: chạm trần thì
+  **dừng hẳn**, người chưa nhận suất nào giữ `lastFanOutAt` cũ nên lượt sau đứng
+  đầu hàng. `planFanOut` đếm `dropped` rồi chạy tiếp, nên cùng một nhóm người
+  thua mỗi đêm.
+- `MATCH_AI_COOLDOWN_HOURS` (6) - một người không được phát lại trong khoảng này.
+
+Và một điều kiện nữa trong chính câu truy vấn: **không tin nào mới hơn
+`lastFanOutAt` thì không phát suất nào cho người đó**. Đêm quét về không có gì
+đáng xem thì đêm đó không tốn lượt gọi model nào.
+
+`POST /matches/shortlist/dispatch` (ADMIN) chạy đồng bộ để thử không cần đợi cron.
 
 ### Cron
 
@@ -300,159 +382,65 @@ loạt**. Ba portal Việt Nam không có ràng buộc này. Tắt LinkedIn kh�
 - `render()` thay `[YOUR_PRIMARY_SKILLS]`, `[YOUR_CAREER_GOAL_1]`... bằng dữ liệu hồ sơ từ DB. File skill gốc không bị sửa, nên vẫn sync được với upstream.
 - `keepSections()` chỉ lấy các mục `##` cần thiết. **Không được nhồi cả file vào prompt**: file skill có mục `## Output Format` ra lệnh in bảng markdown, lệnh đó đánh nhau với JSON schema và làm model trả về sai định dạng.
 
-## Agent chạy kịch bản: hai chỗ đã cắt để bớt token và bớt chờ
+## Ứng tuyển tự động đã bị GỠ — đọc trước khi định dựng lại
 
-Đo trên `ai_calls` + `agent_steps` ngày 2026-08-29, kịch bản `/apply`, `MODEL_ID=oc/mimo-v2.5-free`:
+Tính năng `/apply` (agent nhiều bước tự đánh giá, tự hỏi, tự soạn CV) đã bị xoá. Cùng nó là vòng phản biện hồ sơ, `.claude/commands/*.md` chạy trên máy chủ, bộ chín tool, hai hàng đợi `agent.run`/`agent.review`, và màn `/dashboard/apply`.
 
-| purpose | lượt | trung bình | lâu nhất | token vào | token ra | ăn cache |
-|---|---|---|---|---|---|---|
-| `agent.apply` | 21 | 90,1s | 312,5s | 112.510 | 3.918 | **18,9%** |
-| `agent.reviewer` | 5 | 57,6s | 96,0s | 11.569 | 2.618 | 15,3% |
+Lý do, bằng số đo của chính nó:
 
-Token đầu vào của MỘT lượt chạy leo **20.877 → 59.429 → 331.274 → 454.770 → 473.877** qua năm bước, và bốn lượt hoàn tất mất 237s / 488s / 1.067s / 1.576s.
-
-### 1. Nén lịch sử sau khi lưu file — `compact-history.ts`
-
-Vòng lặp agent gửi lại TOÀN BỘ hội thoại ở mỗi bước, mà hội thoại chứa nguyên văn file `.tex` model vừa gõ ra. Đó là nguồn gốc của cả đường leo token lẫn tỉ lệ ăn cache 18,9% — phần đổi liên tục lấn hết phần hằng.
-
-`AiService.runTools` nay nhận tuỳ chọn `compact`, cắm vào `prepareStep` của AI SDK. `AgentRunnerService` truyền `compactHistory` vào: tham số `content` của những lần `save_artifact` ĐÃ QUA (từ 2.000 ký tự trở lên) bị thay bằng một dòng ghi chú.
-
-**File không mất, và ghi chú phải nói rõ điều đó.** `save_artifact` đã ghi xuống Storage rồi; nếu ghi chú không chỉ đường đọc lại thì model tưởng nó chưa viết gì và **gõ lại từ đầu** — đắt gấp đôi thay vì rẻ đi. Đó là lý do tool `read_artifact` được thêm cùng lúc: kịch bản `/apply` có hai bước sửa lại file đã viết.
-
-Chỉ nén tham số của `save_artifact`, không nén tool khác: kết quả `fetch_url` cũng dài nhưng không có đường đọc lại nào.
-
-Bản lưu xuống `AgentRun.messages` vẫn là bản ĐẦY ĐỦ — nén chỉ xảy ra lúc gửi request, nên lượt chạy tiếp vẫn khôi phục được nguyên văn rồi nén lại.
-
-### 2. Nạp sẵn khung đặc tả vào system prompt — `PRELOADED_REFERENCES`
-
-Cùng lượt chạy đó tốn hai bước (7,5s + 6,9s) cho sáu lượt `read_skill_reference`, chỉ để lấy về những file KHÔNG bao giờ đổi. `buildSystemPrompt` nay nhồi thẳng chúng vào prompt:
-
-| kịch bản | file nạp sẵn |
-|---|---|
-| `apply` | `03-writing-style.md`, `04-job-evaluation.md`, `05-cv-templates.md`, `06-cover-letter-templates.md` |
-| `interview` | `02-behavioral-profile.md`, `07-interview-prep.md` |
-
-Cái giá là ~43.000 ký tự hằng cộng vào system prompt. Nó đáng vì **system prompt là phần hằng đứng đầu nên ăn cache tiền tố** (đo được 97,6% ở mục "Token" của `CLAUDE.md`), trong khi cùng nội dung đó nằm giữa hội thoại thì mỗi lượt chạy trả tiền lại từ đầu.
-
-Ba ràng buộc:
-
-- **`01-candidate-profile.md` KHÔNG được nạp sẵn** — `read_profile` đọc hồ sơ thật từ database, file kia chỉ là khung placeholder.
-- **`08-application-forms.md` cũng không** — chỉ dùng khi tin tuyển dụng có biểu mẫu, nạp sẵn là trả tiền cho việc phần lớn lượt chạy không làm.
-- **Sổ `seen` được gieo sẵn tên các file đã nạp**, nên agent gọi lại `read_skill_reference` cho chúng chỉ nhận một câu nhắc chứ không nhận lại vài nghìn token.
-
-`test/unit/modules/agent/system-prompt-references.spec.ts` đối chiếu danh sách với file THẬT trên đĩa: đổi tên một file trong `.claude/skills/` mà quên sửa danh sách thì nó đỏ, thay vì âm thầm nạp thiếu.
-
-### 3. Hiện file ngay khi agent lưu xong
-
-Bổ 114 bước `/apply` thật ra theo tool cho thấy đồng hồ nằm ở đâu:
-
-| tool | số bước | tổng | trung bình | % |
-|---|---|---|---|---|
-| `save_artifact` | 31 | 2.572s | 83s | **51,2%** |
-| `spawn_reviewer` | 7 | 991s | 142s | **19,7%** |
-| `compile_pdf` | 20 | 470s | 23s | 9,4% |
-| chỉ viết chữ | 9 | 422s | 47s | 8,4% |
-| `ask_user` | 14 | 268s | 19s | 5,3% |
-| toàn bộ các bước đọc + `fetch_url` | 33 | 294s | 9s | 5,9% |
-
-Tách `save_artifact` theo tài liệu: **CV 25 lần / 1.475 giây**, **thư xin việc 17 lần / 1.024 giây**.
-
-Nghĩa là CV soạn xong ở khoảng phút thứ tư, nhưng người dùng phải đợi thêm thư xin việc, phản biện và compile PDF mới nhìn thấy dòng đầu tiên. `recordStep` nay ghi luôn `result.artifacts` sau MỖI bước thay vì đợi lượt chạy kết thúc, và `AgentFilesCard` đọc nó ở mọi trạng thái.
-
-`GET /agent-runs/:id/artifact?name=cv/main.tex` trả nội dung file. **Khoá Storage lấy từ bản ghi trong database, không ghép từ tên người dùng gửi lên** — tên chỉ dùng để dò trong danh sách artifact của đúng lượt chạy đó, mà lượt chạy đã lọc theo `userId`. Ghép thẳng vào đường dẫn thì `../../<id người khác>/cv/main.tex` là một lượt đọc trộm; có test đơn vị ghim đúng ca đó.
-
-Tên file đi qua **query** chứ không qua path vì nó chứa dấu gạch chéo (`cv/main.tex`) và Nest sẽ cắt nó thành hai đoạn route.
-
-### 4. Phản biện chạy NỀN, sau khi đã trả kết quả
-
-`spawn_reviewer` từng là một tool trong vòng lặp agent: nó sinh một agent con đóng vai nhà tuyển dụng, và agent chính **đứng đợi** nó xong. Đo được 142 giây mỗi lần, **19,7%** quãng chờ - trong khi CV thì đã lưu xong từ trước đó.
-
-Nay nó là một hàng đợi riêng, `QUEUE.AGENT_REVIEW`:
-
-1. Lượt chạy kết thúc `DONE` → `AgentProcessor` đánh dấu `review = { status: 'PENDING' }` rồi xếp việc.
-2. `AgentReviewService` đọc lại artifact từ Storage, gọi model, ghi `review` vào chính bản ghi lượt chạy.
-3. Giao diện hỏi trạng thái tiếp chừng nào `review.status === 'PENDING'`, rồi hiện thẻ góp ý.
-
-**`review` là cột riêng, không nhét vào `result`.** `recordStep` ghi đè `result` sau mỗi bước; một lượt chạy tiếp sẽ xoá mất lời phản biện của lượt trước.
-
-**Ba trạng thái, không phải hai.** `null` = kịch bản này không có phản biện; `PENDING` = có và đang tới; `FAILED` = đã thử và hỏng. Gộp `null` với `PENDING` thì màn hình kết luận "không có góp ý nào" trong lúc góp ý đang chạy.
-
-**`draft()` chỉ đọc artifact có khoá bắt đầu bằng `<userId>/`.** Vòng phản biện chạy trong worker, không có request nào để mà kiểm quyền - nên phép lọc đó là chốt chặn duy nhất. Có test đơn vị ghim.
-
-Phản biện hỏng **không** làm hỏng lượt chạy: hồ sơ đã có, mất vòng đọc lại thì tệ hơn một chút chứ không phải mất trắng. Đây là luật cũ của `spawn_reviewer`, giữ nguyên.
-
-### `compile_pdf` thì ĐỪNG dời đi - nó là chốt chặn, không phải khâu giao hàng
-
-Nhìn tên dễ tưởng nó sinh file PDF cho người dùng tải. Không phải: nó compile rồi trả về **số đo** - mấy trang, ký tự nào font không vẽ được. Bản gốc `/apply` bắt Claude mở ảnh trang giấy ra nhìn; ở đây không có mắt nên thứ thay thế được là con số.
-
-Đo trên 28 lượt gọi thật:
-
-| | số lần |
-|---|---|
-| compile HỎNG | **6** |
-| thiếu glyph | 0 |
-| quá 2 trang | 0 |
-| bước NGAY SAU đó có sửa file | **14** |
-
-**6/28 lần bản `.tex` model gõ ra không compile nổi**, và một nửa số lượt gọi dẫn tới một lần sửa ngay sau đó. Dời nó ra sau khi đã trả kết quả là gửi cho người dùng một file hỏng rồi mới báo. 9,4% quãng chờ này là bảo hiểm rẻ nhất trong cả luồng - giữ nguyên.
-
-Con số 6 lần hỏng đó cũng chính là lý lẽ mạnh nhất cho hướng A: không bắt model gõ tay LaTeX thì không có gì để mà hỏng.
-
-### Thư xin việc là TUỲ CHỌN, và ô chọn nằm ở form khởi động
-
-Tách `save_artifact` theo tài liệu cho thấy riêng việc gõ thư xin việc mất **1.024 giây / 17 lần lưu** - khoảng một phần tư quãng chờ, cho một tài liệu mà phần lớn tin trên TopCV, ITviec hay VietnamWorks không đòi.
-
-`StartAgentDto.coverLetter` mặc định **false**, và `buildOpeningPrompt` dặn thẳng "BỎ HẲN bước soạn thư" khi không được tích.
-
-**Đừng chuyển câu hỏi này vào `ask_user`.** Tool đó khai `stopOnTool`: nó CẮT ĐỨT lượt chạy, và khi người dùng trả lời thì backend gọi model lại từ đầu với toàn bộ hội thoại cũ - đó là lý do một lượt `/apply` có 3-4 lời gọi model chứ không phải một, và token vào leo tới 618k. Đo được 17 lần `ask_user` trên 12 lượt chạy. Hỏi giữa lượt còn bắt người dùng ngồi chờ chính họ, đúng cái đang muốn tránh.
-
-Cờ này nằm trong `AgentRun.input` (cột Json), **không cần migration**.
-
-### Hai chốt chặn chống lặp trong bộ tool của agent
-
-Cả hai đều nằm trong CLOSURE của tool, tức sống đúng một lượt gọi `runTools`. Nhắc bằng system prompt đã thử và không ăn thua - dòng "soạn xong một tài liệu thì lưu MỘT lần" có từ trước, mà 12 lượt chạy vẫn lưu 31 lần.
-
-**`save_artifact`: trần 3 lần cho mỗi tên file, cộng chặn nội dung y hệt.**
-
-Lưu lại đúng nội dung cũ thì trả về `unchanged` mà không ghi. Quá 3 lần thì từ chối, kèm câu nói rõ bản đang có vẫn được giao - nếu không model sẽ tưởng mất file và gõ lại lần nữa.
-
-Ba chứ không phải một: bản `.tex` model gõ ra **hỏng compile 6/28 lần**, nên một lượt sửa sau khi `compile_pdf` báo lỗi là chính đáng. Ba cho phép bản đầu cộng hai lần sửa.
-
-Trần đếm theo TỪNG tên file, không dùng chung: CV và thư xin việc là hai tài liệu riêng.
-
-**`compile_pdf`: nhớ kết quả theo sha256 của nội dung `.tex`.**
-
-28 lượt compile cho 12 lượt chạy, mỗi lượt 23 giây. File không đổi thì trả kết quả cũ kèm câu nhắc "sửa file rồi hãy compile lại". Nhớ **cả kết quả HỎNG** - hỏi lại một bản đã biết là hỏng thì càng không đáng tốn 23 giây nữa.
-
-Lưu ý cho người sửa sau: cả hai closure nằm trong `buildToolSet`, mà `buildToolSet` được gọi lại mỗi lần lượt chạy tiếp tục sau `WAITING_USER`. Nghĩa là bộ đếm **reset** ở mỗi đoạn chạy. Đó là chấp nhận được: mỗi đoạn là một lời gọi model riêng, và người dùng vừa trả lời xong thì một lần lưu lại thường là chính đáng.
-
-### Agent KHÔNG viết LaTeX nữa — `save_cv` thay `save_artifact`
-
-Đây là chỗ đắt nhất của cả luồng: `save_artifact` chiếm **51,2%** quãng chờ, trung bình 83 giây mỗi lần và đỉnh 247 giây. Nó chậm không phải vì ghi file mà vì model phải gõ ra **20.000 token LaTeX** trước khi gọi tool - preamble, macro, `section`, khoảng cách, màu, rồi mới tới nội dung.
-
-Nay agent chỉ đưa **nội dung có cấu trúc**; code dựng bản trình bày, đúng như đường `document.cv` vẫn làm.
-
-| | trước | sau |
+| | thời gian | lượt gọi model |
 |---|---|---|
-| tool | `save_artifact("cv/main.tex", <LaTeX>)` | `save_cv(<JSON theo cvSchema>)` |
-| token model sinh | ~20.000 | ~1.000 |
-| ép định dạng | không có | zod |
-| kết quả | file rời trong Storage | một `Document` |
-| compile hỏng | 6/28 lần | không còn LaTeX để hỏng |
+| `agent.apply` | p50 **90,1s**, đỉnh **312,5s** | 10-20 |
+| `agent.reviewer` | thêm 57,6s (chạy nền) | 5-6 |
+| `document.cv` | **39-84s** | **1** |
 
-**Vì sao khuôn cố định chứ không để agent tự chọn bố cục.** Kho mẫu CV đã có sáu mẫu, `Document.layout` cho người dùng đổi thứ tự và ẩn mục, đổi mẫu không tốn lượt gọi model nào. Cho agent tự chế bố cục là chốt một thứ mà người dùng **không đổi được nữa nếu không gọi model lần nữa** - đi ngược đúng ranh giới mà `templateId` là cột riêng đang bảo vệ. Agent giữ nguyên quyền quyết định phần thật sự làm nên một CV may đo: chọn kinh nghiệm nào, viết gạch đầu dòng thế nào.
+Nó còn dừng giữa chừng hỏi người dùng (`ask_user` cắt lượt chạy, người dùng quay lại trả lời, worker chạy tiếp), nên quãng chờ thật dài hơn con số trên. Token đầu vào của MỘT lượt leo **20.877 → 59.429 → 331.274 → 454.770 → 473.877** qua năm bước.
 
-**`DocumentsService.saveFromAgent()` KHÔNG gọi model**, khác `generate()` ở đúng chỗ đó. Agent vừa đọc tin tuyển dụng và hồ sơ xong nên nội dung đã có; gọi `generate()` từ agent là trả tiền hai lần cho cùng một việc.
+Thay bằng: **màn Tạo CV nhận thẳng JD dán tay hoặc link tin tuyển dụng.** Một lời gọi model, không hàng đợi, không vòng hỏi lại.
 
-**`Document.agentRunId` là cột thật, `SetNull`.** Nhờ nó màn Ứng tuyển tự động trỏ thẳng sang trình sửa CV. Dọn nhật ký một lượt chạy cũ không được phép xoá cái CV người dùng đang dùng để đi nộp.
+**JD dán tay cố ý KHÔNG được lưu thành `Job`.** Bảng đó là kho dùng chung và không có cột chủ sở hữu, nên một tin dán tay sẽ hiện trong danh sách việc làm của MỌI người dùng. Nó nằm tạm trong `Document.content` cho tới khi worker đọc ra, đúng cách `FORM_ANSWER` mang câu hỏi của mình. Áp cho cả `createCv` lẫn `createApplicationEmail`.
 
-**Ba tool đã GỠ khỏi bộ của agent:** `spawn_reviewer` (chuyển sang hàng đợi nền), `read_template` và `compile_pdf` (không còn `.tex` nào để đọc mẫu hay để kiểm). File của chúng đã xoá - một tool còn nằm trong bộ là một tool sẽ bị gọi, đó là bài học từ chính `spawn_reviewer`.
+**Nhưng hai hàm đó nhận số nguồn KHÁC nhau, đừng chép điều kiện của nhau.** Mail ứng tuyển luôn phải có người nhận: không `jobId` thì bắt buộc dán JD. CV thì có nguồn thứ ba — **"CV tổng quát"**, không nhắm vị trí nào, là lựa chọn thật trong màn Tạo CV. Bê nguyên `@ValidateIf(dto => !dto.jobId)` từ `CreateApplicationEmailDto` sang `CreateCvDto` thì mọi CV tổng quát bị 400 *"Thiếu mô tả công việc"*.
 
-**`05-cv-templates.md` nạp sẵn theo MỤC, không nạp cả file.** Nửa file là cơ chế LaTeX - "Template: LaTeX moderncv", "Document Structure", "Compile-and-Inspect Loop (MANDATORY)" - và sau thay đổi này chúng không chỉ thừa mà còn **sai**: chúng bảo model làm thứ nó không còn tool để làm. `REFERENCE_SECTIONS` giữ lại bốn mục hướng dẫn nội dung, cắt hơn 30% số chữ.
+**Bài học còn giá trị nếu sau này dựng lại thứ gì tương tự:**
 
-Còn sót ba chỗ nhắc thoáng qua tới LaTeX bên trong các mục được giữ (`enlargethispage` ở mục cắt bớt nội dung, hai câu ở mục ATS). Có test đếm số lệnh LaTeX còn lại và ghim mức ≤3 - thêm lại một mục cơ chế là đỏ ngay. `workflowNotes.apply` cũng nói thẳng "mọi hướng dẫn về LaTeX trong khung đặc tả đều KHÔNG áp dụng".
+- **Model sinh NỘI DUNG CÓ CẤU TRÚC, không sinh mã trình bày.** Bản cũ bắt model gõ ~20.000 token LaTeX trước khi gọi tool lưu; riêng bước đó chiếm **51,2%** quãng chờ, trung bình 83 giây, đỉnh 247 giây, và hỏng compile 6/28 lần. Đổi sang JSON theo `cvSchema` thì còn ~1.000 token và không còn LaTeX để hỏng.
+- **Tool nào còn trong bộ là tool sẽ bị gọi.** `spawn_reviewer` từng bắt agent chính đứng đợi 142 giây cho một việc chạy nền được; `read_template`/`compile_pdf` sống sót sau khi hết `.tex` để đọc. Gỡ tính năng thì gỡ cả file.
+- **Nạp kịch bản của Claude Code rồi vá bằng prompt là đường cụt.** `apply.md` dài 27.566 ký tự, trong đó **14.081 (51%)** là phần máy chủ không chạy được, và cách vá là sáu dòng TypeScript đặt sau kịch bản bảo model bỏ qua đúng phần vừa đưa cho nó.
+- **`Document.agentRunId` vẫn là cột thật**, `SetNull`. Tài liệu do agent sinh trước đây vẫn trỏ đúng bản ghi cũ.
 
-**`save_cv` trần 2 lần mỗi loại**, thấp hơn `save_artifact`: không còn vòng compile-sửa-compile nên không có lý do chính đáng nào để lưu tới lần thứ ba.
+**Bảng `AgentRun`/`AgentStep` GIỮ NGUYÊN** và nay chỉ phục vụ buổi luyện phỏng vấn. Không có migration nào: mọi buổi luyện đã diễn ra nằm trong đó, và các cột riêng của `/apply` (`input`, `result`, `review`, `answer`) để yên cho bản ghi cũ đọc được.
+
+Phần còn lại đổi tên thành `modules/mock-interview/` — 5 file phẳng, không thư mục con:
+
+| file | việc |
+|---|---|
+| `mock-interview.controller.ts` | 4 đường HTTP + DTO. Hai đường đọc trả JSON, hai đường chạy trả chữ chảy dần |
+| `mock-interview.service.ts` | mọi thứ chạm DB để ĐỌC: danh sách, chi tiết, hạn ngạch một buổi, và dựng khối bối cảnh |
+| `interview-turn.service.ts` | một lượt đối đáp: gọi model, lọc luồng chữ, ghi bước |
+| `interview-turn.prompt.ts` | giao thức `TIẾP`/`HẾT` + `@@HOI@@` và bộ lọc luồng. Hàm thuần |
+| `mock-interview.utils.ts` | hàm thuần KHÔNG chạm DB: `trimToolOutput`, `askUserStep`, `attachAnswer`, `formatInterviewDossier` |
+
+Route đổi theo: `/agent-runs` → `/mock-interviews`, và mở buổi nay là `POST /mock-interviews` thay cho `POST /agent-runs/interview/open-stream`. **Bảng `agent_runs`/`agent_steps` giữ nguyên tên** — đổi tên bảng cần migration, mà dữ liệu buổi luyện cũ nằm cả trong đó.
+
+
+### `common/web/` — thư viện ra mạng, KHÔNG thuộc agent
+
+`fetchPage` (curl + chống SSRF theo từng chặng), `pageToText` và `parseSerper` nay ở `src/common/web/`. Trước đây chúng nằm trong `modules/agent/utils/`, và `modules/companies` phải viết `import { fetchPage } from '../../agent/utils/http-get.js'` — module dễ thay đổi nhất trong repo lại sở hữu đoạn code ổn định nhất mà module khác dựa vào.
+
+Đi kèm là namespace config `web.*` tách khỏi `agent.*`. Trước đó `ReviewResearchService` đọc `agent.searchApiKey`, `agent.fetchTimeoutMs`… cho một việc chẳng dính gì tới agent, nên **chỉnh `AGENT_FETCH_TIMEOUT_MS` để chữa một lượt chạy agent là lặng lẽ đổi cả luồng tìm hiểu công ty**, và xoá `SERPER_API_KEY` để tắt `web_search` của agent là tắt luôn tra cứu công ty.
+
+**Tên biến môi trường GIỮ NGUYÊN** (`AGENT_FETCH_MAX_BYTES`, `AGENT_FETCH_TIMEOUT_MS`, `SERPER_*`). Đổi tên biến là đúng cái đã gây sự cố 2026-08-24 — xem mục "Biến môi trường tìm kiếm là `SERPER_*`" trong `CLAUDE.md`. Chỉ namespace nội bộ đổi.
+
+Sau khi `/apply` bị gỡ thì `AgentLimits` và namespace `agent.*` biến mất hẳn; `WebLimits` là thứ còn lại, và nay `JobFromUrlService` với `ReviewResearchService` cùng đọc nó.
+
+### Buổi phỏng vấn: một vòng lặp stream, không phải hai
+
+`openStream` (lượt đầu) và `stream` (lượt đối đáp) từng có hai bản chép của cùng một thuật toán: đệm `head` tới dấu xuống dòng đầu, `splitTurnMarker`, `createStreamScrubber`. Nay cả hai gọi `pump(textStream, turn, hideUntilQuestion)`, khác nhau đúng một cờ — lượt đầu buổi giấu luôn phần trước `@@HOI@@` vì không có gì để nhận xét nên đoạn đó chỉ có thể là model bịa.
+
+**`test/unit/modules/mock-interview/interview-turn.spec.ts` được viết TRƯỚC khi gộp và không sửa một dòng nào sau đó.** Đó là toàn bộ bằng chứng rằng việc gộp không đổi hành vi: 16 test phủ vạch ngăn bị cắt đôi giữa hai mẩu, `TIẾP`/`TIEP`/không marker, `HẾT`, `<tool_call>` model bịa, chữ ngoài bảng Latin, và hình dạng bước `ask_user` giả. Đừng gỡ.
+
+Hai chỗ trùng khác cũng đã gộp: `assertNoRunInFlight` từng có hai bản giống hệt nhau tới từng chữ trong câu lỗi (đây là hạn ngạch chống cạn hạn mức gateway — sửa một bản là thủng mà typecheck vẫn xanh), và hình dạng bước `ask_user` nay dựng bằng `askUserStep`/`attachAnswer` ở `mock-interview.utils.ts`.
 
 ## Các điểm dễ vấp
 
@@ -479,6 +467,95 @@ vài chục giây và phụ thuộc gateway, để đổi lấy đúng những k
 sẽ khuyên một lập trình viên React đi học React. Đã gặp đúng lỗi này khi chạy thử.
 Không dùng so khớp chuỗi con - `"JavaScript".includes("Java")` là đúng, và khi đó hệ
 thống sẽ im lặng về việc ứng viên thiếu Java.
+
+## Mức lương nên đề xuất — `modules/salary/`
+
+Panel "Mức lương nên đề xuất" ở trang chi tiết tin trả lời câu **"vị trí này nên deal
+bao nhiêu"**, khác với trang `/salary` vốn chỉ trả lời "thị trường trả bao nhiêu". Nó
+**không gọi model**: ba con số tính thuần bằng CPU từ bảng tham chiếu, `JobRequirement`
+và điểm đối chiếu hồ sơ đã có sẵn trong `GET /jobs/:id`.
+
+### Mốc kinh nghiệm lấy từ HỒ SƠ, không lấy từ tin
+
+> **Sửa 2026-09-17.** Bản đầu làm ngược: lấy mốc từ `JobRequirement.minYears` với lý lẽ
+> "tin đòi 3 năm thì 3–5 năm là mặt bằng phải deal". Lý lẽ đó chỉ đúng khi ứng viên
+> **đạt** mốc tin đòi. Khi không đạt, kết quả là một hồ sơ 1,8 năm được khuyên đòi
+> **45,5 triệu** cho tin đòi trên 5 năm — mức của band senior. Chủ đầu tư phát hiện
+> ngay lần xem đầu tiên. Cái cớ "`period` là chuỗi tự do, khó parse" cũng sai:
+> `modules/profile/utils/experience-years.ts` đã có sẵn và `job-requirements.service` đã
+> dùng nó từ trước.
+
+`SalaryReferenceBand` chia bốn mốc theo số năm. Số năm chọn mốc là
+`yearsOfExperience(Profile.experiences)` — kinh nghiệm THẬT của ứng viên. Mốc của tin
+(`minYears`, hoặc suy từ `seniority`) đổi vai: nó không tính tiền nữa mà chỉ dựng cờ
+`experienceGap` để giao diện cảnh báo khoảng cách.
+
+Ba nhánh, và `experienceSource` nói rõ đang ở nhánh nào:
+
+| Tình huống | Mốc dùng | Cờ |
+|---|---|---|
+| Hồ sơ đọc được số năm | mốc của **ứng viên**, kể cả khi cao hơn tin đòi | `PROFILE` |
+| Hồ sơ chưa đọc được | tạm mượn mốc của tin, giao diện nói rõ là mượn | `POSTING` |
+| Không biết bên nào | bỏ band, dùng `avgMonthly` của cả vị trí | `null` |
+
+Người nhiều kinh nghiệm hơn tin đòi **không** bị ép xuống mốc của tin: 7 năm ứng tin
+đòi 1 năm vẫn tính theo band "Trên 5 năm", vì họ mang chừng đó kinh nghiệm vào việc.
+
+**`fitScore` KHÔNG đo thâm niên.** Nó là `JobRequirementMatch` — tỉ lệ đáp ứng yêu cầu
+**kỹ năng**, cố ý bỏ địa điểm và quốc tịch, và chưa bao giờ đếm số năm. Nó chỉ được
+phép dịch con số **bên trong** một band đã chọn đúng; dùng nó để nhảy band là đúng lỗi
+đã sửa ở trên.
+
+### Ba quy tắc khớp tiêu đề, cả ba đều do đo mà ra
+
+Đo trên 804 tin (`scripts/probe-salary-negotiation.mjs`), mỗi quy tắc dưới đây được
+thêm vào sau khi một vòng soát tay 30 cặp phát hiện khớp sai:
+
+1. **Bỏ nhiễu theo CỤM, không theo từ đơn.** Lọc `kinh`/`nghiem` để bỏ "kinh nghiệm"
+   thì giết luôn "kinh **doanh**": "Kỹ sư kinh doanh" teo còn một token và khớp bừa
+   với mọi tin sales.
+2. **Chỉ đọc phần đầu tiêu đề**, trước `-`, `(`, `|`, `,`. Đuôi tiêu đề là tên phòng
+   ban: mọi tin có hậu tố "- Khối Công nghệ thông tin" từng khớp 1,00 vào vị trí
+   "Nhân viên công nghệ thông tin", kể cả tin tuyển backend.
+3. **Giữ tiền tố chức danh** ("Kỹ sư" / "Nhân viên" / "Chuyên viên"). Bỏ nó thì
+   "Kỹ sư kinh doanh" (17tr) và "Nhân viên kinh doanh" (16tr) không phân biệt được.
+
+Ngưỡng là containment ≥ 0,8 trên token của **tên vị trí tham chiếu**. Hạ xuống 0,6 thì
+độ phủ tăng từ 18,3% lên 27,4% nhưng nhận ngay ca sai `Kỹ Sư Lập Trình Back-end →
+Kỹ sư DevOps` (0,67). Khi nhiều vị trí cùng điểm, vị trí **nhiều token hơn** thắng —
+nhờ đó "Nhân viên kinh doanh B2B" thắng "Nhân viên kinh doanh".
+
+### `sub-occupation-map.ts` vừa thu hẹp vừa CHẶN
+
+Tầng hai khớp theo `Job.subOccupationCode`. Bảng map tồn tại không chỉ để thu hẹp
+(nhóm `IT` có 23 vị trí trải 13–34tr, lấy trung vị cả nhóm là vô nghĩa) mà còn để
+**chặn những nghề bảng tham chiếu không phủ**. `LOG_IMPEXP` (40 tin) và `EDU_TEACHER`
+(42 tin) cố ý không có mục nào: `LOGISTICS` chỉ có 4 vị trí toàn về kho, `EDUCATION`
+có đúng 1 vị trí là "Tư vấn tuyển sinh". Map bừa xuất nhập khẩu về thủ kho thì con số
+hiện ra trông vẫn hợp lý mà sai hoàn toàn.
+
+Kết quả trên 804 tin: **POSITION 18,3% · SUB_OCCUPATION 44,9% · không có dữ liệu 36,8%**.
+Tin không khớp được thì panel biến mất, không hiện ô rỗng.
+
+### Vì sao không nới khoảng tới `rangeMin`/`rangeMax`
+
+Bản đầu cho hồ sơ mạnh nới trần thẳng tới `rangeMax` của cả vị trí. Chạy trên dữ liệu
+thật thì một tin Senior Full-stack nhảy từ `37–50tr` (fit 50) xuống `8–50tr` (fit 20),
+và tin không có mốc kinh nghiệm ra thẳng `8–50tr`. Khoảng đó vô dụng: `rangeMin`/
+`rangeMax` bao trọn mọi mốc, từ thực tập sinh tới lead. Nay nới tối đa `STRETCH_FOR_FIT`
+(15%) so với mốc, và khi không có mốc thì dùng `±SPREAD_WITHOUT_BAND` (25%) quanh trung
+bình vị trí. Test đơn vị với số đẹp **không** bắt được lỗi này — chỉ probe trên 804 tin
+thật mới bắt được.
+
+### `Profile.currentSalary` / `expectedSalary` — người dùng tự nhập
+
+Hai cột `Int?`, không bắt buộc, **model không được đề xuất** (cùng lý do với `phone`:
+một con số sai khiến người dùng mang nó đi đàm phán mà không biết). Không có thì sàn
+ước theo thị trường; có `currentSalary` thì sàn thành `max(sàn thị trường,
+currentSalary × 1,1)` và giao diện nói rõ điều đó. `expectedSalary` **không** thay đổi
+ba con số — nó chỉ sinh cờ `expectedAboveCeiling`/`expectedBelowFloor` để đối chiếu.
+Hai trường này cố ý nằm ngoài `SCORED_FIELDS`: chúng không được kéo tụt % hoàn thiện
+hồ sơ của ai.
 
 ## Đo sức khoẻ gateway
 
@@ -528,10 +605,17 @@ có token, ba route trên vẫn đi qua.
 
 ## Phân quyền
 
-`User.role` là `USER` hoặc `ADMIN`. Route quản trị chỉ cần khai
-`@UseGuards(RolesGuard)` kèm `@Roles('ADMIN')` - không khai lại `JwtAuthGuard`,
-vì guard toàn cục luôn chạy TRƯỚC guard của controller nên `request.user` chắc
-chắn đã có khi `RolesGuard` đọc tới.
+`User.role` là `USER` hoặc `ADMIN`. Route quản trị chỉ cần khai `@Roles('ADMIN')`
+(ở method hoặc class). `RolesGuard` là APP_GUARD toàn cục, đăng ký ngay sau
+`JwtAuthGuard` trong `CommonModule` nên `request.user` chắc chắn đã có khi nó đọc
+tới; route không gắn `@Roles` thì guard cho qua. Đừng gắn lại
+`@UseGuards(RolesGuard)` ở controller.
+
+Trước 2026-09-24 guard này phải khai tay bằng `@UseGuards`, và ba route admin của
+`matching.controller.ts` (trích requirement, rebuild từ điển, dispatch shortlist)
+đã gắn `@Roles('ADMIN')` mà quên guard, nên mọi user đăng nhập đều gọi được.
+`test/unit/common/guards/roles.guard.spec.ts` khoá thứ tự đăng ký để lỗi này không
+quay lại.
 
 Vai trò được đọc từ DB mỗi request qua `JwtStrategy.validate()`, **không** nằm trong
 claim của token. Ghi vai trò vào token nghĩa là một tài khoản bị hạ quyền vẫn giữ
@@ -627,13 +711,13 @@ Test e2e vẫn ở `test/*.e2e-spec.ts`, chạy riêng bằng `pnpm test:e2e`.
 | `modules/storage/local.storage.spec.ts` | Chặn path traversal 6 dạng. Khoá của người dùng này không đọc được workspace của người khác |
 | `modules/dashboard/suggestions.spec.ts` | Ngưỡng hiện từng thẻ gợi ý, và không bao giờ trả quá 4 thẻ |
 | `modules/dashboard/skill-gaps.spec.ts` | ReactJS/React được coi là một; JavaScript KHÔNG bị nhầm thành Java |
-| `modules/profile/completion.spec.ts` | Mảng rỗng và chuỗi trắng tính là chưa điền; thứ tự ưu tiên nhắc điền |
+| `modules/profile/utils/completion.spec.ts` | Mảng rỗng và chuỗi trắng tính là chưa điền; thứ tự ưu tiên nhắc điền |
 | `modules/ai/failure-kind.spec.ts` | SCHEMA được ưu tiên hơn TIMEOUT; bóc được RetryError để lấy nguyên nhân thật |
 | `modules/admin/ai-health.spec.ts` | p50/p95 không bị một lần 517 giây kéo lệch như trung bình |
 | `common/guards/jwt-auth.guard.spec.ts` | `@Public()` đi thẳng không đụng passport; route thường vẫn phải qua. Metadata đọc bằng `getAllAndOverride` nên mở được một route lẻ trong controller đã đóng |
 | `common/filters/prisma-exception.filter.spec.ts` | P2025 ra 404, P2002 ra 409, P2003 ra 400, mã lạ ra 500. Tên bảng và tên cột trong `error.meta` không rò ra phản hồi |
 | `common/middleware/request-log.middleware.spec.ts` | Query string không lọt vào log. Request bị guard chặn và đường dẫn không tồn tại vẫn được ghi - kiểm bằng một app Nest thật, không đụng database |
-| `modules/profile-sources/pdf-text.spec.ts` | Dấu tiếng Việt sống qua vòng trích xuất PDF — kiểm trên **PDF thật**. File quá lớn bị chặn TRƯỚC khi parse; PDF hỏng, rỗng, cắt dở đều ra lỗi đã phân loại chứ không sập |
+| `modules/profile-sources/utils/pdf-text.spec.ts` | Dấu tiếng Việt sống qua vòng trích xuất PDF — kiểm trên **PDF thật**. File quá lớn bị chặn TRƯỚC khi parse; PDF hỏng, rỗng, cắt dở đều ra lỗi đã phân loại chứ không sập |
 | `modules/profile-sources/cv-pdf.source.spec.ts` | PDF scan ném `ScannedPdfError` chứ KHÔNG trả bằng chứng rỗng. Câu lỗi cho người dùng không lộ tên lớp lỗi; lỗi lạ trả `null` để không bị nhận vơ là lỗi PDF |
 
 Các CLI trong `.agents/skills/*/cli/` có bộ test riêng chạy bằng `bun test`.
@@ -716,7 +800,7 @@ docker run -d --name ai-job-server --network <mạng-có-postgres> \
 
 ### Gateway `omniroute` — service riêng, KHÔNG cài vào `package.json`
 
-Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `LATEX_SERVICE_URL`.
+Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `LATEX_SERVICE_URL`. Dockerfile của nó nằm ở `omniroute-service/Dockerfile` ngang hàng `latex-service/` và `pdf-service/`, **không** nằm trong `server/` — build context vì thế chỉ có đúng một file thay vì cả thư mục `server/`.
 
 **Đừng `pnpm add omniroute`.** Gói đó là một app Next.js đầy đủ — **792MB giải nén, 21.765 file, 74 dependency** — mà cài vào rồi nó **vẫn** phải chạy như tiến trình riêng nghe cổng riêng. Trả toàn bộ cái giá, không nhận lại gì. Ảnh Docker chính thức là 483MB nén.
 
@@ -729,7 +813,7 @@ Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP
 
 **Cố ý KHÔNG có `depends_on` từ `app`**, cùng lý do với `latex` và `pdf`: gateway chết thì `catalogFor()` ném `ModelUnavailableError`, và đó đúng là một trong bốn lý do `ModelChain` bỏ qua mắt xích để đi tiếp. Nên miễn là chuỗi dự phòng còn giữ vài mắt xích `opencode/...` gọi thẳng, gateway sập **không** kéo app sập. Đừng buộc app chờ nó khoẻ mới khởi động.
 
-Ba biến `OMNIROUTE_JWT_SECRET`, `OMNIROUTE_KEY_SECRET`, `OMNIROUTE_PASSWORD` **không đi vào container app**. Chúng là giá trị thay thế `${...}` lúc đọc `docker-compose.yml`, nên phải nằm trong file truyền qua `--env-file` (`.env.production`), không phải trong `.env` mà `env_file:` nạp. Sinh lại bằng `openssl rand -base64 48` và `openssl rand -hex 32`; `INITIAL_PASSWORD` mặc định của image là `CHANGEME`.
+Ba biến `OMNIROUTE_JWT_SECRET`, `OMNIROUTE_KEY_SECRET`, `OMNIROUTE_PASSWORD` **không đi vào container app**. Chúng là giá trị thay thế `${...}` lúc đọc `docker-compose.yml`. Compose tự đọc file `.env` nằm cạnh `docker-compose.yml` để nội suy, nên cùng một file `.env` phục vụ cả hai việc và không cần `--env-file`. Sinh lại bằng `openssl rand -base64 48` và `openssl rand -hex 32`; `INITIAL_PASSWORD` mặc định của image là `CHANGEME`.
 
 Ghim tag `3.8.49`, **đừng `:latest`** — repo đó push mỗi ngày.
 
@@ -745,7 +829,9 @@ Ghim tag `3.8.49`, **đừng `:latest`** — repo đó push mỗi ngày.
 
 Tất cả trả **NDJSON**, mỗi dòng một `ModelStreamEvent` (`src/common/stream-event.ts`): `partial` / `done` / `error`. Bên giao diện có đúng MỘT bộ đọc dùng chung — `lib/model-stream.ts`.
 
-**Điều kiện để một tác vụ đáng có đường stream: phải có NGƯỜI ĐANG CHỜ.** Đã suýt làm sai một lần: `interview.prep` chậm nhất (42s) nên bị xếp đầu bảng, nhưng nó được xếp việc từ `applications.service` **khi người dùng chuyển đơn sang trạng thái Phỏng vấn** — chạy nền, không ai nhìn. Đường stream của nó giờ chỉ phục vụ nút "thử lại". `job.requirements` và `skill.canonicalize` chạy trong cron nên KHÔNG có và không nên có.
+**Điều kiện để một tác vụ đáng có đường stream: phải có NGƯỜI ĐANG CHỜ.** Đã suýt làm sai một lần: `interview.prep` chậm nhất (42s) nên bị xếp đầu bảng, nhưng khi đó nó được xếp việc từ `applications.service` **lúc người dùng chuyển đơn sang trạng thái Phỏng vấn** — chạy nền, không ai nhìn. `job.requirements` và `skill.canonicalize` chạy trong cron nên KHÔNG có và không nên có.
+
+**`POST /interview/prep-stream/:jobId` hiện KHÔNG có ai gọi** (kiểm 2026-09-22): `applications.service` nay chỉ ĐỌC `interviewPrep` chứ không xếp việc nữa, và giao diện dùng `prep` (hàng đợi) với `prep-sync` (đồng bộ). Route vẫn giữ vì nó dùng chung `prepare()` với đường đồng bộ nên gần như không tốn gì; nhưng nó chưa từng chạy thật qua giao diện, đừng coi 42s trong bảng trên là số đo còn hạn.
 
 **Ba cái bẫy đã sập khi triển khai:**
 
@@ -793,14 +879,14 @@ Lỗi đó ảnh hưởng **cả bộ lọc tỉnh/thành trên trang danh sách
 
 **`LOCATION` cố ý KHÔNG vào mẫu số** (`SCORED_KINDS` chỉ có `SKILL`, `NICE`, `YEARS`). Nhét vào thì người ở tỉnh khác thấy "khớp 60%" mà không biết 40% mất đi là do thiếu kỹ năng hay do ở xa. Hai câu hỏi khác nhau thì phải có hai câu trả lời riêng.
 
-### Đường HTTP của agent: `detail()`, KHÔNG phải `get()`
+### Đường HTTP của buổi luyện: `detail()`, KHÔNG phải `get()`
 
-`GET /api/agent/:id` bị giao diện hỏi lại **mỗi 2 giây suốt cả lượt chạy** (p90 của `agent.apply` là 229 giây). Nên nó dùng `AgentService.detail()` chứ không dùng `get()`:
+`GET /api/mock-interviews/:id` bị giao diện hỏi lại **mỗi 4 giây suốt cả buổi**, mà một buổi luyện kéo dài hàng chục phút. Nên nó dùng `MockInterviewService.detail()` chứ không dùng `get()`:
 
-- **bỏ hẳn cột `messages`** — hội thoại thô để chạy tiếp một lượt. `interview-turn` và `agent-runner` cần nó, giao diện thì chưa bao giờ đọc.
-- **cắt mọi chuỗi dài trong `toolResults` còn 500 ký tự** (`trim-output.ts`). `lib/agent-steps.ts` bên giao diện chỉ đọc `error`, `ok`, `reason`, `saved`, `critique`, `asked`, `pages`, `file`, `path` và `results.length` — nó không bao giờ vẽ `content` hay `text`, mà đó đúng là hai trường nặng nhất (`read_skill_reference` ~8.000 ký tự, `fetch_url` tới 20.000).
+- **bỏ hẳn cột `messages`** — hội thoại thô để chạy tiếp một lượt. `InterviewTurnService` cần nó, giao diện thì chưa bao giờ đọc.
+- **cắt mọi chuỗi dài trong `toolResults` còn 500 ký tự** (`mock-interview.utils.ts`). `lib/interview-transcript.ts` bên giao diện chỉ đọc `error`, `ok`, `reason`, `saved`, `critique`, `asked`, `pages`, `file`, `path` và `results.length` — nó không bao giờ vẽ `content` hay `text`, mà đó đúng là hai trường nặng nhất (`read_skill_reference` ~8.000 ký tự, `fetch_url` tới 20.000).
 
-Đo trên 5 lượt `apply` thật: **73.957 → 3.569 ký tự mỗi lần hỏi, giảm 95%**.
+Đo trên 5 lượt chạy thật thời còn vòng lặp agent: **73.957 → 3.569 ký tự mỗi lần hỏi, giảm 95%**.
 
 **`get()` phải giữ nguyên `messages`** — cắt ở đó là làm hỏng nhánh chạy tiếp của phỏng vấn, và lỗi sẽ hiện ra dưới dạng agent quên sạch bối cảnh chứ không phải một exception.
 

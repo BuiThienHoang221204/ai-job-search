@@ -1,90 +1,70 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import type { QueueConfig } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { concurrencyForQueue, allQueueConfigs } from './queue.config.js';
+import { concurrencyForQueue, allQueueConfigs } from './queue.defaults.js';
+import type { QueueConfigItem } from './queue.types.js';
 
-export type QueueConfigItem = {
-  queueName: string;
-  concurrency: number;
-  serial: boolean;
-  note: string | null;
-};
+const toItem = (row: QueueConfig): QueueConfigItem => ({
+  queueName: row.queueName,
+  concurrency: row.concurrency,
+  serial: row.serial,
+  note: row.note,
+});
 
+/** Concurrency SỐNG, đọc từ database để admin đổi được lúc đang chạy. Bảng mặc định ở `queue.defaults.ts`. */
 @Injectable()
 export class QueueConfigService implements OnModuleInit {
   private readonly logger = new Logger(QueueConfigService.name);
 
-  /** Cache in-memory: worker đọc từ đây, không hit DB mỗi lần poll. */
+  /** Cache in-memory: worker đọc từ đây, không hỏi database mỗi lần poll. */
   private cache = new Map<string, QueueConfigItem>();
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Seed data mặc định khi chưa có config trong DB. */
+  /** MỘT `createMany` thay vì kiểm-rồi-tạo từng dòng — 11 hàng đợi từng tốn tới 22 truy vấn mỗi lần app khởi động. */
   async onModuleInit(): Promise<void> {
-    const defaults = allQueueConfigs();
-
-    for (const [name, config] of Object.entries(defaults)) {
-      const exists = await this.prisma.queueConfig.findUnique({
-        where: { queueName: name },
-      });
-
-      if (!exists) {
-        await this.prisma.queueConfig.create({
-          data: {
-            queueName: name,
-            concurrency: config.concurrency,
-            serial: config.serial ?? false,
-            note: config.serial ? 'Bắt buộc tuần tự để tránh chặn IP' : null,
-          },
-        });
-        this.logger.log(`Seeded queue config: ${name} = ${config.concurrency}`);
-      }
-    }
+    const seeded = await this.prisma.queueConfig.createMany({
+      data: Object.entries(allQueueConfigs()).map(([queueName, config]) => ({
+        queueName,
+        concurrency: config.concurrency,
+        serial: config.serial ?? false,
+        note: config.serial ? 'Bắt buộc tuần tự để tránh chặn IP' : null,
+      })),
+      skipDuplicates: true,
+    });
 
     await this.refreshCache();
-    this.logger.log('Queue config cache loaded');
+    this.logger.log(
+      `Queue config: ${this.cache.size} hàng đợi trong cache (${seeded.count} dòng vừa seed)`,
+    );
   }
 
-  /** Đọc từ DB và refresh cache. */
+  /** Đọc từ database và dựng lại cache. */
   async refreshCache(): Promise<void> {
     const rows = await this.prisma.queueConfig.findMany();
-    this.cache.clear();
-    for (const row of rows) {
-      this.cache.set(row.queueName, {
-        queueName: row.queueName,
-        concurrency: row.concurrency,
-        serial: row.serial,
-        note: row.note,
-      });
-    }
+    this.cache = new Map(rows.map((row) => [row.queueName, toItem(row)]));
   }
 
-  /** Worker gọi hàm này mỗi 30s để lấy concurrency hiện tại. */
+  /** Worker hỏi hàm này để lấy concurrency hiện tại; chưa có dòng trong database thì lùi về bảng mặc định. */
   getConcurrency(queue: string): number {
     const config = this.cache.get(queue);
     if (config?.serial) return 1;
     if (config) return Math.max(1, config.concurrency);
-    // Fallback về config cứng nếu chưa có trong DB
     return concurrencyForQueue(queue);
   }
 
-  /** Lấy tất cả configs (cho admin UI). */
+  /** Danh sách cho màn hình admin. */
   async findAll(): Promise<QueueConfigItem[]> {
     await this.refreshCache();
-    return Array.from(this.cache.values());
+    return [...this.cache.values()];
   }
 
-  /** Admin cập nhật concurrency cho 1 queue. */
+  /** Admin đổi concurrency cho một hàng đợi. Worker nhận giá trị mới ở nhịp refresh kế tiếp, chậm nhất 30 giây. */
   async update(
     queueName: string,
     put: { concurrency?: number; serial?: boolean; note?: string },
   ): Promise<QueueConfigItem> {
-    const data: {
-      queueName: string;
-      concurrency: number;
-      serial: boolean;
-      note: string | null;
-    } = {
-      queueName,
+    const data = {
       concurrency: put.concurrency ?? 1,
       serial: put.serial ?? false,
       note: put.note ?? null,
@@ -92,25 +72,14 @@ export class QueueConfigService implements OnModuleInit {
 
     const row = await this.prisma.queueConfig.upsert({
       where: { queueName },
-      create: data,
-      update: {
-        concurrency: data.concurrency,
-        serial: data.serial,
-        note: data.note,
-      },
+      create: { queueName, ...data },
+      update: data,
     });
-
     await this.refreshCache();
 
     this.logger.log(
-      `Queue "${queueName}" updated: concurrency=${row.concurrency}, serial=${row.serial}`,
+      `Hàng đợi "${queueName}": concurrency=${row.concurrency}, serial=${row.serial}`,
     );
-
-    return {
-      queueName: row.queueName,
-      concurrency: row.concurrency,
-      serial: row.serial,
-      note: row.note,
-    };
+    return toItem(row);
   }
 }

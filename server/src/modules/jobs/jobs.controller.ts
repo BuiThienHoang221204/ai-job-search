@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { CreateJobDto, ListJobsQueryDto } from './job.dto.js';
@@ -38,10 +39,7 @@ export class JobsController {
     return this.jobs.list(query, user.id);
   }
 
-  /**
-   * Danh mục tỉnh/thành và ngành nghề kèm số tin, để giao diện dựng thanh lọc.
-   * Phải khai TRƯỚC ':id', nếu không Nest sẽ coi "filters" là một id.
-   */
+  /** Phải khai TRƯỚC `:id`, nếu không Nest coi "filters" là một id. */
   @ApiOperation({
     summary: 'Lấy danh mục tỉnh thành và ngành nghề kèm số lượng tin để lọc',
   })
@@ -84,11 +82,12 @@ export class JobsController {
     return this.jobs.unsave(user.id, id);
   }
 
-  /**
-   * Nạp tin tuyển dụng rồi đưa ngay vào hàng đợi chấm điểm cho người dùng
-   * hiện tại.
-   */
-  @ApiOperation({ summary: 'Tạo/nạp tin tuyển dụng mới và bắt đầu chấm điểm' })
+  /** Nạp tin rồi xếp luôn vào hàng đợi chấm điểm cho người đang đăng nhập. */
+  // Chỉ ADMIN: tin là dữ liệu dùng chung, upsert theo source+externalId cho phép ghi đè url/mô tả tin thật mà mọi người đang xem.
+  @ApiOperation({
+    summary: 'Tạo/nạp tin tuyển dụng mới và bắt đầu chấm điểm (Admin)',
+  })
+  @Roles('ADMIN')
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {
     const job = await this.jobs.upsert(dto);

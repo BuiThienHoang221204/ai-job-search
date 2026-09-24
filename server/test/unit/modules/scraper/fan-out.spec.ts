@@ -1,11 +1,12 @@
 import {
   MAX_EVALUATIONS_PER_RUN,
-  MIN_COMPLETION_TO_SCORE,
   PER_USER_LIMIT,
-  keywordOverlap,
-  pairKey,
   planFanOut,
-} from 'src/modules/scraper/fan-out.js';
+} from 'src/modules/scraper/utils/fan-out.js';
+import {
+  MIN_COMPLETION_TO_SCORE,
+  pairKey,
+} from 'src/modules/matching/rules/match-write.js';
 
 const users = (...completions: number[]) =>
   completions.map((completion, index) => ({
@@ -20,57 +21,6 @@ const users = (...completions: number[]) =>
  */
 const jobs = (...ids: string[]) =>
   ids.map((id) => ({ id, text: 'tuyển DevOps cho dự án mới' }));
-
-describe('keywordOverlap', () => {
-  test('đếm số kỹ năng KHÁC NHAU xuất hiện trong tin', () => {
-    const text = 'Tuyển DevOps Engineer, dùng Kubernetes và Terraform';
-    expect(keywordOverlap(text, ['DevOps', 'Kubernetes', 'Terraform'])).toBe(3);
-    expect(keywordOverlap(text, ['DevOps', 'React'])).toBe(1);
-  });
-
-  test('không phân biệt hoa thường và không đếm trùng', () => {
-    expect(keywordOverlap('kubernetes KUBERNETES', ['Kubernetes'])).toBe(1);
-    expect(keywordOverlap('Kubernetes', ['kubernetes', 'KUBERNETES'])).toBe(1);
-  });
-
-  test('bỏ qua từ khoá quá ngắn', () => {
-    // Một ký tự khớp gần như mọi tin, chỉ làm nhiễu thứ hạng.
-    expect(keywordOverlap('DevOps Engineer', ['a', 'e'])).toBe(0);
-  });
-
-  /*
-   * Hai ca này là lý do hàm được viết lại. Khớp chuỗi con từng cho `Excel` dính
-   * vào "technical excellence" và `SAP` dính vào tên toà nhà "Sapphire" - mà
-   * mọi tin IT tiếng Anh đều có chữ "excellence", nên MỌI hồ sơ phi-IT có khai
-   * Excel đều bị ghép với chúng rồi tốn một lượt gọi model cho từng cặp.
-   */
-  test('không khớp khi từ khoá chỉ là một phần của từ khác', () => {
-    expect(keywordOverlap('technical excellence and impact', ['Excel'])).toBe(
-      0,
-    );
-    expect(keywordOverlap('- Excellent problem-solving', ['Excel'])).toBe(0);
-    expect(keywordOverlap('Podium Floor, Sapphire 2 tower', ['SAP'])).toBe(0);
-  });
-
-  test('vẫn khớp khi từ khoá đứng thành một từ trọn vẹn', () => {
-    expect(keywordOverlap('Thành thạo Excel, MISA', ['Excel'])).toBe(1);
-    expect(keywordOverlap('Kinh nghiệm SAP B1', ['SAP'])).toBe(1);
-    expect(keywordOverlap('báo cáo trên excel.', ['Excel'])).toBe(1);
-  });
-
-  test('không cắt nhầm từ khoá có ký tự đặc biệt', () => {
-    // `\b` của JS đặt biên sai ở những từ khoá này, nên biên phải tự dựng.
-    expect(keywordOverlap('Backend C++ và C#', ['C++', 'C#'])).toBe(2);
-    expect(keywordOverlap('Xây dựng ASP.NET Core', ['.NET'])).toBe(1);
-    expect(keywordOverlap('Node.js + React.js', ['Node.js'])).toBe(1);
-  });
-
-  test('khớp được tiếng Việt có dấu', () => {
-    const text = 'Tuyển Kế toán tổng hợp, làm báo cáo thuế hàng quý';
-    expect(keywordOverlap(text, ['Kế toán tổng hợp', 'Báo cáo thuế'])).toBe(2);
-    expect(keywordOverlap(text, ['Kế toán trưởng'])).toBe(0);
-  });
-});
 
 describe('planFanOut', () => {
   test('mỗi người chỉ được tối đa PER_USER_LIMIT tin', () => {

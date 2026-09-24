@@ -19,6 +19,7 @@ export class ReconcileCronService implements OnModuleInit {
     private readonly reconcile: ReconcileService,
   ) {}
 
+  /** Chỉ vai chạy việc nền mới đăng ký cron; nhiều bản sao cùng bật là cùng nhặt một đống việc. */
   onModuleInit(): void {
     if (!runsBackgroundWork()) {
       this.logger.log(`Vai ${appRole()}: không chạy cron nhặt việc rơi`);

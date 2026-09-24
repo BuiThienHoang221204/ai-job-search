@@ -8,10 +8,11 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { AiModule } from './modules/ai/ai.module.js';
 import { ApplicationsModule } from './modules/applications/applications.module.js';
-import { AgentModule } from './modules/agent/agent.module.js';
+import { MockInterviewModule } from './modules/mock-interview/mock-interview.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { SalaryModule } from './modules/salary/salary.module.js';
+import { QuestionBankModule } from './modules/question-bank/question-bank.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { InterviewModule } from './modules/interview/interview.module.js';
@@ -61,9 +62,10 @@ import { StorageModule } from './modules/storage/storage.module.js';
     CompaniesModule,
     DocumentsModule,
     ApplicationsModule,
-    AgentModule,
+    MockInterviewModule,
     DashboardModule,
     SalaryModule,
+    QuestionBankModule,
     ReconcileModule,
     AdminModule,
   ],

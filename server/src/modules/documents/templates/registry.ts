@@ -4,10 +4,7 @@ import { resolveLayout, type DocumentLanguage } from './cv-layout.js';
 import { htmlDocument } from './html.js';
 import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes.js';
 
-/**
- * Kho mẫu CV. Chỗ DUY NHẤT biết `templateId` là chuỗi gì, nên thêm mẫu là thêm
- * một mục trong `themes.ts` chứ không phải sửa controller hay migration.
- */
+/** Chỗ DUY NHẤT biết `templateId` là chuỗi gì — thêm mẫu = thêm một mục trong `themes.ts`, không sửa controller. */
 
 /** Mẫu mặc định. Phải khớp `@default` của cột `Document.templateId`. */
 export const DEFAULT_TEMPLATE_ID = 'classic';
@@ -26,10 +23,7 @@ export const CV_TEMPLATES: readonly CvTemplateMeta[] = CV_THEMES.map(
 export const isTemplateId = (value: string): boolean =>
   CV_THEMES.some((theme) => theme.meta.id === value);
 
-/**
- * Tra mẫu theo id, quay về mặc định khi không thấy. Không ném lỗi: gỡ một mẫu ở
- * bản sau sẽ để lại tài liệu cũ trỏ vào id không còn tồn tại.
- */
+/** Không thấy thì về mặc định chứ không ném lỗi: gỡ một mẫu sẽ để lại tài liệu cũ trỏ vào id đã mất. */
 const findTheme = (templateId: string | null | undefined): CvTheme =>
   CV_THEMES.find((theme) => theme.meta.id === templateId) ?? CV_THEMES[0];
 
@@ -37,10 +31,7 @@ const findTheme = (templateId: string | null | undefined): CvTheme =>
 export const isAccent = (value: unknown): value is string =>
   typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
 
-/**
- * Đọc tuỳ chọn đã lưu, điền mặc định cho phần thiếu hoặc sai. Nhận `unknown` vì
- * nguồn là cột Json; giá trị hỏng quay về mặc định chứ không làm hỏng cả bản CV.
- */
+/** Nhận `unknown` vì nguồn là cột Json; giá trị hỏng quay về mặc định chứ không làm hỏng cả bản CV. */
 export const resolveTemplateOptions = (
   templateId: string | null | undefined,
   raw: unknown,

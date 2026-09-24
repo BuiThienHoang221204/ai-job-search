@@ -5,7 +5,7 @@ import {
   cvEditSchema,
   cvSchema,
   formAnswerSchema,
-} from 'src/modules/documents/document.schema.js';
+} from 'src/modules/documents/schemas/document.schema.js';
 import { interviewPrepSchema } from 'src/modules/interview/interview.schema.js';
 import {
   upskillGapsSchema,
@@ -13,13 +13,13 @@ import {
 } from 'src/modules/upskill/upskill.schema.js';
 import { profileProposalSchema } from 'src/modules/profile-sources/profile-proposal.schema.js';
 import { searchPlanSchema } from 'src/modules/scraper/planning/search-plan.schema.js';
-import { evaluationSchema } from 'src/modules/matching/schemas/evaluation.schema.js';
+import { evaluationSchema } from 'src/modules/matching/ai/schemas/evaluation.schema.js';
 import {
   jobRequirementsBatchSchema,
   jobRequirementsSchema,
-} from 'src/modules/matching/schemas/job-requirements.schema.js';
-import { skillMergeSchema } from 'src/modules/matching/schemas/skill-merge.schema.js';
-import { companyBriefSchema } from 'src/modules/companies/brief/company-brief.schema.js';
+} from 'src/modules/matching/ai/schemas/job-requirements.schema.js';
+import { skillMergeSchema } from 'src/modules/matching/ai/schemas/skill-merge.schema.js';
+import { companyBriefSchema } from 'src/modules/companies/utils/company-brief.js';
 
 /**
  * Canh trần SỐ LƯỢNG trên schema của MODEL phải là `.transform(slice)`, không

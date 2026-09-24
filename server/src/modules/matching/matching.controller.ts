@@ -20,10 +20,13 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { EvaluateJobDto, ListMatchesQueryDto } from './matching.dto.js';
-import { MatchingService } from './services/matching.service.js';
-import { JobRequirementsService } from './services/job-requirements.service.js';
+import { MatchingService } from './ai/services/matching.service.js';
+import { JobRequirementsService } from './ai/services/job-requirements.service.js';
+import { AiShortlistService } from './rules/services/ai-shortlist.service.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
+import { streamNdjson } from '../../common/ndjson.js';
 import { ThrottleAi } from '../../common/throttle.js';
+import { withFailureKind } from '../ai/utils/failure-view.js';
 
 @ApiTags('Matching & Scoring')
 @ApiBearerAuth()
@@ -35,12 +38,10 @@ export class MatchingController {
     private readonly matching: MatchingService,
     private readonly queue: QueueService,
     private readonly requirements: JobRequirementsService,
+    private readonly shortlist: AiShortlistService,
   ) {}
 
-  /**
-   * Đường ĐỌC. Chỉ truy vấn DB, không gọi AI - màn hình dashboard và danh
-   * sách việc làm đều vào đây.
-   */
+  /** Đường ĐỌC, chỉ truy vấn DB — dashboard và danh sách việc làm đều vào đây. */
   @ApiOperation({
     summary: 'Lấy danh sách điểm tương thích công việc của người dùng',
   })
@@ -52,14 +53,12 @@ export class MatchingController {
   @ApiOperation({ summary: 'Lấy điểm tương thích chi tiết của một công việc' })
   @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
   @Get(':jobId')
-  get(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string) {
-    return this.matching.getMatch(user.id, jobId);
+  async get(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string) {
+    const match = await this.matching.getMatch(user.id, jobId);
+    return match && withFailureKind(match);
   }
 
-  /**
-   * Đường GHI, không đồng bộ. Trả về ngay, worker chấm điểm ở nền; giao diện
-   * hiện trạng thái PENDING rồi cập nhật sau.
-   */
+  /** Đường GHI không đồng bộ: trả về ngay, worker chấm ở nền, giao diện hiện PENDING rồi cập nhật. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Đưa yêu cầu đánh giá độ tương thích công việc vào hàng đợi',
@@ -104,10 +103,7 @@ export class MatchingController {
     return this.requirements.extract(jobId, force === 'true');
   }
 
-  /**
-   * Dựng danh bạ kỹ năng cho toàn bộ kho. Trả về ngay: việc chạy theo từng lô ở
-   * hàng đợi nền, mỗi lô tự xếp lô kế cho tới khi hết cách viết chưa biết.
-   */
+  /** Trả về ngay: việc chạy theo từng lô ở hàng đợi nền, mỗi lô tự xếp lô kế cho tới khi hết. */
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Tái cấu trúc danh bạ kỹ năng chuẩn hóa (Admin)' })
   @Post('dictionary/rebuild')
@@ -116,14 +112,20 @@ export class MatchingController {
     return { queued: true, queueJobId: id };
   }
 
-  /**
-   * Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model.
-   * Không dùng cho giao diện: một lần gọi mất vài giây.
-   */
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Đánh giá độ tương thích công việc đồng bộ ngay lập tức',
+  /** Chạy ĐỒNG BỘ để đọc được ngay số suất đã phát, thay vì đợi lượt quét kế. */
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Phát suất AI cho top-N tin phù hợp nhất (Admin)' })
+  @ApiQuery({
+    name: 'userId',
+    type: String,
+    required: false,
+    description: 'Chỉ phát cho một hồ sơ; bỏ trống thì phát cho mọi hồ sơ',
   })
+  @Post('shortlist/dispatch')
+  dispatchShortlist(@Query('userId') userId?: string) {
+    return this.shortlist.dispatch(userId);
+  }
+
   @ThrottleAi()
   @ApiOperation({
     summary: 'Chấm điểm và đẩy về từng phần ngay khi model viết ra (NDJSON)',
@@ -136,32 +138,26 @@ export class MatchingController {
     @Query('force') force: string | undefined,
     @Res() response: Response,
   ): Promise<void> {
-    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-cache, no-transform');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.flushHeaders();
-
-    try {
-      for await (const event of this.matching.streamEvaluate(
-        user.id,
-        jobId,
-        force === 'true',
-      )) {
-        response.write(`${JSON.stringify(event)}\n`);
-      }
-    } catch (error) {
-      this.logger.error(
-        `Stream chấm điểm ${jobId} hỏng: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      response.destroy();
-      return;
-    }
-
-    response.end();
+    await streamNdjson({
+      response,
+      logger: this.logger,
+      label: `chấm điểm ${jobId}`,
+      events: this.matching.streamEvaluate(user.id, jobId, force === 'true'),
+    });
   }
 
+  /** Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model — một lần gọi mất vài giây. */
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Đánh giá độ tương thích công việc đồng bộ ngay lập tức',
+  })
   @Post('evaluate-sync')
-  evaluateNow(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
-    return this.matching.evaluate(user.id, dto.jobId, dto.force ?? false);
+  async evaluateNow(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: EvaluateJobDto,
+  ) {
+    return withFailureKind(
+      await this.matching.evaluate(user.id, dto.jobId, dto.force ?? false),
+    );
   }
 }

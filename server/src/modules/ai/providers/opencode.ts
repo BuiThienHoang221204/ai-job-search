@@ -1,18 +1,17 @@
 import type { ProviderDescriptor } from './types.js';
 
-/**
- * OpenCode Zen — lõi mặc định, và là lõi MÙ về capability.
- *
- * `GET /zen/v1/models` trả đúng bốn trường cho mỗi model: `id`, `object`,
- * `created`, `owned_by`. Không có gì cho biết model làm được gì. Nên ở lõi này
- * chỉ phép đo mới biết, và danh sách dưới đây là kết quả đo thật chứ không suy
- * ra từ metadata — xem bảng model trong `CLAUDE.md`.
- */
+/** Lõi MÙ về capability: `/zen/v1/models` chỉ trả `id`/`object`/`created`/`owned_by`, nên ở đây chỉ phép ĐO mới biết model làm được gì. */
 export const opencode: ProviderDescriptor = {
   id: 'opencode',
   label: 'OpenCode Zen',
   apiKeyEnv: 'AI_API_KEY',
   userAgentEnv: 'OPENCODE_USER_AGENT',
+
+  /** Trỏ sang container bọc `opencode run`; bỏ trống thì rơi về đường thẳng tới opencode.ai, và đường đó 403 chắc chắn. */
+  baseURLEnv: 'OPENCODE_SERVICE_URL',
+
+  /** Wrapper CLI chỉ chuyển tiếp thân request, không ép định dạng — schema phải đi đường bơm vào prompt. */
+  honorsResponseFormat: false,
 
   knownNoStructuredOutput: [
     // Trả content rỗng dù đã cho tới 1500 token.

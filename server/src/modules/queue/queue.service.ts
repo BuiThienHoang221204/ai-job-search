@@ -6,135 +6,14 @@ import {
 } from '@nestjs/common';
 import type { PgBoss, SendOptions, WorkOptions } from 'pg-boss';
 import { appRole, runsBackgroundWork } from '../../config/app-role.js';
+import { QUEUE, QUEUE_POLICY } from './queue.constants.js';
 import { singletonKeyFor } from './queue-key.js';
 import { QueueConfigService } from './queue-config.service.js';
+import type { QueueStats, QueueStatsItem, QueueStatus } from './queue.types.js';
 
-/** Policy áp cho mọi hàng đợi. */
-const QUEUE_POLICY = 'exclusive';
-
-export const QUEUE = {
-  /** Chấm điểm một cặp (user, job). Đây là đường GHI của màn hình dashboard. */
-  EVALUATE_MATCH: 'match.evaluate',
-  /** Soạn bộ câu hỏi phỏng vấn cho một công việc. */
-  INTERVIEW_PREP: 'interview.prep',
-  /** Tổng hợp thiếu hụt kỹ năng trên toàn bộ công việc đã chấm. */
-  UPSKILL_REPORT: 'upskill.report',
-  /** Sinh CV / thư xin việc / câu trả lời form. */
-  GENERATE_DOCUMENT: 'document.generate',
-  /** Quét tin tuyển dụng từ portal rồi đẩy từng tin sang match.evaluate. */
-  SCRAPE_RUN: 'scrape.run',
-  /** Đọc CV/nguồn ngoài thành một ĐỀ XUẤT hồ sơ, chờ người dùng xác nhận. */
-  PROFILE_SYNTHESIZE: 'profile.synthesize',
-  /** Rút yêu cầu của MỘT tin, dùng chung cho mọi hồ sơ. Pha A. */
-  EXTRACT_REQUIREMENTS: 'job.requirements',
-  /** Tìm hiểu một công ty từ các trang đánh giá công khai. Khoá theo công ty, không theo người dùng. */
-  COMPANY_BRIEF: 'company.brief',
-  /** Chạy một kịch bản nhiều bước trong `.claude/commands/`. */
-  AGENT_RUN: 'agent.run',
-  /**
-   * Phản biện hồ sơ SAU khi lượt chạy đã trả kết quả.
-   *
-   * Tách khỏi `AGENT_RUN` vì nó là 19,7% quãng chờ mà người dùng không cần đợi:
-   * CV đã nằm trên màn hình rồi, góp ý tới sau vẫn kịp.
-   */
-  AGENT_REVIEW: 'agent.review',
-  /** Đối chiếu hồ sơ với yêu cầu đã rút. Thuần CPU, KHÔNG gọi model. */
-  REQUIREMENT_MATCH: 'match.requirements',
-  /** Quy các cách viết kỹ năng về một mã chuẩn. Chạy TRƯỚC bước đối chiếu. */
-  SKILL_CANONICALIZE: 'skill.canonicalize',
-} as const;
-
-export type ExtractRequirementsPayload = {
-  jobIds: string[];
-  force?: boolean;
-};
-
-/** Một phía là đủ: có `jobId` thì tính lại theo tin, có `userId` thì theo hồ sơ. */
-export type RequirementMatchPayload = {
-  jobId?: string;
-  userId?: string;
-};
-
-/** `round` = quét toàn kho, mỗi lượt một lô rồi tự xếp lượt kế. */
-export type SkillCanonicalizePayload = RequirementMatchPayload & {
-  round?: number;
-};
-
-export type EvaluateMatchPayload = {
-  userId: string;
-  jobId: string;
-  force?: boolean;
-};
-
-export type InterviewPrepPayload = {
-  userId: string;
-  jobId: string;
-  force?: boolean;
-};
-
-export type AgentRunPayload = {
-  runId: string;
-  userId: string;
-};
-
-export type AgentReviewPayload = {
-  runId: string;
-  userId: string;
-};
-
-/** Không có `userId`: bản tìm hiểu công ty dùng chung cho mọi người dùng. */
-export type CompanyBriefPayload = {
-  nameKey: string;
-  company: string;
-  force?: boolean;
-};
-
-export type UpskillReportPayload = {
-  userId: string;
-  reportId: string;
-};
-
-export type GenerateDocumentPayload = {
-  userId: string;
-  documentId: string;
-};
-
-export type ProfileSynthesizePayload = {
-  userId: string;
-  draftId: string;
-};
-
-export type ScrapeRunPayload = {
-  runId: string;
-  /**
-   * Vắng mặt khi đây là lần quét của hệ thống do cron chạy. Worker chỉ cần
-   * runId; chủ sở hữu đã nằm trong chính bản ghi ScrapeRun.
-   */
-  userId?: string;
-};
-
-/** Mặt tiếp xúc mà các module khác dùng để đẩy và nhận việc nền. */
-export type Queue = Pick<
-  QueueService,
-  'send' | 'sendMany' | 'work' | 'status' | 'getStats'
->;
-
-/** Trạng thái khởi tạo hàng đợi, dùng cho readiness probe. */
-export type QueueStatus = { ready: boolean; error: string | null };
-
-export type QueueStatsItem = {
-  name: string;
-  concurrency: number;
-  size: number;
-  active: number;
-  total: number;
-};
-
-export type QueueStats = {
-  queues: QueueStatsItem[];
-  totalWaiting: number;
-  totalActive: number;
-};
+/** Một đường import cho 37 file gọi tới: chúng không cần biết module chia file thế nào bên trong. */
+export { QUEUE, QUEUE_POLICY } from './queue.constants.js';
+export type * from './queue.types.js';
 
 /** Hàng đợi chạy trên chính Postgres, không cần Redis. */
 @Injectable()
@@ -143,7 +22,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
   private boss!: PgBoss;
   private started!: Promise<void>;
 
-  /** Timer refresh config từ DB mỗi 30s. */
+  /** Đọc lại concurrency từ database mỗi 30 giây — admin đổi số là worker nhận trong vòng một nhịp. */
   private refreshTimer?: NodeJS.Timeout;
 
   /** Ghi lại kết quả khởi tạo để readiness probe đọc được. */
@@ -152,6 +31,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
 
   constructor(private readonly queueConfig: QueueConfigService) {}
 
+  /** Khởi tạo KHÔNG await ở đây: mọi hàm công khai await `this.started`, nhờ vậy caller gọi sớm vẫn đúng thứ tự. */
   onModuleInit(): void {
     this.started = (async () => {
       try {
@@ -183,10 +63,9 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
             (runsBackgroundWork() ? '' : ' - KHÔNG đăng ký worker nào'),
         );
 
-        // Bắt đầu poll config từ DB mỗi 30s
         this.refreshTimer = setInterval(() => {
-          this.queueConfig.refreshCache().catch((err) => {
-            this.logger.error('Lỗi refresh queue config', err);
+          this.queueConfig.refreshCache().catch((error: unknown) => {
+            this.logger.error('Lỗi refresh queue config', error);
           });
         }, 30_000);
       } catch (error) {
@@ -197,37 +76,38 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     })();
   }
 
+  async onApplicationShutdown(): Promise<void> {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+    await this.boss?.stop({ graceful: true });
+  }
+
   /** Trạng thái khởi tạo, cho readiness probe. */
   status(): QueueStatus {
     return { ready: this.isStarted, error: this.startupError };
   }
 
-  /** Thống kê realtime tất cả hàng đợi. */
+  /** Thống kê realtime mọi hàng đợi, hỏi song song vì 11 lần `getQueue` tuần tự là 11 vòng đi-về database. */
   async getStats(): Promise<QueueStats> {
     await this.started;
-    const queues: QueueStatsItem[] = [];
 
-    for (const name of Object.values(QUEUE)) {
-      const q = await this.boss.getQueue(name);
-      queues.push({
-        name,
-        concurrency: this.queueConfig.getConcurrency(name),
-        size: (q?.queuedCount as number) ?? 0,
-        active: (q?.activeCount as number) ?? 0,
-        total: (q?.totalCount as number) ?? 0,
-      });
-    }
+    const queues: QueueStatsItem[] = await Promise.all(
+      Object.values(QUEUE).map(async (name) => {
+        const row = await this.boss.getQueue(name);
+        return {
+          name,
+          concurrency: this.queueConfig.getConcurrency(name),
+          size: (row?.queuedCount as number) ?? 0,
+          active: (row?.activeCount as number) ?? 0,
+          total: (row?.totalCount as number) ?? 0,
+        };
+      }),
+    );
 
     return {
       queues,
       totalWaiting: queues.reduce((sum, q) => sum + q.size, 0),
       totalActive: queues.reduce((sum, q) => sum + q.active, 0),
     };
-  }
-
-  async onApplicationShutdown(): Promise<void> {
-    if (this.refreshTimer) clearInterval(this.refreshTimer);
-    await this.boss?.stop({ graceful: true });
   }
 
   /** Tạo hàng đợi, và nâng cấp policy nếu hàng đợi đã tồn tại với policy khác. */
@@ -245,8 +125,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
         [
           `Hàng đợi "${name}" đang dùng policy "${existing.policy}", cần "${QUEUE_POLICY}" để chặn trùng việc.`,
           'pg-boss không cho đổi policy tại chỗ, nên phải xoá và tạo lại hàng đợi - việc đang chờ sẽ MẤT.',
-          'Số việc chờ mà pg-boss báo là một cột được cập nhật định kỳ, không đáng tin để tự quyết định,',
-          'nên bước này cần người xác nhận: chạy lại với QUEUE_POLICY_MIGRATE=true.',
+          'Bước này cần người xác nhận: chạy lại với QUEUE_POLICY_MIGRATE=true.',
         ].join('\n'),
       );
     }
@@ -259,7 +138,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     await this.boss.createQueue(name, { policy: QUEUE_POLICY });
   }
 
-  /** Xếp một việc vào hàng đợi. */
+  /** Xếp một việc. Khoá dedup SUY RA từ payload, người gọi không truyền vào được. */
   async send<T extends object>(
     queue: string,
     data: T,
@@ -272,7 +151,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /** Xếp NHIỀU việc bằng một lệnh. */
+  /** Xếp NHIỀU việc bằng một lệnh. `returnId` là bắt buộc, thiếu nó thì `insert` luôn trả `null` và log báo 0. */
   async sendMany<T extends object>(queue: string, items: T[]): Promise<number> {
     await this.started;
     if (!items.length) return 0;
@@ -288,18 +167,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     return ids?.length ?? 0;
   }
 
-  /**
-   * Đăng ký worker.
-   *
-   * `batchSize` giữ nguyên 1 và song song lấy từ `localConcurrency`, không phải
-   * ngược lại: pg-boss áp kết quả handler cho CẢ lô ("throwing from the handler
-   * still fails the whole batch"), nên gom lô khiến một việc hỏng kéo đổ những
-   * việc lành cùng lô. `localConcurrency` sinh nhiều worker poll độc lập, mỗi
-   * worker một việc, lỗi không lây.
-   *
-   * Vai `api` thoát ở đây thay vì để từng processor tự kiểm: đây là seam duy
-   * nhất cả 7 processor đều đi qua, nên processor thêm sau này tự thừa hưởng.
-   */
+  /** Đăng ký worker. Vai `api` thoát ở đây thay vì để từng processor tự kiểm — đây là seam duy nhất cả 7 processor đi qua. */
   async work<T extends object>(
     queue: string,
     handler: (data: T) => Promise<void>,
@@ -315,6 +183,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     await this.boss.work<T>(
       queue,
       {
+        // `batchSize` giữ 1 và song song lấy từ `localConcurrency`: pg-boss áp kết quả handler cho CẢ lô, gom lô là một việc hỏng kéo đổ việc lành.
         batchSize: 1,
         pollingIntervalSeconds: 2,
         localConcurrency: concurrency,

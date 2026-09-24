@@ -1,15 +1,20 @@
 import {
   IsArray,
   IsBoolean,
+  IsInt,
   IsOptional,
   IsString,
   ArrayMaxSize,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { IsBoundedJson } from '../../common/validators/bounded-json.js';
 
 /** Trần cho các trường chữ ngắn (chức danh, địa điểm, quốc tịch...). */
 const SHORT = 200;
+
+const MAX_MONTHLY_SALARY = 2_000_000_000;
 
 /**
  * Trần cho phần tự giới thiệu. Dài hơn hẳn các trường trên vì nó là đoạn văn,
@@ -47,6 +52,17 @@ export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(SUMMARY) commuteConstraint?: string;
   @IsOptional() @IsString() @MaxLength(SHORT) remotePreference?: string;
   @IsOptional() @IsBoolean() willingToRelocate?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(MAX_MONTHLY_SALARY)
+  currentSalary?: number;
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(MAX_MONTHLY_SALARY)
+  expectedSalary?: number;
 
   @IsOptional()
   @IsArray()

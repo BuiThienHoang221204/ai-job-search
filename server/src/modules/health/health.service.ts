@@ -2,9 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
   LATEX_COMPILER,
+  PDF_RENDERER,
   type LatexCompiler,
-} from '../documents/latex-compile.js';
-import { PDF_RENDERER, type PdfRenderer } from '../documents/pdf-render.js';
+  type PdfRenderer,
+} from '../documents/pdf/seam.js';
 import { QueueService } from '../queue/queue.service.js';
 
 /** Hạn cho từng phép kiểm tra. */

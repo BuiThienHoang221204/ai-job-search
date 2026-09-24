@@ -1,45 +1,25 @@
 import type { Logger } from '@nestjs/common';
 import {
+  isAccessDenied,
   isModelRetired,
   isRateLimited,
   isTransientUpstream,
-} from '../failure-kind.js';
-import { formatModelRef, parseModelRef } from '../model-ref.js';
+} from '../utils/failure-kind.js';
+import { formatModelRef, parseModelRef } from '../utils/model-ref.js';
 import { providerIds } from '../providers/index.js';
-import { ModelUnavailableError } from './model-catalog.service.js';
+import { ModelUnavailableError } from '../utils/failure-kind.js';
 
-/**
- * Mắt xích đang thử đã tốn bước agent nào chưa.
- *
- * Đây là phanh cho một cái giá không thấy được từ `run()`: đổi model nghĩa là
- * gọi lại `attempt` từ đầu, mà `runTools` chạy lại là chạy lại TỪ BƯỚC 0. Bỏ
- * mắt xích sau bước thứ chín là trả tiền lần hai cho chín bước đã xong, và
- * nhánh FAILED của `AgentRunnerService` không lưu `messages` nên cũng không có
- * đường chạy tiếp. Một lượt CHƯA đi được bước nào thì không mất gì cả.
- *
- * `generateObject` là một lượt hỏi-đáp, không bao giờ chạm vào cờ này.
- */
-export type ChainProgress = { spent: boolean };
+export const DEFAULT_CHAIN_BUDGET_MS = 240_000;
 
 export type ModelChainOptions = {
   defaultModelId: string;
   defaultProviderId: string;
   fallbackModelIds: string[];
-  /**
-   * Logger của `AiService`, KHÔNG phải logger riêng: dòng "Bỏ qua ..." đã nằm
-   * trong nhật ký production dưới tên đó.
-   */
+  budgetMs?: number;
   logger: Logger;
 };
 
-/**
- * Thứ tự model sẽ thử cho một lời gọi, và luật quyết định khi nào đi tiếp.
- *
- * Tách khỏi `AiService` vì đây là phần CHÍNH SÁCH: nó không biết gì về SDK,
- * prisma hay schema, chỉ trả lời đúng một câu hỏi - lỗi này là "mắt xích này
- * không dùng được" hay "tác vụ này hỏng". Cả hai đường gọi model dùng chung
- * một bản, nên hai đường không thể lệch nhau về ý nghĩa của "bỏ qua".
- */
+/** Phần CHÍNH SÁCH, tách khỏi `AiService`: nó không biết SDK, prisma hay schema, chỉ trả lời "lỗi này là mắt xích hỏng hay tác vụ hỏng". */
 export class ModelChain {
   constructor(private readonly options: ModelChainOptions) {}
 
@@ -50,14 +30,8 @@ export class ModelChain {
     );
   }
 
-  /**
-   * Thứ tự mắt xích sẽ thử cho MỘT lời gọi. So trùng theo dạng đầy đủ, nếu
-   * không thì `deepseek-v4-flash-free` và `opencode/deepseek-v4-flash-free`
-   * thành hai mắt xích và model vừa hết hạn mức sẽ được thử lại ngay lập tức.
-   */
+  /** So trùng theo dạng ĐẦY ĐỦ, nếu không thì `x` và `opencode/x` thành hai mắt xích và model vừa hết hạn mức được thử lại ngay. */
   links(requested?: string): Array<string | undefined> {
-    // Giữ `undefined` khi không cấu hình model mặc định, để catalog dùng mặc
-    // định của chính nó thay vì đi hỏi một model tên rỗng.
     const first = requested ?? (this.options.defaultModelId || undefined);
     const chain: Array<string | undefined> = [first];
     const seen = new Set([
@@ -73,35 +47,39 @@ export class ModelChain {
     return chain;
   }
 
-  /**
-   * Chạy `attempt` lần lượt trên chuỗi model cho tới khi có cái chạy được.
-   *
-   * Chuỗi đi tiếp trong đúng BỐN trường hợp, và cả bốn đều là "mắt xích này
-   * không dùng được" chứ không phải "tác vụ này hỏng": hết hạn mức, model
-   * không khả dụng, gateway đã rút model, hoặc lõi trả 5xx lúc chưa đi được
-   * bước nào. Mọi lỗi khác ném ra ngay - đặc biệt là lỗi schema, vì đổi model
-   * khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu".
-   */
+  /** Đi tiếp trong đúng NĂM trường hợp, cả năm nghĩa là "mắt xích này không dùng được". Lỗi schema ném NGAY — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu". */
   async run<T>(
     requested: string | undefined,
-    attempt: (
-      modelId: string | undefined,
-      progress: ChainProgress,
-    ) => Promise<T>,
+    attempt: (modelId: string | undefined) => Promise<T>,
+    budgetOverrideMs?: number,
   ): Promise<T> {
     const chain = this.links(requested);
+    const budgetMs =
+      budgetOverrideMs ?? this.options.budgetMs ?? DEFAULT_CHAIN_BUDGET_MS;
+    const startedAt = Date.now();
     let lastSkipped: unknown;
 
     for (const [index, modelId] of chain.entries()) {
-      const progress: ChainProgress = { spent: false };
+      // Ngân sách chặn cả CHUỖI, không chỉ từng mắt xích: mỗi `attempt` nhận một `AbortSignal.timeout` MỚI. Mắt đầu luôn được chạy trọn hạn của nó.
+      const elapsed = Date.now() - startedAt;
+      if (index > 0 && elapsed >= budgetMs) {
+        this.options.logger.warn(
+          `Dừng chuỗi sau ${Math.round(elapsed / 1000)}s: đã vượt ngân sách ${Math.round(budgetMs / 1000)}s, còn ${chain.length - index} mắt xích chưa thử`,
+        );
+        throw lastSkipped;
+      }
+
       try {
-        return await attempt(modelId, progress);
+        return await attempt(modelId);
       } catch (error) {
         const unavailable = error instanceof ModelUnavailableError;
         const retired = isModelRetired(error);
         const limited = isRateLimited(error);
-        const sick = isTransientUpstream(error) && !progress.spent;
-        if (!unavailable && !limited && !retired && !sick) throw error;
+        const denied = isAccessDenied(error);
+        const sick = isTransientUpstream(error);
+        if (!unavailable && !limited && !retired && !denied && !sick) {
+          throw error;
+        }
 
         lastSkipped = error;
         const reason = unavailable
@@ -110,7 +88,9 @@ export class ModelChain {
             ? 'gateway đã rút model này'
             : limited
               ? 'hết hạn mức'
-              : 'lõi trả 5xx';
+              : denied
+                ? 'lõi từ chối khoá hoặc model này'
+                : 'lõi trả 5xx';
         const next = chain[index + 1];
         this.options.logger.warn(
           next

@@ -8,13 +8,17 @@ import { DocumentComposer } from './services/document-composer.service.js';
 import { DocumentRenderer } from './services/document-renderer.service.js';
 import { DocumentsController } from './documents.controller.js';
 import { DocumentsProcessor } from './documents.processor.js';
+import { DocumentGenerator } from './services/document-generator.service.js';
 import { DocumentsService } from './services/documents.service.js';
-import { HttpLatexCompiler } from './compilers/http-latex.compiler.js';
-import { LATEX_COMPILER, type LatexCompiler } from './latex-compile.js';
-import { SandboxLatexCompiler } from './compilers/sandbox-latex.compiler.js';
-import { PDF_RENDERER, type PdfRenderer } from './pdf-render.js';
-import { HttpPdfRenderer } from './renderers/http-pdf.renderer.js';
-import { SandboxPdfRenderer } from './renderers/sandbox-pdf.renderer.js';
+import { JobFromUrlService } from './services/job-from-url.service.js';
+import { HttpLatexCompiler, HttpPdfRenderer } from './pdf/http.js';
+import { SandboxLatexCompiler, SandboxPdfRenderer } from './pdf/sandbox.js';
+import {
+  LATEX_COMPILER,
+  PDF_RENDERER,
+  type LatexCompiler,
+  type PdfRenderer,
+} from './pdf/seam.js';
 
 /** Chọn cách compile LaTeX theo môi trường. */
 const latexCompilerProvider = {
@@ -60,9 +64,11 @@ const pdfRendererProvider = {
   controllers: [DocumentsController],
   providers: [
     DocumentsService,
+    DocumentGenerator,
     DocumentComposer,
     DocumentRenderer,
     DocumentsProcessor,
+    JobFromUrlService,
     latexCompilerProvider,
     pdfRendererProvider,
   ],

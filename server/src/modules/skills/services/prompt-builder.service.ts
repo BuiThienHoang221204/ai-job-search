@@ -78,11 +78,11 @@ export class PromptBuilderService {
     return kept.join('\n\n');
   }
 
-  /** Bỏ một mục con `###` khỏi đoạn đã chọn. */
+  /** Bỏ MỌI mục con `###` khớp tên — `04-job-evaluation.md` có hai mục "Salary Benchmark", thiếu cờ `g` là sót một. */
   dropSubsection(markdown: string, heading: string): string {
     const pattern = new RegExp(
-      `^### .*${heading}[\\s\\S]*?(?=^### |^## |\\Z)`,
-      'mi',
+      `^### .*${heading}[\\s\\S]*?(?=^### |^## |(?![\\s\\S]))`,
+      'gmi',
     );
     return markdown.replace(pattern, '');
   }

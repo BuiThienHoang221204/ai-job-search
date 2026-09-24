@@ -9,10 +9,7 @@ import {
 } from './cv-layout.js';
 import { escapeHtml, joinParts } from './html.js';
 
-/**
- * Đánh dấu ngữ nghĩa của CV, DÙNG CHUNG cho mọi mẫu - mẫu chỉ khác nhau bằng CSS.
- * Nhờ vậy đổi mẫu không đổi thứ tự chữ mà ATS đọc. Lý do đầy đủ trong CLAUDE.md.
- */
+/** Markup DÙNG CHUNG cho mọi mẫu (mẫu chỉ khác CSS), nhờ vậy đổi mẫu không đổi thứ tự chữ ATS đọc. */
 
 const li = (text: string): string => `<li>${escapeHtml(text)}</li>`;
 
@@ -125,12 +122,7 @@ const sectionBody = (
   skills: content.skillGroups.map(skillRow).join(''),
 });
 
-/**
- * Các mục nội dung, theo thứ tự người dùng chọn và bỏ mục họ ẩn.
- *
- * Mục ẩn KHÔNG được vẽ rồi giấu bằng CSS: ATS đọc tầng chữ chứ không đọc CSS, nên
- * `display: none` vẫn để nội dung lọt vào bản mà máy đọc.
- */
+/** Mục ẩn KHÔNG được vẽ rồi giấu bằng CSS: ATS đọc tầng chữ, `display: none` vẫn để nội dung lọt vào. */
 export const buildCvSections = (
   content: CvContent,
   layout: CvLayout = DEFAULT_LAYOUT,

@@ -11,12 +11,9 @@ import type { ConfigService } from '@nestjs/config';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
-import type { JobSourceRouter } from 'src/modules/scraper/sources/job-source.router.js';
-import type {
-  PortalJobCard,
-  SearchArgs,
-} from 'src/modules/scraper/sources/portal-cli.service.js';
-import { ScraperService } from 'src/modules/scraper/scraper.service.js';
+import type { JobSourceRouter } from 'src/modules/scraper/services/job-source.router.js';
+import type { PortalJobCard, SearchArgs } from 'src/modules/scraper/types.js';
+import { ScraperService } from 'src/modules/scraper/services/scraper.service.js';
 import type { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 

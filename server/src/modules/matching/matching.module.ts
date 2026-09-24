@@ -2,34 +2,31 @@ import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module.js';
 import { SkillsModule } from '../skills/skills.module.js';
 import { SemanticModule } from '../semantic/semantic.module.js';
-import { JobRequirementsProcessor } from './processors/job-requirements.processor.js';
-import { JobRequirementsService } from './services/job-requirements.service.js';
 import { MatchingController } from './matching.controller.js';
-import { MatchingProcessor } from './processors/matching.processor.js';
-import { MatchingService } from './services/matching.service.js';
-import { RequirementMatchProcessor } from './processors/requirement-match.processor.js';
-import { RequirementMatchService } from './services/requirement-match.service.js';
-import { SkillDictionaryService } from './services/skill-dictionary.service.js';
-import { SkillCanonicalizeProcessor } from './processors/skill-canonicalize.processor.js';
+import { MatchingProcessor } from './matching.processor.js';
+import { AiShortlistService } from './rules/services/ai-shortlist.service.js';
+import { JobRequirementsService } from './ai/services/job-requirements.service.js';
+import { MatchingService } from './ai/services/matching.service.js';
+import { RequirementMatchService } from './rules/services/requirement-match.service.js';
+import { SkillDictionaryService } from './ai/services/skill-dictionary.service.js';
 
 @Module({
   imports: [AiModule, SkillsModule, SemanticModule],
   controllers: [MatchingController],
   providers: [
-    MatchingService,
     MatchingProcessor,
+    MatchingService,
     JobRequirementsService,
-    JobRequirementsProcessor,
     RequirementMatchService,
-    RequirementMatchProcessor,
     SkillDictionaryService,
-    SkillCanonicalizeProcessor,
+    AiShortlistService,
   ],
   exports: [
     MatchingService,
     JobRequirementsService,
     RequirementMatchService,
     SkillDictionaryService,
+    AiShortlistService,
   ],
 })
 export class MatchingModule {}

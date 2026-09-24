@@ -1,4 +1,5 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { vietnameseValidationError } from './common/validation-message.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -28,7 +29,10 @@ export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
 
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api/docs')) {
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      req.path.startsWith('/api/docs')
+    ) {
       return next();
     }
     return helmet(HELMET_OPTIONS)(req, res, next);
@@ -40,8 +44,12 @@ export function configureApp(app: INestApplication): void {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      exceptionFactory: vietnameseValidationError,
     }),
   );
+
+  // Swagger để lộ toàn bộ bản đồ API (cả route admin) cho người lạ, nên production không phục vụ.
+  if (process.env.NODE_ENV === 'production') return;
 
   const config = new DocumentBuilder()
     .setTitle('AI Job Search API')
