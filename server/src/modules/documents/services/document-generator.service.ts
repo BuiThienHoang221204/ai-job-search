@@ -6,6 +6,7 @@ import type { Identity } from '../content.types.js';
 import { letterTarget, type DocumentParams } from '../utils/letter-target.js';
 import { DocumentComposer } from './document-composer.service.js';
 import { DocumentRenderer } from './document-renderer.service.js';
+import { streamFailureEvent } from '../../ai/utils/failure-view.js';
 
 /** Máy trạng thái PENDING → RUNNING → DONE/FAILED, và là nhánh DUY NHẤT của module gọi model. */
 @Injectable()
@@ -137,12 +138,8 @@ export class DocumentGenerator {
         result: await this.finish(documentId, content, modelId, storageKey),
       };
     } catch (error) {
-      const { message } = await this.fail(
-        documentId,
-        error,
-        'Sinh tài liệu (stream)',
-      );
-      yield { type: 'error', message };
+      await this.fail(documentId, error, 'Sinh tài liệu (stream)');
+      yield streamFailureEvent(error);
     }
   }
 

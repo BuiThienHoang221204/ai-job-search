@@ -11,6 +11,8 @@ const configuration = () => ({
   port: parseInt(process.env.PORT ?? '4000', 10),
   nodeEnv: process.env.NODE_ENV ?? 'development',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+  // Số proxy tin được phía trước (Caddy = 1); 0 = không tin X-Forwarded-For, tránh client tự khai IP để né rate limit.
+  trustProxyHops: parseInt(process.env.TRUST_PROXY ?? '0', 10) || 0,
 
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? '',

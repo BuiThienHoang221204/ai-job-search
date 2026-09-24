@@ -6,7 +6,7 @@ import { createTestApp, type TestApp } from './support/app-harness.js';
 /// Mọi spec khác tắt throttler đi (xem `TestAppOptions.throttle`), vì gần như
 /// test nào cũng gọi `signUp` và sẽ đụng trần 10 lần/phút. Tệp này tồn tại để
 /// việc tắt đó không biến thành "chưa bao giờ kiểm": nếu ai lỡ gỡ
-/// `ThrottlerGuard` khỏi `CommonModule`, đây là chỗ đỏ lên.
+/// `UserThrottlerGuard` khỏi `CommonModule`, đây là chỗ đỏ lên.
 describe('Rate limiting', () => {
   let harness: TestApp;
 
@@ -58,6 +58,22 @@ describe('Rate limiting', () => {
 
     const blocked = await start();
     expect(blocked.status).toBe(429);
+  });
+
+  /// Đã đăng nhập thì trần tính theo tài khoản, không theo IP. Sau reverse proxy mọi
+  /// người dùng chung một IP; đếm theo IP thì một người tiêu hết trần của cả site.
+  test('trần tính theo tài khoản: người này hết lượt không chặn người kia cùng IP', async () => {
+    const [greedy, other] = [await harness.signUp(), await harness.signUp()];
+    const start = (token: string) =>
+      request(harness.server)
+        .post('/api/scrape')
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+
+    for (let i = 0; i < 3; i += 1) await start(greedy.token);
+    expect((await start(greedy.token)).status).toBe(429);
+
+    expect((await start(other.token)).status).not.toBe(429);
   });
 
   /// Probe phải nằm ngoài mọi trần: orchestrator hỏi đều đặn từ MỘT địa chỉ, nên

@@ -22,6 +22,7 @@ import { JobSourceRouter } from './services/job-source.router.js';
 import { ScraperService } from './services/scraper.service.js';
 import { ThrottleScrape } from '../../common/throttle.js';
 import { StartScrapeDto } from './scraper.dto.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 
 @ApiTags('Scraper')
 @ApiBearerAuth()
@@ -58,15 +59,20 @@ export class ScraperController {
     summary: 'Lấy lịch sử các lượt chạy scraper của người dùng hiện tại',
   })
   @Get('runs')
-  history(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
-    return this.scraper.history(user.id, query);
+  async history(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const page = await this.scraper.history(user.id, query);
+    return { ...page, items: withFailureKinds(page.items) };
   }
 
   @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy scraper theo ID' })
   @ApiParam({ name: 'id', description: 'ID của lượt chạy scraper' })
   @Get('runs/:id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.scraper.get(user.id, id);
+  // Lỗi thô của lượt quét chứa lệnh CLI và đường dẫn trên máy chủ; người dùng chỉ cần biết loại lỗi.
+  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.scraper.get(user.id, id));
   }
 
   /** Đường GHI: tạo bản ghi PENDING rồi xếp hàng đợi — một lượt quét mất vài phút vì phải giữ nhịp với portal. */

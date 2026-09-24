@@ -41,6 +41,7 @@ import { DocumentGenerator } from './services/document-generator.service.js';
 import { DocumentsService } from './services/documents.service.js';
 import { JobFromUrlService } from './services/job-from-url.service.js';
 import { CV_TEMPLATES } from './templates/registry.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
@@ -57,8 +58,14 @@ export class DocumentsController {
 
   @ApiOperation({ summary: 'Lấy danh sách tài liệu của người dùng hiện tại' })
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query() query: ListDocumentsDto) {
-    return this.documents.list(user.id, query.kind, query.jobId, query);
+  async list(@CurrentUser() user: AuthUser, @Query() query: ListDocumentsDto) {
+    const page = await this.documents.list(
+      user.id,
+      query.kind,
+      query.jobId,
+      query,
+    );
+    return { ...page, items: withFailureKinds(page.items) };
   }
 
   /** TRẢ VỀ cho người dùng soát chứ không tạo tài liệu luôn: ba ô điền sẵn rẻ hơn một CV sai công ty. */
@@ -79,8 +86,8 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Lấy chi tiết tài liệu theo ID' })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.documents.get(user.id, id);
+  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.documents.get(user.id, id));
   }
 
   /** Trả về file .tex thô để tải xuống hoặc xem trước. */
@@ -96,12 +103,14 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Cập nhật mẫu trình bày (template) cho CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/template')
-  setTemplate(
+  async setTemplate(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: SetTemplateDto,
   ) {
-    return this.documents.setTemplate(user.id, id, dto.templateId, dto.accent);
+    return withFailureKind(
+      await this.documents.setTemplate(user.id, id, dto.templateId, dto.accent),
+    );
   }
 
   /** Hai header bảo mật là lớp chặn THỨ HAI sau `escapeHtml`: CSP `sandbox` không kèm `allow-scripts`. */
@@ -140,12 +149,12 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Lưu nội dung chỉnh sửa của CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/cv')
-  updateCv(
+  async updateCv(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: UpdateCvDto,
   ) {
-    return this.documents.updateCv(user.id, id, dto);
+    return withFailureKind(await this.documents.updateCv(user.id, id, dto));
   }
 
   /** Tạo PDF rồi trả về bytes. `engine=html` đi đường mẫu HTML, mặc định là LaTeX. */
@@ -258,8 +267,8 @@ export class DocumentsController {
   @ApiOperation({ summary: 'Render lại mã LaTeX của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Put(':id/rerender')
-  rerender(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.documents.rerender(user.id, id);
+  async rerender(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.documents.rerender(user.id, id));
   }
 
   /** Chạy ngay một tài liệu đã tạo. Dùng để thử nghiệm. */
@@ -269,7 +278,7 @@ export class DocumentsController {
   })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Post(':id/generate-sync')
-  generateNow(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.generator.generate(user.id, id);
+  async generateNow(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.generator.generate(user.id, id));
   }
 }

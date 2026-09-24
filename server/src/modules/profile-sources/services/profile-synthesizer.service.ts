@@ -13,6 +13,7 @@ import {
   SYNTHESIS_SYSTEM,
   SYNTHESIS_TIMEOUT_MS,
 } from '../utils/profile-synthesis.prompt.js';
+import { streamFailureEvent } from '../../ai/utils/failure-view.js';
 
 @Injectable()
 export class ProfileSynthesizerService {
@@ -78,7 +79,7 @@ export class ProfileSynthesizerService {
         where: { id: draftId },
         data: { status: 'FAILED', error: message },
       });
-      yield { type: 'error', message };
+      yield streamFailureEvent(error);
     }
   }
 

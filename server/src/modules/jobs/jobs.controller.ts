@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { CreateJobDto, ListJobsQueryDto } from './job.dto.js';
@@ -82,7 +83,11 @@ export class JobsController {
   }
 
   /** Nạp tin rồi xếp luôn vào hàng đợi chấm điểm cho người đang đăng nhập. */
-  @ApiOperation({ summary: 'Tạo/nạp tin tuyển dụng mới và bắt đầu chấm điểm' })
+  // Chỉ ADMIN: tin là dữ liệu dùng chung, upsert theo source+externalId cho phép ghi đè url/mô tả tin thật mà mọi người đang xem.
+  @ApiOperation({
+    summary: 'Tạo/nạp tin tuyển dụng mới và bắt đầu chấm điểm (Admin)',
+  })
+  @Roles('ADMIN')
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {
     const job = await this.jobs.upsert(dto);

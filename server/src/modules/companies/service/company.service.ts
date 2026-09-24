@@ -33,6 +33,7 @@ import {
   trimToReviewText,
 } from '../utils/review-sources.js';
 import type { ModelStreamEvent } from '../../../common/stream-event.js';
+import { streamFailureEvent } from '../../ai/utils/failure-view.js';
 
 const BRIEF_TIMEOUT_MS = 120_000;
 const TTL_DAYS = 60;
@@ -136,7 +137,7 @@ export class CompanyService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Tìm hiểu (stream) "${company}" hỏng: ${message}`);
-      yield { type: 'error', message };
+      yield streamFailureEvent(error);
     }
   }
 

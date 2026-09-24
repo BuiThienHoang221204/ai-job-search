@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { BlockList, isIP } from 'node:net';
 
 /**
  * Chặn SSRF: một URL do model chọn KHÔNG được trỏ vào mạng nội bộ.
@@ -13,27 +13,40 @@ import { isIP } from 'node:net';
  * Vì vậy chặn theo ĐỊA CHỈ ĐÃ PHÂN GIẢI chứ không theo tên miền: `evil.test` có
  * thể trỏ A record về 127.0.0.1, và mọi bộ lọc chỉ nhìn chuỗi đều bị qua mặt.
  */
-const BLOCKED_V4 = [
-  /^127\./,
-  /^10\./,
-  /^192\.168\./,
-  /^169\.254\./,
-  /^172\.(1[6-9]|2\d|3[01])\./,
-  /^0\./,
-];
+// Dải không định tuyến ra Internet; địa chỉ IPv4 nằm trong IPv6 (::ffff:a.b.c.d) BlockList tự đối chiếu với luật IPv4.
+const BLOCKED = new BlockList();
+for (const [net, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+] as const)
+  BLOCKED.addSubnet(net, prefix, 'ipv4');
+for (const [net, prefix] of [
+  ['::', 96],
+  ['::1', 128],
+  ['64:ff9b::', 96],
+  ['64:ff9b:1::', 48],
+  ['2002::', 16],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['fec0::', 10],
+  ['ff00::', 8],
+] as const)
+  BLOCKED.addSubnet(net, prefix, 'ipv6');
 
 export function isBlockedAddress(address: string): boolean {
-  if (isIP(address) === 6) {
-    const lower = address.toLowerCase();
-    return (
-      lower === '::1' ||
-      lower === '::' ||
-      lower.startsWith('fc') ||
-      lower.startsWith('fd') ||
-      lower.startsWith('fe80')
-    );
-  }
-  return BLOCKED_V4.some((pattern) => pattern.test(address));
+  const bare = address.replace(/^\[|\]$/g, '');
+  const family = isIP(bare);
+  if (family === 0) return true;
+  return BLOCKED.check(bare, family === 6 ? 'ipv6' : 'ipv4');
 }
 
 /**
@@ -58,7 +71,8 @@ export async function resolvePublicUrl(
     throw new Error(`Chỉ hỗ trợ http và https, không hỗ trợ ${url.protocol}`);
   }
 
-  const host = url.hostname;
+  // Hostname IPv6 của URL còn ngoặc vuông ([::1]); bỏ ra để isIP nhận diện được.
+  const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = isIP(host)
     ? [host]
     : (await lookup(host, { all: true })).map((entry) => entry.address);

@@ -25,6 +25,7 @@ import {
 } from './mock-interview.dto.js';
 import { InterviewTurnService } from './service/interview-turn.service.js';
 import { MockInterviewService } from './service/mock-interview.service.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 
 @ApiTags('Phỏng vấn thử')
 @ApiBearerAuth()
@@ -39,15 +40,19 @@ export class MockInterviewController {
 
   @ApiOperation({ summary: 'Danh sách buổi luyện của người dùng hiện tại' })
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query() query: ListMockInterviewsDto) {
-    return this.sessions.list(user.id, query);
+  async list(
+    @CurrentUser() user: AuthUser,
+    @Query() query: ListMockInterviewsDto,
+  ) {
+    const page = await this.sessions.list(user.id, query);
+    return { ...page, items: withFailureKinds(page.items) };
   }
 
   @ApiOperation({ summary: 'Chi tiết một buổi luyện theo ID' })
   @ApiParam({ name: 'id', description: 'ID của buổi luyện' })
   @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.sessions.detail(user.id, id);
+  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return withFailureKind(await this.sessions.detail(user.id, id));
   }
 
   @ThrottleAi()

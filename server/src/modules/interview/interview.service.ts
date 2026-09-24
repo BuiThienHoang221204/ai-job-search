@@ -12,7 +12,11 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { AiService } from '../ai/services/ai.service.js';
 import type { ModelStreamEvent } from '../../common/stream-event.js';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
+import {
+  withFailureKind,
+  withFailureKinds,
+  streamFailureEvent,
+} from '../ai/utils/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import {
@@ -247,13 +251,8 @@ export class InterviewService {
         result: await this.persist(userId, jobId, final, modelId, hash),
       };
     } catch (error) {
-      const { message } = await this.fail(
-        userId,
-        jobId,
-        error,
-        'Soạn câu hỏi (stream)',
-      );
-      yield { type: 'error', message };
+      await this.fail(userId, jobId, error, 'Soạn câu hỏi (stream)');
+      yield streamFailureEvent(error);
     }
   }
 

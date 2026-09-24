@@ -9,7 +9,11 @@ import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/services/ai.service.js';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
+import {
+  withFailureKind,
+  withFailureKinds,
+  streamFailureEvent,
+} from '../ai/utils/failure-view.js';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
 import type { ModelStreamEvent } from '../../common/stream-event.js';
@@ -195,7 +199,7 @@ export class UpskillService {
         where: { id: reportId },
         data: { status: 'FAILED', error: message },
       });
-      yield { type: 'error', message };
+      yield streamFailureEvent(error);
     }
   }
 

@@ -31,6 +31,7 @@ import {
   evaluationPrompt,
   EVALUATION_SECTIONS,
 } from '../prompt/evaluation.prompt.js';
+import { streamFailureEvent } from '../../../ai/utils/failure-view.js';
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
@@ -176,13 +177,8 @@ export class MatchingService {
         result: await this.persist(userId, jobId, final, modelId, hash),
       };
     } catch (error) {
-      const { message } = await this.fail(
-        userId,
-        jobId,
-        error,
-        'Chấm điểm (stream)',
-      );
-      yield { type: 'error', message };
+      await this.fail(userId, jobId, error, 'Chấm điểm (stream)');
+      yield streamFailureEvent(error);
     }
   }
 

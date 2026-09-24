@@ -26,6 +26,7 @@ import { AiShortlistService } from './rules/services/ai-shortlist.service.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { streamNdjson } from '../../common/ndjson.js';
 import { ThrottleAi } from '../../common/throttle.js';
+import { withFailureKind } from '../ai/utils/failure-view.js';
 
 @ApiTags('Matching & Scoring')
 @ApiBearerAuth()
@@ -52,8 +53,9 @@ export class MatchingController {
   @ApiOperation({ summary: 'Lấy điểm tương thích chi tiết của một công việc' })
   @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
   @Get(':jobId')
-  get(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string) {
-    return this.matching.getMatch(user.id, jobId);
+  async get(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string) {
+    const match = await this.matching.getMatch(user.id, jobId);
+    return match && withFailureKind(match);
   }
 
   /** Đường GHI không đồng bộ: trả về ngay, worker chấm ở nền, giao diện hiện PENDING rồi cập nhật. */
@@ -150,7 +152,12 @@ export class MatchingController {
     summary: 'Đánh giá độ tương thích công việc đồng bộ ngay lập tức',
   })
   @Post('evaluate-sync')
-  evaluateNow(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
-    return this.matching.evaluate(user.id, dto.jobId, dto.force ?? false);
+  async evaluateNow(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: EvaluateJobDto,
+  ) {
+    return withFailureKind(
+      await this.matching.evaluate(user.id, dto.jobId, dto.force ?? false),
+    );
   }
 }
