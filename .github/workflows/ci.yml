@@ -140,6 +140,52 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Bốn dịch vụ phụ cũng đẩy lên registry: trước 24/09 chúng build TRÊN SERVER
+      # trong phiên SSH, và build omniroute 338 giây đã làm bước deploy chết giữa chừng.
+      - name: Build and push sidecar images
+        uses: docker/build-push-action@v6
+        with:
+          context: ./latex-service
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/latex:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_NAME }}/latex:latest
+          cache-from: type=gha,scope=latex
+          cache-to: type=gha,mode=max,scope=latex
+
+      - name: Build and push PDF image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./pdf-service
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/pdf:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_NAME }}/pdf:latest
+          cache-from: type=gha,scope=pdf
+          cache-to: type=gha,mode=max,scope=pdf
+
+      - name: Build and push OmniRoute image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./omniroute-service
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/omniroute:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_NAME }}/omniroute:latest
+          cache-from: type=gha,scope=omniroute
+          cache-to: type=gha,mode=max,scope=omniroute
+
+      - name: Build and push OpenCode image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./opencode-service
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_NAME }}/opencode:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_NAME }}/opencode:latest
+          cache-from: type=gha,scope=opencode
+          cache-to: type=gha,mode=max,scope=opencode
+
   deploy:
     name: Deploy to server
     runs-on: ubuntu-latest
@@ -172,7 +218,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          # Mặc định 10 phút; lần đầu `compose up` phải build omniroute (Playwright + Chromium) và opencode.
+          # Server chỉ pull, không build; 30 phút là dư cho ảnh omniroute ~1,2GB.
           command_timeout: 30m
           envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
           script: |
@@ -184,11 +230,11 @@ jobs:
             test -f .env || { echo "::error::Thieu server/.env tren may chu."; exit 1; }
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
-            docker compose pull app postgres
-            docker image inspect aijob-latex >/dev/null 2>&1 || docker compose build latex
-            docker image inspect aijob-pdf >/dev/null 2>&1 || docker compose build pdf
-            docker image inspect aijob-omniroute:latest >/dev/null 2>&1 || docker compose build omniroute
-            docker image inspect aijob-opencode >/dev/null 2>&1 || docker compose build opencode
+            # KHÔNG build gì ở đây: mọi image do job docker-build đẩy lên ghcr.
+            docker compose pull
+            # `SandboxLatexCompiler`/`SandboxPdfRenderer` chạy `docker run aijob-latex` với `--pull never`.
+            docker tag "ghcr.io/$IMAGE_NAME/latex:$IMAGE_TAG" aijob-latex
+            docker tag "ghcr.io/$IMAGE_NAME/pdf:$IMAGE_TAG" aijob-pdf
             docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
             docker image prune -f
