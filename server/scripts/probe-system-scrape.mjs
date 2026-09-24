@@ -17,7 +17,7 @@ import { collectCards } from '../dist/modules/scraper/utils/collect-cards.js';
 import { clusterProfiles, clusterQuery } from '../dist/modules/scraper/utils/query-plan.js';
 import { PortalCliService } from '../dist/modules/scraper/services/portal-cli.service.js';
 import { resolveOccupation } from '../dist/modules/jobs/taxonomy/resolve.js';
-import { MIN_COMPLETION_TO_SCORE } from '../dist/modules/scraper/utils/fan-out.js';
+import { MIN_COMPLETION_TO_SCORE } from '../dist/modules/matching/rules/match-write.js';
 
 const portal = process.argv[2] ?? 'itviec';
 

@@ -1,5 +1,10 @@
 import { singletonKeyFor } from 'src/modules/queue/queue-key.js';
-import type { Queue, QueueStatus } from 'src/modules/queue/queue.service.js';
+import {
+  QUEUE,
+  type Queue,
+  type QueueStatus,
+} from 'src/modules/queue/queue.service.js';
+import type { QueueStats } from 'src/modules/queue/queue.types.js';
 
 type Sent = { queue: string; key: string; data: object };
 
@@ -65,6 +70,26 @@ export class FakeQueue implements Queue {
   ///
   /// Đặt được thành lỗi để test readiness probe dựng được ca hàng đợi hỏng.
   statusOverride: QueueStatus = { ready: true, error: null };
+
+  /// Như `QueueService.getStats`: việc đã xếp mà chưa được `drain` tính là đang chờ.
+  getStats(): Promise<QueueStats> {
+    const counts = new Map<string, number>();
+    for (const item of this.sent) {
+      counts.set(item.queue, (counts.get(item.queue) ?? 0) + 1);
+    }
+    const queues = Object.values(QUEUE).map((name) => ({
+      name,
+      concurrency: 1,
+      size: counts.get(name) ?? 0,
+      active: 0,
+      total: counts.get(name) ?? 0,
+    }));
+    return Promise.resolve({
+      queues,
+      totalWaiting: this.sent.length,
+      totalActive: 0,
+    });
+  }
 
   status(): QueueStatus {
     return this.statusOverride;

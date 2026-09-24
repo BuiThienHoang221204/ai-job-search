@@ -18,6 +18,6 @@ import { ScraperService } from './services/scraper.service.js';
     JobSourceRouter,
     ScrapeCronService,
   ],
-  exports: [ScraperService, ScrapeCronService],
+  exports: [ScraperService, ScrapeCronService, JobSourceRouter],
 })
 export class ScraperModule {}

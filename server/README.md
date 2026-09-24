@@ -246,7 +246,7 @@ Tin ẩn tên công ty ("Không rõ", "Confidential") có `dedupeKey = null` và
 giờ bị gộp: gộp mọi tin ẩn danh cùng tỉnh vào một là sai nặng.
 
 Thêm một trường dẫn xuất mới thì phải chạy `POST /api/admin/jobs/backfill-taxonomy?all=true`
-(hoặc `node scripts/backfill-dedupe.mjs` khi chưa muốn dựng máy chủ). Chế độ tăng
+(nút ở trang Bảo trì dữ liệu của app admin). Chế độ tăng
 dần chỉ nhặt tin thiếu `searchText`.
 
 ### Fan-out là chỗ số lượt gọi model bùng lên

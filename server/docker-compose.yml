@@ -4,10 +4,10 @@
 #
 #   docker compose up -d
 #
-# `latex`, `pdf`, `omniroute`, `opencode` và `laya` build tại chỗ vì không có trên
+# `latex`, `pdf`, `omniroute` và `opencode` build tại chỗ vì không có trên
 # registry nào, mỗi dịch vụ một thư mục riêng ngang hàng `server/`.
 #
-# Chỉ `laya` và `migrate` còn nằm sau profile; số còn lại lên theo `up -d`. Lưu ý
+# Chỉ `migrate` còn nằm sau profile; số còn lại lên theo `up -d`. Lưu ý
 # `app` cũng không có profile và nó giữ cổng 3000 - đúng cổng dev server chạy trên
 # host, nên khi dev hãy gọi tên service thay vì `up -d` trần.
 #
@@ -132,30 +132,6 @@ services:
         limits:
           memory: 1G
           cpus: "1"
-
-  laya:
-    profiles: ["laya"]
-    image: aijob-laya
-    build:
-      context: ../laya-service
-    container_name: aijob-laya
-    restart: unless-stopped
-    expose:
-      - "8080"
-    environment:
-      LAYA_DEVICE: ${LAYA_DEVICE:-cpu}
-      LAYA_MODEL: ${LAYA_MODEL:-multilingual}
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=5).status==200 else 1)"]
-      interval: 30s
-      timeout: 10s
-      start_period: 120s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 5G
-          cpus: "4"
 
   # Mạng riêng `opencode`: container này chạy LLM còn nguyên tool bash/read.
   opencode:

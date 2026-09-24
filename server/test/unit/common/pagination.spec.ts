@@ -1,5 +1,5 @@
 import { DEFAULT_PAGE_SIZE } from 'src/common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from 'src/common/pagination.js';
+import { pageArgs, pageFromArray, pageOf } from 'src/common/pagination.js';
 
 /// Hợp đồng phân trang dùng chung cho mọi API danh sách.
 ///
@@ -43,5 +43,20 @@ describe('pageOf', () => {
       limit: DEFAULT_PAGE_SIZE,
       offset: 0,
     });
+  });
+});
+
+describe('pageFromArray', () => {
+  test('cắt đúng đoạn, total là độ dài cả mảng', () => {
+    expect(pageFromArray([1, 2, 3, 4, 5], { limit: 2, offset: 2 })).toEqual({
+      items: [3, 4],
+      total: 5,
+      limit: 2,
+      offset: 2,
+    });
+  });
+
+  test('offset vượt quá cuối mảng trả trang rỗng chứ không lỗi', () => {
+    expect(pageFromArray([1, 2], { offset: 10 }).items).toEqual([]);
   });
 });

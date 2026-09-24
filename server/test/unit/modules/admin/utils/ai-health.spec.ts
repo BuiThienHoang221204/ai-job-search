@@ -2,7 +2,7 @@ import {
   buildAiHealth,
   percentile,
   type AiCallRow,
-} from 'src/modules/admin/ai-health.js';
+} from 'src/modules/admin/utils/ai-health.js';
 
 const call = (
   overrides: Partial<AiCallRow> & Pick<AiCallRow, 'ok' | 'durationMs'>,

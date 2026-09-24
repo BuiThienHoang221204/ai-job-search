@@ -15,42 +15,24 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { Roles } from '../../common/decorators/roles.decorator.js';
-import { QueueConfigService } from '../queue/queue-config.service.js';
-import type { QueueConfigItem } from '../queue/queue.types.js';
-import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
-import { ReconcileService } from '../reconcile/services/reconcile.service.js';
-import { ScrapeCronService } from '../scraper/services/scrape-cron.service.js';
-import { AdminService } from './admin.service.js';
-
-export class AiHealthQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(90)
-  days?: number;
-}
-
-export class FailuresQueryDto extends PaginationQueryDto {}
-
-export class UpdateQueueConfigDto {
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(50)
-  concurrency?: number;
-
-  @IsOptional()
-  serial?: boolean;
-
-  @IsOptional()
-  @IsString()
-  note?: string;
-}
+import { Roles } from '../../../common/decorators/roles.decorator.js';
+import { pageFromArray, type Page } from '../../../common/pagination.js';
+import { QueueConfigService } from '../../queue/queue-config.service.js';
+import type { QueueConfigItem } from '../../queue/queue.types.js';
+import { TaxonomyBackfillService } from '../../jobs/taxonomy/backfill.service.js';
+import { ReconcileService } from '../../reconcile/services/reconcile.service.js';
+import { ScrapeCronService } from '../../scraper/services/scrape-cron.service.js';
+import {
+  AiHealthQueryDto,
+  AiUsageQueryDto,
+  FailureFacetsQueryDto,
+  FailuresQueryDto,
+  OverviewQueryDto,
+  QueueConfigQueryDto,
+  ScrapeRunsQueryDto,
+  UpdateQueueConfigDto,
+} from '../admin.dto.js';
+import { AdminService } from '../services/admin.service.js';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -75,10 +57,52 @@ export class AdminController {
     return this.admin.aiHealth(query.days ?? 7);
   }
 
+  @ApiOperation({
+    summary:
+      'Tổng quan vận hành: chỉ số so kỳ trước, lỗi gom nhóm, mục cần xử lý',
+  })
+  @Get('overview')
+  overview(@Query() query: OverviewQueryDto) {
+    return this.admin.overview(query.days ?? 1);
+  }
+
   @ApiOperation({ summary: 'Xem danh sách các lỗi AI gần đây' })
   @Get('ai-failures')
   failures(@Query() query: FailuresQueryDto) {
     return this.admin.recentFailures(query);
+  }
+
+  /** Không phải danh sách phân trang: số tác vụ/model hỏng chỉ vài chục, dùng để dựng ô chọn của bộ lọc. */
+  @ApiOperation({
+    summary: 'Các tác vụ và model có lời gọi hỏng trong khoảng, kèm số lần',
+  })
+  @Get('ai-failures/facets')
+  failureFacets(@Query() query: FailureFacetsQueryDto) {
+    return this.admin.failureFacets(query);
+  }
+
+  @ApiOperation({
+    summary: 'Xem toàn bộ một lời gọi AI, kể cả phản hồi thô của model',
+  })
+  @ApiParam({ name: 'id', description: 'ID của bản ghi AiCall' })
+  @Get('ai-calls/:id')
+  aiCall(@Param('id') id: string) {
+    return this.admin.aiCall(id);
+  }
+
+  @ApiOperation({
+    summary: 'Tổng token AI theo ngày, model, tác vụ và người dùng',
+  })
+  @Get('ai-usage')
+  aiUsage(@Query() query: AiUsageQueryDto) {
+    return this.admin.aiUsage(query.days ?? 7);
+  }
+
+  /** Mọi lượt quét của mọi tài khoản; `/scrape/runs` chỉ trả lượt hệ thống và của chính người gọi. */
+  @ApiOperation({ summary: 'Lịch sử quét của toàn hệ thống' })
+  @Get('scrape/runs')
+  scrapeRuns(@Query() query: ScrapeRunsQueryDto) {
+    return this.admin.scrapeRuns(query);
   }
 
   /** Chạy NGAY lượt quét hằng đêm, không đợi tới 23:00. */
@@ -142,8 +166,10 @@ export class AdminController {
     summary: 'Lấy danh sách cấu hình concurrency của tất cả hàng đợi',
   })
   @Get('queue/config')
-  queueConfigList(): Promise<QueueConfigItem[]> {
-    return this.queueConfig.findAll();
+  async queueConfigList(
+    @Query() query: QueueConfigQueryDto,
+  ): Promise<Page<QueueConfigItem>> {
+    return pageFromArray(await this.queueConfig.findAll(), query);
   }
 
   @ApiOperation({
