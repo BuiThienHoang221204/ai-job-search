@@ -214,17 +214,19 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           IMAGE_TAG: ${{ github.ref_name }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           # Server chỉ pull, không build; 30 phút là dư cho ảnh omniroute ~1,2GB.
           command_timeout: 30m
-          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_TOKEN
+          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
+            # Lệnh hỏng in kèm dung lượng đĩa và trạng thái container: câu lỗi một mình đã ba lần không đủ để chẩn.
+            trap 'echo "=== DEPLOY HONG ==="; df -h /; docker system df; docker compose ps' ERR
             cd "$DEPLOY_PATH"
             git fetch --prune origin
             git reset --hard "origin/$IMAGE_TAG"
@@ -232,8 +234,15 @@ jobs:
             test -f .env || { echo "::error::Thieu server/.env tren may chu."; exit 1; }
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
-            # Package ghcr tạo mới mặc định RIÊNG TƯ, nên phải đăng nhập chứ không dựa vào việc `server` đang công khai.
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            # Credential ĐI RIÊNG một thư mục tạm, không đụng ~/.docker/config.json của server.
+            # Đã hỏng thật 24/09: `docker login` bằng GITHUB_TOKEN ghi đè credential dài hạn, rồi
+            # token hết hạn lúc job kết thúc, nên MỌI lượt pull sau đó `denied` kể cả pull tay.
+            if [ -n "${GHCR_PAT:-}" ]; then
+              DOCKER_CONFIG="$(mktemp -d)"
+              export DOCKER_CONFIG
+              trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+              echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
             # KHÔNG build gì ở đây: mọi image do job docker-build đẩy lên ghcr.
             docker compose pull
             # `SandboxLatexCompiler`/`SandboxPdfRenderer` chạy `docker run aijob-latex` với `--pull never`.
@@ -242,4 +251,3 @@ jobs:
             docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
             docker image prune -f
-            docker logout ghcr.io
