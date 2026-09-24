@@ -214,13 +214,15 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           IMAGE_TAG: ${{ github.ref_name }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           # Server chỉ pull, không build; 30 phút là dư cho ảnh omniroute ~1,2GB.
           command_timeout: 30m
-          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG
+          envs: DEPLOY_PATH,IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
             cd "$DEPLOY_PATH"
@@ -230,6 +232,8 @@ jobs:
             test -f .env || { echo "::error::Thieu server/.env tren may chu."; exit 1; }
             export GITHUB_REPOSITORY="$IMAGE_NAME"
             export IMAGE_TAG="$IMAGE_TAG"
+            # Package ghcr tạo mới mặc định RIÊNG TƯ, nên phải đăng nhập chứ không dựa vào việc `server` đang công khai.
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             # KHÔNG build gì ở đây: mọi image do job docker-build đẩy lên ghcr.
             docker compose pull
             # `SandboxLatexCompiler`/`SandboxPdfRenderer` chạy `docker run aijob-latex` với `--pull never`.
@@ -238,3 +242,4 @@ jobs:
             docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans
             docker image prune -f
+            docker logout ghcr.io
