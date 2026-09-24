@@ -5,13 +5,7 @@ import { Public } from '../../common/decorators/public.decorator.js';
 import { ListPositionsQueryDto } from './salary.dto.js';
 import { SalaryService } from './salary.service.js';
 
-/**
- * Tra cứu lương. Ba route đều `@Public()` vì không đọc dữ liệu của người dùng nào
- * và vì trang này về sau cần Google vào được.
- *
- * Công khai thì phải có hạn mức riêng: không có nó thì đây là cửa quét miễn phí
- * toàn bộ bảng lương.
- */
+/** Ba route `@Public()` vì không đọc dữ liệu người dùng nào và trang này cần Google vào được — nên PHẢI có hạn mức riêng, thiếu nó là mở cửa quét sạch bảng lương. */
 @ApiTags('Salary')
 @Controller('salary')
 @Throttle({ default: { limit: 60, ttl: 60_000 } })

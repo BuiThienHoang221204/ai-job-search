@@ -8,7 +8,7 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
-import { profileOccupation } from '../dist/modules/profile/occupation.js';
+import { profileOccupation } from '../dist/modules/profile/utils/occupation.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

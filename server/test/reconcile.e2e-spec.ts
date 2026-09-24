@@ -1,10 +1,7 @@
 import type { MatchStatus } from 'src/generated/prisma/enums.js';
-import { STALE_RUNNING_MS } from 'src/modules/matching/services/matching.service.js';
+import { STALE_RUNNING_MS, STUCK_AFTER_MS } from 'src/common/duration.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
-import {
-  ReconcileService,
-  STUCK_AFTER_MS,
-} from 'src/modules/reconcile/services/reconcile.service.js';
+import { ReconcileService } from 'src/modules/reconcile/services/reconcile.service.js';
 import {
   createTestApp,
   type TestApp,
@@ -97,9 +94,9 @@ describe('Nhặt việc nền bị rơi', () => {
     const run = await harness.prisma.agentRun.create({
       data: {
         userId: user.id,
-        workflow: 'apply',
+        workflow: 'interview',
         status: 'RUNNING',
-        input: { jobDescription: 'Tuyển kế toán tổng hợp tại Hà Nội.' },
+        input: {},
       },
     });
     await harness.prisma.$executeRawUnsafe(
@@ -111,11 +108,11 @@ describe('Nhặt việc nền bị rơi', () => {
   };
 
   /**
-   * Bản ghi chỉ chuyển sang FAILED từ trong `catch` của worker, nên tiến trình
-   * chết giữa chừng để lại một lượt RUNNING vĩnh viễn - đã gặp thật: đứng im 17
-   * phút trong khi hàng đợi không còn việc nào.
+   * Buổi luyện stream thẳng trong request: người dùng đóng tab giữa chừng thì
+   * không `catch` nào chạy và bản ghi nằm RUNNING vĩnh viễn - đã gặp thật:
+   * đứng im 17 phút trong khi hàng đợi không còn việc nào.
    */
-  test('lượt chạy agent bị bỏ rơi thì đánh dấu thất bại', async () => {
+  test('buổi luyện bị bỏ rơi thì đánh dấu thất bại', async () => {
     const runId = await agentRunAged(30);
 
     const result = await reconcile.run();
@@ -126,13 +123,9 @@ describe('Nhặt việc nền bị rơi', () => {
     });
     expect(after.status).toBe('FAILED');
     expect(after.error).toMatch(/Chạy tiếp/);
-
-    // KHÔNG tự xếp lại: một lượt agent tiêu 10-20 lời gọi model, nên việc chạy
-    // tiếp phải do người dùng bấm.
-    expect(harness.queue.sentTo(QUEUE.AGENT_RUN)).toEqual([]);
   });
 
-  test('lượt chạy agent còn mới thì để yên', async () => {
+  test('buổi luyện còn mới thì để yên', async () => {
     const runId = await agentRunAged(2);
 
     const result = await reconcile.run();

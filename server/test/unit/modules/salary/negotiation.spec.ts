@@ -1,10 +1,12 @@
-import type { ReferencePosition } from 'src/modules/salary/job-position.js';
+import type {
+  NegotiationInput,
+  ReferencePosition,
+} from 'src/modules/salary/salary.types.js';
 import {
   labelForYears,
   negotiationRange,
   requiredYearsOf,
-  type NegotiationInput,
-} from 'src/modules/salary/negotiation.js';
+} from 'src/modules/salary/utils/negotiation.js';
 
 const accountant: ReferencePosition = {
   positionSlug: 'accounting-auditing-finance-general-accountant',

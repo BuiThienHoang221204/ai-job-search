@@ -3,8 +3,8 @@ import type { Profile } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import type { UpdateProfileDto } from './profile.dto.js';
-import { completionPercent } from './completion.js';
-import { profileOccupation } from './occupation.js';
+import { completionPercent } from './utils/completion.js';
+import { profileOccupation } from './utils/occupation.js';
 
 @Injectable()
 export class ProfileService {
@@ -21,8 +21,12 @@ export class ProfileService {
     });
   }
 
-  async update(userId: string, dto: UpdateProfileDto): Promise<Profile> {
-    const data = dto as Record<string, unknown>;
+  update(userId: string, dto: UpdateProfileDto): Promise<Profile> {
+    return this.save(userId, dto as Record<string, unknown>);
+  }
+
+  /** Đường GHI duy nhất: thiếu `completion` hay `occupationCode` là hồ sơ tàng hình. */
+  async save(userId: string, data: Record<string, unknown>): Promise<Profile> {
     const saved = await this.prisma.profile.upsert({
       where: { userId },
       create: { userId, ...data },

@@ -116,7 +116,9 @@ describe('Probe sức khoẻ', () => {
       // Database vẫn ổn: báo cáo phải chỉ đúng thứ hỏng, không quy kết cả hai.
       expect(body.checks.database.ok).toBe(true);
       expect(body.checks.queue.ok).toBe(false);
-      expect(body.checks.queue.error).toContain('policy');
+      // Route công khai: thông báo lỗi (host, cổng, lỗi driver) chỉ nằm trong log, không trả cho người lạ.
+      expect(body.checks.queue.error).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain('policy');
     });
 
     /// Người vận hành cần biết hỏng NHỮNG GÌ, không chỉ biết "có hỏng" - nên báo

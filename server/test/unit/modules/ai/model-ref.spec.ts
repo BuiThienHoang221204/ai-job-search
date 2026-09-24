@@ -1,4 +1,7 @@
-import { formatModelRef, parseModelRef } from 'src/modules/ai/model-ref.js';
+import {
+  formatModelRef,
+  parseModelRef,
+} from 'src/modules/ai/utils/model-ref.js';
 
 /*
  * Cách mã hoá `lõi/model` chỉ an toàn nhờ MỘT sự thật đã đo: model id của

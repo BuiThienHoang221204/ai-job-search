@@ -47,8 +47,7 @@ export type TestApp = {
   /// thật còn băm mật khẩu và tạo sẵn Profile rỗng, và test cần đúng trạng thái
   /// đó chứ không phải một hàng dữ liệu tự dựng.
   signUp(email?: string): Promise<TestUser>;
-  /// Nâng quyền ADMIN. Đi thẳng vào DB vì hệ thống CỐ Ý không có route nào làm
-  /// việc này - nâng quyền là một câu SQL do người vận hành chạy.
+  /// Nâng quyền ADMIN thẳng trong DB. Route `PATCH /admin/users/:id/role` cũng làm được, nhưng nó đòi sẵn một admin khác.
   promoteToAdmin(userId: string): Promise<void>;
   /// Xoá sạch dữ liệu và trạng thái của các bản giả. Gọi trong `beforeEach`.
   reset(): Promise<void>;

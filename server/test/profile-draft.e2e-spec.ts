@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import request from 'supertest';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
-import { MIN_COMPLETION_TO_SCORE } from 'src/modules/scraper/fan-out.js';
+import { MIN_COMPLETION_TO_SCORE } from 'src/modules/matching/rules/match-write.js';
 import type { ProfileProposal } from 'src/modules/profile-sources/profile-proposal.schema.js';
 import {
   createTestApp,

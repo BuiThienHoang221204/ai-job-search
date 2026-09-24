@@ -13,21 +13,26 @@ import {
   type CoverLetterResult,
   type CvContentResult,
   type FormAnswerResult,
-} from '../document.schema.js';
+} from '../schemas/document.schema.js';
+import type { OutputLanguage } from '../../../common/model-output.js';
+import type { Identity } from '../content.types.js';
+import type { DocumentParams, LetterTarget } from '../utils/letter-target.js';
 import {
-  LANGUAGE_RULE,
-  type OutputLanguage,
-} from '../../../common/model-output.js';
-import type { Identity } from '../latex.js';
-import type { DocumentParams, LetterTarget } from '../letter-target.js';
+  applicationEmailPrompt,
+  coverLetterPrompt,
+  cvPrompt,
+  DOCUMENT_TIMEOUT_MS,
+  formAnswerPrompt,
+  CV_SECTIONS,
+  FORM_SECTIONS,
+  LETTER_SECTIONS,
+  WRITING_SECTIONS,
+} from '../utils/document.prompt.js';
 
 const SKILL_NAME = 'job-application-assistant';
 
 const documentLanguage = (document: Document): OutputLanguage =>
   document.language === 'EN' ? 'en' : 'vi';
-
-/** Timeout cho việc soạn CV và thư xin việc. */
-const DOCUMENT_TIMEOUT_MS = 180_000;
 
 export interface ComposeInput {
   document: Document;
@@ -44,14 +49,7 @@ export interface ComposeResult {
   modelId: string;
 }
 
-/**
- * Soạn NỘI DUNG của một tài liệu. Đây là toàn bộ phần chạm tới model.
- *
- * Cố ý không biết gì về LaTeX, Storage hay trạng thái bản ghi: nhận dữ liệu đã
- * tra sẵn, trả về nội dung. Nhờ vậy kiểm được prompt bằng `FakeAi` mà không
- * phải dựng Storage lẫn bộ compile LaTeX - trước khi tách, mọi bài kiểm tra về
- * câu chữ trong prompt đều phải giả lập sáu phụ thuộc.
- */
+/** Soạn NỘI DUNG, không biết gì về LaTeX/Storage/trạng thái — nhờ vậy kiểm prompt chỉ cần `FakeAi`. */
 @Injectable()
 export class DocumentComposer {
   constructor(
@@ -83,32 +81,21 @@ export class DocumentComposer {
     }
   }
 
-  /** Quy tắc viết lách dùng chung cho cả CV lẫn thư xin việc. */
-  private writingRules(profile: Profile | null): string {
+  /** Một mục của file skill, đã điền token `[YOUR_*]` từ hồ sơ. */
+  private section(file: string, keep: string[], profile: Profile | null) {
     const skill = this.skills.get(SKILL_NAME);
     return this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('03-writing-style.md') ?? '',
-        ['critical rules', 'tone', 'bullet point style'],
-      ),
+      this.prompts.keepSections(skill.references.get(file) ?? '', keep),
       profile,
     );
   }
 
-  private groundingRules(language: OutputLanguage = 'vi'): string[] {
-    return [
-      'Quy tắc không được phá:',
-      '- Mọi câu phải được chứng minh bằng thông tin CÓ THẬT trong hồ sơ. Không thêm công ty, chức danh, con số, chứng chỉ hay kỹ năng không có trong đó.',
-      '- Được phép viết lại cách diễn đạt, đổi thứ tự, chọn lọc thông tin để bám yêu cầu công việc. KHÔNG được phép thêm sự kiện mới.',
-      '- Hồ sơ thiếu dữ liệu cho một yêu cầu nào đó thì bỏ qua yêu cầu đó, không lấp chỗ trống bằng phỏng đoán.',
-      `- ${LANGUAGE_RULE[language]} Không dùng dấu gạch ngang dài, không dùng sáo ngữ.`,
-    ];
+  /** Quy tắc viết lách dùng chung cho cả CV lẫn thư xin việc. */
+  private writingRules(profile: Profile | null): string {
+    return this.section('03-writing-style.md', WRITING_SECTIONS, profile);
   }
 
-  /**
-   * Thế mạnh và khoảng trống mà lượt chấm điểm đã tìm ra, để thư không phải suy
-   * lại từ đầu. JD dán tay không có tin nào để tra nên trả về mảng rỗng.
-   */
+  /** Thế mạnh và khoảng trống lượt chấm điểm đã tìm ra; JD dán tay không có tin nào để tra nên trả rỗng. */
   private async matchHints(
     userId: string,
     target: LetterTarget,
@@ -135,43 +122,16 @@ export class DocumentComposer {
     target: LetterTarget | null,
   ): { system: string; prompt: string; language: OutputLanguage } {
     const language = documentLanguage(document);
-    const skill = this.skills.get(SKILL_NAME);
-    const framework = this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('05-cv-templates.md') ?? '',
-        ['section-by-section tailoring'],
-      ),
-      profile,
+
+    const { system, prompt } = cvPrompt(
+      {
+        framework: this.section('05-cv-templates.md', CV_SECTIONS, profile),
+        writingRules: this.writingRules(profile),
+        profileSummary: this.prompts.profileSummary(profile),
+      },
+      target,
+      language,
     );
-
-    const system = [
-      'Bạn là chuyên gia viết CV. Soạn nội dung CV bám sát một vị trí cụ thể.',
-      '',
-      ...this.groundingRules(language),
-      '- Dự án trong hồ sơ phải nằm ở mục projects. KHÔNG được viết dự án thành một mục kinh nghiệm làm việc: cả người đọc lẫn máy đọc CV sẽ hiểu nhầm thành nhiều nơi làm việc khác nhau.',
-      '- Chọn 3-4 dự án bám sát tin tuyển dụng nhất, không liệt kê hết. Hồ sơ không có dự án nào thì để projects là mảng rỗng.',
-      '- Trường tools của dự án là công cụ hoặc phương pháp thuộc NGÀNH của ứng viên, không mặc định là công nghệ phần mềm. Hồ sơ không nêu thì để rỗng.',
-      '',
-      '--- HƯỚNG DẪN TỪNG MỤC ---',
-      framework,
-      '',
-      '--- QUY TẮC VĂN PHONG ---',
-      this.writingRules(profile),
-    ].join('\n');
-
-    const prompt = [
-      `CV language: ${language === 'en' ? 'English' : 'Vietnamese'}`,
-      '=== HỒ SƠ ỨNG VIÊN ===',
-      this.prompts.profileSummary(profile),
-      '',
-      target
-        ? [
-            '=== VỊ TRÍ NHẮM TỚI ===',
-            `${target.title} @ ${target.company}`,
-            target.description,
-          ].join('\n')
-        : '=== KHÔNG CÓ VỊ TRÍ CỤ THỂ: soạn CV tổng quát theo định hướng nghề nghiệp ===',
-    ].join('\n');
 
     return { system, prompt, language };
   }
@@ -229,39 +189,19 @@ export class DocumentComposer {
       );
     }
 
-    const skill = this.skills.get(SKILL_NAME);
-    const framework = this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('06-cover-letter-templates.md') ?? '',
-        ['tailoring guidelines', 'checklist before finalizing'],
-      ),
-      profile,
+    return coverLetterPrompt(
+      {
+        framework: this.section(
+          '06-cover-letter-templates.md',
+          LETTER_SECTIONS,
+          profile,
+        ),
+        writingRules: this.writingRules(profile),
+        profileSummary: this.prompts.profileSummary(profile),
+        matchHints: await this.matchHints(document.userId, target),
+      },
+      target,
     );
-
-    const system = [
-      'Bạn là chuyên gia viết thư xin việc.',
-      '',
-      ...this.groundingRules(),
-      '- Thư dài tối đa một trang: tổng cộng không quá 4 đoạn.',
-      '',
-      '--- HƯỚNG DẪN ---',
-      framework,
-      '',
-      '--- QUY TẮC VĂN PHONG ---',
-      this.writingRules(profile),
-    ].join('\n');
-
-    const prompt = [
-      '=== HỒ SƠ ỨNG VIÊN ===',
-      this.prompts.profileSummary(profile),
-      ...(await this.matchHints(document.userId, target)),
-      '',
-      '=== VỊ TRÍ ỨNG TUYỂN ===',
-      `${target.title} @ ${target.company}`,
-      target.description,
-    ].join('\n');
-
-    return { system, prompt };
   }
 
   private async coverLetter(
@@ -308,13 +248,7 @@ export class DocumentComposer {
     });
   }
 
-  /**
-   * Mail ứng tuyển gửi thẳng cho nhà tuyển dụng.
-   *
-   * Khác thư xin việc ở ba chỗ, và cả ba đều nằm trong prompt chứ không phải
-   * trong cách trình bày: có tiêu đề mail, ngắn hơn một nửa, và chữ ký do CODE
-   * ghép từ hồ sơ chứ không để model viết.
-   */
+  /** Khác thư xin việc: có tiêu đề mail, ngắn hơn một nửa, và chữ ký do CODE ghép chứ không hỏi model. */
   private async applicationEmail(
     document: Document,
     profile: Profile | null,
@@ -327,41 +261,20 @@ export class DocumentComposer {
       );
     }
 
-    const skill = this.skills.get(SKILL_NAME);
-    const framework = this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('06-cover-letter-templates.md') ?? '',
-        ['tailoring guidelines', 'checklist before finalizing'],
-      ),
-      profile,
+    const { system, prompt } = applicationEmailPrompt(
+      {
+        framework: this.section(
+          '06-cover-letter-templates.md',
+          LETTER_SECTIONS,
+          profile,
+        ),
+        writingRules: this.writingRules(profile),
+        profileSummary: this.prompts.profileSummary(profile),
+        matchHints: await this.matchHints(document.userId, target),
+      },
+      target,
+      identity.name,
     );
-
-    const system = [
-      'Bạn soạn MAIL ỨNG TUYỂN để ứng viên gửi thẳng cho nhà tuyển dụng, không phải thư xin việc đính kèm PDF.',
-      '',
-      ...this.groundingRules(),
-      '- Mail được đọc trên điện thoại: tối đa 3 đoạn, tổng cộng 150-250 chữ. Dài hơn là hỏng, không phải là kỹ hơn.',
-      '- Không kể lại toàn bộ CV. Chọn đúng hai tới ba điểm khớp nhất với tin này, phần còn lại để CV nói.',
-      '- Không bịa tên người nhận, không bịa nguồn biết tin, không nêu mức lương nếu hồ sơ không có.',
-      '- KHÔNG viết tên, email hay số điện thoại vào bất kỳ trường nào. Hệ thống tự ghép chữ ký từ hồ sơ.',
-      '',
-      '--- HƯỚNG DẪN ---',
-      framework,
-      '',
-      '--- QUY TẮC VĂN PHONG ---',
-      this.writingRules(profile),
-    ].join('\n');
-
-    const prompt = [
-      '=== HỒ SƠ ỨNG VIÊN ===',
-      `Tên ứng viên (dùng cho tiêu đề mail): ${identity.name}`,
-      this.prompts.profileSummary(profile),
-      ...(await this.matchHints(document.userId, target)),
-      '',
-      '=== VỊ TRÍ ỨNG TUYỂN ===',
-      `${target.title} @ ${target.company}`,
-      target.description,
-    ].join('\n');
 
     const { object, modelId } =
       await this.ai.generateObject<ApplicationEmailResult>({
@@ -400,44 +313,19 @@ export class DocumentComposer {
     question: string,
     characterLimit?: number,
   ): Promise<ComposeResult> {
-    const skill = this.skills.get(SKILL_NAME);
-    const framework = this.prompts.render(
-      this.prompts.keepSections(
-        skill.references.get('08-application-forms.md') ?? '',
-        [
-          'the rule that governs everything here',
-          'field type: self-introduction paragraph',
-          'field type: structured project entries',
-          'field type: hard character limits',
-        ],
-      ),
-      profile,
-    );
-
-    const system = [
-      'Bạn soạn câu trả lời cho ô văn bản tự do trong form ứng tuyển trực tuyến.',
-      '',
-      ...this.groundingRules(),
-      '- Ô form không phải chỗ để đưa ra thông tin mới. Đây là chỗ CHỌN LỌC từ những gì đã có và sắp xếp lại cho đúng câu hỏi.',
-      characterLimit
-        ? `- Giới hạn cứng: ${characterLimit} ký tự. Mọi phương án phải nằm trong giới hạn này.`
-        : '- Không có giới hạn ký tự cụ thể, ưu tiên 100-200 từ.',
-      '',
-      '--- HƯỚNG DẪN ---',
-      framework,
-    ].join('\n');
-
-    const prompt = [
-      '=== HỒ SƠ ỨNG VIÊN ===',
-      this.prompts.profileSummary(profile),
-      '',
-      target
-        ? `=== VỊ TRÍ ===\n${target.title} @ ${target.company}\n${target.description}`
-        : '',
-      '',
-      '=== CÂU HỎI TRONG FORM ===',
+    const { system, prompt } = formAnswerPrompt(
+      {
+        framework: this.section(
+          '08-application-forms.md',
+          FORM_SECTIONS,
+          profile,
+        ),
+        profileSummary: this.prompts.profileSummary(profile),
+      },
+      target,
       question,
-    ].join('\n');
+      characterLimit,
+    );
 
     const { object, modelId } = await this.ai.generateObject<FormAnswerResult>({
       schema: formAnswerSchema,

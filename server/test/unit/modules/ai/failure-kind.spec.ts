@@ -6,7 +6,7 @@ import {
   isTransientUpstream,
   schemaIssues,
   truncateError,
-} from 'src/modules/ai/failure-kind.js';
+} from 'src/modules/ai/utils/failure-kind.js';
 
 /// Dựng lại tên lỗi của AI SDK thay vì import package thật: `ai` v7 là ESM
 /// thuần, jest chạy CommonJS nên không nạp được. Tên là hợp đồng ổn định -

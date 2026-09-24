@@ -1,3 +1,4 @@
+/** Token DI. Tiêm bằng `@Inject(SANDBOX)` chứ không bằng lớp — chỗ này có hai adapter trong lộ trình. */
 export const SANDBOX = Symbol('SANDBOX');
 
 /** Một lượt chạy trong môi trường cách ly. */
@@ -8,18 +9,12 @@ export type SandboxSpec = {
   /** File ghi vào thư mục làm việc TRƯỚC khi chạy. Khoá là đường dẫn tương đối. */
   files: Record<string, string | Buffer>;
 
-  /**
-   * Lệnh và tham số. Là mảng chứ không phải chuỗi: một chuỗi sẽ phải đi qua shell
-   * để tách, và tên file do người dùng đặt là đầu vào không tin cậy.
-   */
+  /** MẢNG chứ không phải chuỗi: chuỗi phải đi qua shell để tách, mà tên file thì do người dùng đặt. */
   command: string[];
 
   timeoutMs: number;
 
-  /**
-   * Đường dẫn tương đối của những file cần lấy ra sau khi chạy. Thiếu file nào
-   * thì file đó vắng trong kết quả, không phải lỗi — caller quyết định.
-   */
+  /** File cần lấy ra sau khi chạy. Thiếu file nào thì file đó vắng trong kết quả, không phải lỗi — caller quyết định. */
   artifacts: string[];
 
   /** Có cho lượt chạy ra mạng hay không. **Mặc định là KHÔNG.** */
@@ -48,6 +43,7 @@ export type SandboxErrorKind =
   | 'IMAGE_MISSING'
   | 'OTHER';
 
+/** `kind` là thứ caller đọc để chọn câu báo cho người dùng — xem `sandboxReason`. */
 export class SandboxError extends Error {
   constructor(
     readonly kind: SandboxErrorKind,
@@ -60,11 +56,9 @@ export class SandboxError extends Error {
 
 /** SEAM 2 — chạy việc nặng, do dữ liệu ngoài điều khiển, trong môi trường cách ly. */
 export interface SandboxRunner {
+  /** Ném `SandboxError` khi không chạy được; lượt chạy XONG mà công cụ báo lỗi thì trả `exitCode` khác 0. */
   run(spec: SandboxSpec): Promise<SandboxResult>;
 
-  /**
-   * Runtime có dùng được hay không. Dùng cho `/ready` và để giao diện nói trước
-   * "máy chủ chưa cấu hình được PDF" thay vì để người dùng bấm rồi mới hỏng.
-   */
+  /** Cho `/ready` và để giao diện nói trước "máy chủ chưa cấu hình được PDF" thay vì để người dùng bấm rồi mới hỏng. */
   available(): Promise<boolean>;
 }

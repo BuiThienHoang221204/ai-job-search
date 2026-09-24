@@ -1,7 +1,8 @@
 import type { Logger } from '@nestjs/common';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
-import { formatModelRef } from '../model-ref.js';
+import { formatModelRef } from '../utils/model-ref.js';
+import { extractJsonFromResponse } from '../utils/json-text.js';
 import type { ModelCatalogService } from './model-catalog.service.js';
 
 export type ResolvedLanguageModel = {
@@ -12,18 +13,33 @@ export type ResolvedLanguageModel = {
   ref: string;
 };
 
-/**
- * Dựng đối tượng model của SDK từ một id.
- *
- * Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó
- * là OpenAI-compatible nên không cần adapter thứ hai. Cái thay đổi theo lõi
- * chỉ là `baseURL` và `apiKey`, và cả hai đến từ `catalog.resolve()`.
- */
+/** Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó là OpenAI-compatible nên không cần adapter thứ hai. */
 export class LanguageModelFactory {
   constructor(
     private readonly catalog: ModelCatalogService,
     private readonly logger: Logger,
   ) {}
+
+  /** `honorsResponseFormat: false` nghĩa là lõi chỉ có MỘT chế độ dùng được — người gọi phải biết để không lật sang chế độ kia. */
+  async structuredOutputModeFor(
+    modelId: string | undefined,
+    fallbackDefault: boolean,
+  ): Promise<{
+    providerId: string;
+    structuredOutputs: boolean;
+    honorsResponseFormat: boolean;
+    /** Lõi ép được định dạng, HOẶC chính model này đã đo là stream ra JSON được. */
+    canStream: boolean;
+  }> {
+    const resolved = await this.catalog.resolve(modelId);
+    const honorsResponseFormat = resolved.honorsResponseFormat !== false;
+    return {
+      providerId: resolved.providerId,
+      structuredOutputs: honorsResponseFormat && fallbackDefault,
+      honorsResponseFormat,
+      canStream: honorsResponseFormat || resolved.streamsJson === true,
+    };
+  }
 
   async create(
     modelId: string | undefined,
@@ -36,7 +52,10 @@ export class LanguageModelFactory {
     );
 
     const originalFetch = globalThis.fetch;
-    const forceUserAgentFetch: typeof globalThis.fetch = (input, init) => {
+    const forceUserAgentFetch: typeof globalThis.fetch = async (
+      input,
+      init,
+    ) => {
       const headers = new Headers(init?.headers);
       if (userAgent) {
         headers.set('User-Agent', userAgent);
@@ -53,7 +72,9 @@ export class LanguageModelFactory {
           body = init?.body;
         }
       }
-      return originalFetch(input, { ...init, headers, body });
+      const response = await originalFetch(input, { ...init, headers, body });
+      // Áp cho CẢ hai chế độ: phản hồi vốn đã là JSON hợp lệ thì hàm trả lại nguyên vẹn, nên không có gì để mất.
+      return extractJsonFromResponse(response);
     };
 
     const provider = createOpenAICompatible({

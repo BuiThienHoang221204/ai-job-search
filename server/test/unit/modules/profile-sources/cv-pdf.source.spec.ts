@@ -7,7 +7,7 @@ import {
   MAX_EVIDENCE_CHARS,
   ScannedPdfError,
 } from 'src/modules/profile-sources/cv-pdf.source.js';
-import { PdfExtractError } from 'src/modules/profile-sources/pdf-text.js';
+import { PdfExtractError } from 'src/modules/profile-sources/utils/pdf-text.js';
 
 const fixture = (name: string): Buffer =>
   readFileSync(join(__dirname, '../../../fixtures', name));

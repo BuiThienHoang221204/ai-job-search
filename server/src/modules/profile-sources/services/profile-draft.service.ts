@@ -18,11 +18,14 @@ import {
   userKey,
   type Storage,
 } from '../../storage/storage.interface.js';
-import { completionPercent } from '../../profile/completion.js';
-import { profileOccupation } from '../../profile/occupation.js';
+import { ProfileService } from '../../profile/profile.service.js';
 import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source.js';
-import { parseEvidenceList, type Evidence } from '../evidence.js';
+import { parseEvidenceList, type Evidence } from '../utils/evidence.js';
 import type { ProfileProposal } from '../profile-proposal.schema.js';
+import {
+  pickProposalFields,
+  safeFilename,
+} from '../utils/profile-draft.utils.js';
 
 @Injectable()
 export class ProfileDraftService {
@@ -30,6 +33,7 @@ export class ProfileDraftService {
     private readonly prisma: PrismaService,
     private readonly queue: QueueService,
     private readonly cvPdf: CvPdfSource,
+    private readonly profiles: ProfileService,
     @Inject(STORAGE) private readonly storage: Storage,
   ) {}
 
@@ -100,17 +104,7 @@ export class ProfileDraftService {
     return draft;
   }
 
-  /**
-   * Chạy lại lượt đọc CV từ bằng chứng ĐÃ LƯU, không bắt nộp lại file.
-   *
-   * Có mặt vì trên tier free, hỏng là chuyện thường: bản nháp FAILED mà không
-   * có đường này thì cách duy nhất là tải lên lại, kéo theo parse lại PDF, ghi
-   * trùng file vào storage, đẻ thêm một bản nháp rác, và vẫn tốn đúng một lượt
-   * gọi model như nhau.
-   *
-   * Chỉ nhận FAILED, và phải do người dùng bấm: tự xếp lại khi chưa có bộ đếm
-   * số lần thử sẽ thành vòng lặp đốt hạn mức.
-   */
+  /** Người dùng rời trang giữa lượt stream: xếp lại vào hàng đợi để lượt đọc không mất trắng. */
   async requeue(userId: string, draftId: string): Promise<void> {
     const draft = await this.prisma.profileDraft.findFirst({
       where: { id: draftId, userId },
@@ -127,6 +121,7 @@ export class ProfileDraftService {
     });
   }
 
+  /** Người dùng bấm chạy lại bản FAILED, dùng bằng chứng ĐÃ LƯU nên không phải nộp lại file. */
   async retry(userId: string, draftId: string): Promise<ProfileDraft> {
     const draft = await this.get(userId, draftId);
 
@@ -205,80 +200,11 @@ export class ProfileDraftService {
       );
     }
 
-    const saved = await this.prisma.profile.upsert({
-      where: { userId },
-      create: { userId, ...data },
-      update: data,
-    });
-
-    // Phải tính lại completion và ngành Ở ĐÂY, giống ProfileService.update.
-    // Thiếu completion thì hồ sơ dựng hoàn toàn từ CV giữ nguyên mặc định 0, nằm
-    // dưới MIN_COMPLETION_TO_SCORE và không bao giờ được chấm điểm. Thiếu ngành
-    // thì hồ sơ đó không thuộc cụm nào, nên lượt quét đêm không sinh từ khoá cho
-    // nghề của họ - cả hai đều là màn hình trống, không kèm lỗi nào.
-    await this.prisma.profile.update({
-      where: { userId },
-      data: {
-        completion: completionPercent(saved),
-        occupationCode: profileOccupation(saved),
-      },
-    });
-
-    await this.queue.send(QUEUE.SKILL_CANONICALIZE, { userId });
+    await this.profiles.save(userId, data);
 
     return this.prisma.profileDraft.update({
       where: { id: draftId },
       data: { appliedAt: new Date() },
     });
   }
-}
-
-/** Những trường của đề xuất được phép ghi vào `Profile`. */
-const APPLICABLE_FIELDS = [
-  'headline',
-  'location',
-  'country',
-  'summary',
-  'languages',
-  'primarySkills',
-  'secondarySkills',
-  'directExperienceDomains',
-  'adjacentExperience',
-  'experiences',
-  'educations',
-  'certificates',
-  'projects',
-] as const;
-
-export type ApplicableField = (typeof APPLICABLE_FIELDS)[number];
-
-export const isApplicableField = (value: string): value is ApplicableField =>
-  (APPLICABLE_FIELDS as readonly string[]).includes(value);
-
-/** Lọc ra đúng những trường vừa được chọn vừa có giá trị trong đề xuất. */
-export function pickProposalFields(
-  proposal: ProfileProposal,
-  fields: string[],
-): Record<string, unknown> {
-  const chosen = new Set(fields.filter(isApplicableField));
-  const data: Record<string, unknown> = {};
-
-  for (const field of APPLICABLE_FIELDS) {
-    if (!chosen.has(field)) continue;
-    const value = proposal[field];
-    if (value === undefined || value === null) continue;
-    data[field] = value;
-  }
-
-  return data;
-}
-
-/** Làm sạch tên file trước khi ghép vào đường dẫn lưu trữ. */
-export function safeFilename(filename: string): string {
-  const base = filename.split(/[\\/]/).pop() ?? 'cv.pdf';
-  const cleaned = base
-    .replace(/[^\p{L}\p{N}._-]+/gu, '-')
-    .replace(/^[.-]+/, '')
-    .slice(0, 120);
-  return cleaned.length > 0 ? cleaned : 'cv.pdf';
 }

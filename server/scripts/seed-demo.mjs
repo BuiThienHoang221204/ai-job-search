@@ -9,6 +9,15 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL chưa được đặt. Hãy tạo server/.env từ .env.example.');
 }
 
+// Seed tạo ADMIN với mật khẩu nằm trong repo: chạy nhầm vào database thật là trao quyền admin cho người đọc code.
+const seedHost = new URL(process.env.DATABASE_URL).hostname;
+const isLocalDb = seedHost === 'localhost' || seedHost === '127.0.0.1';
+if (!isLocalDb && process.env.SEED_ALLOW_REMOTE !== '1') {
+  throw new Error(
+    `Từ chối chạy: DATABASE_URL trỏ tới "${seedHost}", không phải máy cá nhân. Cố ý seed máy chủ thì đặt SEED_ALLOW_REMOTE=1 rồi đổi mật khẩu admin ngay sau đó.`,
+  );
+}
+
 /** Mật khẩu dùng chung cho MỌI tài khoản seed. Chỉ dành cho database dev. */
 const demoUser = {
   id: 'demo_user_vietnam_001',

@@ -58,12 +58,7 @@ const isSectionKey = (value: unknown): value is SectionKey =>
 const cleanKeys = (raw: unknown): SectionKey[] =>
   Array.isArray(raw) ? [...new Set(raw.filter(isSectionKey))] : [];
 
-/**
- * Đọc bố cục đã lưu, chữa lại phần hỏng. Nhận `unknown` vì nguồn là cột Json.
- *
- * Khoá thiếu được NỐI VÀO CUỐI chứ không bỏ đi: thêm mục thứ sáu ở bản sau sẽ tự
- * xuất hiện trong CV cũ, thay vì biến mất không dấu vết.
- */
+/** Khoá thiếu được NỐI VÀO CUỐI chứ không bỏ đi, nhờ vậy thêm mục ở bản sau không làm CV cũ mất mục. */
 export const resolveLayout = (raw: unknown): CvLayout => {
   const stored = (raw ?? {}) as { order?: unknown; hidden?: unknown };
   const order = cleanKeys(stored.order);

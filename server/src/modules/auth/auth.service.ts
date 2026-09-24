@@ -11,6 +11,11 @@ import type { LoginDto, RegisterDto } from './auth.dto.js';
 
 const BCRYPT_ROUNDS = 12;
 
+// Email không tồn tại vẫn băm thử với hash giả cùng cost: bỏ qua bcrypt thì phản hồi nhanh hơn ~250ms, đủ để dò email nào đã đăng ký.
+let dummyHash: Promise<string> | undefined;
+const timingPadHash = () =>
+  (dummyHash ??= hash('careelot-timing-pad', BCRYPT_ROUNDS));
+
 export type AuthResult = {
   accessToken: string;
   user: { id: string; email: string; name: string };
@@ -52,7 +57,11 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    if (!user || !(await compare(dto.password, user.passwordHash))) {
+    const matches = await compare(
+      dto.password,
+      user?.passwordHash ?? (await timingPadHash()),
+    );
+    if (!user || !matches) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
     return this.sign(user);

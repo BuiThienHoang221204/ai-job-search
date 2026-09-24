@@ -1,4 +1,4 @@
-import { referenceOccupation } from 'src/modules/salary/reference-map.js';
+import { referenceOccupation } from 'src/modules/salary/utils/reference-map.js';
 
 describe('referenceOccupation', () => {
   it('xếp theo ngành của nguồn khi không có quy tắc riêng', () => {

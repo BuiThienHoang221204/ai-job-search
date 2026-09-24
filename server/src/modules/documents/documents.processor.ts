@@ -4,7 +4,7 @@ import {
   QueueService,
   type GenerateDocumentPayload,
 } from '../queue/queue.service.js';
-import { DocumentsService } from './services/documents.service.js';
+import { DocumentGenerator } from './services/document-generator.service.js';
 
 @Injectable()
 export class DocumentsProcessor implements OnModuleInit {
@@ -12,7 +12,7 @@ export class DocumentsProcessor implements OnModuleInit {
 
   constructor(
     private readonly queue: QueueService,
-    private readonly documents: DocumentsService,
+    private readonly generator: DocumentGenerator,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -20,7 +20,7 @@ export class DocumentsProcessor implements OnModuleInit {
       QUEUE.GENERATE_DOCUMENT,
       async (data) => {
         this.logger.log(`Sinh tài liệu ${data.documentId}`);
-        await this.documents.generate(data.userId, data.documentId);
+        await this.generator.generate(data.userId, data.documentId);
       },
     );
   }

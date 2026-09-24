@@ -31,17 +31,17 @@ import {
   IsString,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { streamNdjson } from '../../common/ndjson.js';
 import { ThrottleAi } from '../../common/throttle.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
-import { withFailureKind, withFailureKinds } from '../ai/failure-view.js';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
 import { cvPdfErrorMessage } from './cv-pdf.source.js';
-import { MAX_PDF_BYTES } from './pdf-text.js';
+import { MAX_PDF_BYTES } from './utils/pdf-text.js';
 import { ProfileDraftService } from './services/profile-draft.service.js';
 import { ProfileSynthesizerService } from './services/profile-synthesizer.service.js';
 
 export class ApplyDraftDto {
-  /** Tên các trường người dùng đã tích ở màn xác nhận. */
   @IsArray()
   @ArrayNotEmpty()
   @ArrayMaxSize(30)
@@ -172,12 +172,7 @@ export class ProfileDraftController {
     return withFailureKind(await this.drafts.get(user.id, id));
   }
 
-  /** Chạy lại một bản nháp đã hỏng, dùng lại bằng chứng đã lưu. */
   @ThrottleAi()
-  @ApiOperation({
-    summary: 'Thử lại tiến trình trích xuất bản nháp hồ sơ bị lỗi',
-  })
-  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @ApiOperation({
     summary: 'Đọc CV và đẩy về từng phần ngay khi AI viết ra (NDJSON)',
   })
@@ -190,37 +185,21 @@ export class ProfileDraftController {
   ): Promise<void> {
     await this.drafts.get(user.id, id);
 
-    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-cache, no-transform');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.flushHeaders();
-
-    let finished = false;
-    response.on('close', () => {
-      if (finished) return;
-      this.logger.warn(
-        `Người dùng rời trang giữa lượt đọc CV ${id}; xếp lại vào hàng đợi`,
-      );
-      void this.drafts.requeue(user.id, id);
+    await streamNdjson({
+      response,
+      logger: this.logger,
+      label: `đọc CV ${id}`,
+      events: this.synthesizer.streamSynthesize(id),
+      onAbandon: () => void this.drafts.requeue(user.id, id),
     });
-
-    try {
-      for await (const event of this.synthesizer.streamSynthesize(id)) {
-        response.write(`${JSON.stringify(event)}\n`);
-      }
-      finished = true;
-    } catch (error) {
-      finished = true;
-      this.logger.error(
-        `Stream đọc CV ${id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      response.destroy();
-      return;
-    }
-
-    response.end();
   }
 
+  /** Chạy lại một bản nháp đã hỏng, dùng lại bằng chứng đã lưu. */
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Thử lại tiến trình trích xuất bản nháp hồ sơ bị lỗi',
+  })
+  @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Post(':id/retry')
   @HttpCode(200)
   async retry(@CurrentUser() user: AuthUser, @Param('id') id: string) {

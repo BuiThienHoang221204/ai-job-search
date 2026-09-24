@@ -1,24 +1,35 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service.js';
-import { STALE_RUNNING_MS } from '../../matching/services/matching.service.js';
+import { STUCK_AFTER_MS } from '../../../common/duration.js';
 import { QUEUE, QueueService } from '../../queue/queue.service.js';
-
-/** Sau bao lâu thì một việc nền được coi là đã bị rơi. */
-export const STUCK_AFTER_MS = Math.max(STALE_RUNNING_MS, 10 * 60_000);
 
 /** Trần số việc xếp lại trong MỘT lượt, tính riêng cho từng loại. */
 const MAX_PER_KIND = 100;
+
+/** Câu người dùng đọc được trên màn hình — nói ra nguyên nhân THẬT và việc họ cần làm. */
+const STUCK_MESSAGE =
+  'Máy chủ khởi động lại khi việc này đang chạy dở, nên nó không bao giờ hoàn tất. Hãy bấm chạy lại.';
 
 export type ReconcileResult = {
   /** Số tài liệu đã xếp lại. */
   documents: number;
   /** Số lượt chấm điểm đã xếp lại. */
   matches: number;
-  /** Số lượt chạy agent bị bỏ rơi, đã đánh dấu thất bại. */
+  /** Năm con số dưới đây là số bản ghi ĐÁNH HỎNG — tách theo bảng để biết chỗ nào đang rơi việc. */
   agentRuns: number;
+  upskillReports: number;
+  interviewPreps: number;
+  profileDrafts: number;
+  jobRequirements: number;
   /** Số việc vượt trần, để lại cho lượt sau. */
   deferred: number;
 };
+
+/** Hàng còn PENDING/RUNNING quá lâu. Cả hai trạng thái, vì tiến trình chết trước khi kịp đổi sang RUNNING cũng là rơi. */
+const stuckWhere = (before: Date) => ({
+  status: { in: ['PENDING' as const, 'RUNNING' as const] },
+  updatedAt: { lt: before },
+});
 
 /** Nhặt lại những việc nền đã rơi mất. */
 @Injectable()
@@ -30,24 +41,19 @@ export class ReconcileService {
     private readonly queue: QueueService,
   ) {}
 
+  /** Hai cách đối xử: `Document` và `JobMatch` XẾP LẠI vì rẻ và có khoá dedup; năm bảng còn lại chỉ đánh hỏng. */
   async run(): Promise<ReconcileResult> {
     const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS);
 
     const [documents, matches] = await Promise.all([
       this.prisma.document.findMany({
-        where: {
-          status: { in: ['PENDING', 'RUNNING'] },
-          updatedAt: { lt: stuckBefore },
-        },
+        where: stuckWhere(stuckBefore),
         select: { id: true, userId: true },
         orderBy: { updatedAt: 'asc' },
         take: MAX_PER_KIND + 1,
       }),
       this.prisma.jobMatch.findMany({
-        where: {
-          status: { in: ['PENDING', 'RUNNING'] },
-          updatedAt: { lt: stuckBefore },
-        },
+        where: stuckWhere(stuckBefore),
         select: { userId: true, jobId: true },
         orderBy: { updatedAt: 'asc' },
         take: MAX_PER_KIND + 1,
@@ -71,57 +77,82 @@ export class ReconcileService {
       ),
     ]);
 
-    const agentRuns = await this.failStuckAgentRuns(stuckBefore);
+    const failed = await this.failStuck(stuckBefore);
 
     const result: ReconcileResult = {
       documents: documentsQueued,
       matches: matchesQueued,
-      agentRuns,
+      ...failed,
       deferred:
         documents.length -
         documentBatch.length +
         (matches.length - matchBatch.length),
     };
 
-    if (documentsQueued || matchesQueued || agentRuns || result.deferred) {
-      this.logger.warn(
-        `Xếp lại việc bị rơi: ${documentsQueued} tài liệu, ${matchesQueued} lượt chấm, ${agentRuns} lượt agent` +
-          (result.deferred
-            ? `; còn ${result.deferred} việc vượt trần, để lượt sau`
-            : ''),
-      );
-    }
-
+    this.report(result);
     return result;
   }
 
-  /**
-   * Lượt chạy agent bị bỏ rơi thì đánh dấu THẤT BẠI, KHÔNG tự xếp lại.
-   *
-   * Khác hẳn tài liệu và chấm điểm ở trên, và khác vì tiền: một lượt agent tiêu
-   * 10-20 lời gọi model, nên tự chạy lại một lượt đã đi được nửa đường có thể
-   * đốt hạn mức của cả hệ thống mà không ai yêu cầu. Người dùng bấm "Chạy tiếp"
-   * thì nó đi tiếp từ điểm khôi phục - rẻ hơn và do người quyết.
-   *
-   * Vì sao cần quét: bản ghi chỉ chuyển sang FAILED từ trong khối `catch` của
-   * chính worker. Tiến trình chết giữa chừng - deploy, restart, hết hạn pg-boss
-   * - thì không `catch` nào chạy, và lượt chạy nằm RUNNING vĩnh viễn. Đã gặp
-   * thật: một lượt đứng im 17 phút trong khi hàng đợi không còn việc nào.
-   */
-  private async failStuckAgentRuns(stuckBefore: Date): Promise<number> {
-    const { count } = await this.prisma.agentRun.updateMany({
-      where: {
-        status: { in: ['PENDING', 'RUNNING'] },
-        updatedAt: { lt: stuckBefore },
-      },
-      data: {
-        status: 'FAILED',
-        error:
-          'Tiến trình xử lý bị gián đoạn giữa chừng. Bấm "Chạy tiếp từ chỗ dừng" để đi tiếp từ bước cuối cùng đã xong.',
-        finishedAt: new Date(),
-      },
-    });
+  /** Năm bảng này ĐÁNH HỎNG chứ không tự xếp lại: chưa có bộ đếm số lần thử, nên việc nào làm chết tiến trình sẽ thành vòng lặp đốt tiền. */
+  private async failStuck(stuckBefore: Date) {
+    const where = stuckWhere(stuckBefore);
+    const data = { status: 'FAILED' as const, error: STUCK_MESSAGE };
 
-    return count;
+    const [
+      agentRuns,
+      upskillReports,
+      interviewPreps,
+      profileDrafts,
+      jobRequirements,
+    ] = await Promise.all([
+      this.prisma.agentRun.updateMany({
+        where,
+        data: { ...data, finishedAt: new Date() },
+      }),
+      // `UpskillReport` KHÔNG có cột `updatedAt`, chỉ có `createdAt`.
+      this.prisma.upskillReport.updateMany({
+        where: {
+          status: where.status,
+          createdAt: { lt: stuckBefore },
+        },
+        data,
+      }),
+      this.prisma.interviewPrep.updateMany({ where, data }),
+      this.prisma.profileDraft.updateMany({ where, data }),
+      this.prisma.jobRequirement.updateMany({ where, data }),
+    ]);
+
+    return {
+      agentRuns: agentRuns.count,
+      upskillReports: upskillReports.count,
+      interviewPreps: interviewPreps.count,
+      profileDrafts: profileDrafts.count,
+      jobRequirements: jobRequirements.count,
+    };
+  }
+
+  /** Im lặng khi không có gì để nhặt — cron chạy mỗi 10 phút, log mỗi lượt là che mất lượt thật sự có việc. */
+  private report(result: ReconcileResult): void {
+    const total = Object.values(result).reduce((sum, n) => sum + n, 0);
+    if (!total) return;
+
+    const failed = [
+      ['lượt agent', result.agentRuns],
+      ['báo cáo upskill', result.upskillReports],
+      ['bộ câu hỏi phỏng vấn', result.interviewPreps],
+      ['bản đọc CV', result.profileDrafts],
+      ['bản rút yêu cầu', result.jobRequirements],
+    ]
+      .filter(([, count]) => count)
+      .map(([label, count]) => `${count} ${label}`)
+      .join(', ');
+
+    this.logger.warn(
+      `Xếp lại ${result.documents} tài liệu, ${result.matches} lượt chấm` +
+        (failed ? `; đánh hỏng ${failed}` : '') +
+        (result.deferred
+          ? `; còn ${result.deferred} việc vượt trần, để lượt sau`
+          : ''),
+    );
   }
 }

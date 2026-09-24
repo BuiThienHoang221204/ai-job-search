@@ -9,6 +9,5 @@ import { InterviewService } from './interview.service.js';
   imports: [AiModule, SkillsModule],
   controllers: [InterviewController],
   providers: [InterviewService, InterviewProcessor],
-  exports: [InterviewService],
 })
 export class InterviewModule {}

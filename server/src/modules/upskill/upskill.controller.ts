@@ -21,6 +21,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { UpskillService } from './upskill.service.js';
+import { streamNdjson } from '../../common/ndjson.js';
 import { ThrottleAi } from '../../common/throttle.js';
 
 export class GenerateUpskillDto {
@@ -95,41 +96,21 @@ export class UpskillController {
   ): Promise<void> {
     const report = await this.upskill.create(user.id, dto.jobId);
 
-    response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-cache, no-transform');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.flushHeaders();
-    response.write(
-      `${JSON.stringify({ type: 'partial', data: { step: 0, reportId: report.id } })}\n`,
-    );
-
-    let finished = false;
-    response.on('close', () => {
-      if (finished) return;
-      this.logger.warn(
-        `Người dùng rời trang giữa lượt upskill ${report.id}; xếp lại vào hàng đợi`,
-      );
-      void this.queue.send(QUEUE.UPSKILL_REPORT, {
-        userId: user.id,
-        reportId: report.id,
-      });
+    await streamNdjson({
+      response,
+      logger: this.logger,
+      label: `upskill ${report.id}`,
+      events: this.upskill.streamGenerate(report.id),
+      prelude: {
+        type: 'partial',
+        data: { step: 0, reportId: report.id },
+      },
+      onAbandon: () =>
+        void this.queue.send(QUEUE.UPSKILL_REPORT, {
+          userId: user.id,
+          reportId: report.id,
+        }),
     });
-
-    try {
-      for await (const event of this.upskill.streamGenerate(report.id)) {
-        response.write(`${JSON.stringify(event)}\n`);
-      }
-      finished = true;
-    } catch (error) {
-      finished = true;
-      this.logger.error(
-        `Stream upskill ${report.id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      response.destroy();
-      return;
-    }
-
-    response.end();
   }
 
   /** Chạy ngay, dùng để thử nghiệm. */

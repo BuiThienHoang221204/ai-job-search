@@ -1,7 +1,7 @@
 import {
   normalizeCard,
   normalizeDescription,
-} from 'src/modules/scraper/sources/normalize.js';
+} from 'src/modules/scraper/utils/normalize.js';
 
 describe('normalizeDescription', () => {
   test('gộp dòng trống liên tiếp còn một dòng trống', () => {

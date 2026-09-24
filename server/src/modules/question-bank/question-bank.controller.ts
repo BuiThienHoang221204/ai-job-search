@@ -13,16 +13,7 @@ import { ThrottleAi } from '../../common/throttle.js';
 import { ListQuestionsQueryDto } from './question-bank.dto.js';
 import { QuestionBankService } from './question-bank.service.js';
 
-/**
- * Ngân hàng câu hỏi phỏng vấn.
- *
- * Ba route ĐỌC là `@Public()` cùng lý do với tra cứu lương: không đọc dữ liệu
- * của người dùng nào, và trang này về sau cần Google vào được. Công khai thì
- * phải có hạn mức riêng, nếu không đây là cửa quét miễn phí cả ngân hàng.
- *
- * Route sinh đáp án thì KHÔNG công khai: nó tiêu một lượt gọi model, nên phải
- * đăng nhập và đi qua `@ThrottleAi`.
- */
+/** Ba route ĐỌC `@Public()` nên phải có hạn mức riêng; route sinh đáp án thì không. */
 @ApiTags('Question Bank')
 @Controller('question-bank')
 @Throttle({ default: { limit: 60, ttl: 60_000 } })

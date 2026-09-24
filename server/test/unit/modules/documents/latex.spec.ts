@@ -5,7 +5,7 @@ import {
   slugify,
   type CvContent,
   type Identity,
-} from 'src/modules/documents/latex.js';
+} from 'src/modules/documents/templates/latex.js';
 
 const identity: Identity = {
   name: 'Nguyen Minh An',

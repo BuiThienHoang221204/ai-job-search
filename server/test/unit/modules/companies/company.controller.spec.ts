@@ -1,5 +1,5 @@
 import { CompanyController } from 'src/modules/companies/company.controller.js';
-import type { CompanyService } from 'src/modules/companies/company.service.js';
+import type { CompanyService } from 'src/modules/companies/service/company.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
 
