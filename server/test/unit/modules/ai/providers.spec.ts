@@ -127,6 +127,11 @@ describe('Lõi omniroute — gateway không ép được response_format', () =>
   test('các lõi gọi thẳng nhà cung cấp thì KHÔNG khai, tức vẫn ép được', () => {
     expect(openrouter.honorsResponseFormat).toBeUndefined();
     expect(kilo.honorsResponseFormat).toBeUndefined();
-    expect(opencode.honorsResponseFormat).toBeUndefined();
+  });
+
+  test('opencode cũng khai false: nay đi qua container bọc CLI, không còn gọi thẳng', () => {
+    // Wrapper chỉ chuyển tiếp thân request kiểu OpenAI, không ép định dạng nào.
+    expect(opencode.honorsResponseFormat).toBe(false);
+    expect(opencode.baseURLEnv).toBe('OPENCODE_SERVICE_URL');
   });
 });

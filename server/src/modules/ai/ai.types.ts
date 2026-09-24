@@ -85,6 +85,8 @@ export type ResolvedModel = {
   headers: Record<string, string>;
   explicitStreamFlag: boolean;
   honorsResponseFormat: boolean;
+  /** Model NÀY stream ra JSON parse dần được. Chỉ có nghĩa khi `honorsResponseFormat` là `false`. */
+  streamsJson: boolean;
 };
 
 /** Một dòng trong màn quản trị chọn model. `structuredOutput` là `null` khi gateway không khai gì. */

@@ -2,6 +2,9 @@ import type { Logger } from '@nestjs/common';
 import type { Response } from 'express';
 import type { ModelStreamEvent } from './stream-event.js';
 
+/** Mọi lượt gọi model nay đi đường KHÔNG stream, nên có tác vụ im lặng tới 254 giây — proxy cắt kết nối, và client không phân biệt được "đang chạy" với "chết". */
+const HEARTBEAT_MS = 10_000;
+
 export type NdjsonStream<T> = {
   response: Response;
   logger: Logger;
@@ -40,6 +43,12 @@ export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
   if (prelude) response.write(`${JSON.stringify(prelude)}\n`);
 
   let finished = false;
+
+  /** DÒNG TRỐNG chứ không phải loại sự kiện mới: client cũ đã bỏ qua dòng trống sẵn, nên server lên trước cũng không làm vỡ gì. */
+  const beat = setInterval(() => {
+    if (!finished) response.write('\n');
+  }, HEARTBEAT_MS);
+
   if (onAbandon) {
     response.on('close', () => {
       if (finished) return;
@@ -59,6 +68,8 @@ export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
     logger.error(`Stream ${label} hỏng: ${message}`);
     response.destroy();
     return;
+  } finally {
+    clearInterval(beat);
   }
 
   response.end();

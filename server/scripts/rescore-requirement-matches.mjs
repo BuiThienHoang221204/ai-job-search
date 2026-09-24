@@ -9,7 +9,7 @@ process.env.APP_ROLE = 'api';
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../dist/app.module.js';
-import { RequirementMatchService } from '../dist/modules/matching/services/requirement-match.service.js';
+import { RequirementMatchService } from '../dist/modules/matching/rules/services/requirement-match.service.js';
 
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, {

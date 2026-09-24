@@ -208,6 +208,7 @@ export class ModelCatalogService {
       headers,
       explicitStreamFlag: descriptor.explicitStreamFlag === true,
       honorsResponseFormat: descriptor.honorsResponseFormat !== false,
+      streamsJson: descriptor.streamsJson?.includes(selected.id) === true,
     };
   }
 

@@ -11,9 +11,9 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
-import { matchRequirements } from '../dist/modules/matching/requirement-match.js';
-import { JobRequirementsService } from '../dist/modules/matching/services/job-requirements.service.js';
-import { MIN_COMPLETION_TO_SCORE } from '../dist/modules/scraper/fan-out.js';
+import { matchRequirements } from '../dist/modules/matching/rules/requirement-match.js';
+import { JobRequirementsService } from '../dist/modules/matching/ai/services/job-requirements.service.js';
+import { MIN_COMPLETION_TO_SCORE } from '../dist/modules/scraper/utils/fan-out.js';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const MIN_MET_TO_STORE = 1;

@@ -19,6 +19,7 @@ import {
   SYSTEM,
 } from '../prompt/skill-merge.prompt.js';
 import { nearest, type Canonical } from '../utils/nearest.js';
+import { picksFor } from '../utils/merge-picks.js';
 
 /** Hạn dùng của bảng tra trong bộ nhớ. */
 const CACHE_MS = 60_000;
@@ -184,12 +185,18 @@ export class SkillDictionaryService {
         system: SYSTEM,
         prompt: skillMergePrompt(askable),
       });
-      return {
-        ok: true,
-        picks: new Map(
-          object.decisions.map((row) => [row.term, row.match] as const),
-        ),
-      };
+      const picks = picksFor(
+        object.decisions,
+        askable.map((row) => row.index),
+      );
+      // Trả lời thiếu dòng là hỏng NGẦM: dòng vắng mặt thành kỹ năng chuẩn mới, ghi nhãn EXACT y như khi code tự quyết.
+      if (!picks) {
+        this.logger.warn(
+          `Model bỏ sót dòng: hỏi ${askable.length} chuỗi, nhận ${object.decisions.length} lựa chọn hợp lệ`,
+        );
+        return { ok: false, picks: new Map() };
+      }
+      return { ok: true, picks };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Model không phân loại được lô này: ${message}`);

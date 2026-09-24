@@ -44,7 +44,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 ## Quy tắc dễ vi phạm nhất
 
-- **Route mới phải có kiểm tra quyền sở hữu VÀ test cho chính nó.** `JwtAuthGuard` là guard toàn cục theo chiều mặc-định-đóng; mở một route bằng `@Public()`. Đừng gắn lại `@UseGuards(JwtAuthGuard)` ở controller — làm vậy khiến người đọc tưởng những controller không gắn là công khai.
+- **Route mới phải có kiểm tra quyền sở hữu VÀ test cho chính nó.** `JwtAuthGuard` là guard toàn cục theo chiều mặc-định-đóng; mở một route bằng `@Public()`. Đừng gắn lại `@UseGuards(JwtAuthGuard)` ở controller — làm vậy khiến người đọc tưởng những controller không gắn là công khai. `RolesGuard` cũng toàn cục: route admin chỉ cần `@Roles('ADMIN')`, không `@UseGuards(RolesGuard)`.
 - **Truy vấn dữ liệu người dùng luôn khoá theo `userId`**, và tốt nhất để `userId` thành tham số **bắt buộc** trong chữ ký hàm service (xem `DocumentsService.generate`) để caller thêm sau không thể quên.
 - **Đường ĐỌC không bao giờ gọi AI.** Dashboard, danh sách match, chi tiết job chỉ truy vấn SQL; kết quả chấm điểm cache theo `promptHash`. Trong `modules/matching/` ranh giới này nằm ngay trên cây thư mục: **`ai/` là mọi thứ tốn một lượt gọi model** (`match.evaluate`, `job.requirements`, `skill.canonicalize` + schema output của chúng), **`rules/` thì không chạm `AiService` dòng nào** — đối chiếu kỹ năng bằng code và chọn suất cho AI. Thêm một lời gọi model vào `rules/` là phá bất biến; `utils/` giữ phần dùng chung hai bên.
 - **Không tự xếp lại việc ở trạng thái `FAILED`.** Đó là trạng thái cuối người dùng bấm lại được; tự động thử lại khi chưa có bộ đếm số lần thử sẽ thành vòng lặp tốn tiền.
@@ -468,6 +468,74 @@ Chất lượng không đổi, độ trễ thêm khoảng 10%.
 
 **Kết luận: `ModelChain` của repo vẫn là thứ làm việc dự phòng, OmniRoute không thay được nó.**
 
+### Đo lại toàn bộ catalog OmniRoute, 2026-09-23 — 667 model khai, **1** dùng được
+
+Gateway nay khai **667 model** (so với 115 hồi 26-08). Con số thật sau khi lọc:
+
+```
+667  khai
+-178  model sinh ẢNH (riêng họ aihorde 173 cái — toàn bộ là image)
+ 489  chat/text
+-319  thuộc nhà cung cấp ĐÃ CHẾT
+ 170  chat + nhà cung cấp còn sống
+- 22  trả tiền (kr/ và kiro/ là CÙNG một nguồn, nhân đôi bí danh)
+ 148  "miễn phí" — nhưng phần lớn vẫn đòi đăng nhập hoặc credit
+```
+
+Thăm dò một model đại diện cho **mỗi** nhà cung cấp: **5/20 còn trả lời** (`kc`, `cfp`, `gweb`, `auto`, `kr`). 15 họ chết, và lý do đáng ghi:
+
+| Chết | Model | Lý do |
+|---|---|---|
+| `dva/` | 137 | `DEVIN_AGENTIC_HOME must be an absolute path inside the bridge sandbox` |
+| `cl/` `cline/` | 36 | **`All 1 connection(s) credits exhausted`** — đây là họ DUY NHẤT từng ép được `response_format` |
+| `ds-web/` | 28 | **`502 DeepSeek rejected token: Authorization`** — nơi `auto/smart` định tuyến tới |
+| `aug/` | 28 | `Auggie CLI not found` |
+| `tllm/` | 26 | `403 blocked by Vercel for this server egress IP` |
+| `cxa/` | 26 | `503 Codex app-server transport is not configured` |
+| `zc/` 13, `oc/` 8, `ddgw/` 6, `felo/` 5, `kimi-web/` 2 | | `spawn ENOENT` / 401 / 418 anti-abuse / 400 |
+
+Rồi đo 5 họ còn sống trên **đúng tác vụ chấm điểm** (schema thật, prompt tiếng Việt thật, có chạy `extractJson` trước khi parse):
+
+| Model | Kết quả |
+|---|---|
+| **`kc/openrouter/free`** | **ĐẠT 4/4** — 8,0 / 8,6 / 9,3 / 20,0 giây, không cần bóc lần nào |
+| `cfp/*` (6 model đã thử) | văn xuôi hoặc 429. `glm-5.2`, `deepseek-v4-flash`, `kimi-k2.6`, `llama-3.3-70b` trả về **cùng một câu mở đầu y hệt**, còn `mistral-small` ra chữ nhân đôi hỏng — lõi này nhiều khả năng không thật sự định tuyến tới model được yêu cầu |
+| `gweb/gemini-3.7-flash` | văn xuôi lạc đề, `out=0` |
+| `kc/anthropic/*`, `kc/google/*`, `kc/deepseek/*` | `402 Add credits` hoặc `401 You need to sign in` |
+
+**Họ `auto/*`: combo nào ra combo ấy, đừng gộp.** Lần đầu tôi đo `auto/smart` và `auto/glm`, thấy cả hai trả content RỖNG rồi kết luận `auto/*` không dùng được — **sai**, và đó đúng là cái bẫy đã ghi ở mục trên ("đừng suy từ một combo hỏng ra đường auto không dùng được"). Đo lại đủ:
+
+| Combo | Đạt | Thời gian | Token vào | Stream ra JSON |
+|---|---|---|---|---|
+| `auto/fast` | **3/3** | 35,0–42,7s | 5.169–7.509 | CÓ, nhưng mảnh đầu về sau **13,7–75 giây** |
+| `auto/best-chat` | 1/1 | 52,6s | 7.641 | chưa đo |
+| `auto/cheap` | 1/1 | **84,4s** | 7.825 | chưa đo |
+| `auto/smart`, `auto/glm` | 0/2 | content RỖNG sau 37s | 3.557 | — |
+
+`auto/*` **có** ra JSON đúng schema, nhưng chậm gấp 4–10 lần và tốn token gấp 5 so với `kc/openrouter/free`. Nên chúng làm **mắt xích dự phòng**, không làm model chính.
+
+**`auto/cheap` KHÔNG được đưa vào chuỗi**: 84,4 giây sát mốc `DEFAULT_TIMEOUT_MS` 90 giây, nó sẽ hết giờ thường xuyên. Một lượt stream `auto/fast` cũng đã chạm đúng 90.031ms — tức hết giờ thật.
+
+**`auto/fast` KHÔNG vào `streamsJson`** dù nó stream ra JSON được: mảnh đầu về sau 13,7–75 giây thì hiệu ứng chạy dần gần như không xuất hiện, mà rủi ro hết giờ thì thật.
+
+**`MODEL_ID` nay là `kc/openrouter/free`.**
+
+**`streamsJson` của omniroute để RỖNG, và đây là bài học đắt nhất của đợt đo này: ĐO BẰNG PROMPT THẬT, không bằng prompt rút gọn.** Tôi đo `kc/openrouter/free` bằng một prompt JD/hồ sơ ngắn (`in=1.229 token`), thấy stream ra JSON sạch 2/2 lượt, nên đưa nó vào `streamsJson`. Chạy production thì hỏng ngay: prompt thật mang cả khung đánh giá từ file `.md` nên **`in=4.798 token`, gấp gần 4 lần**, và ở độ dài đó model đổi cách trả lời — nó mở đầu bằng hàng rào ` ```json `. Đường không-stream bóc được hàng rào đó, đường stream thì mảnh đầu tiên là `` ` `` chứ không phải `{` nên bỏ cuộc ngay.
+
+Hậu quả đo được trên một lượt chấm điểm thật: **24,5 giây stream hỏng + 39,8 giây gọi lại = 64,3 giây mà trình duyệt không nhận được một byte nào.** `streamNdjson` gọi `flushHeaders()` rồi chờ sự kiện đầu tiên, mà cả phần rơi về nằm bên trong `await ai.streamObject(...)` nên không có sự kiện nào để gửi — cộng thêm client không có timeout, nên người dùng chỉ thấy spinner quay.
+
+Muốn thêm model vào `streamsJson` thì phải đo bằng **đúng prompt production** (gọi qua `AiService`, không phải bằng script tự dựng prompt), và đo nhiều lượt.
+
+**Đừng kỳ vọng cache.** Đo 2 lượt liên tiếp cùng prompt: `cached=0` cả hai. Ghim model KHÔNG cứu được cache ở đây vì `kc/openrouter/free` bản thân nó cũng là một tầng định tuyến, cộng omniroute là chặng nữa — prompt không ở yên với nhà cung cấp nào đủ lâu. Số liệu cả bảng: `match.evaluate` 376 lượt, chỉ 5 lượt có `cachedTokens > 0`.
+
+**Tokenizer là lý do `auto/smart` đắt gấp đôi.** Cùng một prompt: `kc/openrouter/free` khai `in=1.309`, còn `cfp`/`gweb`/`auto` khai `in=3.557`. JSON Schema bơm vào prompt chỉ chiếm ~943 token, phần còn lại là tokenizer xử lý tiếng Việt.
+
+**`SKILL_DICTIONARY_MODEL_ID` đã BỎ GHIM ngày 2026-09-24.** Nó vẫn trỏ `hy3-free` — một model **không còn tồn tại ở đâu**: bản trần không có trong catalog omniroute, `cl/tencent/hy3:free` hết credit, `oc/hy3-free` trả 401. Nên mỗi lượt `skill.canonicalize` đều tra hụt rồi rơi sang mắt xích dự phòng, tốn 43 giây để nhận về một câu vô nghĩa (*"Bạn ơi, có vẻ như bạn quên cung cấp danh sách…"*).
+
+Chốt chặn thì **vẫn hoạt động đúng**: lô hỏng ghi 0, danh bạ không bị bẩn. Nhưng lý do ghim riêng đã hết: đo lại bằng `node scripts/probe-skill-merge.mjs`, model mặc định đúng **8/8 ba lượt liền**, kể cả ca bẫy `manual testing` mà `mimo-v2.5-free` từng gộp nhầm vào `QA`. Muốn ghim lại thì **phải đo bằng script đó trước** — một lần gộp sai ghi vào `canonical_skills` là vĩnh viễn.
+
+**Chuỗi dự phòng đã đổi thành `auto/fast,auto/best-chat`.** Chuỗi cũ (`cl/openai/gpt-5.6-sol`, `ds-web/deepseek-v4-pro`, `kr/deepseek-3.2`, `openrouter/nex-agi/nex-n2.5-pro:free`) có hai mắt xích **đã chết** — cline hết credit, ds-web 502 — và một mắt xích **trả tiền**.
+
 > **Cập nhật 2026-09-17 — đọc kỹ, phần dưới CHƯA đủ.** Bể free của OpenCode
 > **vẫn mở** và khoá `public` **vẫn hợp lệ**: CLI `opencode` trên máy phát triển
 > gọi `mimo-v2.5-free` thành công mà chưa hề đăng nhập (`opencode providers list`
@@ -539,7 +607,19 @@ Vì vậy descriptor có `honorsResponseFormat`. Bỏ trống = lõi ép đượ
 
 **Đừng quay lại một cờ toàn cục tự lật.** Bản cũ giữ `this.structuredOutputs` rồi đổi nó cho CẢ tiến trình khi gateway từ chối — với một chuỗi dự phòng trộn nhiều lõi thì giá trị nào cũng sai với một nửa chuỗi, và đó chính là lý do hai kết luận trái ngược nhau cùng đúng ("bật `true` mới chạy" cho lõi gọi thẳng, "phải `false`" cho omniroute). Phần học được vẫn giữ, nhưng **khoá theo `providerId`**: lõi nào từ chối `response_format` thì chỉ lõi đó chuyển chế độ.
 
-**`streamObject` có lưới y như `generateObject`.** Cả hai thử lại ĐÚNG MỘT lần ở chế độ còn lại. Với stream, thử lại trong suốt được là nhờ `beginStream` giữ lại tới khi có mảnh ĐẦU TIÊN mới trao cho người gọi: model trả văn xuôi thì `partialObjectStream` không phát mảnh nào, nên lúc đó chưa có byte nào rời máy chủ. Hỏng SAU mảnh đầu thì hỏng hẳn — trình duyệt đã vẽ nửa câu, không còn đường lùi, đúng nguyên tắc của `streamText`.
+**Lõi khai `honorsResponseFormat: false` chỉ có MỘT chế độ dùng được — đừng lật sang chế độ kia.** Hỏng thật 2026-09-23 trên `omniroute/auto/smart`: lượt đầu chạy đúng chế độ `false` nhưng không ra object, rồi lượt thử lại ở `true` **bỏ luôn JSON Schema khỏi system prompt** và tắt bộ bóc JSON, trong khi omniroute vẫn mặc kệ `response_format`. Model không còn lời nhắc nào về hình dạng, và lỗi người dùng thấy (`could not parse the response`) là của lượt HAI, che mất lỗi thật của lượt đầu. Nay `switchable` chặn nhánh đó ở cả `generateObject` lẫn `streamObject`.
+
+**Quyết định có stream hay không là theo TỪNG MODEL, không theo lõi** — `ProviderDescriptor.streamsJson` là danh sách CHO PHÉP (ngược với `knownNoStructuredOutput` là danh sách chặn). Lý do đảo chiều: đoán sai về structured output tốn đúng một lượt gọi, còn đoán sai về stream tốn **thêm cả một lượt nữa** cho lượt rơi về. Ngoài danh sách thì `streamObject` gọi thẳng đường không-stream; model trong danh sách mà stream vẫn hỏng thì vẫn còn lưới rơi về.
+
+**Với model ngoài danh sách, `streamObject` KHÔNG thử stream lấy một lần** — nó gọi thẳng đường không-stream. Lý do: `extractJson` chỉ chạm được phản hồi `application/json`, còn stream là `text/event-stream`, nên **đường stream không có lưới nào**. Đo trên `omniroute/auto/smart` ngày 2026-09-23: stream 0/2, không-stream 2/2, và một lượt stream hỏng tốn **27,9 giây + 6.773 token vào**. Quan trọng hơn: lượt hỏng đó **không cho người dùng thấy gì** — thẻ "Đang chấm điểm" 4 dòng vẫn quay hết rồi kết quả hiện một lần, y như đường không-stream. Tức là trả gấp đôi cho một hiệu ứng không xuất hiện.
+
+Bật lại streaming cho lõi nào = gỡ `honorsResponseFormat: false` của lõi đó. `streamEvaluate` vốn đã xử lý được `partials` rỗng nên không nơi gọi nào phải sửa theo.
+
+**`extractJson` bóc JSON khỏi thứ model THẬT SỰ viết**, không chỉ hàng rào bao trọn phản hồi như bản cũ: hàng rào nằm sau câu dẫn, JSON trần lẫn trong văn xuôi, mảng ở gốc. Nó quét **cân bằng ngoặc có biết chuỗi và ký tự thoát** — cách "từ `{` đầu tới `}` cuối" vỡ ngay khi model viết thêm một câu có dấu ngoặc phía sau. Bóc không được thì trả nguyên văn để câu lỗi vẫn in đúng thứ model đã viết.
+
+**Và nó chỉ bóc theo dấu mở ĐẦU TIÊN của cả chuỗi — đừng thử lần lượt `{` rồi `[`.** Bản đầu làm vậy và hỏng ngay ngày 2026-09-23: model viết object đầy đủ (`outputTokens=3.077`) nhưng **bị cắt cụt**, nên `{` không bao giờ đóng, rồi nhánh `[` **moi đúng mảng `strengths` ở giữa ruột** ra và đưa lên như thể đó là toàn bộ câu trả lời. Zod báo *"expected object, received array"* — một thông báo lạc hướng hoàn toàn so với nguyên nhân thật là cắt cụt, và nó biến một lỗi rõ ràng thành một lỗi sai sự thật. `json-text.spec.ts` có hai test ghim đúng ca này.
+
+**`streamObject` có lưới y như `generateObject`.** Cả hai thử lại ĐÚNG MỘT lần ở chế độ còn lại, khi lõi có hai chế độ. Với stream, thử lại trong suốt được là nhờ `beginStream` giữ lại tới khi có mảnh ĐẦU TIÊN mới trao cho người gọi: model trả văn xuôi thì `partialObjectStream` không phát mảnh nào, nên lúc đó chưa có byte nào rời máy chủ. Hỏng SAU mảnh đầu thì hỏng hẳn — trình duyệt đã vẽ nửa câu, không còn đường lùi, đúng nguyên tắc của `streamText`.
 
 Đo trên tác vụ thật (viết thư xin việc, qua đúng `AiService` → OmniRoute → ds-web) ngày 2026-09-22: chế độ đúng ngay từ đầu **9,3 giây / 198 mảnh**; ép chạy nhánh dự phòng thì **18,2 giây / 203 mảnh** và người gọi vẫn nhận đủ object, chỉ có thêm một dòng `WARN`.
 

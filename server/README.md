@@ -32,7 +32,7 @@ Màn hình danh sách không được gọi AI lúc render: 24 công việc sẽ
 ```
 src/
 ├─ common/        thứ cắt ngang mọi module - KHÔNG import gì từ modules/
-│  ├─ guards/       JwtAuthGuard (toàn cục), RolesGuard
+│  ├─ guards/       JwtAuthGuard, RolesGuard (cả hai toàn cục)
 │  ├─ decorators/   @CurrentUser, @Roles, @Public
 │  ├─ filters/      PrismaExceptionFilter
 │  ├─ middleware/   RequestLogMiddleware
@@ -605,10 +605,17 @@ có token, ba route trên vẫn đi qua.
 
 ## Phân quyền
 
-`User.role` là `USER` hoặc `ADMIN`. Route quản trị chỉ cần khai
-`@UseGuards(RolesGuard)` kèm `@Roles('ADMIN')` - không khai lại `JwtAuthGuard`,
-vì guard toàn cục luôn chạy TRƯỚC guard của controller nên `request.user` chắc
-chắn đã có khi `RolesGuard` đọc tới.
+`User.role` là `USER` hoặc `ADMIN`. Route quản trị chỉ cần khai `@Roles('ADMIN')`
+(ở method hoặc class). `RolesGuard` là APP_GUARD toàn cục, đăng ký ngay sau
+`JwtAuthGuard` trong `CommonModule` nên `request.user` chắc chắn đã có khi nó đọc
+tới; route không gắn `@Roles` thì guard cho qua. Đừng gắn lại
+`@UseGuards(RolesGuard)` ở controller.
+
+Trước 2026-09-24 guard này phải khai tay bằng `@UseGuards`, và ba route admin của
+`matching.controller.ts` (trích requirement, rebuild từ điển, dispatch shortlist)
+đã gắn `@Roles('ADMIN')` mà quên guard, nên mọi user đăng nhập đều gọi được.
+`test/unit/common/guards/roles.guard.spec.ts` khoá thứ tự đăng ký để lỗi này không
+quay lại.
 
 Vai trò được đọc từ DB mỗi request qua `JwtStrategy.validate()`, **không** nằm trong
 claim của token. Ghi vai trò vào token nghĩa là một tài khoản bị hạ quyền vẫn giữ

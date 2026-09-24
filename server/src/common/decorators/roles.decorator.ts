@@ -8,9 +8,5 @@ import type { UserRole } from '../../generated/prisma/enums.js';
  */
 export const ROLES_KEY = 'roles';
 
-/**
- * Giới hạn route theo vai trò. Chỉ ghi metadata chứ không tự kiểm tra gì -
- * việc chặn là của `RolesGuard`, và guard đó phải được liệt kê trong
- * `@UseGuards(...)` thì decorator này mới có tác dụng. Gắn `@Roles()` mà quên
- */
+/** Giới hạn route theo vai trò; `RolesGuard` là APP_GUARD toàn cục nên không cần `@UseGuards`. */
 export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);

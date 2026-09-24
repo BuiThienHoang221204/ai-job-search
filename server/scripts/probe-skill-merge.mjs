@@ -13,7 +13,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../dist/app.module.js';
 import { AiService } from '../dist/modules/ai/services/ai.service.js';
-import { skillMergeSchema } from '../dist/modules/matching/schemas/skill-merge.schema.js';
+import { skillMergeSchema } from '../dist/modules/matching/ai/schemas/skill-merge.schema.js';
 
 const at = process.argv.indexOf('--model');
 const MODEL_ID = at >= 0 ? process.argv[at + 1] : undefined;

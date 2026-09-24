@@ -2,6 +2,7 @@ import type { Logger } from '@nestjs/common';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 import { formatModelRef } from '../utils/model-ref.js';
+import { extractJsonFromResponse } from '../utils/json-text.js';
 import type { ModelCatalogService } from './model-catalog.service.js';
 
 export type ResolvedLanguageModel = {
@@ -12,57 +13,6 @@ export type ResolvedLanguageModel = {
   ref: string;
 };
 
-const FENCED_BLOCK = /^```[a-zA-Z]*[^\S\r\n]*\r?\n([\s\S]*?)\r?\n?```$/;
-
-function unwrapFence(text: string): string {
-  const match = FENCED_BLOCK.exec(text.trim());
-  if (!match) return text;
-
-  const inner = match[1].trim();
-  try {
-    JSON.parse(inner);
-    return inner;
-  } catch {
-    return text;
-  }
-}
-
-async function unwrapFencedJson(response: Response): Promise<Response> {
-  if (!response.ok) return response;
-  if (
-    !(response.headers.get('content-type') ?? '').includes('application/json')
-  )
-    return response;
-
-  const raw = await response.text();
-  const rebuild = (body: string): Response =>
-    new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-
-  try {
-    const payload = JSON.parse(raw) as {
-      choices?: { message?: { content?: unknown } }[];
-    };
-    let changed = false;
-    for (const choice of payload?.choices ?? []) {
-      const content = choice?.message?.content;
-      if (typeof content !== 'string') continue;
-
-      const unwrapped = unwrapFence(content);
-      if (unwrapped === content) continue;
-
-      choice.message!.content = unwrapped;
-      changed = true;
-    }
-    return rebuild(changed ? JSON.stringify(payload) : raw);
-  } catch {
-    return rebuild(raw);
-  }
-}
-
 /** Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó là OpenAI-compatible nên không cần adapter thứ hai. */
 export class LanguageModelFactory {
   constructor(
@@ -70,15 +20,24 @@ export class LanguageModelFactory {
     private readonly logger: Logger,
   ) {}
 
+  /** `honorsResponseFormat: false` nghĩa là lõi chỉ có MỘT chế độ dùng được — người gọi phải biết để không lật sang chế độ kia. */
   async structuredOutputModeFor(
     modelId: string | undefined,
     fallbackDefault: boolean,
-  ): Promise<{ providerId: string; structuredOutputs: boolean }> {
+  ): Promise<{
+    providerId: string;
+    structuredOutputs: boolean;
+    honorsResponseFormat: boolean;
+    /** Lõi ép được định dạng, HOẶC chính model này đã đo là stream ra JSON được. */
+    canStream: boolean;
+  }> {
     const resolved = await this.catalog.resolve(modelId);
+    const honorsResponseFormat = resolved.honorsResponseFormat !== false;
     return {
       providerId: resolved.providerId,
-      structuredOutputs:
-        resolved.honorsResponseFormat !== false && fallbackDefault,
+      structuredOutputs: honorsResponseFormat && fallbackDefault,
+      honorsResponseFormat,
+      canStream: honorsResponseFormat || resolved.streamsJson === true,
     };
   }
 
@@ -114,7 +73,8 @@ export class LanguageModelFactory {
         }
       }
       const response = await originalFetch(input, { ...init, headers, body });
-      return structuredOutputs ? response : unwrapFencedJson(response);
+      // Áp cho CẢ hai chế độ: phản hồi vốn đã là JSON hợp lệ thì hàm trả lại nguyên vẹn, nên không có gì để mất.
+      return extractJsonFromResponse(response);
     };
 
     const provider = createOpenAICompatible({

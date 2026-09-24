@@ -17,6 +17,7 @@ import {
   type SchemaIssue,
 } from '../utils/failure-kind.js';
 import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt.js';
+import { routeSdkWarnings } from '../utils/sdk-warnings.js';
 import { clipMiddle, emptyStream, streamFrom } from '../utils/stream.js';
 import { AiCallLog } from './ai-call-log.js';
 import { LanguageModelFactory } from './language-model.js';
@@ -71,6 +72,7 @@ export class AiService implements Ai {
     });
     this.callLog = new AiCallLog(prisma, this.logger);
     this.models = new LanguageModelFactory(catalog, this.logger);
+    routeSdkWarnings(this.logger);
   }
 
   /** Sinh dữ liệu có cấu trúc theo schema Zod. Hỏng ở một model thì `ModelChain` quyết định có đi tiếp mắt xích hay không. */
@@ -85,10 +87,15 @@ export class AiService implements Ai {
   }
 
   /** Chế độ ép định dạng thật cho một lời gọi: mặc định của lõi, trừ khi lõi đó đã bị ghi nhận là từ chối. */
-  private async modeFor(
-    modelId: string | undefined,
-  ): Promise<{ providerId: string; mode: boolean }> {
-    const { providerId, structuredOutputs } =
+  private async modeFor(modelId: string | undefined): Promise<{
+    providerId: string;
+    mode: boolean;
+    /** Lõi có HAI chế độ dùng được hay chỉ một. Chỉ một thì thử lại ở chế độ kia là tự làm hỏng. */
+    switchable: boolean;
+    /** Model NÀY có đáng thử stream không — quyết định theo từng model, không theo lõi. */
+    canStream: boolean;
+  }> {
+    const { providerId, structuredOutputs, honorsResponseFormat, canStream } =
       await this.models.structuredOutputModeFor(
         modelId,
         this.structuredOutputsDefault,
@@ -96,6 +103,8 @@ export class AiService implements Ai {
     return {
       providerId,
       mode: this.learnedModes.get(providerId) ?? structuredOutputs,
+      switchable: honorsResponseFormat,
+      canStream,
     };
   }
 
@@ -103,7 +112,11 @@ export class AiService implements Ai {
   private async withFormatFallback<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
-    const { providerId, mode: primary } = await this.modeFor(options.modelId);
+    const {
+      providerId,
+      mode: primary,
+      switchable,
+    } = await this.modeFor(options.modelId);
     try {
       return await this.attempt(options, primary);
     } catch (error) {
@@ -119,6 +132,8 @@ export class AiService implements Ai {
       }
 
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
+      // Lõi chỉ có một chế độ dùng được thì lật sang chế độ kia là BỎ luôn phần schema trong prompt mà không được gì.
+      if (!switchable) throw error;
 
       this.logger.warn(
         `Model không trả được object ở chế độ structuredOutputs=${primary}; ` +
@@ -239,11 +254,22 @@ export class AiService implements Ai {
   async streamObject<T>(
     options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
-    const { mode: primary } = await this.modeFor(options.modelId);
+    const {
+      mode: primary,
+      switchable,
+      canStream,
+    } = await this.modeFor(options.modelId);
+
+    // Model chưa ĐO là stream ra JSON được thì đừng thử: đường stream không có lưới, và lượt hỏng đó cũng không cho người dùng thấy gì.
+    if (!canStream) return this.withoutStreaming(options, primary);
+
     try {
       return await this.beginStream(options, primary);
     } catch (error) {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
+
+      // Model trong danh sách mà vẫn hỏng: còn đường không-stream để bóc JSON.
+      if (!switchable) return this.withoutStreaming(options, primary);
 
       const fallback = !primary;
       this.logger.warn(
@@ -252,6 +278,23 @@ export class AiService implements Ai {
       );
       return this.beginStream(options, fallback);
     }
+  }
+
+  /** Trả về hình dạng stream nhưng KHÔNG stream: `partials` rỗng, `object` có ngay. Người gọi vốn đã xử lý được ca này. */
+  private async withoutStreaming<T>(
+    options: StreamObjectOptions<T>,
+    mode: boolean,
+  ): Promise<StreamObjectResult<T>> {
+    this.logger.debug(
+      'Bỏ qua streaming: lõi không ép được định dạng, và chỉ đường KHÔNG stream mới bóc được JSON khỏi văn xuôi',
+    );
+
+    const { object, modelId } = await this.attempt(options, mode);
+    return {
+      modelId,
+      partials: emptyStream(),
+      object: Promise.resolve(object),
+    };
   }
 
   /** Giữ lại tới khi có mảnh đầu: model trả văn xuôi thì `partialObjectStream` không phát gì, và lúc đó vẫn còn đường lùi. */

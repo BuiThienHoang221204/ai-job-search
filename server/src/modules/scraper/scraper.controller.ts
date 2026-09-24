@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -18,7 +17,6 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
-import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import { JobSourceRouter } from './services/job-source.router.js';
 import { ScraperService } from './services/scraper.service.js';
@@ -50,7 +48,6 @@ export class ScraperController {
     summary: 'Tải lại danh sách cổng thông tin cấu hình từ đĩa (Admin)',
   })
   @Post('portals/reload')
-  @UseGuards(RolesGuard)
   @Roles('ADMIN')
   async reloadPortals() {
     const portals = await this.portals.reload();

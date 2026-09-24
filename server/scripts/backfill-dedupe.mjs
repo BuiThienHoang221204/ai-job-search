@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../dist/generated/prisma/client.js';
-import { derivedFields } from '../dist/modules/jobs/taxonomy/derived.js';
+import { derivedFields } from '../dist/modules/jobs/taxonomy/resolve.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {

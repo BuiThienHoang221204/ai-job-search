@@ -20,7 +20,7 @@ const configuration = () => ({
   ai: {
     /** Lõi mặc định. Các lõi hệ thống biết nằm ở `modules/ai/providers/`. */
     provider: process.env.MODEL_PROVIDER ?? 'omniroute',
-    modelId: process.env.MODEL_ID ?? 'auto/smart',
+    modelId: process.env.MODEL_ID ?? 'kc/openrouter/free',
 
     /**
      * Trần thời gian cho CẢ chuỗi dự phòng, không phải cho từng mắt xích. Mỗi
@@ -32,10 +32,13 @@ const configuration = () => ({
     /**
      * Các mắt xích thử tiếp khi mắt xích đang dùng không chạy được. Viết
      * `lõi/model` để nhảy sang lõi khác, hoặc chỉ `model` cho lõi mặc định.
+     *
+     * Mắt xích CUỐI cố ý không đi qua omniroute: gateway sập thì cả họ `auto/*`
+     * sập theo, riêng nó vẫn sống vì gọi thẳng OpenRouter bằng key riêng.
      */
     fallbackModelIds: (
       process.env.MODEL_FALLBACK_IDS ??
-      'cl/openai/gpt-5.6-sol,ds-web/deepseek-v4-pro,kr/deepseek-3.2,openrouter/nex-agi/nex-n2.5-pro:free'
+      'auto/fast,auto/best-chat,openrouter/nex-agi/nex-n2.5-pro:free'
     )
       .split(',')
       .map((id) => id.trim())
@@ -67,6 +70,8 @@ const configuration = () => ({
 
     baseURLs: {
       omniroute: process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
+      /** Bỏ trống có chủ ý: container `opencode` nằm sau profile riêng, chưa bật thì lõi này phải tự vắng mặt. */
+      opencode: process.env.OPENCODE_SERVICE_URL ?? '',
     } as Record<string, string>,
 
     catalogUrl:
@@ -180,13 +185,8 @@ const configuration = () => ({
      */
     minPercent: parseInt(process.env.MATCH_MIN_PERCENT ?? '50', 10),
 
-    /**
-     * Model phân loại kỹ năng cho danh bạ. GHIM riêng, không dùng model mặc
-     * định: đo trên 8 cặp biết trước đáp án, `hy3-free` đúng 8/8 còn
-     * `mimo-v2.5-free` đúng 7/8 và gộp `manual testing` vào `QA`. Một lần gộp
-     * sai tạo ra một mã hút mọi thứ liên quan vào nó.
-     */
-    dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID ?? 'hy3-free',
+    /** Bỏ trống = dùng model mặc định. Đo 2026-09-24 bằng `probe-skill-merge`: model mặc định đúng 8/8 ba lượt liền, nên không cần ghim riêng nữa. */
+    dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID || undefined,
 
     aiAuto: process.env.MATCH_AI_AUTO === 'true',
     aiTopN: parseInt(process.env.MATCH_AI_TOP_N ?? '3', 10),

@@ -7,7 +7,6 @@ import {
   Put,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -20,7 +19,6 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
-import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { QueueConfigService } from '../queue/queue-config.service.js';
 import type { QueueConfigItem } from '../queue/queue.types.js';
 import { TaxonomyBackfillService } from '../jobs/taxonomy/backfill.service.js';
@@ -54,15 +52,9 @@ export class UpdateQueueConfigDto {
   note?: string;
 }
 
-/**
- * Chỉ khai RolesGuard ở đây. `JwtAuthGuard` là APP_GUARD toàn cục và guard
- * toàn cục luôn chạy TRƯỚC guard của controller, nên `request.user` chắc chắn
- * đã có khi RolesGuard đọc tới.
- */
 @ApiTags('Admin')
 @ApiBearerAuth()
 @Controller('admin')
-@UseGuards(RolesGuard)
 @Roles('ADMIN')
 export class AdminController {
   constructor(

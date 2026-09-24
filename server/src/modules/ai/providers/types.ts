@@ -25,4 +25,7 @@ export type ProviderDescriptor = {
 
   /** Danh sách CHẶN, cố ý không phải danh sách cho phép: model chưa đo thì vẫn được thử, model đã biết là hỏng thì không tốn thêm lượt gọi nào. */
   knownNoStructuredOutput?: readonly string[];
+
+  /** Ngược lại là danh sách CHO PHÉP, chỉ dùng cho lõi `honorsResponseFormat: false`: model đã ĐO là stream ra JSON parse dần được. */
+  streamsJson?: readonly string[];
 };

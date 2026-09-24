@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { ProviderDescriptor } from './types.js';
 
 /** Lõi MÙ về capability: `/zen/v1/models` chỉ trả `id`/`object`/`created`/`owned_by`, nên ở đây chỉ phép ĐO mới biết model làm được gì. */
@@ -8,10 +7,11 @@ export const opencode: ProviderDescriptor = {
   apiKeyEnv: 'AI_API_KEY',
   userAgentEnv: 'OPENCODE_USER_AGENT',
 
-  /** Session tự sinh KHÔNG còn đủ từ 2026-09-17 — OpenCode kiểm thứ gắn với một phiên THẬT. Xem mục "Cập nhật 2026-09-17" trong CLAUDE.md. */
-  extraHeaders: {
-    'x-opencode-session': `ses_${randomUUID().replace(/-/g, '').slice(0, 26)}`,
-  },
+  /** Trỏ sang container bọc `opencode run`; bỏ trống thì rơi về đường thẳng tới opencode.ai, và đường đó 403 chắc chắn. */
+  baseURLEnv: 'OPENCODE_SERVICE_URL',
+
+  /** Wrapper CLI chỉ chuyển tiếp thân request, không ép định dạng — schema phải đi đường bơm vào prompt. */
+  honorsResponseFormat: false,
 
   knownNoStructuredOutput: [
     // Trả content rỗng dù đã cho tới 1500 token.

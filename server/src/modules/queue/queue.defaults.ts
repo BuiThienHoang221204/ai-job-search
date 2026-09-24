@@ -12,14 +12,14 @@ const DEFAULTS: Record<string, QueueConfig> = {
   'interview.prep': { concurrency: 5 },
   'upskill.report': { concurrency: 5 },
   'document.generate': { concurrency: 8 },
-  'agent.run': { concurrency: 5 },
   'company.brief': { concurrency: 3 },
   'job.requirements': { concurrency: 5 },
   'profile.synthesize': { concurrency: 3 },
+  // Gọi model qua SkillDictionaryService, KHÔNG phải hàng đợi thuần CPU như chú thích cũ xếp nhầm.
+  'skill.canonicalize': { concurrency: 10 },
 
   // Thuần CPU, không gọi model.
   'match.requirements': { concurrency: 15 },
-  'skill.canonicalize': { concurrency: 10 },
   'match.shortlist': { concurrency: 1, serial: true },
 
   // Tuần tự BẮT BUỘC: chạy song song là tự tăng nhịp chạm portal và bị chặn IP.
