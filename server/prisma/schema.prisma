@@ -814,6 +814,10 @@ model AiCall {
   /// giữ nguyên 1415 trong khi cached_tokens nhảy từ 0 lên 1408 ở lần gọi thứ hai.
   /// Không tách ra thì mọi con số "token đã tiêu" đều thổi phồng, và mọi quyết
   /// định tối ưu prompt đều dựa trên một cái giá không có thật.
+  ///
+  /// CLI opencode thì ngược lại: `tokens.input` KHÔNG gồm cache, nên `usageOf()`
+  /// trong opencode-service cộng `cache.read` vào trước khi trả - đo 2026-09-27,
+  /// thiếu bước đó thì cột này luôn null và AI SDK tính ra `noCache` âm.
   cachedTokens Int?
 
   /// Model dừng vì sao: "stop", "length", "tool-calls"… Chỉ ghi khi lượt gọi hỏng.

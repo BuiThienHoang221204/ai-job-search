@@ -213,10 +213,14 @@ function runCli({ model, message, onDelta }) {
 }
 
 function usageOf(tokens) {
+  const cached = tokens?.cache?.read ?? 0;
+  const input = (tokens?.input ?? 0) + cached;
+  const output = tokens?.output ?? 0;
   return {
-    prompt_tokens: tokens?.input ?? 0,
-    completion_tokens: tokens?.output ?? 0,
-    total_tokens: tokens?.total ?? 0,
+    prompt_tokens: input,
+    completion_tokens: output,
+    total_tokens: tokens?.total ?? input + output,
+    prompt_tokens_details: { cached_tokens: cached },
   };
 }
 
