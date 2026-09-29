@@ -335,3 +335,31 @@ export const OCCUPATIONS: Occupation[] = [
 
 /** Mã dùng khi không suy ra được nhóm nào. */
 export const OTHER_CODE = 'OTHER';
+
+/** Nhóm gần đến mức một hồ sơ nhóm này thường ứng tuyển được tin nhóm kia. Quan hệ hai chiều, khai một lần. */
+const ADJACENT_OCCUPATIONS: ReadonlyArray<readonly [string, string]> = [
+  ['IT', 'DATA_AI'],
+];
+
+/** Mã nhóm được coi là "cùng ngành" với hồ sơ: chính nó, nhóm liền kề, và `OTHER` vì tin chưa phân loại được thì không có căn cứ để loại. */
+export function nearbyOccupations(code: string): string[] {
+  const near = new Set([code, OTHER_CODE]);
+  for (const [left, right] of ADJACENT_OCCUPATIONS) {
+    if (left === code) near.add(right);
+    if (right === code) near.add(left);
+  }
+  return [...near];
+}
+
+/** Cùng quan hệ `nearbyOccupations` dưới dạng hai mảng song song, để SQL `unnest` tra theo cặp (ngành hồ sơ, ngành tin). */
+export function nearbyOccupationPairs(): { profile: string[]; job: string[] } {
+  const profile: string[] = [];
+  const job: string[] = [];
+  for (const { code } of OCCUPATIONS) {
+    for (const near of nearbyOccupations(code)) {
+      profile.push(code);
+      job.push(near);
+    }
+  }
+  return { profile, job };
+}

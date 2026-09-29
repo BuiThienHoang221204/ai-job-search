@@ -13,7 +13,11 @@ import type {
   SkillDictionary,
 } from '../../matching/rules/types.js';
 import { normalizeText } from '../taxonomy/resolve.js';
-import { OCCUPATIONS } from '../taxonomy/occupations.js';
+import {
+  nearbyOccupations,
+  OCCUPATIONS,
+  OTHER_CODE,
+} from '../taxonomy/occupations.js';
 import { SUB_OCCUPATIONS } from '../taxonomy/sub-occupations.js';
 import { PROVINCES, REMOTE_CODE } from '../taxonomy/provinces.js';
 import type { JobSort, ListJobsQueryDto } from '../job.dto.js';
@@ -95,6 +99,8 @@ export function withSystemMatch<
         kind: 'REQUIREMENTS' as const,
         met: result.met,
         total: result.total,
+        skillMet: result.skillMet,
+        skillTotal: result.skillTotal,
         score: result.score,
         eligibility: result.eligibility,
         checks: result.checks,
@@ -102,16 +108,39 @@ export function withSystemMatch<
     };
   }
 
+  const keywordHits = countTerms(
+    `${job.title} ${job.tags.join(' ')}`,
+    profile.skills,
+  );
   return {
     ...rest,
     systemMatch: {
       kind: 'KEYWORDS' as const,
-      met: countTerms(`${job.title} ${job.tags.join(' ')}`, profile.skills),
+      met: keywordHits,
       total: profile.skills.length,
+      skillMet: keywordHits,
+      skillTotal: profile.skills.length,
       score: 0,
       eligibility: 'UNVERIFIED' as const,
       checks: [],
     },
+  };
+}
+
+/** Cổng ngành của "Việc làm phù hợp" KHÔNG có lối thoát: bộ lọc ngành của người dùng giao với nó; muốn xem ngành khác thì sang "Tất cả việc làm". */
+export function occupationGate(
+  query: ListJobsQueryDto,
+  profileOccupation: string | null,
+): Prisma.JobWhereInput | null {
+  if (!query.scored) return null;
+  // Hồ sơ chưa rõ ngành thì không có căn cứ nào để biết "ngành của họ".
+  if (!profileOccupation || profileOccupation === OTHER_CODE) return null;
+
+  return {
+    OR: [
+      { occupationCode: { in: nearbyOccupations(profileOccupation) } },
+      { occupationCode: null },
+    ],
   };
 }
 
@@ -120,14 +149,17 @@ export function whereFrom(
   query: ListJobsQueryDto,
   userId: string,
   minPercent: number,
+  profileOccupation: string | null = null,
 ): Prisma.JobWhereInput {
   const needle = query.q ? normalizeText(query.q) : '';
   const since = query.postedWithin
     ? new Date(Date.now() - query.postedWithin * 24 * 60 * 60 * 1000)
     : null;
+  const gate = occupationGate(query, profileOccupation);
 
   return {
     duplicateOfId: null,
+    ...(gate ? { AND: [gate] } : {}),
     ...(needle ? { searchText: { contains: needle } } : {}),
     ...(query.province?.length ? { provinceCode: { in: query.province } } : {}),
     ...(query.occupation?.length
@@ -147,7 +179,24 @@ export function whereFrom(
   };
 }
 
-export function orderFor(sort: JobSort): Prisma.JobOrderByWithRelationInput[] {
+/** Thứ tự nội bộ, KHÔNG mở qua HTTP: `posted` chỉ dành cho "Việc làm phù hợp". */
+export type ListOrder = JobSort | 'posted';
+
+/** "Việc làm phù hợp" LUÔN xếp theo ngày đăng mới nhất; `sort` người dùng gửi lên bị bỏ qua để link cũ vẫn mở được. */
+export const listOrderFor = (query: ListJobsQueryDto): ListOrder =>
+  query.scored ? 'posted' : (query.sort ?? 'newest');
+
+export function orderFor(
+  sort: ListOrder,
+): Prisma.JobOrderByWithRelationInput[] {
+  // Không index được (postedAt nullable, cần NULLS LAST), nhưng danh sách "phù hợp" chỉ vài trăm tin mỗi người.
+  if (sort === 'posted') {
+    return [
+      { postedAt: { sort: 'desc', nulls: 'last' } },
+      { scrapedAt: 'desc' },
+      { id: 'desc' },
+    ];
+  }
   if (sort === 'salary') {
     return [{ salaryMax: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }];
   }

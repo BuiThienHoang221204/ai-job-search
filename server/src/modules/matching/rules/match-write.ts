@@ -9,11 +9,11 @@ import type { Candidate, SkillDictionary } from './types.js';
 /** Hồ sơ tối thiểu cần có để việc chấm điểm còn có nghĩa — cùng câu hỏi với `profileSelect`/`toCandidate` dưới đây. */
 export const MIN_COMPLETION_TO_SCORE = 30;
 
-/** Bảng nhân theo (số người × số tin) nên cặp không khớp gì thì không ghi. */
-const MIN_MET_TO_STORE = 1;
+/** Bảng nhân theo (số người × số tin) nên cặp không khớp KỸ NĂNG nào thì không ghi — khớp số năm không tính. */
+const MIN_SKILLS_TO_STORE = 1;
 
 /** Đổi công thức chấm là phải bump: vân tay cũ vẫn khớp thì mọi cặp giữ nguyên điểm tính bằng công thức cũ. */
-const FORMULA_VERSION = 'v2';
+const FORMULA_VERSION = 'v3';
 
 export const profileSelect = {
   userId: true,
@@ -71,7 +71,7 @@ export function planMatchWrites(
       if (known.get(key) === hash) continue;
 
       const result = matchRequirements(parsed, candidate.profile, dictionary);
-      if (result.met < MIN_MET_TO_STORE) {
+      if (result.skillMet < MIN_SKILLS_TO_STORE) {
         if (known.has(key)) {
           stale.push({ userId: candidate.userId, jobId: requirement.jobId });
         }

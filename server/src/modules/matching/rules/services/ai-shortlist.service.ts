@@ -10,6 +10,10 @@ import {
   planShortlist,
 } from '../ai-shortlist.js';
 import type { ShortlistResult, ShortlistRow } from '../types.js';
+import {
+  nearbyOccupationPairs,
+  OTHER_CODE,
+} from '../../../jobs/taxonomy/occupations.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -49,6 +53,8 @@ export class AiShortlistService {
 
   private topRows(userId: string | undefined): Promise<ShortlistRow[]> {
     const cooldownBefore = new Date(Date.now() - this.cooldownHours * HOUR_MS);
+    // Cùng cổng ngành với danh sách "phù hợp": suất AI mất tiền thật, tin lạc ngành không đáng một lượt gọi model.
+    const pairs = nearbyOccupationPairs();
 
     return this.prisma.$queryRawUnsafe<ShortlistRow[]>(
       `select t."userId", t."jobId", t.rank
@@ -73,7 +79,16 @@ export class AiShortlistService {
            and p.completion >= $2
            and (p."lastFanOutAt" is null or p."lastFanOutAt" < $3)
            and (p."lastFanOutAt" is null or j."scrapedAt" > p."lastFanOutAt")
-           ${userId ? 'and r."userId" = $5' : ''}
+           and (
+             p."occupationCode" is null
+             or p."occupationCode" = $5
+             or j."occupationCode" is null
+             or exists (
+               select 1 from unnest($6::text[], $7::text[]) as near(po, jo)
+               where near.po = p."occupationCode" and near.jo = j."occupationCode"
+             )
+           )
+           ${userId ? 'and r."userId" = $8' : ''}
        ) t
        where t.rn <= $4
        order by t."userId", t.rn`,
@@ -82,6 +97,9 @@ export class AiShortlistService {
         MIN_COMPLETION_TO_SCORE,
         cooldownBefore,
         this.topN,
+        OTHER_CODE,
+        pairs.profile,
+        pairs.job,
         ...(userId ? [userId] : []),
       ],
     );

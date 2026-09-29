@@ -2,7 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { parseModelRef, formatModelRef } from '../utils/model-ref.js';
 import { ModelUnavailableError } from '../utils/failure-kind.js';
-import { selectModel, toListing, usableAdapter } from '../utils/catalog.js';
+import {
+  selectModel,
+  streamsJsonFor,
+  toListing,
+  usableAdapter,
+} from '../utils/catalog.js';
 import {
   findProvider,
   providerIds,
@@ -208,7 +213,7 @@ export class ModelCatalogService {
       headers,
       explicitStreamFlag: descriptor.explicitStreamFlag === true,
       honorsResponseFormat: descriptor.honorsResponseFormat !== false,
-      streamsJson: descriptor.streamsJson?.includes(selected.id) === true,
+      streamsJson: streamsJsonFor(descriptor, selected.id),
     };
   }
 

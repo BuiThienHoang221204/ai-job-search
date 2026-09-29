@@ -24,6 +24,12 @@ const SCORED_KINDS: ReadonlySet<CheckKind> = new Set<CheckKind>([
   'YEARS',
 ]);
 
+/** Dòng nói về NĂNG LỰC nghề; số năm tính điểm nhưng một mình nó không làm nên "phù hợp". */
+const SKILL_KINDS: ReadonlySet<CheckKind> = new Set<CheckKind>([
+  'SKILL',
+  'NICE',
+]);
+
 /** Kỹ năng của hồ sơ đáp ứng được một yêu cầu, kèm lý do vì sao. */
 type SkillHit = { skill: string; viaDictionary: boolean } | null;
 
@@ -153,29 +159,31 @@ export function matchRequirements(
   let totalWeight = 0;
   let met = 0;
   let total = 0;
+  let skillMet = 0;
+  let skillTotal = 0;
 
   for (const check of checks) {
     if (check.met === null || !SCORED_KINDS.has(check.kind)) continue;
+    const isSkill = SKILL_KINDS.has(check.kind);
     total += 1;
     totalWeight += weightOf(check);
+    if (isSkill) skillTotal += 1;
     if (check.met) {
       met += 1;
       metWeight += weightOf(check);
+      if (isSkill) skillMet += 1;
     }
   }
 
-  const score =
-    eligibility === 'FAIL'
-      ? 0
-      : totalWeight === 0
-        ? 0
-        : Math.round((metWeight / totalWeight) * 100);
+  // Không có dòng kỹ năng nào thì không có gì để nói "phù hợp": số năm một mình từng đưa tin giáo viên lên 100% cho hồ sơ IT.
+  const unscorable = eligibility === 'FAIL' || skillTotal === 0;
 
-  const rank =
-    eligibility === 'FAIL' || totalWeight === 0
-      ? 0
-      : Math.round((metWeight / (totalWeight + UNMET_PRIOR_WEIGHT)) * 10_000) /
-        10_000;
+  const score = unscorable ? 0 : Math.round((metWeight / totalWeight) * 100);
 
-  return { checks, met, total, score, rank, eligibility };
+  const rank = unscorable
+    ? 0
+    : Math.round((metWeight / (totalWeight + UNMET_PRIOR_WEIGHT)) * 10_000) /
+      10_000;
+
+  return { checks, met, total, skillMet, skillTotal, score, rank, eligibility };
 }

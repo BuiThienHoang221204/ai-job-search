@@ -18,7 +18,11 @@ import {
   BATCH_SYSTEM,
   SYSTEM,
 } from '../prompt/job-requirements.prompt.js';
-import { sourceHash } from '../utils/requirements.js';
+import {
+  hasSkills,
+  NO_SKILLS_ERROR,
+  sourceHash,
+} from '../utils/requirements.js';
 
 @Injectable()
 export class JobRequirementsService {
@@ -98,6 +102,7 @@ export class JobRequirementsService {
         },
       );
 
+      if (!hasSkills(object)) throw new Error(NO_SKILLS_ERROR);
       return await this.persist(jobId, hash, object, modelId);
     } catch (error) {
       return this.markFailed(jobId, error);
@@ -163,9 +168,9 @@ export class JobRequirementsService {
 
       for (const [offset, entry] of batch.entries()) {
         const extracted = byIndex.get(offset + 1);
-        if (!extracted) {
+        if (!extracted || !hasSkills(extracted)) {
           this.logger.warn(
-            `Lô thiếu phần tử [${offset + 1}] cho ${entry.job.id}; rút lẻ`,
+            `Lô ${extracted ? 'trả 0 kỹ năng' : 'thiếu phần tử'} [${offset + 1}] cho ${entry.job.id}; rút lẻ`,
           );
           results.push(await this.extract(entry.job.id, force));
           continue;

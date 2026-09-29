@@ -23,6 +23,25 @@ export function usableAdapter(
     model.provider?.npm ?? provider.npm ?? '@ai-sdk/openai-compatible',
   );
 }
+/** Trần số id in kèm câu lỗi: đủ để thấy bể free vừa xoay, không đủ để một catalog 400 model làm ngập log. */
+const SERVED_HINT_LIMIT = 10;
+
+/** Kèm danh sách đang phục vụ để phân biệt "bể free vừa rút model" với "gõ sai tên trong .env". */
+export function servedHint(provider: CatalogProvider): string {
+  const ids = Object.keys(provider.models);
+  const shown = ids.slice(0, SERVED_HINT_LIMIT).join(', ');
+  const more = ids.length > SERVED_HINT_LIMIT ? ', …' : '';
+  return `(đang phục vụ ${ids.length} model: ${shown}${more})`;
+}
+
+/** Model này có được thử stream không, theo lời khai `streamsJson` của lõi. */
+export function streamsJsonFor(
+  descriptor: ProviderDescriptor,
+  modelId: string,
+): boolean {
+  const allowed = descriptor.streamsJson;
+  return allowed === 'all' || allowed?.includes(modelId) === true;
+}
 
 /** Tìm đúng model được yêu cầu, và nói rõ VÌ SAO khi không dùng được — ba lý do khác nhau, ba câu khác nhau. */
 export function selectModel(
@@ -35,7 +54,7 @@ export function selectModel(
   );
   if (!found) {
     throw new ModelUnavailableError(
-      `Lõi ${descriptor.label} không có model "${target.modelId}".`,
+      `Lõi ${descriptor.label} không có model "${target.modelId}" ${servedHint(provider)}.`,
     );
   }
   if (!usableAdapter(found, provider)) {

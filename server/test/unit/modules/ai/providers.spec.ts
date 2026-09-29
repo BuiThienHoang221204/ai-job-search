@@ -8,6 +8,7 @@ import { kilo } from 'src/modules/ai/providers/kilo.js';
 import { opencode } from 'src/modules/ai/providers/opencode.js';
 import { omniroute } from 'src/modules/ai/providers/omniroute.js';
 import { openrouter } from 'src/modules/ai/providers/openrouter.js';
+import { streamsJsonFor } from 'src/modules/ai/utils/catalog.js';
 
 /*
  * Mỗi lõi một file, và thêm lõi mới là thêm một file rồi một dòng trong
@@ -133,5 +134,22 @@ describe('Lõi omniroute — gateway không ép được response_format', () =>
     // Wrapper chỉ chuyển tiếp thân request kiểu OpenAI, không ép định dạng nào.
     expect(opencode.honorsResponseFormat).toBe(false);
     expect(opencode.baseURLEnv).toBe('OPENCODE_SERVICE_URL');
+  });
+});
+
+describe('streamsJson — model nào được thử stream', () => {
+  test("opencode khai 'all': model nào của bể cũng stream, kể cả model mới xoay vào", () => {
+    expect(streamsJsonFor(opencode, 'space-bunny-free')).toBe(true);
+    expect(streamsJsonFor(opencode, 'model-chua-tung-thay-free')).toBe(true);
+  });
+
+  test('danh sách rỗng thì không model nào stream', () => {
+    expect(streamsJsonFor(omniroute, 'kc/openrouter/free')).toBe(false);
+  });
+
+  test('danh sách tên thì chỉ đúng tên đó', () => {
+    const descriptor = { ...omniroute, streamsJson: ['a-free'] };
+    expect(streamsJsonFor(descriptor, 'a-free')).toBe(true);
+    expect(streamsJsonFor(descriptor, 'b-free')).toBe(false);
   });
 });

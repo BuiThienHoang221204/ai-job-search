@@ -54,9 +54,9 @@ export class MatchingService {
       skill.references.get(REFERENCE_FILE) ?? '',
       EVALUATION_SECTIONS,
     );
-    const framework = this.prompts.render(
+    // Khung KHÔNG mang hồ sơ: `system` giống hệt mọi lượt chấm nên phần đầu prompt cache được xuyên người dùng.
+    const framework = this.prompts.renderShared(
       this.prompts.dropSubsection(selected, 'Salary Benchmark'),
-      profile,
     );
 
     return evaluationPrompt(

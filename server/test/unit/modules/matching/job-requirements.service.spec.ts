@@ -178,6 +178,26 @@ describe('JobRequirementsService.extractMany', () => {
     expect(results.every((row) => row.status === 'DONE')).toBe(true);
   });
 
+  it('lô trả 0 kỹ năng cho một tin thì chỉ tin đó rút lẻ', async () => {
+    const jobs = ['a', 'b', 'c'].map((id) => job(id));
+    const { service, ai } = build(jobs);
+    ai.willReturn(
+      {
+        jobs: [
+          { index: 1, requiredSkills: ['A'] },
+          { index: 2, requiredSkills: [] },
+          { index: 3, requiredSkills: ['C'] },
+        ],
+      },
+      { requiredSkills: ['B'] },
+    );
+
+    const results = await service.extractMany(jobs.map((row) => row.id));
+
+    expect(ai.calls).toHaveLength(2);
+    expect(results.every((row) => row.status === 'DONE')).toBe(true);
+  });
+
   it('một tin thì gọi thẳng đường lẻ, không dựng lô', async () => {
     const { service, ai } = build([job('a')]);
     ai.willReturn({ requiredSkills: ['A'] });
@@ -192,5 +212,26 @@ describe('JobRequirementsService.extractMany', () => {
 
     expect(await service.extractMany([])).toEqual([]);
     expect(ai.calls).toHaveLength(0);
+  });
+});
+
+describe('JobRequirementsService.extract', () => {
+  it('model trả 0 kỹ năng thì ghi FAILED, KHÔNG ghi DONE', async () => {
+    // Ca thật: tin giáo viên tiếng Anh ra 0 kỹ năng, chỉ còn minYears, và từng lên 100% cho hồ sơ IT.
+    const { service, ai } = build([job('a')]);
+    ai.willReturn({ requiredSkills: [], niceToHaveSkills: [], minYears: 1 });
+
+    const result = await service.extract('a');
+
+    expect(result.status).toBe('FAILED');
+    expect(result.error).toMatch(/Không rút được kỹ năng nào/);
+    expect(ai.calls).toHaveLength(1);
+  });
+
+  it('chỉ có kỹ năng ưu tiên vẫn là bản rút hợp lệ', async () => {
+    const { service, ai } = build([job('a')]);
+    ai.willReturn({ requiredSkills: [], niceToHaveSkills: ['Excel'] });
+
+    expect((await service.extract('a')).status).toBe('DONE');
   });
 });

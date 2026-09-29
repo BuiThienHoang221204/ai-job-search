@@ -86,6 +86,33 @@ describe('matchRequirements', () => {
     );
   });
 
+  test('tin KHÔNG có yêu cầu kỹ năng nào thì 0 điểm dù đủ số năm', () => {
+    // Ca thật: tin giáo viên tiếng Anh rút ra 0 kỹ năng, chỉ còn minYears=1, và từng lên 100% cho hồ sơ IT.
+    const result = matchRequirements(
+      requirements({ requiredSkills: [], niceToHaveSkills: [], minYears: 1 }),
+      profile({ years: 2 }),
+    );
+
+    expect(result.score).toBe(0);
+    expect(result.rank).toBe(0);
+    expect(result.met).toBe(1);
+    expect(result.skillMet).toBe(0);
+    expect(result.skillTotal).toBe(0);
+  });
+
+  test('số năm vẫn góp điểm, nhưng skillMet chỉ đếm dòng kỹ năng', () => {
+    // Ca thật: tin lò hơi đòi 1 kỹ năng hồ sơ IT không có, số năm đạt -> met=1 nhưng skillMet=0.
+    const result = matchRequirements(
+      requirements({ requiredSkills: ['vận hành lò hơi'], minYears: 1 }),
+      profile({ years: 2 }),
+    );
+
+    expect(result.score).toBe(50);
+    expect(result.met).toBe(1);
+    expect(result.skillMet).toBe(0);
+    expect(result.skillTotal).toBe(1);
+  });
+
   test('đủ số năm thì đạt, thiếu thì trượt', () => {
     expect(
       matchRequirements(requirements({ minYears: 3 }), profile({ years: 5 }))

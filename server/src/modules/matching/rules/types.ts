@@ -24,7 +24,8 @@ export type RequirementMatch = {
   checks: RequirementCheck[];
   met: number;
   total: number;
-  /** 0-100. Bằng 0 khi eligibility FAIL, giống đường chấm bằng AI. */
+  skillMet: number;
+  skillTotal: number;
   score: number;
   rank: number;
   eligibility: 'PASS' | 'FAIL' | 'UNVERIFIED';

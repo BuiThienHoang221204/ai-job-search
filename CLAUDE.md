@@ -89,7 +89,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 Bộ test đơn vị chạy qua **`test/run-unit.mjs`**, không phải `jest` trực tiếp: `pdf-parse` nạp worker pdfjs bằng `import()` động nên jest cần `--experimental-vm-modules`. Docblock của file đó ghi những cách đã thử mà không tránh được — đừng thử lại.
 
-**`ai.service.spec.ts` đòi Node ≥ 24.9 và sẽ không nạp được trên bản thấp hơn.** Nó gọi `jest.requireActual('ai')` trên một package ESM thuần, mà `require(ESM)` đồng bộ của jest 30 cần API vm mới. Trên Node 22 nó báo *"Jest's require(ESM) requires Node v24.9+"* và cả suite đỏ dù code không sai. Chạy cả bộ 460 test thì dùng Node ≥ 24.9; các suite còn lại chạy được từ Node 22.12.
+**`ai.service.spec.ts` đòi Node ≥ 24.9 và sẽ không nạp được trên bản thấp hơn.** Nó gọi `jest.requireActual('ai')` trên một package ESM thuần, mà `require(ESM)` đồng bộ của jest 30 cần API vm mới. Trên Node 22 nó báo *"Jest's require(ESM) requires Node v24.9+"* và cả suite đỏ dù code không sai. Chạy cả bộ 460 test thì dùng Node ≥ 24.9; các suite còn lại chạy được từ Node 22.12. Máy chưa có Node 24 thì không cần cài: `npx -y node@24.11.0 test/run-unit.mjs` (và `test/run-e2e.mjs`) chạy trọn bộ — đã dùng ngày 2026-09-28, 1.285/1.285 unit và 234/234 e2e.
 
 ## CV đi đường HTML, thư xin việc vẫn đi đường LaTeX
 
@@ -328,6 +328,16 @@ Gom theo 19 nhóm thì cả `IT_QA`, `IT_DEVOPS` và `IT_SECURITY` chung một t
 
 `.claude/skills/job-scraper/search-queries.md` **được nạp vào `skill.references` nhưng không prompt nào đọc** — `refineQueries` tự dựng prompt riêng. Sửa file đó chỉ đổi hành vi runtime Claude Code, không đổi gì ở backend. Chỉ các file của `job-application-assistant` mới thật sự được nhồi vào prompt.
 
+### "Việc làm phù hợp" — số năm KHÔNG phải kỹ năng, và có cổng ngành
+
+Danh sách `scored=1` đọc `job_requirement_matches.percent` do LUẬT tính (`rules/requirement-match.ts`), không phải AI. Tới 2026-09-28 một hồ sơ Full Stack thấy tin giáo viên tiếng Anh ở 100% và tin sale ở 67%: bước rút yêu cầu trả **0 kỹ năng** cho tin đó, chỉ còn `minYears=1`, và dòng YEARS khớp một mình thành "1/1". Không kỹ năng nào của hồ sơ khớp.
+
+- **Tin không có dòng kỹ năng nào (SKILL/NICE) thì `score = rank = 0`**, và **chỉ lưu cặp khi `skillMet ≥ 1`** — `met` gộp cả YEARS nên đừng dùng nó làm cửa lưu. YEARS vẫn góp điểm, chỉ không tự mình làm nên "phù hợp". Đổi công thức nhớ bump `FORMULA_VERSION` (nay `v3`) rồi gọi `POST /admin/skills/rematch`; lượt đầu xoá 2.741 → 2.288 cặp.
+- **Cổng ngành chỉ nằm ở đường ĐỌC** (`occupationGate` trong `jobs/utils/job-view.ts`): `scored=1` giữ tin cùng `Profile.occupationCode`, nhóm liền kề (`nearbyOccupations`, nay chỉ `IT ↔ DATA_AI`), `OTHER` và `null` — tin chưa phân loại được thì không có căn cứ để loại. **Cổng KHÔNG có lối thoát** (chốt 2026-09-29): muốn xem ngành khác thì sang "Tất cả việc làm". Bộ lọc ngành trên thanh lọc **giao** với cổng chứ không thay nó — hồ sơ IT chọn "Tài chính" ở trang này ra rỗng. Từng có nút "Xem cả ngành khác" (`anyOccupation`) và nhánh "người dùng tự chọn ngành thì cổng nhường"; cả hai đã gỡ, và `anyOccupation` nay nhận 400 vì `forbidNonWhitelisted`. Ngoại lệ duy nhất: hồ sơ chưa rõ ngành (hoặc `OTHER`) thì không chặn, vì không có căn cứ để biết "ngành của họ". Phát suất chấm AI (`AiShortlistService.topRows`) áp CÙNG cổng đó bằng SQL: `nearbyOccupationPairs()` đổi quan hệ thành hai mảng song song để `unnest` tra theo cặp (ngành hồ sơ, ngành tin), nên sửa `nearbyOccupations` là cả hai nơi đổi theo. `test/ai-shortlist.e2e-spec.ts` canh nó và đã được thử tháo cổng để chắc nó biết đỏ.
+- **"Việc làm phù hợp" LUÔN xếp theo ngày ĐĂNG mới nhất** (`listOrderFor` → `posted`: `postedAt DESC NULLS LAST`, rồi `scrapedAt`, `id`), và `sort` gửi lên bị BỎ QUA chứ không 400 để link cũ còn mở được; UI ẩn ô "Sắp xếp" ở trang này. Lý do: "Mới nhất" (`newest`) xếp theo `scrapedAt` — ngày QUÉT — trong khi thẻ tin hiện ngày ĐĂNG, nên danh sách trông lộn xộn (12 → 10 → 11 → 6 ngày). `posted` không index được, nhưng tập "phù hợp" chỉ vài trăm tin mỗi người. `newest` của "Tất cả việc làm" vẫn là `scrapedAt`.
+- **Bản rút 0 kỹ năng là FAILED, không phải DONE** (`hasSkills` trong `ai/utils/requirements.ts`). Đo 2026-09-28: 29 tin DONE mà `requiredSkills` rỗng, dồn vào EDUCATION (9/54) và HEALTHCARE (4/30), phần lớn từ `auto/fast` và `mimo-v2.5-free`. Trong lô thì tin rỗng rút lẻ lại một lần (như tin bị lô bỏ sót); đường lẻ vẫn rỗng thì FAILED. Chỉ có kỹ năng ưu tiên vẫn là hợp lệ.
+- **"Khớp x/y" trên thẻ tin chỉ đếm kỹ năng** (`systemMatch.skillMet/skillTotal`); `percent` thì vẫn tính cả số năm. Hiện "1/1" cho một tin mà cái khớp duy nhất là số năm chính là lỗi đã khiến người dùng tin tin giáo viên hợp với họ.
+
 ## Hàng đợi
 
 Bảy file, mỗi file một việc. `queue.service.ts` **re-export** `QUEUE` và mọi type, nên 37 file gọi tới vẫn chỉ import một đường và không cần biết bên trong chia thế nào:
@@ -526,6 +536,14 @@ Hậu quả đo được trên một lượt chấm điểm thật: **24,5 giây
 
 Muốn thêm model vào `streamsJson` thì phải đo bằng **đúng prompt production** (gọi qua `AiService`, không phải bằng script tự dựng prompt), và đo nhiều lượt.
 
+**Ngoại lệ có chủ ý, 2026-09-28: lõi `opencode` khai `streamsJson: 'all'`** — bật stream cho mọi model của bể Zen mà CHƯA đo từng model, vì bể xoay vòng nên danh sách tên cứng lỗi thời trong vài ngày. Lưới còn đó: stream hỏng trước mảnh đầu thì `streamOnce` rơi về đường không-stream (tốn thêm một lượt gọi). Đi kèm là sửa `opencode-service`: SSE chỉ mở ở mảnh ĐẦU, vì mở trước khi chạy CLI thì 429/403 nằm trong thân stream, không thành mã HTTP, và `ModelChain` không nhận ra để đổi mắt xích. Thấy `WARN` rơi về không-stream xuất hiện thường xuyên trên một model thì gỡ `'all'` về danh sách tên đã đo.
+
+**Hàng rào ` ```json ` nay được bóc NGAY TRÊN STREAM** (`utils/json-stream.ts`, chỉ bật cho `streamObject` — `streamText` giữ nguyên chữ). Lý do: lượt đầu tiên bật `'all'`, `ling-3.0-flash-fin-free` mở đầu đúng bằng ` ```json ` như bẫy đã ghi ở trên, stream hỏng rồi gọi lại — 24 + 26 giây cho một lượt chấm. Bộ lọc chỉ nhận `{` làm gốc (schema của `streamObject` luôn là object), nên `[` trong câu dẫn không bị nhận nhầm.
+
+**Nhưng đi qua `opencode-service` thì stream KHÔNG hiện chữ dần**, và đó là giới hạn của CLI chứ không phải của app. Đo 2026-09-28: một phản hồi 4.506 ký tự về trong **đúng một mảnh** ở giây thứ 16,9 — `opencode run --format json` chỉ in phần chữ khi đã viết xong, và `run --help` không có cờ nào đổi điều đó. Muốn chữ chạy dần thì phải chuyển container sang `opencode serve` rồi đọc luồng sự kiện của nó. Bật `'all'` vẫn đáng giữ: sau khi có bộ lọc, đường stream tốn đúng một lượt gọi như đường không-stream.
+
+**`opencode-service` giữ mọi model đã thấy trong 30 phút** (`OPENCODE_MODELS_SEEN_MS`), không chỉ bản chụp của lần hỏi cuối: `opencode models` gọi ba lần liền cho ra hai danh sách khác nhau, và `space-bunny-free` lúc có lúc không. Model thật sự đã bị rút thì lượt gọi hỏng 502 và `ModelChain` đi tiếp.
+
 **Đừng kỳ vọng cache.** Đo 2 lượt liên tiếp cùng prompt: `cached=0` cả hai. Ghim model KHÔNG cứu được cache ở đây vì `kc/openrouter/free` bản thân nó cũng là một tầng định tuyến, cộng omniroute là chặng nữa — prompt không ở yên với nhà cung cấp nào đủ lâu. Số liệu cả bảng: `match.evaluate` 376 lượt, chỉ 5 lượt có `cachedTokens > 0`.
 
 **Tokenizer là lý do `auto/smart` đắt gấp đôi.** Cùng một prompt: `kc/openrouter/free` khai `in=1.309`, còn `cfp`/`gweb`/`auto` khai `in=3.557`. JSON Schema bơm vào prompt chỉ chiếm ~943 token, phần còn lại là tokenizer xử lý tiếng Việt.
@@ -666,7 +684,27 @@ lần 3: inputTokens=1377  cacheRead=1344   noCache=33
 
 Nên **mọi con số "token đã tiêu" đọc từ `inputTokens` đều thổi phồng**, và mọi quyết định cắt prompt dựa trên nó đều dựa trên một cái giá không có thật. Cột `ai_calls.cachedTokens` có mặt để tách hai thứ đó ra; số đáng tối ưu là `inputTokens - cachedTokens`.
 
-**Điều kiện để cache ăn: phần hằng phải đứng ĐẦU và giống hệt từng byte.** Hệ quả cho người viết prompt: đừng chèn dữ liệu người dùng vào GIỮA khung đặc tả. Khung `04-job-evaluation.md` hiện có 9 token `[YOUR_*]` được điền hồ sơ vào giữa thân, nên tiền tố khác nhau theo từng hồ sơ và cache chỉ ăn trong phạm vi một người dùng. Tách khung thuần lên trước, hồ sơ xuống sau, thì cache ăn xuyên mọi người dùng — nhưng phải đo lại chất lượng bằng `bench-models.mjs` trước khi chốt.
+**Điều kiện để cache ăn: phần hằng phải đứng ĐẦU và giống hệt từng byte.** Hệ quả cho người viết prompt: đừng chèn dữ liệu người dùng vào GIỮA khung đặc tả. Khung `04-job-evaluation.md` có 12 token `[YOUR_*]` được điền hồ sơ vào giữa thân, nên tiền tố khác nhau theo từng hồ sơ và cache chỉ ăn trong phạm vi một người dùng. Tách khung thuần lên trước, hồ sơ xuống sau, thì cache ăn xuyên mọi người dùng — nhưng phải đo lại chất lượng bằng `bench-models.mjs` trước khi chốt.
+
+**Đã làm cho CHẤM ĐIỂM ngày 2026-09-28** (`renderShared` trong `skills/utils/shared-placeholders.ts`): mỗi `[YOUR_*]` thành câu trỏ cố định `(xem «Kỹ năng chính»)` tới dòng cùng nhãn trong `profileSummary`, cộng MỘT câu ghi chú "không có dòng đó nghĩa là chưa cung cấp". Mất gì cũng không: cả 12 giá trị vốn đã có trong `profileSummary` — hồ sơ từng được gửi HAI lần. Test ghim hai điều: mọi nhãn trỏ tới đều có dòng thật trong `profileSummary` (đổi nhãn một bên mà quên bên kia thì câu trỏ chỉ vào hư không, không lỗi nào báo), và hai hồ sơ khác nhau cho ra `system` giống hệt.
+
+Đo bằng `node scripts/probe-prompt-cache.mjs` (qua đúng `AiService`, không ghi `job_matches`, purpose `match.evaluate.probe`), 7 cặp chạy đủ, mỗi cặp prompt cũ HAI lần + mới một lần:
+
+| | Kết quả |
+|---|---|
+| Dao động tự nhiên — cùng prompt cũ gửi hai lần | 7,1 điểm |
+| Chênh lệch mới ↔ trung bình cũ | 5,9 điểm |
+| Verdict mới khác CẢ HAI lượt cũ / eligibility khác | 0/7 / 0/7 |
+| Cache lần đầu thấy prompt, `ling` | cũ 1.920 token (5/5, chỉ phần CLI) → mới 64–89% (2/3) |
+| Cache lần đầu thấy prompt, `space-bunny` | cũ trung bình 49% → mới 78% (3/3) |
+
+Ba điều rút ra, đừng đo sai lại: **so `cũ-1` với `mới`, đừng tính `cũ-2`** — nó gửi lại y hệt nên luôn cache 100% và từng làm bản tóm tắt in ra "cũ 57,8%, mới 46,3%", ngược thực tế. **Cache KHÔNG làm nhanh hơn trên bể free** — lượt 100% cache có lúc chậm hơn lượt 0%; lợi ích chỉ thành tiền khi dùng model trả phí. Và **eligibility tự dao động**: cùng một prompt cũ từng cho `PASS` rồi `UNVERIFIED`, nên một lần lệch eligibility không đủ để kết tội prompt mới.
+
+Câu trỏ phải NGẮN: bản đầu lặp câu giải thích trong từng câu trỏ, 16 lần, làm `system` dài HƠN bản cũ (8.228 so với ~7.200 ký tự) — tức tốn thêm token ở mọi lõi không cache. `--dry` của script bắt được điều này mà không tốn lượt gọi nào.
+
+**Chấm điểm là prompt DUY NHẤT từng mang hồ sơ trong khung.** Đã kiểm mọi mục mà các module khác giữ lại (2026-09-28): `03`, `06`, `07`, `08` và hai nửa của `upskill/SKILL.md` không có token `[YOUR_*]` nào; `05-cv-templates.md` có 4 token (`YOUR_PRIMARY_ROLE_TYPE`, `YOUR_PROFILE_STATEMENT_TEMPLATE_1/2`, `YOUR_SECONDARY_ROLE_TYPE`) nhưng không token nào có trong bảng của `render()`, nên luôn thành cùng một câu "chưa cung cấp". Tức `system` của CV/thư/mail/form/phỏng vấn/upskill vốn đã giống nhau giữa mọi người dùng — đổi chúng sang `renderShared` ra đúng từng byte như cũ, không có gì để đo.
+
+Cùng lượt kiểm đó: `BEHAVIOURAL_SECTIONS` của phỏng vấn **không khớp tiêu đề nào** của `02-behavioral-profile.md`, nên `keepSections` trả chuỗi rỗng. Đừng "sửa" cho khớp — file đó toàn khung trống của bản fork (`[DRIVE_1]`, `[BEHAVIOR_1]`…), khớp được thì model nhận một bảng đầy "chưa cung cấp". Dữ liệu hành vi thật tới model qua dòng `Đặc điểm hành vi (JSON)` của `profileSummary`.
 
 **Đo trước khi cắt prompt.** Một lần đã suýt đi tối ưu `agent.apply` vì thấy `inputTokens` trung bình 116.761 — con số đó gồm cả cache, và phần thật sự trả tiền có thể nhỏ hơn nhiều.
 

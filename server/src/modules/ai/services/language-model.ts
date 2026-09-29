@@ -3,6 +3,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 import { formatModelRef } from '../utils/model-ref.js';
 import { extractJsonFromResponse } from '../utils/json-text.js';
+import { extractJsonFromStream } from '../utils/json-stream.js';
 import type { ModelCatalogService } from './model-catalog.service.js';
 
 export type ResolvedLanguageModel = {
@@ -41,9 +42,11 @@ export class LanguageModelFactory {
     };
   }
 
+  /** `jsonStream` chỉ bật cho `streamObject`: lọc stream của `streamText` là cắt mất chữ của người dùng. */
   async create(
     modelId: string | undefined,
     structuredOutputs: boolean,
+    jsonStream = false,
   ): Promise<ResolvedLanguageModel> {
     const resolved = await this.catalog.resolve(modelId);
     const userAgent = resolved.headers['User-Agent'];
@@ -74,7 +77,8 @@ export class LanguageModelFactory {
       }
       const response = await originalFetch(input, { ...init, headers, body });
       // Áp cho CẢ hai chế độ: phản hồi vốn đã là JSON hợp lệ thì hàm trả lại nguyên vẹn, nên không có gì để mất.
-      return extractJsonFromResponse(response);
+      const unwrapped = await extractJsonFromResponse(response);
+      return jsonStream ? extractJsonFromStream(unwrapped) : unwrapped;
     };
 
     const provider = createOpenAICompatible({

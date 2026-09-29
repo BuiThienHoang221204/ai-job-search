@@ -22,6 +22,17 @@ const FALLBACK_MODELS = (process.env.OPENCODE_MODELS ?? 'big-pickle')
 const MODELS_TTL_MS = Number(process.env.OPENCODE_MODELS_TTL_MS ?? 300_000);
 let modelsCache = { at: 0, ids: [] };
 
+// Bể Zen trả danh sách KHÁC NHAU giữa hai lần hỏi liền nhau (đo 2026-09-28: `space-bunny-free` có ở lần 2 và 3, vắng ở lần 1), nên giữ mọi model đã thấy trong cửa sổ này.
+const MODELS_SEEN_MS = Number(process.env.OPENCODE_MODELS_SEEN_MS ?? 1_800_000);
+const seenAt = new Map();
+
+function rememberSeen(ids) {
+  const now = Date.now();
+  for (const id of ids) seenAt.set(id, now);
+  for (const [id, at] of seenAt) if (now - at > MODELS_SEEN_MS) seenAt.delete(id);
+  return [...seenAt.keys()].sort();
+}
+
 const ACCESS_DENIED = /free tier|can only be used|unauthor|forbidden|\b401\b|\b403\b/i;
 const RATE_LIMITED = /rate.?limit|FreeUsageLimit|quota|\b429\b/i;
 
@@ -64,8 +75,9 @@ function listModels() {
         .map((line) => line.trim())
         .filter((line) => line.includes('/'))
         .map((line) => (line.startsWith('opencode/') ? line.slice('opencode/'.length) : line));
-      if (ids.length) modelsCache = { at: Date.now(), ids };
-      resolve(ids.length ? ids : FALLBACK_MODELS);
+      if (!ids.length) return resolve(FALLBACK_MODELS);
+      modelsCache = { at: Date.now(), ids: rememberSeen(ids) };
+      resolve(modelsCache.ids);
     });
   });
 }
@@ -288,12 +300,6 @@ async function completions(req, res) {
       });
     }
 
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
-
     const chunk = (delta, finish_reason = null) =>
       `data: ${JSON.stringify({
         id,
@@ -303,14 +309,27 @@ async function completions(req, res) {
         choices: [{ index: 0, delta, finish_reason }],
       })}\n\n`;
 
-    res.write(chunk({ role: 'assistant', content: '' }));
+    // Mở SSE ở mảnh ĐẦU chứ không trước khi chạy CLI: lỗi 429/403 xảy ra trước đó phải thành mã HTTP, không thì chuỗi dự phòng của app không nhận ra.
+    const open = () => {
+      if (res.headersSent) return;
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+      res.write(chunk({ role: 'assistant', content: '' }));
+    };
 
     const { usage } = await runCli({
       model,
       message,
-      onDelta: (delta) => res.write(chunk({ content: delta })),
+      onDelta: (delta) => {
+        open();
+        res.write(chunk({ content: delta }));
+      },
     });
 
+    open();
     res.write(chunk({}, 'stop'));
     res.write(
       `data: ${JSON.stringify({

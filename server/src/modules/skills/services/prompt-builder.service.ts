@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Profile } from '../../../generated/prisma/client.js';
-
-const NOT_PROVIDED = '(hồ sơ chưa cung cấp thông tin này)';
+import { NOT_PROVIDED, renderShared } from '../utils/shared-placeholders.js';
 
 /** Thay các token [PLACEHOLDER] trong file skill bằng dữ liệu hồ sơ lấy từ DB. */
 @Injectable()
@@ -61,6 +60,11 @@ export class PromptBuilderService {
       );
     }
     return rendered;
+  }
+
+  /** Như `render` nhưng KHÔNG điền hồ sơ: khung ra giống hệt với mọi người dùng để nhà cung cấp cache được, hồ sơ nằm ở `profileSummary`. */
+  renderShared(template: string): string {
+    return renderShared(template);
   }
 
   /** Giữ lại một số mục `##` của file skill và bỏ phần còn lại. */
