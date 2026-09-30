@@ -105,7 +105,7 @@ export async function createTestApp(
     .useValue(sandbox)
     .compile();
 
-  const app = moduleRef.createNestApplication();
+  const app = moduleRef.createNestApplication({ bodyParser: false });
   // Đúng cấu hình HTTP của máy chủ thật, không phải một bản dựng lại gần giống.
   configureApp(app);
   await app.init();

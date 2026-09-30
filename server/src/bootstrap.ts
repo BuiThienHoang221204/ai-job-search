@@ -3,7 +3,11 @@ import { vietnameseValidationError } from './common/validation-message.js';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import type { NextFunction, Request, Response } from 'express';
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from 'express';
 
 /**
  * Đây là API trả JSON và file, KHÔNG render HTML - nên hai header nổi tiếng
@@ -27,6 +31,10 @@ const HELMET_OPTIONS = {
 /** Cấu hình tầng HTTP dùng chung cho máy chủ thật và cho bộ khung test. */
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
+
+  // `strict: false` để chấp nhận mọi JSON hợp lệ kể cả primitive (`null`), tránh lỗi 400 khi client gửi `null`.
+  app.use(express.json({ strict: false }));
+  app.use(express.urlencoded({ extended: true }));
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (
