@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AiService } from '../ai/services/ai.service.js';
 import { pageArgs, pageOf } from '../../common/pagination.js';
+import { modelIdsFrom } from '../../common/model-env.js';
 import type { ListQuestionsQueryDto } from './question-bank.dto.js';
 import {
   questionAnswerPrompt,
@@ -141,6 +142,8 @@ export class QuestionBankService {
         context: { purpose: 'question.answer', userId },
         system,
         prompt,
+        modelId: process.env.AI_FAST_MODEL_ID || undefined,
+        fallbackModelIds: modelIdsFrom(process.env.AI_FAST_FALLBACK_IDS),
       });
 
     await this.prisma.interviewQuestion.update({

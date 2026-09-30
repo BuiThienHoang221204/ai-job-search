@@ -441,7 +441,41 @@ Gateway **không có model embedding nào**, nên vector search ở Pha 4 sẽ c
 
 ### Nhiều lõi model — mỗi lõi MỘT FILE, không phải một thư mục
 
-`src/modules/ai/providers/` có `opencode.ts`, `openrouter.ts`, `omniroute.ts` và `kilo.ts`. **Thêm lõi = thêm một file + một dòng trong `index.ts`.** Đừng biến chúng thành class Nest: đã đếm, **146/185 provider trong catalog dùng chung đúng một adapter** `@ai-sdk/openai-compatible`, nên một class cho mỗi lõi sẽ là một class không có hàm nào — và làm việc thêm lõi **khó hơn**, đúng cái điều nó nhắm tới.
+`src/modules/ai/providers/` có `opencode.ts`, `openrouter.ts`, `omniroute.ts`, `kilo.ts` và `groq.ts`. **Thêm lõi = thêm một file + một dòng trong `index.ts`.** Đừng biến chúng thành class Nest: đã đếm, **146/185 provider trong catalog dùng chung đúng một adapter** `@ai-sdk/openai-compatible`, nên một class cho mỗi lõi sẽ là một class không có hàm nào — và làm việc thêm lõi **khó hơn**, đúng cái điều nó nhắm tới.
+
+**Lõi `groq` — thêm 2026-09-30, dùng cho tác vụ NGƯỜI DÙNG ĐANG CHỜ, không phải lõi mặc định.** SDK riêng `groq-sdk` KHÔNG được dùng — Groq có endpoint OpenAI-compatible công khai (`https://api.groq.com/openai/v1`), nên nó đi đúng khuôn `createOpenAICompatible` như mọi lõi khác; khai `baseURLEnv: 'GROQ_BASE_URL'` vì Groq không nằm trong catalog `models.opencode.ai`, giống lý do `omniroute`/`opencode` khai trường đó.
+
+**`honorsResponseFormat: false` — đo thật 2026-09-30 bằng đúng prompt production (`scripts/probe-prompt-cache.mjs --model groq/openai/gpt-oss-120b`), không phải đoán.** Lượt đầu để trống (coi như ép được `response_format`) và Groq trả 400 NGAY từ request, chưa tới lượt model chạy:
+
+```
+invalid JSON schema for response_format: 'response': /properties/eligibility/required:
+`required` is required to be supplied and to be an array including every key in properties.
+```
+
+Groq áp chế độ "strict" của OpenAI — đòi MỌI field có mặt trong `required`, kể cả field optional (phải chuyển thành nullable thay vì lược bỏ). Schema của app dùng `.optional()`/`.default()` tự do theo đúng convention "nới cho chữ tự do, nghiêm ngặt cho thứ cắt bừa sẽ sai nghĩa" đã ghi trong file này — không sửa lại toàn bộ schema để chiều một lõi. Đổi `honorsResponseFormat: false` (đường bơm schema vào prompt) thì cùng lượt gọi, cùng schema, cùng prompt **thành công cả 3/3 lần thử** (đo `cũ-1`, `cũ-2`, `mới` trong `probe-prompt-cache.mjs`) — bài học y hệt `omniroute` đã ghi phía dưới: lời khai hỗ trợ không có nghĩa là dùng được trên schema thật của app.
+
+**`streamsJson` để trống (mặc định = không model nào stream)** — chưa đo model nào của Groq stream ra JSON parse dần được trên prompt thật; `streamEvaluate`/`streamBuild` vẫn chạy đúng (rơi về đường không-stream, trả nguyên object một lần), chỉ chưa có hiệu ứng chữ chạy dần. Đo bằng đúng prompt production trước khi bật `streamsJson`, đừng lặp bẫy đã ghi ở mục OmniRoute (đo bằng prompt rút gọn cho kết quả sai hoàn toàn).
+
+`knownNoStructuredOutput`/`declaresStructuredOutput` vẫn để trống — chưa đo từng model riêng lẻ của Groq (`gpt-oss-20b`, `gpt-oss-safeguard-20b`, `qwen/qwen3.8-27b` — ba model đang nằm trong `AI_FAST_FALLBACK_IDS`).
+
+**Chọn model theo TỪNG lời gọi, không phải một cờ toàn cục:** `generateObject`/`streamObject`/`streamText` đều nhận `options.modelId` tuỳ chọn — bỏ trống thì `ModelChain` dùng `defaultModelId` từ `.env`; có giá trị thì nó thành mắt xích ĐẦU của chuỗi, còn `MODEL_FALLBACK_IDS` vẫn nguyên phía sau làm lưới an toàn. Đây là hạ tầng CÓ SẴN từ trước (interview đã dùng cơ chế này trước Groq), không phải thứ mới dựng riêng.
+
+**Một biến DUY NHẤT — `AI_FAST_MODEL_ID` — cho MỌI tác vụ "người dùng đứng chờ trực diện".** Từng tách hai biến (`AI_INTERVIEW_MODEL_ID` riêng cho phỏng vấn), gộp lại 2026-09-30 theo đúng yêu cầu: một chỗ cấu hình cho cả nhóm, không phải nhớ nhiều tên biến cho cùng một ý định. Sáu điểm gọi đọc nó:
+
+- `interview.open`, `interview.turn` (`mock-interview/service/interview-turn.service.ts`), đi qua `streamText`. **Không có chuỗi dự phòng** ở đây theo chủ đích cũ của `streamText` (token đã rời đi thì không còn đường lùi) — Groq hỏng giữa buổi phỏng vấn thì lượt đó lỗi thẳng. Đây cũng là chỗ DUY NHẤT trong app người dùng ngồi đếm từng giây (đo 9,7s trước chữ đầu tiên).
+- `MatchingService.streamEvaluate` (không phải `evaluate` — route đó ghi rõ "dùng để thử nghiệm", không phải luồng người dùng), `CompanyService.streamBuild` (không phải `build` — route không-stream chỉ xếp hàng nền `QUEUE.COMPANY_BRIEF`), `JobFromUrlService.extract`, `QuestionBankService.ensureAnswer`. Bốn chỗ này đi qua `ModelChain` nên vẫn có lưới `MODEL_FALLBACK_IDS` nếu Groq hỏng.
+
+Đường chạy NỀN cùng tên `purpose` (`evaluate-sync`, hàng đợi `COMPANY_BRIEF`, `job.requirements`, `skill.canonicalize`, `upskill.*`, `profile.synthesize`, `scrape.plan`) **không đọc biến này** — chúng dùng model mặc định của hệ thống, cố ý không đổi.
+
+**`AI_FAST_FALLBACK_IDS` — chuỗi dự phòng RIÊNG cho bốn điểm gọi qua `ModelChain` ở trên, thêm 2026-09-30.** Mặc định (để trống) chúng rơi về `MODEL_FALLBACK_IDS` chung — an toàn nhưng có thể dính lại model chậm của tác vụ nền nếu Groq hỏng. Đặt biến này thì **THAY HẲN**, không cộng dồn: `AI_FAST_MODEL_ID` hỏng sẽ thử tiếp đúng những model trong danh sách này, không bao giờ rơi xuống chuỗi chậm.
+
+Cơ chế: `ModelChain.links()`/`run()` nhận thêm tham số `fallbackOverride?: string[]`, và `GenerateObjectOptions`/`StreamObjectOptions` có thêm `fallbackModelIds?: string[]`. Bốn call site đọc qua `modelIdsFrom(process.env.AI_FAST_FALLBACK_IDS)` (`common/model-env.ts`).
+
+**Bẫy đã bắt trước khi kịp lên production: `modelIdsFrom` KHÔNG được trả mảng RỖNG khi biến chưa đặt.** Bản đầu trả `[]` cho input rỗng/undefined — và `fallbackOverride ?? this.options.fallbackModelIds` không coi `[]` là nullish, nên mọi lượt gọi trong 4 chỗ trên (dù `AI_FAST_FALLBACK_IDS` chưa hề đặt) đều âm thầm XOÁ MẤT `MODEL_FALLBACK_IDS` mặc định — Groq hỏng là hỏng thẳng, không còn lưới nào, và không có gì báo lỗi cả. Nay hàm trả `undefined` khi danh sách rỗng, để `??` hoạt động đúng. `test/unit/common/model-env.spec.ts` ghim rõ phân biệt này.
+
+`interview.open`/`interview.turn` **không dùng được** `AI_FAST_FALLBACK_IDS` — chúng đi qua `streamText`, không qua `ModelChain`, và đó là chủ đích ("token đã rời đi thì không còn đường lùi"). Muốn thêm fallback cho đường này thì phải dựng cơ chế đệm mảnh-đầu-tiên riêng (giống `beginStream` của `streamObject`) — chưa làm, vì đó là một thay đổi kiến trúc lớn hơn hẳn việc thêm một tham số ghi đè.
+
+Cả hai biến để TRỐNG mặc định trong `.env.example` (chỉ ghi chú, không bật) — bật lên trước khi có `GROQ_API_KEY` thật và đã đo qua `bench-models.mjs`/`probe-skill-merge.mjs` là lặp lại đúng bẫy OmniRoute: tin lời khai mà không đo là tự hại chất lượng chấm điểm.
 
 `AiService` và `failure-*.ts` **cố ý ở nguyên `modules/ai/`**, không xuống `core/`: 10 module import `AiService`, **0 module** import `ModelCatalogService`. Cấu trúc thư mục đang nói đúng ranh giới đó, đừng xoá nó đi.
 

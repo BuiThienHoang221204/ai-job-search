@@ -101,6 +101,23 @@ describe("parseJobCards", () => {
     })
   })
 
+  test("thẻ lazy-load ảnh vẫn lấy được logo THẬT từ data-lazy, không phải ảnh giữ chỗ base64 rỗng", () => {
+    // Bẫy đã sập: src="data:image/gif;base64," là ảnh giữ chỗ trong lúc JS
+    // chưa chạy; logo thật nằm ở data-lazy. Trước khi sửa, regex cũ đòi
+    // <img src="..."> ngay sau <div class="item-logo">, và thứ tự thuộc tính
+    // lazy-load (class="lazy" đứng trước src) khiến nó KHÔNG khớp gì cả —
+    // 5/10 thẻ của trang ngành, 0/20 thẻ của trang từ khoá mất logo, không
+    // có gì báo lỗi.
+    for (const card of parseJobCards(categoryHtml)) {
+      expect(card.companyLogo).not.toBeNull()
+      expect(card.companyLogo).not.toContain("data:image")
+    }
+    for (const card of parseJobCards(keywordHtml)) {
+      expect(card.companyLogo).not.toBeNull()
+      expect(card.companyLogo).not.toContain("data:image")
+    }
+  })
+
   test("mọi chữ ở dạng NFC, trang rác trả rỗng", () => {
     for (const card of parseJobCards(keywordHtml)) {
       for (const value of [card.title, card.company, card.location]) {

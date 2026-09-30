@@ -151,6 +151,13 @@ export function splitJobCards(html: string): string[] {
 const textOf = (fragment: string | undefined): string | null =>
   fragment ? clean(fragment) || null : null
 
+/** Phần lớn thẻ lazy-load ảnh: `<img class="lazy" src="data:image/gif;base64,..." data-lazy="URL_THẬT">`. `src` lúc đó chỉ là ảnh giữ chỗ rỗng - logo thật nằm ở `data-lazy`. */
+const logoOf = (card: string): string | null => {
+  const block = card.match(/<div class="item-logo">([\s\S]*?)<\/div>/)?.[1]
+  if (!block) return null
+  return block.match(/data-lazy="([^"]+)"/)?.[1] ?? block.match(/\ssrc="(https?:\/\/[^"]+)"/)?.[1] ?? null
+}
+
 /** Lương không phải con số trả null như các portal khác. */
 export const salaryOf = (text: string | null): string | null =>
   text && !/thỏa thuận|thoả thuận|thương lượng|cạnh tranh/i.test(text) ? text : null
@@ -168,7 +175,7 @@ export function parseJobCard(card: string): JobCard | null {
     title,
     company: textOf(card.match(/<div class="item-company[^"]*"><span[^>]*>([\s\S]*?)<\/span>/)?.[1]),
     companyUrl: null,
-    companyLogo: card.match(/<div class="item-logo"><img src="([^"]+)"/)?.[1] ?? null,
+    companyLogo: logoOf(card),
     location: textOf(card.match(/<div class="item-address"><span[^>]*>([\s\S]*?)<\/span>/)?.[1]),
     workMode: null,
     salary: salaryOf(textOf(card.match(/<div class="item-rate"><span[^>]*>([\s\S]*?)<\/span>/)?.[1])),

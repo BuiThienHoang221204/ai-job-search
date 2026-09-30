@@ -61,6 +61,7 @@ const configuration = () => ({
        * kiểu gì.
        */
       kilo: process.env.KILO_API_KEY ?? 'public',
+      groq: process.env.GROQ_API_KEY ?? '',
     } as Record<string, string>,
 
     /**
@@ -74,6 +75,7 @@ const configuration = () => ({
       omniroute: process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
       /** Bỏ trống có chủ ý: container `opencode` nằm sau profile riêng, chưa bật thì lõi này phải tự vắng mặt. */
       opencode: process.env.OPENCODE_SERVICE_URL ?? '',
+      groq: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
     } as Record<string, string>,
 
     catalogUrl:

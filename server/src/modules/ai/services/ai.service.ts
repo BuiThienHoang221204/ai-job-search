@@ -83,6 +83,7 @@ export class AiService implements Ai {
       options.modelId,
       (modelId) => this.withFormatFallback({ ...options, modelId }),
       this.chainBudgetMs,
+      options.fallbackModelIds,
     );
   }
 
@@ -258,6 +259,7 @@ export class AiService implements Ai {
       options.modelId,
       (modelId) => this.streamOnce({ ...options, modelId }),
       this.chainBudgetMs,
+      options.fallbackModelIds,
     );
   }
 

@@ -25,7 +25,14 @@ const build = (
 ) => {
   const generateObject = jest.fn<
     Promise<{ object: typeof object; modelId: string }>,
-    [{ prompt: string; context: { purpose: string } }]
+    [
+      {
+        prompt: string;
+        context: { purpose: string };
+        modelId?: string;
+        fallbackModelIds?: string[];
+      },
+    ]
   >(() => Promise.resolve({ object, modelId: 'm1' }));
 
   const service = new JobFromUrlService(
@@ -123,5 +130,83 @@ describe('JobFromUrlService.extract', () => {
     expect(call.prompt).not.toContain('<html>');
     expect(call.prompt).toContain('Tuyển kế toán tổng hợp');
     expect(call.context.purpose).toBe('job.fromUrl');
+  });
+
+  describe('AI_FAST_MODEL_ID — người dùng đứng chờ trực diện lượt này', () => {
+    const ORIGINAL = process.env.AI_FAST_MODEL_ID;
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.AI_FAST_MODEL_ID;
+      else process.env.AI_FAST_MODEL_ID = ORIGINAL;
+    });
+
+    it('đặt biến môi trường thì truyền modelId đó cho AiService', async () => {
+      process.env.AI_FAST_MODEL_ID = 'groq/openai/gpt-oss-120b';
+      fetchPage.mockResolvedValue({
+        url: 'x',
+        status: 200,
+        body: LONG_POSTING,
+      });
+      const { service, generateObject } = build();
+
+      await service.extract('u1', 'https://x.test');
+
+      expect(generateObject.mock.calls[0][0].modelId).toBe(
+        'groq/openai/gpt-oss-120b',
+      );
+    });
+
+    it('không đặt thì modelId undefined — AiService tự rơi về chuỗi mặc định', async () => {
+      delete process.env.AI_FAST_MODEL_ID;
+      fetchPage.mockResolvedValue({
+        url: 'x',
+        status: 200,
+        body: LONG_POSTING,
+      });
+      const { service, generateObject } = build();
+
+      await service.extract('u1', 'https://x.test');
+
+      expect(generateObject.mock.calls[0][0].modelId).toBeUndefined();
+    });
+  });
+
+  describe('AI_FAST_FALLBACK_IDS — chuỗi dự phòng RIÊNG cho lượt nhanh', () => {
+    const ORIGINAL = process.env.AI_FAST_FALLBACK_IDS;
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.AI_FAST_FALLBACK_IDS;
+      else process.env.AI_FAST_FALLBACK_IDS = ORIGINAL;
+    });
+
+    it('đặt biến môi trường thì truyền đúng danh sách đã tách, đã trim', async () => {
+      process.env.AI_FAST_FALLBACK_IDS = 'groq/a, groq/b ,groq/c';
+      fetchPage.mockResolvedValue({
+        url: 'x',
+        status: 200,
+        body: LONG_POSTING,
+      });
+      const { service, generateObject } = build();
+
+      await service.extract('u1', 'https://x.test');
+
+      expect(generateObject.mock.calls[0][0].fallbackModelIds).toEqual([
+        'groq/a',
+        'groq/b',
+        'groq/c',
+      ]);
+    });
+
+    it('không đặt thì fallbackModelIds undefined — ModelChain tự dùng MODEL_FALLBACK_IDS mặc định, không mất lưới an toàn', async () => {
+      delete process.env.AI_FAST_FALLBACK_IDS;
+      fetchPage.mockResolvedValue({
+        url: 'x',
+        status: 200,
+        body: LONG_POSTING,
+      });
+      const { service, generateObject } = build();
+
+      await service.extract('u1', 'https://x.test');
+
+      expect(generateObject.mock.calls[0][0].fallbackModelIds).toBeUndefined();
+    });
   });
 });

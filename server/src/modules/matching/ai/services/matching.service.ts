@@ -32,6 +32,7 @@ import {
   EVALUATION_SECTIONS,
 } from '../prompt/evaluation.prompt.js';
 import { streamFailureEvent } from '../../../ai/utils/failure-view.js';
+import { modelIdsFrom } from '../../../../common/model-env.js';
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
@@ -165,6 +166,8 @@ export class MatchingService {
           context: { purpose: 'match.evaluate', userId },
           system,
           prompt,
+          modelId: process.env.AI_FAST_MODEL_ID || undefined,
+          fallbackModelIds: modelIdsFrom(process.env.AI_FAST_FALLBACK_IDS),
         });
 
       for await (const partial of partials) {
