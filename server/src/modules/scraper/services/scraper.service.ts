@@ -18,6 +18,7 @@ import { JobWriter } from './job-writer.service.js';
 import { collectCards } from '../utils/collect-cards.js';
 import type { CollectLimits } from '../types.js';
 import { requirementBatches } from '../utils/requirement-batches.js';
+import type { SearchPlan } from '../planning/search-plan.schema.js';
 
 /** ĐIỀU PHỐI: nối `QueryPlanner` → `collectCards` → `JobWriter` → hàng đợi, và đọc lịch sử `ScrapeRun`. Không tự chạm portal dòng nào. */
 @Injectable()
@@ -76,15 +77,44 @@ export class ScraperService {
 
     try {
       const userId = run.userId;
-      const system = userId ? null : await this.planner.forSystem(run.portal);
-      const { plan, modelId } = system
-        ? { plan: system.plan, modelId: null }
-        : await this.planner.forUser(
-            await this.prisma.profile.findUnique({
-              where: { userId: userId! },
-            }),
-            userId!,
-          );
+      const occupations =
+        this.portals.describePortals().find((p) => p.key === run.portal)
+          ?.occupations ?? null;
+
+      let system: { plan: SearchPlan; clusterCodes: string[] } | null = null;
+      let plan: SearchPlan;
+      let modelId: string | null = null;
+
+      if (userId) {
+        const profile = await this.prisma.profile.findUnique({
+          where: { userId },
+        });
+
+        if (
+          occupations &&
+          profile?.occupationCode &&
+          !occupations.includes(profile.occupationCode)
+        ) {
+          return await this.prisma.scrapeRun.update({
+            where: { id: runId },
+            data: {
+              status: 'DONE',
+              jobsFound: 0,
+              jobsNew: 0,
+              jobsQueued: 0,
+              error: `${run.portal} chỉ phục vụ ngành ${occupations.join(', ')}; hồ sơ thuộc ngành khác nên không có tin nào phù hợp.`,
+              finishedAt: new Date(),
+            },
+          });
+        }
+
+        const forUser = await this.planner.forUser(profile, userId);
+        plan = forUser.plan;
+        modelId = forUser.modelId;
+      } else {
+        system = await this.planner.forSystem(run.portal, occupations);
+        plan = system.plan;
+      }
 
       if (!plan.queries.length) {
         throw new Error(

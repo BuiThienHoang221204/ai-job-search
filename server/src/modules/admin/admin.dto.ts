@@ -172,6 +172,16 @@ export class TimeRangeQueryDto extends PaginationQueryDto {
 
 export class ScrapePortalsQueryDto extends TimeRangeQueryDto {}
 
+export class OccupationCoverageQueryDto {
+  /** Số ngày tính "đã quét" cho một ngành; mặc định 7 để khớp `SCRAPER_MAX_AGE_DAYS`. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  staleDays?: number;
+}
+
 export class ScrapeBatchesQueryDto extends TimeRangeQueryDto {
   /** Chỉ lượt đêm có ít nhất một portal hỏng. */
   @IsOptional()

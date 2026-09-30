@@ -19,6 +19,21 @@ const run = promisify(execFile);
 /** Nghỉ sau khi một lượt CLI XONG, chồng lên nhịp giữa hai lần gọi — lượt chạy lâu vẫn phải nghỉ chứ không đi tiếp ngay. */
 const REST_AFTER_CALL_MS = 1_200;
 
+/** CLI báo `BLOCKED` (captcha, thử thách chống bot) thì ngừng gọi portal đó chừng này — gọi tiếp khi đang bị chặn chỉ kéo dài lượt chặn. */
+export const BLOCKED_COOLDOWN_MS = 30 * 60_000;
+
+/** `delayMs` trong frontmatter phải là số nguyên dương; khai sai thì bỏ qua để portal vẫn chạy với nhịp chung. */
+const delayFrom = (raw: unknown): number | null =>
+  typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : null;
+
+/** `occupations` trong frontmatter phải là mảng chuỗi không rỗng; khai sai hoặc vắng mặt thì portal coi như phục vụ mọi ngành. */
+const occupationsFrom = (raw: unknown): string[] | null =>
+  Array.isArray(raw) &&
+  raw.length > 0 &&
+  raw.every((item) => typeof item === 'string' && item.trim().length > 0)
+    ? raw
+    : null;
+
 /** Suy khoá portal từ tên thư mục skill. */
 export function portalKeyFrom(directory: string): string {
   return directory.replace(/-(search|jobs|portal)$/, '');
@@ -29,7 +44,13 @@ export function evaluateCandidate(input: {
   directory: string;
   hasSkillFile: boolean;
   hasCli: boolean;
-  frontmatter: { enabled?: unknown; jobAge?: unknown; description?: unknown };
+  frontmatter: {
+    enabled?: unknown;
+    jobAge?: unknown;
+    delayMs?: unknown;
+    occupations?: unknown;
+    description?: unknown;
+  };
 }): { entry: PortalEntry } | { skip: string } {
   if (!input.hasSkillFile) return { skip: 'không có SKILL.md' };
   if (!input.hasCli) return { skip: 'không có cli/src/cli.ts' };
@@ -44,6 +65,8 @@ export function evaluateCandidate(input: {
       cliPath: `.agents/skills/${input.directory}/cli/src/cli.ts`,
       enabled,
       supportsJobAge: input.frontmatter.jobAge === true,
+      delayMs: delayFrom(input.frontmatter.delayMs),
+      occupations: occupationsFrom(input.frontmatter.occupations),
       description:
         typeof input.frontmatter.description === 'string'
           ? input.frontmatter.description
@@ -70,6 +93,9 @@ export class PortalCliService implements OnModuleInit {
 
   /** Mốc KẾT THÚC, tách khỏi mốc bắt đầu — hai mốc cho ra hai ràng buộc khác nhau, xem `pace`. */
   private lastDoneAt = new Map<string, number>();
+
+  /** Mốc hết hạn tạm ngừng của từng portal, đặt khi CLI báo `BLOCKED`. */
+  private blockedUntil = new Map<string, number>();
 
   constructor(config: ConfigService) {
     this.repoRoot = resolve(process.cwd(), '..');
@@ -155,8 +181,9 @@ export class PortalCliService implements OnModuleInit {
     const started = this.lastCallAt.get(portal);
     const finished = this.lastDoneAt.get(portal);
 
+    const delayMs = this.portals.get(portal)?.delayMs ?? this.delayMs;
     const wait = Math.max(
-      started === undefined ? 0 : this.delayMs - (now - started),
+      started === undefined ? 0 : delayMs - (now - started),
       finished === undefined ? 0 : REST_AFTER_CALL_MS - (now - finished),
     );
     if (wait > 0) await new Promise((done) => setTimeout(done, wait));
@@ -171,6 +198,13 @@ export class PortalCliService implements OnModuleInit {
       const available = this.listPortals().join(', ') || 'không có portal nào';
       throw new Error(
         `Portal chưa được đăng ký: ${portal}. Đang có: ${available}`,
+      );
+    }
+
+    const blockedUntil = this.blockedUntil.get(portal) ?? 0;
+    if (blockedUntil > Date.now()) {
+      throw new Error(
+        `${portal}: đang tạm ngừng tới ${new Date(blockedUntil).toISOString()} vì portal trả trang chống bot (BLOCKED)`,
       );
     }
 
@@ -193,6 +227,12 @@ export class PortalCliService implements OnModuleInit {
       const parsed = stderr.trim().startsWith('{')
         ? (JSON.parse(stderr.trim()) as { error?: string; code?: string })
         : null;
+      if (parsed?.code === 'BLOCKED') {
+        this.blockedUntil.set(portal, Date.now() + BLOCKED_COOLDOWN_MS);
+        this.logger.warn(
+          `${portal} trả trang chống bot; tạm ngừng gọi ${BLOCKED_COOLDOWN_MS / 60_000} phút`,
+        );
+      }
       throw new Error(
         parsed
           ? `${portal}: ${parsed.error} (${parsed.code})`
@@ -203,7 +243,7 @@ export class PortalCliService implements OnModuleInit {
     }
   }
 
-  /** Bốn CLI KHÔNG cùng hình dạng đầu ra: ba cái trả mảng trần, linkedin trả `{ meta, results }` và gọi `postedAt` là `date`. */
+  /** Các CLI KHÔNG cùng hình dạng đầu ra: ba cái trả mảng trần, linkedin trả `{ meta, results }` và gọi `postedAt` là `date`. */
   async search(portal: string, args: SearchArgs): Promise<PortalJobCard[]> {
     const argv = ['search', '--format', 'json'];
     if (args.query) argv.push('--query', args.query);

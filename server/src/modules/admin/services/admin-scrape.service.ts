@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { ScrapeBatchesQueryDto, TimeRangeQueryDto } from '../admin.dto.js';
+import type {
+  OccupationCoverageQueryDto,
+  ScrapeBatchesQueryDto,
+  TimeRangeQueryDto,
+} from '../admin.dto.js';
 import { pageFromArray } from '../../../common/pagination.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { JobSourceRouter } from '../../scraper/services/job-source.router.js';
@@ -9,6 +13,10 @@ import {
   portalStats,
   type RunLite,
 } from '../utils/scrape-batches.js';
+import { occupationCoverage } from '../utils/occupation-coverage.js';
+
+/** Mặc định `staleDays` khi không truyền — khớp `SCRAPER_MAX_AGE_DAYS`, đủ để chu kỳ phủ ~4 đêm chạy xong. */
+const DEFAULT_STALE_DAYS = 7;
 
 /** Trần số lượt đọc lên để gom; ~4 lượt mỗi đêm nên đủ cho hơn một năm. */
 const MAX_RUNS = 2_000;
@@ -44,6 +52,36 @@ export class AdminScrapeService {
       ? batches.filter((batch) => batch.failed > 0)
       : batches;
     return pageFromArray(items, query);
+  }
+
+  /** Số tin theo ngành ghép với mốc quét gần nhất — biến màn hình "Chọn ngành nghề" mà admin tự chụp ảnh thành một phép đo tự động. */
+  async occupationCoverage(query: OccupationCoverageQueryDto) {
+    const staleDays = query.staleDays ?? DEFAULT_STALE_DAYS;
+    const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
+
+    const [jobRows, crawlRows] = await Promise.all([
+      this.prisma.job.groupBy({
+        by: ['occupationCode'],
+        _count: { _all: true },
+      }),
+      this.prisma.occupationCrawl.findMany({
+        where: { lastCrawledAt: { gte: cutoff } },
+        select: { occupationCode: true },
+        distinct: ['occupationCode'],
+      }),
+    ]);
+
+    const jobCounts = new Map(
+      jobRows
+        .filter(
+          (row): row is typeof row & { occupationCode: string } =>
+            row.occupationCode !== null,
+        )
+        .map((row) => [row.occupationCode, row._count._all]),
+    );
+    const crawledCodes = new Set(crawlRows.map((row) => row.occupationCode));
+
+    return { staleDays, items: occupationCoverage(jobCounts, crawledCodes) };
   }
 
   private cap(): number {

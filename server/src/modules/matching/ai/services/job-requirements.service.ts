@@ -5,6 +5,7 @@ import type {
 } from '../../../../generated/prisma/client.js';
 import { PrismaService } from '../../../../prisma/prisma.service.js';
 import { AiService } from '../../../ai/services/ai.service.js';
+import { classifyFailure } from '../../../ai/utils/failure-kind.js';
 import {
   jobRequirementsBatchSchema,
   jobRequirementsSchema,
@@ -182,6 +183,16 @@ export class JobRequirementsService {
       return results;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      // Hết giờ nghĩa là gateway đang nghẽn: rút lẻ lại chỉ dồn thêm N request vào đúng chỗ đang tắc.
+      if (classifyFailure(error) === 'TIMEOUT') {
+        this.logger.warn(
+          `Lô ${batch.length} tin hết giờ (${message}); ghi FAILED cả lô, không rút lẻ`,
+        );
+        for (const entry of batch) {
+          results.push(await this.markFailed(entry.job.id, error));
+        }
+        return results;
+      }
       this.logger.warn(
         `Lô ${batch.length} tin hỏng (${message}); rút lại từng tin một`,
       );

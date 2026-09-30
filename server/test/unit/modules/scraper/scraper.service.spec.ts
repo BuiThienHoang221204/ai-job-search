@@ -12,7 +12,11 @@ import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
 import type { JobSourceRouter } from 'src/modules/scraper/services/job-source.router.js';
-import type { PortalJobCard, SearchArgs } from 'src/modules/scraper/types.js';
+import type {
+  PortalEntry,
+  PortalJobCard,
+  SearchArgs,
+} from 'src/modules/scraper/types.js';
 import { ScraperService } from 'src/modules/scraper/services/scraper.service.js';
 import type { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
@@ -50,11 +54,13 @@ const card = (
 function fakePortals(
   pages: Record<number, PortalJobCard[]>,
   detailDescription: (slug: string) => string = () => 'x'.repeat(200),
+  entries: PortalEntry[] = [],
 ) {
   const calls: SearchArgs[] = [];
   const detailSlugs: string[] = [];
   const router = {
     has: () => true,
+    describePortals: () => entries,
     search: (_portal: string, args: SearchArgs) => {
       calls.push(args);
       return Promise.resolve(pages[args.page ?? 1] ?? []);
@@ -194,7 +200,9 @@ describe('ScraperService.run - phân trang', () => {
       3: [card('e')],
     });
     const prisma = fakePrisma();
-    const service = buildService(prisma, router, fakeQueue());
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 1,
+    });
 
     await runScrape(service);
 
@@ -211,6 +219,7 @@ describe('ScraperService.run - phân trang', () => {
     const prisma = fakePrisma();
     const service = buildService(prisma, router, fakeQueue(), {
       'scraper.maxJobsPerPortal': 50,
+      'scraper.systemQueryLimit': 1,
     });
 
     await runScrape(service);
@@ -439,10 +448,14 @@ describe('ScraperService.run - chấm điểm theo yêu cầu', () => {
 });
 
 /** Portal giả trả về trang khác nhau cho TỪNG truy vấn. */
-function fakePortalsPerQuery(byQuery: Record<string, PortalJobCard[][]>) {
+function fakePortalsPerQuery(
+  byQuery: Record<string, PortalJobCard[][]>,
+  entries: PortalEntry[] = [],
+) {
   const calls: SearchArgs[] = [];
   const router = {
     has: () => true,
+    describePortals: () => entries,
     search: (_portal: string, args: SearchArgs) => {
       calls.push(args);
       const pages = byQuery[args.query ?? ''] ?? [];
@@ -494,7 +507,9 @@ describe('ScraperService.run - chia hạn ngạch cho mọi truy vấn', () => {
       'Kế toán tổng hợp': [[card('kt1'), card('kt2')]],
     });
     const prisma = twoIndustryPrisma();
-    const service = buildService(prisma, router, fakeQueue());
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 2,
+    });
 
     await runScrape(service);
 
@@ -516,7 +531,9 @@ describe('ScraperService.run - chia hạn ngạch cho mọi truy vấn', () => {
       'Kế toán tổng hợp': [[card('kt1'), card('kt2')]],
     });
     const prisma = twoIndustryPrisma();
-    const service = buildService(prisma, router, fakeQueue());
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 2,
+    });
 
     await runScrape(service);
 
@@ -533,7 +550,9 @@ describe('ScraperService.run - chia hạn ngạch cho mọi truy vấn', () => {
       'Kế toán tổng hợp': [[]],
     });
     const prisma = twoIndustryPrisma();
-    const service = buildService(prisma, router, fakeQueue());
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 2,
+    });
 
     await runScrape(service);
 
@@ -545,7 +564,9 @@ describe('ScraperService.run - chia hạn ngạch cho mọi truy vấn', () => {
       'Điều dưỡng viên': [[card('dd1'), card('dd2'), card('dd3'), card('dd4')]],
       'Kế toán tổng hợp': [[]],
     });
-    const service = buildService(twoIndustryPrisma(), router, fakeQueue());
+    const service = buildService(twoIndustryPrisma(), router, fakeQueue(), {
+      'scraper.systemQueryLimit': 2,
+    });
 
     await runScrape(service);
 
@@ -607,6 +628,19 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
       'Chức danh FINANCE',
       'Chức danh HEALTHCARE',
     ]);
+  });
+
+  test('nghề CHƯA có hồ sơ nào vẫn được quét nhờ sàn phủ taxonomy', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = industriesPrisma({ FINANCE: 1 });
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 200,
+    });
+
+    await runScrape(service);
+
+    // HOSPITALITY không có hồ sơ nào trong fixture này.
+    expect(plannedQueries(prisma)).toContain('Bếp');
   });
 
   test('ngành vừa quét đêm trước nhường chỗ cho ngành chưa tới lượt', async () => {
@@ -695,6 +729,143 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
     await runScrape(service);
 
     expect(prisma.occupationCrawl.upsert).not.toHaveBeenCalled();
+  });
+});
+
+/** Một portal chỉ đứng ra phục vụ một số nhóm ngành (vd. ITviec chỉ CNTT). */
+const itOnlyPortal: PortalEntry = {
+  key: 'topcv',
+  directory: 'topcv-search',
+  cliPath: '.agents/skills/topcv-search/cli/src/cli.ts',
+  enabled: true,
+  supportsJobAge: false,
+  delayMs: null,
+  occupations: ['IT'],
+  description: '',
+};
+
+describe('ScraperService.run - portal giới hạn ngành', () => {
+  test('lượt hệ thống chỉ chọn cụm thuộc ngành portal phục vụ', async () => {
+    const { router } = fakePortals({ 1: [card('a')] }, undefined, [
+      itOnlyPortal,
+    ]);
+    const prisma = industriesPrisma({ FINANCE: 3, IT: 1 });
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 10,
+    });
+
+    await runScrape(service);
+
+    const call = prisma.scrapeRun.update.mock.calls.find(
+      (args) => (args[0].data as { queries?: unknown }).queries !== undefined,
+    );
+    const queries = (call![0].data as { queries: Array<{ rationale: string }> })
+      .queries;
+
+    expect(queries.every((q) => q.rationale.includes('IT'))).toBe(true);
+    expect(queries.some((q) => q.rationale.includes('FINANCE'))).toBe(false);
+  });
+
+  test('lượt hệ thống vẫn phủ được nghề portal phục vụ dù chưa ai có hồ sơ', async () => {
+    const { router } = fakePortals({ 1: [card('a')] }, undefined, [
+      itOnlyPortal,
+    ]);
+    const prisma = industriesPrisma({ FINANCE: 3 });
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.systemQueryLimit': 20,
+    });
+
+    await runScrape(service);
+
+    const call = prisma.scrapeRun.update.mock.calls.find(
+      (args) => (args[0].data as { queries?: unknown }).queries !== undefined,
+    );
+    const queries = (call![0].data as { queries: Array<{ rationale: string }> })
+      .queries;
+
+    expect(queries.length).toBeGreaterThan(0);
+    expect(queries.every((q) => q.rationale.includes('IT'))).toBe(true);
+  });
+
+  test('lượt NGƯỜI DÙNG ngành khác kết thúc DONE kèm lý do, không gọi portal', async () => {
+    const { router, calls } = fakePortals({ 1: [card('a')] }, undefined, [
+      itOnlyPortal,
+    ]);
+    const prisma = fakePrisma();
+    prisma.scrapeRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'run-1',
+      portal: 'topcv',
+      userId: 'u1',
+    });
+    prisma.profile.findUnique = jest.fn().mockResolvedValue({
+      headline: 'Kế toán tổng hợp',
+      location: 'Hà Nội',
+      primarySkills: ['MISA'],
+      targetSectors: [],
+      occupationCode: 'FINANCE',
+    });
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(calls).toHaveLength(0);
+    const done = prisma.scrapeRun.update.mock.calls.at(-1)![0].data as {
+      status: string;
+      jobsFound: number;
+      error: string | null;
+    };
+    expect(done.status).toBe('DONE');
+    expect(done.jobsFound).toBe(0);
+    expect(done.error).toContain('topcv');
+  });
+
+  test('lượt NGƯỜI DÙNG cùng ngành portal thì quét bình thường', async () => {
+    const { router, calls } = fakePortals({ 1: [card('a')] }, undefined, [
+      itOnlyPortal,
+    ]);
+    const prisma = fakePrisma();
+    prisma.scrapeRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'run-1',
+      portal: 'topcv',
+      userId: 'u1',
+    });
+    prisma.profile.findUnique = jest.fn().mockResolvedValue({
+      headline: 'Backend Developer',
+      location: 'Hà Nội',
+      primarySkills: ['NodeJS'],
+      targetSectors: [],
+      occupationCode: 'IT',
+    });
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(calls.length).toBeGreaterThan(0);
+  });
+
+  test('hồ sơ chưa rõ ngành thì không bị cổng portal chặn', async () => {
+    // Không có căn cứ để biết "ngành của họ" — giống bất biến occupationGate.
+    const { router, calls } = fakePortals({ 1: [card('a')] }, undefined, [
+      itOnlyPortal,
+    ]);
+    const prisma = fakePrisma();
+    prisma.scrapeRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'run-1',
+      portal: 'topcv',
+      userId: 'u1',
+    });
+    prisma.profile.findUnique = jest.fn().mockResolvedValue({
+      headline: 'Kế toán tổng hợp',
+      location: 'Hà Nội',
+      primarySkills: ['MISA'],
+      targetSectors: [],
+      occupationCode: null,
+    });
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(calls.length).toBeGreaterThan(0);
   });
 });
 

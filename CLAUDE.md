@@ -240,9 +240,35 @@ Ngày tháng trong thư dùng chuỗi tiếng Việt tự dựng, KHÔNG dùng `
 
 `ScraperService` KHÔNG biết một nguồn được lấy bằng cách nào — nó hỏi `JobSourceRouter`. Hiện chỉ có một adapter:
 
-- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bốn portal Việt nằm ở đây.
+- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bảy portal Việt (ITviec, TopCV, VietnamWorks, CareerLink, Vieclam24h, CareerViet, JobOKO) cùng LinkedIn nằm ở đây.
 
 Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn mới mà `ScraperService` không phải biết.
+
+### Thêm portal — khảo sát 2026-09-29 và hai lỗ hổng nó làm lộ ra
+
+**Thêm portal = thêm một thư mục `.agents/skills/<p>-search/`** (`SKILL.md` + `cli/src/cli.ts` in JSON theo hợp đồng của `scraper/utils/normalize.ts`). Backend, UI, Dockerfile và CI không khai cứng tên portal nào; `POST /api/scrape/portals/reload` nạp portal mới không cần khởi động lại.
+
+| Portal | Trạng thái | Ghi chú |
+|---|---|---|
+| `careerlink` | **ĐÃ THÊM** | HTML thường, `?keyword=`; JSON-LD `JobPosting` ở trang chi tiết; tên công ty trả NFD; hCaptcha → `delayMs: 10000` |
+| `vieclam24h` | **ĐÃ THÊM** | KHÔNG tìm theo từ khoá tự do được: tham số thật `q` bị robots.txt chặn, còn `?keyword=` bị trang BỎ QUA (0/30 tin liên quan — ghi nhầm trong bản khảo sát đầu). Đi qua trang **ngành con** tra từ sitemap (~29.000 trang, đệm đĩa 24h), lùi về ngành cha. `?page=` không đổi nội dung phía server → `page > 1` trả `[]`. `delayMs: 8000` |
+| `careerviet` | **ĐÃ THÊM** | Tìm theo từ khoá THẬT `/viec-lam/<slug>-k-vi.html`, trang N `-k-trang-N-vi.html` (50 tin/trang). JSON-LD đặt NGƯỢC chuẩn: `addressRegion` là QUẬN, `addressLocality` mới là tỉnh. Trang ~1,5MB → `delayMs: 8000`. robots.txt chặn GPTBot/ClaudeBot/CCBot |
+| `joboko` | **ĐÃ THÊM** | robots.txt chặn `/jobs?*` và `/viec-lam-theo-khoa?*`, không có sitemap → KHÔNG tìm theo từ khoá tự do. Thử trang từ khoá biên tập sẵn `/tim-viec-lam-<cụm>` (tối đa 2 lần, hụt là 404), lùi về 111 trang ngành `?p=N`. Thẻ tin KHÔNG có ngày đăng (ngày trên thẻ là HẠN NỘP) → `postedAt: null`. `delayMs: 8000` |
+| `jobsgo` | **KHÔNG làm** | Cloudflare bắt giải thử thách JS cho MỌI URL, kể cả `robots.txt`. Giải nó là vượt rào kiểm soát truy cập |
+
+**Trang chặn trả HTTP 200 — CLI phải kiểm NỘI DUNG, không chỉ mã.** Lượt quét CareerLink đầu tiên ở nhịp 3 giây bị hCaptcha sau ~28 trang chi tiết; trang captcha là 200 nên CLI cũ coi là "0 kết quả" và 22/50 tin mới bị bỏ mà lượt quét vẫn báo `DONE`. Nay CLI nhận ra trang chặn thì báo mã **`BLOCKED`** trên stderr.
+
+**Nhưng dò CHỮ thử thách một mình là bẫy ngược chiều.** JobOKO gắn widget `g-recaptcha` vào form "Góp ý"/"Báo cáo tin" trên MỌI trang; CLI đầu tiên dò chữ đó nên báo `BLOCKED` cả trang thật — cầu dao bên dưới sẽ tạm ngừng portal mãi mãi mà không ai hiểu vì sao. Test bắt được trước khi lọt. Quy tắc nay: **trang chặn = có dấu hiệu thử thách VÀ không có nội dung thật** (thẻ tin, JSON-LD `JobPosting`, hay `__NEXT_DATA__`). Portal mới phải có một test đưa trang thật kèm widget reCAPTCHA vào `isBlockedPage` và chờ `false`.
+
+**Cầu dao `BLOCKED` nằm trong `PortalCliService.invoke`** (áp cho MỌI portal): gặp mã đó thì ngừng gọi portal ấy `BLOCKED_COOLDOWN_MS` (30 phút) và ném ngay không chạy CLI. Trước đó `JobWriter` vẫn gọi `detail` cho từng tin còn lại — mỗi lần một request vào đúng trang đang chặn mình, kéo dài lượt chặn. Portal mới nào có trang chặn riêng thì CLI của nó phải báo `BLOCKED`; `test/unit/modules/scraper/portal-blocked.spec.ts` canh cầu dao.
+
+**TopCV: 403 là `BLOCKED` NGAY, không thử lại** (`fetchVerdict` trong `topcv-search/cli/src/helpers.ts`). Hai lượt hỏng 28/09 và 30/09 nhận 403 đủ 5/5 lần trong 30s lùi dần — thử lại chưa cứu được lượt nào, chỉ gửi thêm 4 request đúng lúc đang bị chặn. Trước đó CLI báo `FETCH_FAILED` nên cầu dao không bật. Cloudflare của TopCV chặn THEO ĐỢT chứ không vĩnh viễn: cùng hai truy vấn đó chạy lại vài giờ sau vẫn ra tin.
+
+**Một truy vấn lỗi KHÔNG còn kéo đổ cả lượt quét** (`collectCards`). Trước đó `deps.search` ném thẳng ra ngoài: truy vấn đầu 403 là cả lượt `FAILED` với `jobsFound: 0`, tin đã gom từ truy vấn trước cũng mất. Nay: lỗi thường thì bỏ truy vấn đó, đi tiếp; `BLOCKED` thì dừng mọi truy vấn còn lại nhưng GIỮ tin đã gom; không gom được tin nào thì vẫn ném lỗi đầu tiên để lượt hỏng đúng lý do. `requested` chỉ bật SAU khi request thành công — đóng dấu nghề chưa quét được là đúng lỗi tự nuôi của vòng xoay đã ghi ở mục cụm nghề.
+
+**Nhịp riêng từng portal: `delayMs` trong frontmatter `SKILL.md`** (số nguyên dương, mili giây), thay cho `SCRAPER_PORTAL_DELAY_MS` chung. Khai sai kiểu thì bị bỏ qua và portal chạy nhịp chung. Nâng nhịp khi thấy `BLOCKED` lặp lại, đừng hạ.
+
+**Lương dạng số (`salaryMin/Max`) đang TRỐNG ở mọi portal quét**, không riêng portal nào (đếm 2026-09-29: 0 tin ở cả 5 nguồn) — chỉ có `salaryRaw`. Khoảng trống sẵn có của pipeline, chưa sửa.
 
 **Nhịp chống chặn IP nằm TRỌN trong `PortalCliService.pace()`, đừng thêm `sleep` ở phía người gọi.** Tới 2026-09-23 nó nằm ở hai chỗ: `pace()` giữ 3.000ms giữa hai lần GỌI, còn `collect-cards.ts` và `job-writer.service.ts` mỗi nơi tự `sleep(1.200ms)` sau khi gọi xong. Hai phanh chồng nhau cho khoảng cách thật là `max(3000, T + 1200)` với `T` là thời gian một lượt CLI — tức 1.200ms kia **chỉ có tác dụng khi một lượt chạy quá 1,8 giây**, và muốn đổi nhịp thì phải nhớ hai nơi, một ở `.env` một nằm cứng trong code. Nay `pace()` giữ cả hai ràng buộc (mốc GỌI và mốc XONG, hai `Map` riêng) nên hành vi không đổi mà chỉ còn một chỗ sửa. Quan trọng hơn: `invoke()` là chốt bắt buộc — code mới gọi `portals.search()` vẫn được giữ nhịp dù tác giả không biết gì về nó, còn một `sleep` ở phía người gọi thì quên là mất. `test/unit/modules/scraper/portal-pace.spec.ts` ghim cả hai ràng buộc, vì hỏng chỗ này **không có gì báo** — chỉ là portal bắt đầu chặn IP sau vài đêm.
 
@@ -299,9 +325,25 @@ Nay `scraper.service` xếp hàng theo **lô 5 tin** (`REQUIREMENTS_BATCH`) và 
 
 **Bản sao giữa các portal được LƯU kèm `duplicateOfId`, không bị bỏ qua.** Bỏ qua thì tập "đã biết" (theo `source` + `externalId`) đêm sau lại tưởng là tin mới và lại tốn một request `detail` — mỗi đêm một lần, mãi mãi. Và `dedupeKey` **không được** đặt `@@unique`: hai tin khác nhau đụng khoá thì `upsert` ghi đè mất một tin. Chi tiết ở `server/README.md`, mục "Chống trùng".
 
-**ITviec chỉ có IT, và vẫn cố ý được gọi cho mọi người.** Chọn portal theo ngành cần một khái niệm "ngành của hồ sơ" mà `Profile` chưa có. Trong lúc đó, người dùng ngoài IT chịu một lượt quét rỗng — **giao diện phải phân biệt "0 tin vì portal không phục vụ ngành này" với "0 tin vì hỏng"**, không thì họ tưởng app lỗi.
+**ITviec chỉ có IT — sửa 2026-09-30, không còn "cố ý gọi cho mọi người" nữa.** SKILL.md của một portal có thể khai `occupations: [IT, DATA_AI]` (mã NHÓM ngành, không phải mã nghề con); trường vắng mặt = phục vụ mọi ngành, giữ nguyên hành vi cũ cho các portal khác. `PortalCliService.evaluateCandidate` đọc nó vào `PortalEntry.occupations`.
 
-**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. Đã biết, cố ý chưa sửa.
+Hai chỗ dùng nó, và cả hai đều LỌC TRƯỚC khi xoay vòng/gọi model, không lọc sau:
+
+- **Lượt hệ thống** (`QueryPlanner.forSystem(portal, occupations)`): lọc `clusters` (cả hồ sơ thật lẫn sàn phủ taxonomy) theo `occupationGroupOf(clusterCode)` **trước** khi sắp theo `crawledAt`. Lọc SAU xoay vòng sẽ để nghề portal không phục vụ chiếm suất mãi mãi — nó không bao giờ được `markCrawled` nên `crawledAt` luôn là 0, luôn thắng tie-break "cũ nhất trước", và đè luôn nghề portal thật sự phục vụ ra khỏi `systemQueryLimit` slot sau đêm đầu tiên.
+- **Lượt người dùng** (`ScraperService.run`): so `Profile.occupationCode` với `occupations` của portal **trước khi gọi `forUser`** — khớp cổng `occupationGate` đã có ở đường đọc: hồ sơ chưa rõ ngành (`occupationCode: null`) thì không bị chặn, vì không có căn cứ để biết "ngành của họ". Không khớp thì trả `DONE` ngay với `jobsFound: 0` và `error` giải thích rõ, **không gọi portal, không tốn lượt AI tinh chỉnh truy vấn** — đây chính là "0 tin vì portal không phục vụ ngành này" tách khỏi "0 tin vì hỏng" mà đoạn trước còn nợ.
+
+`occupationGroupOf` (`query-plan.ts`) suy nhóm cha từ `SUB_OCCUPATION_PARENT`; mã đã là mã nhóm (nhánh lùi) thì trả về chính nó.
+
+**`systemQueries()` tự khuếch đại thiên lệch của tập hồ sơ hiện có** — DB toàn IT thì cron mang về tin IT thì người ngành khác bỏ đi thì DB vẫn toàn IT. **Sửa 2026-09-30**: `QueryPlanner.forSystem` nay gộp thêm `taxonomyBaseline()` (`query-plan.ts`) — một cụm `size: 0` cho MỌI nghề trong `SUB_OCCUPATIONS` chưa có hồ sơ nào, đi thẳng vào cơ chế xoay vòng `crawledAt` đã có sẵn nên không cần ngân sách riêng; cụm có hồ sơ thật luôn thắng khi tie-break. Chưa chạy đêm nào trên production tính tới lúc viết dòng này — vòng phủ đầu cần khoảng bốn đêm (77 nghề / `SCRAPER_SYSTEM_QUERY_LIMIT` 20) để chạm hết, nên đừng kỳ vọng số liệu đổi ngay lập tức.
+
+**Audit từ khoá taxonomy 2026-09-30 — hai bẫy đã sập trước khi `taxonomyBaseline()` kịp chạy đêm nào.** Rà toàn bộ `SUB_OCCUPATIONS` (đúng thứ mà nghi ngờ đầu tiên hay đổ cho "chưa có hồ sơ" thay vì kiểm từ khoá trước):
+
+- **Tên nghề gộp hai khái niệm bằng `"/"` không được cắt lấy NỬA ĐẦU vô điều kiện.** `HR_CB` khai `name: "C&B / Nhân sự tổng hợp"` — nửa đầu `"C&B"` là biệt ngữ lương-thưởng, không phải cụm từ ai đăng tin tuyển dụng bằng nó. `pickNamePart` (`query-plan.ts`) nay ưu tiên nửa có DẤU tiếng Việt trước (đúng convention "ngành ngoài IT phải tiếng Việt có dấu"), hai nửa cùng có/không có dấu thì lấy nửa DÀI hơn. **Cố ý KHÔNG lấy nửa dài hơn vô điều kiện** — thử nghiệm lộ ra `MKT_CONTENT` (`"Nội dung / Copywriting"`) sẽ lật từ `"Nội dung"` sang `"Copywriting"` nếu chỉ so độ dài, đúng cái bẫy sai-ngôn-ngữ-theo-ngành đã ghi ở trên.
+- **Nhóm tiếng Anh (IT/DATA_AI) không tự động nghĩa là `keywords[0]` là tiếng Anh.** `IT_EMBEDDED` khai `keywords: ['nhung', 'embedded', ...]` — `'nhung'` là `"nhúng"` bỏ dấu, không tiếng Anh cũng không tiếng Việt có dấu, nên trước khi sửa nó trả về 0 kết quả y hệt triệu chứng "portal hỏng". Đã đổi thứ tự để `'embedded'` đứng đầu; thứ tự không ảnh hưởng `resolveSubOccupation` (dùng `.some()`, không quan tâm vị trí).
+
+`test/unit/modules/scraper/query-plan.spec.ts` ghim cả ba ca (`HR_CB`, `MKT_CONTENT` không bị lật ngôn ngữ, `IT_EMBEDDED`). Không tìm thấy vấn đề tương tự ở các nhóm còn lại trong ảnh chụp gốc (`HOSPITALITY`, `AGRICULTURE`, `MANUAL`, `RETAIL`, `DATA_AI`) — từ khoá của chúng đã đúng convention từ trước, 0 tin ở các nhóm đó thuần tuý là hệ quả của bug "chưa có hồ sơ" mà P0 vừa sửa.
+
+**`GET /admin/scrape/occupation-coverage` — thêm 2026-09-30, thay việc admin tự chụp ảnh "Chọn ngành nghề" đi so tay.** Ghép `Job.occupationCode` (đếm) với `OccupationCrawl.lastCrawledAt` (đã quét trong `staleDays` ngày, mặc định 7) cho từng nhóm ngành, trừ `OTHER`. `stale: true` CHỈ khi ngành đã có lượt quét mà vẫn 0 tin — **cố ý không** báo động cho ngành chưa từng được quét (`attempted: false, jobCount: 0`), vì đó là trạng thái bình thường trong ~4 đêm đầu của chu kỳ phủ `taxonomyBaseline()`, không phải bug. Logic thuần ở `admin/utils/occupation-coverage.ts` (không đụng `this.prisma`, test được không cần DB); truy vấn nằm ở `AdminScrapeService.occupationCoverage`.
 
 ### Lượt quét hệ thống gom cụm theo NGHỀ, không theo nhóm ngành
 
@@ -543,6 +585,14 @@ Muốn thêm model vào `streamsJson` thì phải đo bằng **đúng prompt pro
 **Nhưng đi qua `opencode-service` thì stream KHÔNG hiện chữ dần**, và đó là giới hạn của CLI chứ không phải của app. Đo 2026-09-28: một phản hồi 4.506 ký tự về trong **đúng một mảnh** ở giây thứ 16,9 — `opencode run --format json` chỉ in phần chữ khi đã viết xong, và `run --help` không có cờ nào đổi điều đó. Muốn chữ chạy dần thì phải chuyển container sang `opencode serve` rồi đọc luồng sự kiện của nó. Bật `'all'` vẫn đáng giữ: sau khi có bộ lọc, đường stream tốn đúng một lượt gọi như đường không-stream.
 
 **`opencode-service` giữ mọi model đã thấy trong 30 phút** (`OPENCODE_MODELS_SEEN_MS`), không chỉ bản chụp của lần hỏi cuối: `opencode models` gọi ba lần liền cho ra hai danh sách khác nhau, và `space-bunny-free` lúc có lúc không. Model thật sự đã bị rút thì lượt gọi hỏng 502 và `ModelChain` đi tiếp.
+
+**`opencode-service` từng tự nghẽn vĩnh viễn — sửa 2026-09-30.** Từ 29/09 11:02 không lượt gọi opencode nào qua: `/health` báo `running: 2, queued: 21`, mọi lượt TIMEOUT đúng 90,0s. Ba lỗi chồng nhau:
+
+1. **Service không biết app đã bỏ đi.** App hết giờ ở 90s, CLI được 180s (`OPENCODE_TIMEOUT_MS`), và request đang XẾP HÀNG vẫn được chạy CLI trọn vẹn khi tới lượt — mỗi request bị huỷ vẫn chiếm một chỗ, hàng đợi không bao giờ vơi. Nay `res.on('close')` gỡ request khỏi hàng và giết tiến trình đang chạy.
+2. **Hàng đợi không có trần.** App đẩy tới 25 việc song song (5 `job.requirements` + 10 `skill.canonicalize` + 10 `match.evaluate`) vào 2 chỗ. Nay `OPENCODE_MAX_QUEUE` (mặc định 2) — đầy thì trả **429 ngay**, mà 429 nằm trong danh sách đổi mắt xích nên app chuyển sang model khác thay vì chờ đủ 90s. TIMEOUT thì KHÔNG nằm trong danh sách đó — chờ tới hết giờ là cách chắc chắn nhất để chuỗi dự phòng không bao giờ chạy.
+3. **Model sập PHÍA NHÀ CUNG CẤP trông y như nghẽn.** `ling-3.0-flash-fin-free` trả `Upstream request failed: Endpoint is unavailable`; CLI tự thử lại 6 lần trong ~70s rồi mới thoát, nên mỗi lượt đốt gần trọn 90s. Chỉ thấy được bằng `opencode run ... --print-logs` chạy thẳng trong container — qua service thì stderr rỗng, chỉ còn "CLI thoát mã 1". Thử model thì chạy TỪNG CÁI MỘT: container 1 CPU/1GB, 5 CLI song song (~259MB mỗi cái) tranh tài nguyên và hỏng cả 5, kể cả model đang sống.
+
+Kèm theo: **lô `job.requirements` hết giờ KHÔNG rút lẻ lại** nữa — rút lẻ nhân một lô hết giờ thành N request dồn vào đúng chỗ đang tắc; chỉ lỗi schema / lô thiếu tin mới rút lẻ.
 
 **Đừng kỳ vọng cache.** Đo 2 lượt liên tiếp cùng prompt: `cached=0` cả hai. Ghim model KHÔNG cứu được cache ở đây vì `kc/openrouter/free` bản thân nó cũng là một tầng định tuyến, cộng omniroute là chặng nữa — prompt không ở yên với nhà cung cấp nào đủ lâu. Số liệu cả bảng: `match.evaluate` 376 lượt, chỉ 5 lượt có `cachedTokens > 0`.
 

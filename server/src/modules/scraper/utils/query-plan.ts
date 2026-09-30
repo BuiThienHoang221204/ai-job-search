@@ -5,6 +5,10 @@ import type {
   QueryProfile,
 } from '../types.js';
 import { resolveSubOccupation } from '../../jobs/taxonomy/resolve.js';
+import {
+  SUB_OCCUPATIONS,
+  SUB_OCCUPATION_PARENT,
+} from '../../jobs/taxonomy/sub-occupations.js';
 import { jobTitleOf } from '../../profile/utils/occupation.js';
 
 export const MAX_QUERIES = 5;
@@ -113,6 +117,46 @@ export function clusterProfiles(profiles: ClusterProfile[]): ProfileCluster[] {
   return clusters.sort(
     (a, b) => b.size - a.size || a.clusterCode.localeCompare(b.clusterCode),
   );
+}
+
+/** Nhóm quét bằng tiếng Anh vì tin IT/Dữ liệu ở Việt Nam đăng chức danh tiếng Anh; nhóm còn lại cần tiếng Việt có dấu mới ra kết quả. */
+const ENGLISH_QUERY_GROUPS = new Set(['IT', 'DATA_AI']);
+
+/** Ký tự tiếng Việt có dấu — dùng để chọn ĐÚNG nửa tiếng Việt khi tên nghề gộp hai khái niệm bằng "/". */
+const HAS_VIETNAMESE_DIACRITICS = /[^ -~]/;
+
+/** Ưu tiên nửa có DẤU tiếng Việt (`"C&B / Nhân sự tổng hợp"` → nửa sau, không phải `"C&B"`); hai nửa cùng có/không có dấu thì lấy nửa DÀI hơn (`"3D / Game Art"` → `"Game Art"`). */
+function pickNamePart(name: string): string {
+  const parts = name
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length <= 1) return name.trim();
+
+  const accented = parts.filter((part) => HAS_VIETNAMESE_DIACRITICS.test(part));
+  if (accented.length === 1) return accented[0];
+
+  return parts.reduce((longest, part) =>
+    part.length > longest.length ? part : longest,
+  );
+}
+
+/** Sàn phủ TOÀN taxonomy không phụ thuộc `Profile` — phá vòng lặp "ngành chưa ai có hồ sơ thì cron không bao giờ quét"; `size: 0` để cụm có hồ sơ thật luôn thắng khi tie-break. */
+export function taxonomyBaseline(): ProfileCluster[] {
+  return Object.entries(SUB_OCCUPATIONS).flatMap(([groupCode, subs]) =>
+    subs.map((sub) => ({
+      clusterCode: sub.code,
+      query: ENGLISH_QUERY_GROUPS.has(groupCode)
+        ? sub.keywords[0]
+        : pickNamePart(sub.name),
+      size: 0,
+    })),
+  );
+}
+
+/** Mã NHÓM cha của một cluster code — cluster có thể đã là mã nhóm (nhánh lùi) hoặc mã nghề con. */
+export function occupationGroupOf(clusterCode: string): string {
+  return SUB_OCCUPATION_PARENT[clusterCode] ?? clusterCode;
 }
 
 export function clusterQuery(cluster: ProfileCluster): PlannedQuery {

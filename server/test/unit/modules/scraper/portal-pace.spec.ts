@@ -20,6 +20,7 @@ const config = {
 /** Gọi thẳng `pace` và `lastDoneAt` - dựng CLI thật chỉ để đo nhịp là quá đắt. */
 type Paced = {
   pace(portal: string): Promise<void>;
+  portals: Map<string, { delayMs: number | null }>;
   lastDoneAt: Map<string, number>;
   lastCallAt: Map<string, number>;
 };
@@ -82,5 +83,21 @@ describe('PortalCliService.pace', () => {
     service.lastDoneAt.set('topcv', Date.now());
 
     expect(await waitedMs(service, 'itviec')).toBe(0);
+  });
+
+  test('portal khai delayMs riêng thì dùng nhịp đó thay cho nhịp chung', async () => {
+    const service = paced();
+    service.portals.set('careerlink', { delayMs: 10_000 });
+    service.lastCallAt.set('careerlink', Date.now());
+
+    expect(await waitedMs(service, 'careerlink')).toBe(10_000);
+  });
+
+  test('delayMs riêng của portal này KHÔNG đổi nhịp portal kia', async () => {
+    const service = paced();
+    service.portals.set('careerlink', { delayMs: 10_000 });
+    service.lastCallAt.set('topcv', Date.now());
+
+    expect(await waitedMs(service, 'topcv')).toBe(3_000);
   });
 });

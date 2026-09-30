@@ -36,21 +36,45 @@ function rememberSeen(ids) {
 const ACCESS_DENIED = /free tier|can only be used|unauthor|forbidden|\b401\b|\b403\b/i;
 const RATE_LIMITED = /rate.?limit|FreeUsageLimit|quota|\b429\b/i;
 
+// Trần hàng đợi. Đầy thì trả 429 NGAY để chuỗi dự phòng của app đổi model, thay vì để request chờ tới hết timeout phía app.
+// Đo 2026-09-30: không có trần thì hàng đợi lên 21 việc, mọi lượt gọi hết giờ đúng 90s và không lượt nào qua suốt một ngày.
+const MAX_QUEUE = Number(process.env.OPENCODE_MAX_QUEUE ?? 2);
+
 let running = 0;
 const waiting = [];
 
 // Hàng đợi tự viết thay vì thư viện: cả file này cố ý không có dependency nào.
-function acquire() {
+function acquire(signal) {
+  if (signal?.aborted) return Promise.reject(new CliError('client đã ngắt trước khi tới lượt', 499));
   if (running < MAX_CONCURRENCY) {
     running += 1;
     return Promise.resolve();
   }
-  return new Promise((resolve) => waiting.push(resolve));
+  if (waiting.length >= MAX_QUEUE) {
+    return Promise.reject(
+      new CliError(`rate limit exceeded: hàng đợi opencode-service đầy (${waiting.length}/${MAX_QUEUE})`, 429),
+    );
+  }
+  return new Promise((resolve, reject) => {
+    const entry = { resolve };
+    waiting.push(entry);
+    // Client bỏ đi khi còn xếp hàng thì GỠ khỏi hàng: không thì tới lượt vẫn chạy CLI trọn vẹn cho một người gọi đã không còn.
+    signal?.addEventListener(
+      'abort',
+      () => {
+        const index = waiting.indexOf(entry);
+        if (index === -1) return;
+        waiting.splice(index, 1);
+        reject(new CliError('client đã ngắt khi còn trong hàng đợi', 499));
+      },
+      { once: true },
+    );
+  });
 }
 
 function release() {
   const next = waiting.shift();
-  if (next) return next();
+  if (next) return next.resolve();
   running -= 1;
 }
 
@@ -119,7 +143,7 @@ class CliError extends Error {
 /**
  * Chạy một lượt CLI, gọi `onDelta` với phần chữ MỚI của mỗi mảnh.
  */
-function runCli({ model, message, onDelta }) {
+function runCli({ model, message, onDelta, signal }) {
   return new Promise((resolve, reject) => {
     const args = [
       'run',
@@ -152,6 +176,14 @@ function runCli({ model, message, onDelta }) {
       child.kill('SIGKILL');
       finish(reject, new CliError(`CLI không xong trong ${TIMEOUT_MS}ms`, 504));
     }, TIMEOUT_MS);
+
+    // App hết giờ (90s) sớm hơn TIMEOUT_MS (180s): không giết tiến trình thì nó giữ một trong hai chỗ thêm tới 90s cho một người gọi đã bỏ đi.
+    const onAbort = () => {
+      child.kill('SIGKILL');
+      finish(reject, new CliError('client đã ngắt, huỷ tiến trình CLI', 499));
+    };
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener('abort', onAbort, { once: true });
 
     const handleEvent = (event) => {
       if (event?.type === 'text' && event.part?.id) {
@@ -280,10 +312,23 @@ async function completions(req, res) {
   const created = Math.floor(Date.now() / 1000);
   const streaming = body.stream === true;
 
-  await acquire();
+  // `close` của res cũng bắn sau khi trả xong bình thường; chỉ coi là ngắt khi phản hồi CHƯA kết thúc.
+  const disconnect = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) disconnect.abort();
+  });
+  const { signal } = disconnect;
+
+  try {
+    await acquire(signal);
+  } catch (error) {
+    if (!res.writableEnded && !signal.aborted) sendError(res, error.status ?? 503, error.message);
+    return;
+  }
+
   try {
     if (!streaming) {
-      const { text, usage } = await runCli({ model, message });
+      const { text, usage } = await runCli({ model, message, signal });
       return sendJson(res, 200, {
         id,
         object: 'chat.completion',
@@ -323,6 +368,7 @@ async function completions(req, res) {
     const { usage } = await runCli({
       model,
       message,
+      signal,
       onDelta: (delta) => {
         open();
         res.write(chunk({ content: delta }));
@@ -344,6 +390,8 @@ async function completions(req, res) {
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (error) {
+    // Client đã đi thì không còn ai để trả lời.
+    if (signal.aborted) return;
     const status = error.status ?? 502;
     if (res.headersSent) {
       res.write(`data: ${JSON.stringify({ error: { message: error.message } })}\n\n`);

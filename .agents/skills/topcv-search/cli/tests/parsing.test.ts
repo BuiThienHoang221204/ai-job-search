@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   decodeEntities,
+  fetchVerdict,
+  isBlockedPage,
   matchesLocation,
   parseCardLocation,
   parseDetailTitle,
@@ -247,5 +249,33 @@ describe("decodeEntities", () => {
 
   test("giữ nguyên chuỗi không phải thực thể", () => {
     expect(decodeEntities("100% & tăng")).toBe("100% & tăng")
+  })
+})
+
+describe("fetchVerdict - chặn thì báo BLOCKED, không thử lại", () => {
+  // Trang thử thách Cloudflare thật (lưu 2026-09-29 khi khảo sát jobsgo.vn).
+  const challenge = fixture("cloudflare-challenge.html")
+
+  test("403 là blocked NGAY - hai lượt hỏng thật nhận 403 đủ 5/5 lần, thử lại không cứu được", () => {
+    expect(fetchVerdict(403, challenge)).toBe("blocked")
+    expect(fetchVerdict(403, "")).toBe("blocked")
+  })
+
+  test("trang thử thách trả mã 200 vẫn là blocked", () => {
+    expect(isBlockedPage(challenge)).toBe(true)
+    expect(fetchVerdict(200, challenge)).toBe("blocked")
+  })
+
+  test("trang thật không bị nhận nhầm, kể cả khi có widget reCAPTCHA", () => {
+    expect(fetchVerdict(200, searchHtml)).toBe("ok")
+    expect(fetchVerdict(200, detailHtml)).toBe("ok")
+    expect(isBlockedPage(searchHtml + '<div class="g-recaptcha"></div>')).toBe(false)
+  })
+
+  test("429 và 5xx vẫn thử lại; 404 là không có trang", () => {
+    expect(fetchVerdict(429, "")).toBe("retry")
+    expect(fetchVerdict(502, "")).toBe("retry")
+    expect(fetchVerdict(404, "")).toBe("not-found")
+    expect(fetchVerdict(400, "")).toBe("fail")
   })
 })

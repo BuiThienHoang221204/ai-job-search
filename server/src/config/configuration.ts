@@ -161,7 +161,7 @@ const configuration = () => ({
      * khoảng bốn đêm, theo thứ tự cũ-trước của `OccupationCrawl`.
      */
     systemQueryLimit: parseInt(
-      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '20',
+      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '30',
       10,
     ),
 

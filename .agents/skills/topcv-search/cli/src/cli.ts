@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { detail } from "./commands/detail.ts"
 import { search } from "./commands/search.ts"
-import { writeError } from "./helpers.ts"
+import { BlockedError, writeError } from "./helpers.ts"
 
 const USAGE = `TopCV job search - danh sách việc làm công khai tại Việt Nam
 
@@ -111,6 +111,10 @@ try {
     process.exit(command ? 2 : 0)
   }
 } catch (error) {
-  writeError(error instanceof Error ? error.message : String(error), "FETCH_FAILED")
+  writeError(
+    error instanceof Error ? error.message : String(error),
+    // Backend đọc mã này để tạm ngừng gọi portal, thay vì coi là lỗi mạng thường.
+    error instanceof BlockedError ? "BLOCKED" : "FETCH_FAILED",
+  )
   process.exit(1)
 }

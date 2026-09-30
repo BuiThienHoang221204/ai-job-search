@@ -2,8 +2,11 @@ import {
   MAX_QUERIES,
   clusterProfiles,
   clusterQuery,
+  occupationGroupOf,
   planFromProfile,
+  taxonomyBaseline,
 } from 'src/modules/scraper/utils/query-plan.js';
+import { SUB_OCCUPATIONS } from 'src/modules/jobs/taxonomy/sub-occupations.js';
 import type { QueryProfile } from 'src/modules/scraper/types.js';
 
 const profile = (overrides: Partial<QueryProfile> = {}): QueryProfile => ({
@@ -291,5 +294,94 @@ describe('làm sạch từ khoá', () => {
     expect(
       planFromProfile(profile({ headline: '| 5 năm kinh nghiệm' })),
     ).toEqual([]);
+  });
+});
+
+/** Sàn phủ toàn taxonomy: phá vòng "ngành chưa ai có hồ sơ thì cron không bao giờ quét". */
+describe('taxonomyBaseline', () => {
+  const totalSubOccupations = Object.values(SUB_OCCUPATIONS).flat().length;
+
+  it('phủ đúng một lần cho mọi nghề trong taxonomy', () => {
+    const clusters = taxonomyBaseline();
+    expect(clusters).toHaveLength(totalSubOccupations);
+    expect(new Set(clusters.map((c) => c.clusterCode)).size).toBe(
+      totalSubOccupations,
+    );
+  });
+
+  it('size = 0 để cụm có hồ sơ thật luôn thắng khi tie-break', () => {
+    expect(taxonomyBaseline().every((c) => c.size === 0)).toBe(true);
+  });
+
+  it('IT và Dữ liệu & AI quét bằng tiếng Anh', () => {
+    const clusters = taxonomyBaseline();
+    expect(clusters.find((c) => c.clusterCode === 'IT_BACKEND')?.query).toBe(
+      'backend',
+    );
+    expect(clusters.find((c) => c.clusterCode === 'DATA_ANALYST')?.query).toBe(
+      'data analyst',
+    );
+  });
+
+  it('nhóm tiếng Anh vẫn phải là từ tiếng Anh, không lẫn tiếng Việt bỏ dấu', () => {
+    // keywords[0] từng là 'nhung' (bỏ dấu của 'nhúng') — không tiếng Anh,
+    // cũng không phải tiếng Việt có dấu, nên trả về 0 kết quả trên portal.
+    const clusters = taxonomyBaseline();
+    expect(clusters.find((c) => c.clusterCode === 'IT_EMBEDDED')?.query).toBe(
+      'embedded',
+    );
+  });
+
+  it('ngành ngoài IT quét bằng tiếng Việt có dấu, không dấu thì portal trả 0 kết quả', () => {
+    const clusters = taxonomyBaseline();
+    expect(
+      clusters.find((c) => c.clusterCode === 'FIN_ACCOUNTING')?.query,
+    ).toBe('Kế toán');
+    expect(clusters.find((c) => c.clusterCode === 'MAN_WORKER')?.query).toBe(
+      'Công nhân',
+    );
+  });
+
+  it('tên gộp hai khái niệm bằng "/" thì lấy nửa có DẤU tiếng Việt', () => {
+    const clusters = taxonomyBaseline();
+    expect(clusters.find((c) => c.clusterCode === 'HOS_SERVICE')?.query).toBe(
+      'Phục vụ',
+    );
+    // Bẫy đã sập: cắt nửa ĐẦU vô điều kiện từng chọn "C&B" (biệt ngữ) thay vì
+    // nửa tiếng Việt tự nhiên đứng sau dấu "/".
+    expect(clusters.find((c) => c.clusterCode === 'HR_CB')?.query).toBe(
+      'Nhân sự tổng hợp',
+    );
+  });
+
+  it('hai nửa cùng không có dấu tiếng Việt thì lấy nửa DÀI hơn', () => {
+    const clusters = taxonomyBaseline();
+    // "3D" một mình quá chung chung; "Game Art" cụ thể hơn.
+    expect(clusters.find((c) => c.clusterCode === 'DESIGN_3D')?.query).toBe(
+      'Game Art',
+    );
+  });
+
+  it('không để nửa DÀI hơn lật một cụm tiếng Việt hợp lệ sang tiếng Anh', () => {
+    const clusters = taxonomyBaseline();
+    // "Copywriting" dài hơn "Nội dung" nhưng là tiếng Anh — sai ngôn ngữ theo
+    // ngành sẽ khiến portal trả về 0 kết quả, không phải kết quả sai.
+    expect(clusters.find((c) => c.clusterCode === 'MKT_CONTENT')?.query).toBe(
+      'Nội dung',
+    );
+  });
+});
+
+/** Suy ra mã NHÓM cha để lọc portal chỉ phục vụ một số ngành (vd. ITviec chỉ IT). */
+describe('occupationGroupOf', () => {
+  it('trả về mã nhóm cha của một mã nghề con', () => {
+    expect(occupationGroupOf('IT_BACKEND')).toBe('IT');
+    expect(occupationGroupOf('FIN_ACCOUNTING')).toBe('FINANCE');
+    expect(occupationGroupOf('DATA_ANALYST')).toBe('DATA_AI');
+  });
+
+  it('mã đã là mã nhóm (nhánh lùi) thì trả về chính nó', () => {
+    expect(occupationGroupOf('FINANCE')).toBe('FINANCE');
+    expect(occupationGroupOf('OTHER')).toBe('OTHER');
   });
 });

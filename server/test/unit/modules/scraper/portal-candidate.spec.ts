@@ -41,9 +41,26 @@ describe('evaluateCandidate', () => {
         cliPath: '.agents/skills/itviec-search/cli/src/cli.ts',
         enabled: true,
         supportsJobAge: false,
+        delayMs: null,
+        occupations: null,
         description: '',
       },
     });
+  });
+
+  test('khai delayMs là số nguyên dương thì portal có nhịp riêng', () => {
+    const result = evaluateCandidate({
+      ...base,
+      frontmatter: { delayMs: 10000 },
+    });
+    expect('entry' in result && result.entry.delayMs).toBe(10_000);
+  });
+
+  test('delayMs khai sai thì bỏ qua, portal vẫn chạy với nhịp chung', () => {
+    for (const delayMs of ['10000', 0, -5, 2.5, null]) {
+      const result = evaluateCandidate({ ...base, frontmatter: { delayMs } });
+      expect('entry' in result && result.entry.delayMs).toBeNull();
+    }
   });
 
   test('khai jobAge: true thì portal tự lọc được theo ngày đăng', () => {
@@ -52,6 +69,32 @@ describe('evaluateCandidate', () => {
       frontmatter: { jobAge: true },
     });
     expect('entry' in result && result.entry.supportsJobAge).toBe(true);
+  });
+
+  test('khai occupations là mảng chuỗi thì portal bị giới hạn ngành', () => {
+    const result = evaluateCandidate({
+      ...base,
+      frontmatter: { occupations: ['IT', 'DATA_AI'] },
+    });
+    expect('entry' in result && result.entry.occupations).toEqual([
+      'IT',
+      'DATA_AI',
+    ]);
+  });
+
+  test('occupations vắng mặt thì portal phục vụ mọi ngành', () => {
+    const result = evaluateCandidate(base);
+    expect('entry' in result && result.entry.occupations).toBeNull();
+  });
+
+  test('occupations khai sai (rỗng, không phải mảng chuỗi) thì bỏ qua', () => {
+    for (const occupations of [[], 'IT', [1, 2], [''], null]) {
+      const result = evaluateCandidate({
+        ...base,
+        frontmatter: { occupations },
+      });
+      expect('entry' in result && result.entry.occupations).toBeNull();
+    }
   });
 
   test('thiếu SKILL.md thì bỏ qua', () => {

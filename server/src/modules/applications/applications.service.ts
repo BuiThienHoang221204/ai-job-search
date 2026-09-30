@@ -14,10 +14,8 @@ import { DocumentsService } from '../documents/services/documents.service.js';
 import { QUEUE, QueueService } from '../queue/queue.service.js';
 import {
   checkTransition,
-  groupOf,
-  statusesOfGroup,
+  isFinal,
   timestampsFor,
-  type StatusGroup,
   type TransitionActor,
 } from './transitions.js';
 
@@ -129,67 +127,35 @@ export class ApplicationsService {
     ]);
   }
 
-  /**
-   * Danh sách đơn kèm số lượng theo từng nhóm, dùng cho các tab trên màn hình
-   * Lịch sử ứng tuyển. Chỉ đọc DB, không gọi AI.
-   *
-   * `counts` đếm bằng `groupBy` chứ không đếm lại mảng đã tải: đếm trong bộ nhớ
-   * buộc phải kéo TOÀN BỘ đơn về mới ra được con số, nên danh sách không phân
-   * trang được.
-   */
+  /** Danh sách đơn phân trang, lọc tuỳ chọn theo một trạng thái. */
   async list(
     userId: string,
-    group: StatusGroup | undefined,
     query: PaginationQueryDto,
     status?: ApplicationStatus,
   ) {
-    const where = {
-      userId,
-      ...(status
-        ? { status }
-        : group
-          ? { status: { in: statusesOfGroup(group) } }
-          : {}),
-    };
+    const where = { userId, ...(status ? { status } : {}) };
 
-    const [[items, total], grouped] = await Promise.all([
-      this.prisma.$transaction([
-        this.prisma.application.findMany({
-          where,
-          orderBy: { updatedAt: 'desc' },
-          ...pageArgs(query),
-          include: {
-            job: {
-              select: {
-                id: true,
-                title: true,
-                company: true,
-                companyLogo: true,
-                location: true,
-                salaryRaw: true,
-                url: true,
-              },
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.application.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        ...pageArgs(query),
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              company: true,
+              companyLogo: true,
+              location: true,
+              salaryRaw: true,
+              url: true,
             },
           },
-        }),
-        this.prisma.application.count({ where }),
-      ]),
-      this.prisma.application.groupBy({
-        by: ['status'],
-        where: { userId },
-        orderBy: { status: 'asc' },
-        _count: true,
+        },
       }),
+      this.prisma.application.count({ where }),
     ]);
-
-    const counts = grouped.reduce<Record<string, number>>(
-      (acc, row) => {
-        acc[groupOf(row.status)] += row._count;
-        acc.all += row._count;
-        return acc;
-      },
-      { all: 0, open: 0, closed: 0 },
-    );
 
     const jobIds = [...new Set(items.map((item) => item.jobId))];
     const documents = await this.prisma.document.findMany({
@@ -219,7 +185,7 @@ export class ApplicationsService {
       documents: docsByJob.get(item.jobId) ?? [],
     }));
 
-    return { ...pageOf(itemsWithDocs, total, query), counts };
+    return pageOf(itemsWithDocs, total, query);
   }
 
   async get(userId: string, id: string) {
@@ -296,7 +262,7 @@ export class ApplicationsService {
     });
     return {
       total: rows.length,
-      active: rows.filter((row) => groupOf(row.status) !== 'closed').length,
+      active: rows.filter((row) => !isFinal(row.status)).length,
     };
   }
 }

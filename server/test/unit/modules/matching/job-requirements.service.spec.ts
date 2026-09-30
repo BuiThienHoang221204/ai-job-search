@@ -166,6 +166,22 @@ describe('JobRequirementsService.extractMany', () => {
     expect(results.every((row) => row.status === 'DONE')).toBe(true);
   });
 
+  it('lô HẾT GIỜ thì KHÔNG rút lẻ lại - ghi FAILED cả lô, chỉ tốn một lượt gọi', async () => {
+    // Ca thật 2026-09-30: gateway nghẽn, lô 3 tin hết giờ rồi đẻ thêm 3 lượt lẻ dồn vào đúng hàng đợi đang tắc.
+    const jobs = ['a', 'b', 'c'].map((id) => job(id));
+    const { service, ai } = build(jobs);
+    ai.willFail(new Error('The operation was aborted due to timeout'));
+
+    const results = await service.extractMany(jobs.map((row) => row.id));
+
+    expect(ai.calls).toHaveLength(1);
+    expect(results).toHaveLength(3);
+    for (const row of results) {
+      expect(row.status).toBe('FAILED');
+      expect(row.error).toMatch(/timeout/);
+    }
+  });
+
   it('lô thiếu phần tử thì chỉ tin đó rút lẻ', async () => {
     const jobs = ['a', 'b', 'c'].map((id) => job(id));
     const { service, ai } = build(jobs);

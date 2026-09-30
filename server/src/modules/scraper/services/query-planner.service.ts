@@ -7,7 +7,9 @@ import { MIN_COMPLETION_TO_SCORE } from '../../matching/rules/match-write.js';
 import {
   clusterProfiles,
   clusterQuery,
+  occupationGroupOf,
   planFromProfile,
+  taxonomyBaseline,
 } from '../utils/query-plan.js';
 import {
   searchPlanPrompt,
@@ -80,16 +82,27 @@ export class QueryPlanner {
     }
   }
 
-  /** Lượt cron: gom hồ sơ theo NGHỀ rồi xoay vòng cũ-trước, tie-break `size DESC` — cụm nhỏ luôn là nạn nhân khi chạm trần. */
+  /** Lượt cron: gom hồ sơ theo NGHỀ, cộng sàn phủ taxonomy cho nghề chưa ai có hồ sơ, lọc theo `occupations` của portal RỒI MỚI xoay vòng — lọc sau xoay vòng sẽ để nghề portal không phục vụ chiếm suất mãi mãi vì không bao giờ được đóng dấu. */
   async forSystem(
     portal: string,
+    occupations: string[] | null,
   ): Promise<{ plan: SearchPlan; clusterCodes: string[] }> {
     const profiles = await this.prisma.profile.findMany({
       where: { completion: { gte: MIN_COMPLETION_TO_SCORE } },
       select: { headline: true, primarySkills: true, occupationCode: true },
     });
 
-    const clusters = clusterProfiles(profiles);
+    const profileClusters = clusterProfiles(profiles);
+    const covered = new Set(profileClusters.map((c) => c.clusterCode));
+    const merged = [
+      ...profileClusters,
+      ...taxonomyBaseline().filter((c) => !covered.has(c.clusterCode)),
+    ];
+    const clusters = occupations
+      ? merged.filter((c) =>
+          occupations.includes(occupationGroupOf(c.clusterCode)),
+        )
+      : merged;
     const marks = await this.prisma.occupationCrawl.findMany({
       where: {
         portal,
