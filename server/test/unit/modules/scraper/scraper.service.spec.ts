@@ -646,7 +646,8 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
   test('ngành vừa quét đêm trước nhường chỗ cho ngành chưa tới lượt', async () => {
     const { router } = fakePortals({ 1: [card('a')] });
     const prisma = industriesPrisma({ FINANCE: 3, HEALTHCARE: 2, IT: 1 }, [
-      { occupationCode: 'FINANCE', lastCrawledAt: new Date(NOW) },
+      // Headline giả "Chức danh FINANCE" khớp từ khoá 'finance' của FIN_INVEST, nên cụm này đóng dấu dưới mã nghề con chứ không phải mã nhóm.
+      { occupationCode: 'FIN_INVEST', lastCrawledAt: new Date(NOW) },
       { occupationCode: 'HEALTHCARE', lastCrawledAt: new Date(NOW) },
     ]);
     const service = buildService(prisma, router, fakeQueue(), {
@@ -671,7 +672,8 @@ describe('ScraperService.run - xoay vòng theo ngành', () => {
     const stamped = prisma.occupationCrawl.upsert.mock.calls.map(
       (args) => args[0].create.occupationCode,
     );
-    expect(stamped).toEqual(['FINANCE', 'HEALTHCARE']);
+    // Headline giả "Chức danh FINANCE" khớp từ khoá 'finance' của FIN_INVEST, nên cụm này đóng dấu dưới mã nghề con.
+    expect(stamped).toEqual(['FIN_INVEST', 'HEALTHCARE']);
   });
 
   test('KHÔNG đóng dấu nghề chưa gửi được request nào', async () => {
