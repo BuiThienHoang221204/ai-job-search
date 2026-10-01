@@ -37,7 +37,7 @@ export class ProfileService {
       where: { userId },
       data: {
         completion: completionPercent(saved),
-        occupationCode: profileOccupation(saved),
+        occupationCode: profileOccupation(saved, saved.occupationCode),
       },
     });
 

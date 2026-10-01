@@ -50,6 +50,43 @@ describe('profileOccupation', () => {
   });
 });
 
+/// "Chọn nhanh" ghi `occupationCode` trực tiếp - lần lưu kế tiếp không được xoá nó chỉ vì headline/skills vẫn trống.
+describe('profileOccupation - giữ fallback thay vì ghi đè', () => {
+  test('hồ sơ trống thì trả về fallback, không phải null', () => {
+    expect(profileOccupation({ headline: null, primarySkills: [] }, 'IT')).toBe(
+      'IT',
+    );
+  });
+
+  test('có chữ nhưng không khớp gì (OTHER) thì vẫn giữ fallback', () => {
+    expect(
+      profileOccupation(
+        { headline: 'Nghệ nhân gốm Bát Tràng', primarySkills: [] },
+        'IT',
+      ),
+    ).toBe('IT');
+  });
+
+  test('suy ra được một ngành THẬT thì ngành đó thắng, không phải fallback', () => {
+    expect(
+      profileOccupation(
+        { headline: 'Kế toán tổng hợp', primarySkills: [] },
+        'IT',
+      ),
+    ).toBe('FINANCE');
+  });
+
+  test('không có fallback thì giữ đúng hành vi cũ: trống -> null, không khớp -> OTHER', () => {
+    expect(profileOccupation({ headline: null, primarySkills: [] })).toBeNull();
+    expect(
+      profileOccupation({
+        headline: 'Nghệ nhân gốm Bát Tràng',
+        primarySkills: [],
+      }),
+    ).toBe('OTHER');
+  });
+});
+
 /**
  * Backfill thật ngày 19/8/2026 xếp `cokhi@` vào IT thay vì MANUFACTURING: chữ
  * "engineer" ở đoạn SAU dấu gạch đứng khớp từ khoá của nhóm công nghệ thông

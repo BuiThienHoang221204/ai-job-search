@@ -14,6 +14,7 @@ const profile = (overrides: Partial<QueryProfile> = {}): QueryProfile => ({
   location: null,
   primarySkills: [],
   targetSectors: [],
+  subOccupationCode: null,
   ...overrides,
 });
 
@@ -65,6 +66,31 @@ describe('planFromProfile', () => {
     // thì đó là câu trả lời sai cho mọi người trừ dân IT.
     expect(planFromProfile(profile())).toEqual([]);
     expect(planFromProfile(null)).toEqual([]);
+  });
+
+  it('hồ sơ trống chữ nhưng đã "Chọn nhanh" thì mượn từ khoá taxonomy của nghề đó', () => {
+    const queries = planFromProfile(
+      profile({ subOccupationCode: 'IT_BACKEND' }),
+    ).map((q) => q.query);
+
+    expect(queries).toEqual(['backend']);
+  });
+
+  it('mã nghề không có thật trong danh mục thì vẫn không sinh truy vấn nào', () => {
+    expect(
+      planFromProfile(profile({ subOccupationCode: 'KHONG_CO_THAT' })),
+    ).toEqual([]);
+  });
+
+  it('có chữ thật rồi thì không cần mượn từ khoá taxonomy nữa', () => {
+    const queries = planFromProfile(
+      profile({
+        headline: 'Kế toán tổng hợp',
+        subOccupationCode: 'IT_BACKEND',
+      }),
+    ).map((q) => q.query);
+
+    expect(queries).toEqual(['Kế toán tổng hợp']);
   });
 
   it('không lấy lĩnh vực làm truy vấn khi hồ sơ thiếu chức danh', () => {

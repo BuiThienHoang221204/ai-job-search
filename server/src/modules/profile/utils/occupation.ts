@@ -1,3 +1,4 @@
+import { OTHER_CODE } from '../../jobs/taxonomy/occupations.js';
 import { resolveOccupation } from '../../jobs/taxonomy/resolve.js';
 
 /** Dấu người dùng hay dùng để ngăn chức danh với phần tự giới thiệu thêm. */
@@ -22,11 +23,16 @@ export type OccupationSource = {
   primarySkills: string[];
 };
 
-/** Mã nghề suy từ chức danh và kỹ năng chính. */
-export function profileOccupation(profile: OccupationSource): string | null {
+/** Mã nghề suy từ chức danh/kỹ năng; giữ `fallback` khi chưa đủ chữ để suy hoặc suy ra `OTHER_CODE` - "đoán không ra" không đáng tin hơn lựa chọn tường minh của user. */
+export function profileOccupation(
+  profile: OccupationSource,
+  fallback: string | null = null,
+): string | null {
   const headline = jobTitleOf(profile.headline ?? '');
   const skills = profile.primarySkills.filter((skill) => skill.trim());
 
-  if (!headline && !skills.length) return null;
-  return resolveOccupation(headline, skills);
+  if (!headline && !skills.length) return fallback;
+
+  const resolved = resolveOccupation(headline, skills);
+  return resolved === OTHER_CODE ? (fallback ?? resolved) : resolved;
 }

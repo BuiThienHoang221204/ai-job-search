@@ -133,6 +133,15 @@ model Profile {
   /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
   occupationCode String?
 
+  /// Nghề cụ thể bên trong nhóm (vd `IT_BACKEND` trong nhóm `IT`) - chỉ do
+  /// bước "Chọn nhanh" ghi tường minh lúc đăng ký, KHÔNG được suy từ
+  /// `headline`/`primarySkills` như `occupationCode`. `null` = chưa chọn.
+  subOccupationCode String?
+
+  /// Mức kinh nghiệm user tự chọn ở bước "Chọn nhanh" lúc đăng ký, dùng cùng
+  /// thang với `Job.seniority` để sau này so khớp được. `UNKNOWN` = chưa chọn.
+  experienceLevel JobSeniority @default(UNKNOWN)
+
   lastFanOutAt DateTime?
 
   completion Int      @default(0)

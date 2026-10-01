@@ -64,6 +64,7 @@ export type QueryProfile = {
   location: string | null;
   primarySkills: string[];
   targetSectors: string[];
+  subOccupationCode: string | null;
 };
 
 export type ProfileCluster = {

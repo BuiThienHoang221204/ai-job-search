@@ -114,6 +114,8 @@ export class DashboardService {
 
     return {
       profileCompletion: profile?.completion ?? 0,
+      /** `null` khi chưa qua "Chọn nhanh" lẫn CV - dashboard dùng để quyết định có hiện bước chọn nhanh hay không. */
+      occupationCode: profile?.occupationCode ?? null,
       matchingJobs: { total: matchCount, newThisWeek },
       averageMatchScore: aggregate._avg.overallScore
         ? Math.round(aggregate._avg.overallScore)
