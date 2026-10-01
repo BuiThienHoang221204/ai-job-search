@@ -25,6 +25,9 @@ const configuration = () => ({
      */
     jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+
+    /** Dùng làm audience lúc verify ID token - không phải bí mật, Client ID lộ công khai trong mọi trang đăng nhập Google. */
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   },
 
   ai: {

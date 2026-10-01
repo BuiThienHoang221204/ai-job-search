@@ -34,7 +34,10 @@ model User {
   id           String   @id @default(cuid())
   role         UserRole @default(USER)
   email        String   @unique
-  passwordHash String
+  /// Null khi tài khoản chỉ đăng nhập bằng Google - không có mật khẩu nào để băm.
+  passwordHash String?
+  /// `sub` của Google, null cho tài khoản chưa từng đăng nhập Google. Dùng để tìm user mà không phụ thuộc email có đổi hay không.
+  googleId     String?  @unique
   /// Tăng số này để VÔ HIỆU mọi token đã phát cho người dùng. Cả access lẫn
   /// refresh token đều mang `ver` trong payload; lệch với cột này thì bị từ
   /// chối ngay, kể cả access token đang còn hạn - chữ ký JWT hợp lệ chỉ chứng

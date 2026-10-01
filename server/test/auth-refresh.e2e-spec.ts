@@ -1,9 +1,5 @@
 import request from 'supertest';
-import {
-  AUTH_COOKIE,
-  REFRESH_COOKIE,
-  SESSION_HINT_COOKIE,
-} from 'src/modules/auth/auth.cookie.js';
+import { AUTH_COOKIE, REFRESH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import {
   createTestApp,
   type TestApp,
@@ -62,12 +58,11 @@ describe('Refresh token và thu hồi phiên', () => {
       user = await harness.signUp();
     });
 
-    test('đặt đủ ba cookie', async () => {
+    test('đặt đủ hai cookie', async () => {
       const response = await login(user).expect(200);
 
       expect(cookieNamed(response, AUTH_COOKIE)).toBeDefined();
       expect(cookieNamed(response, REFRESH_COOKIE)).toBeDefined();
-      expect(cookieNamed(response, SESSION_HINT_COOKIE)).toBeDefined();
     });
 
     // Sai path thì trình duyệt lặng lẽ không gửi cookie ở lời gọi refresh - triệu chứng là "cứ 15 phút lại bị đăng xuất".
@@ -79,12 +74,9 @@ describe('Refresh token và thu hồi phiên', () => {
       );
     });
 
-    test('cookie gợi ý phiên KHÔNG httpOnly, hai cookie kia thì có', async () => {
+    test('cả hai cookie đều httpOnly', async () => {
       const response = await login(user).expect(200);
 
-      expect(cookieNamed(response, SESSION_HINT_COOKIE)).not.toContain(
-        'HttpOnly',
-      );
       expect(cookieNamed(response, AUTH_COOKIE)).toContain('HttpOnly');
       expect(cookieNamed(response, REFRESH_COOKIE)).toContain('HttpOnly');
     });
@@ -172,10 +164,10 @@ describe('Refresh token và thu hồi phiên', () => {
         .post('/api/auth/logout')
         .set('Cookie', user.cookie);
 
-    test('logout xoá cả ba cookie', async () => {
+    test('logout xoá cả hai cookie', async () => {
       const response = await logout().expect(200);
 
-      for (const name of [AUTH_COOKIE, REFRESH_COOKIE, SESSION_HINT_COOKIE]) {
+      for (const name of [AUTH_COOKIE, REFRESH_COOKIE]) {
         expect(cookieNamed(response, name)).toBeDefined();
       }
     });

@@ -9,8 +9,10 @@ import { AUTH_COOKIE, REFRESH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
+import { GoogleAuthService } from 'src/modules/auth/google-auth.service.js';
 import { FakeSandbox } from 'src/testing/fake-sandbox.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
+import { FakeGoogleAuth } from 'src/testing/fake-google-auth.js';
 import { FakeQueue } from './fake-queue.js';
 import { truncateAll } from './test-database.js';
 
@@ -45,6 +47,8 @@ export type TestApp = {
   /// SEAM 2. Thay để KHÔNG test nào chạm Docker: một lượt `docker run` mất 5-10
   /// giây và cần ảnh nhiều GB.
   sandbox: FakeSandbox;
+  /// Bản giả của GoogleAuthService - test tự định nghĩa idToken trỏ tới profile nào, không gọi mạng thật tới Google.
+  google: FakeGoogleAuth;
   /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
   ///
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
@@ -94,6 +98,7 @@ export async function createTestApp(
   const ai = new FakeAi();
   const queue = new FakeQueue();
   const sandbox = new FakeSandbox();
+  const google = new FakeGoogleAuth();
 
   // Đặt TRƯỚC khi compile: `ConfigModule` đọc biến môi trường lúc dựng module,
   // nên đổi sau đó thì không có tác dụng. Không dùng `overrideGuard` được -
@@ -107,6 +112,8 @@ export async function createTestApp(
     .useValue(queue)
     .overrideProvider(SANDBOX)
     .useValue(sandbox)
+    .overrideProvider(GoogleAuthService)
+    .useValue(google)
     .compile();
 
   const app = moduleRef.createNestApplication({ bodyParser: false });
@@ -191,6 +198,7 @@ export async function createTestApp(
     ai,
     queue,
     sandbox,
+    google,
     signUp,
     promoteToAdmin: async (userId: string): Promise<void> => {
       await prisma.user.update({
@@ -203,6 +211,7 @@ export async function createTestApp(
       ai.reset();
       queue.reset();
       sandbox.reset();
+      google.reset();
     },
     close: async (): Promise<void> => {
       await app.close();

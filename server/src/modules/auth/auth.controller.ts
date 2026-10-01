@@ -15,11 +15,10 @@ import {
   clearAuthCookies,
   setAccessCookie,
   setRefreshCookie,
-  setSessionHintCookie,
 } from './auth.cookie.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { LoginDto, RegisterDto } from './auth.dto.js';
+import { GoogleLoginDto, LoginDto, RegisterDto } from './auth.dto.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { ThrottleAuth } from '../../common/throttle.js';
 
@@ -50,6 +49,18 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     return issue(response, await this.auth.login(dto));
+  }
+
+  @Public()
+  @ThrottleAuth()
+  @ApiOperation({ summary: 'Đăng nhập / đăng ký bằng Google' })
+  @Post('google')
+  @HttpCode(200)
+  async google(
+    @Body() dto: GoogleLoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return issue(response, await this.auth.loginWithGoogle(dto.idToken));
   }
 
   /** `@Public()` vì access token đã hết hạn lúc gọi tới đây; chỉ nhận token qua cookie httpOnly, không nhận qua body/header. */
@@ -106,10 +117,9 @@ export class AuthController {
   }
 }
 
-/** Đặt đủ ba cookie rồi trả nguyên kết quả - thiếu cookie gợi ý phiên thì middleware Next đá về /login dù token vẫn sống. */
+/** Đặt cả hai cookie rồi trả nguyên kết quả về body. */
 const issue = (response: Response, result: AuthResult): AuthResult => {
   setAccessCookie(response, result.accessToken);
   setRefreshCookie(response, result.refreshToken);
-  setSessionHintCookie(response);
   return result;
 };

@@ -2,7 +2,6 @@ import type { CookieOptions, Response } from 'express';
 
 export const AUTH_COOKIE = 'aijob_token';
 export const REFRESH_COOKIE = 'aijob_refresh';
-export const SESSION_HINT_COOKIE = 'aijob_session';
 
 /** Giới hạn đúng route đổi token - thiếu tiền tố `/api` (`setGlobalPrefix`) thì trình duyệt lặng lẽ không gửi cookie này. */
 const REFRESH_PATH = '/api/auth/refresh';
@@ -35,18 +34,8 @@ export const setRefreshCookie = (response: Response, token: string): void => {
   });
 };
 
-/** Cờ "còn phiên hay không" cho middleware Next đọc - KHÔNG httpOnly, KHÔNG chứa bí mật; hai cookie kia không dùng được ở tầng điều hướng (access chết sau 15 phút, refresh bị khoá path). */
-export const setSessionHintCookie = (response: Response): void => {
-  response.cookie(SESSION_HINT_COOKIE, '1', {
-    ...options(),
-    httpOnly: false,
-    maxAge: SEVEN_DAYS_MS,
-  });
-};
-
-/** Xoá cả ba cookie - phải truyền lại ĐÚNG path/domain lúc tạo, nếu không trình duyệt coi là cookie khác và cookie cũ vẫn còn nguyên. */
+/** Xoá cả hai cookie - phải truyền lại ĐÚNG path/domain lúc tạo, nếu không trình duyệt coi là cookie khác và cookie cũ vẫn còn nguyên. */
 export const clearAuthCookies = (response: Response): void => {
   response.clearCookie(AUTH_COOKIE, options());
   response.clearCookie(REFRESH_COOKIE, { ...options(), path: REFRESH_PATH });
-  response.clearCookie(SESSION_HINT_COOKIE, { ...options(), httpOnly: false });
 };

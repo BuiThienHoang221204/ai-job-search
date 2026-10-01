@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { isUniqueViolation } from '../../prisma/prisma-errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { GoogleAuthService } from './google-auth.service.js';
 import type { LoginDto, RegisterDto } from './auth.dto.js';
 import {
   isRefreshPayload,
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly google: GoogleAuthService,
   ) {}
 
   /**
@@ -74,6 +76,30 @@ export class AuthService {
     if (!user || !matches) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
+    return this.sign(user, user.tokenVersion);
+  }
+
+  /** Email Google xác nhận rồi (`email_verified`) thì tự liên kết với tài khoản mật khẩu đã có cùng email, không bắt đăng nhập lại bằng mật khẩu. */
+  async loginWithGoogle(idToken: string): Promise<AuthResult> {
+    const profile = await this.google.verify(idToken);
+
+    let user = await this.prisma.user.findUnique({
+      where: { googleId: profile.googleId },
+    });
+
+    if (!user) {
+      user = await this.prisma.user.upsert({
+        where: { email: profile.email },
+        update: { googleId: profile.googleId },
+        create: {
+          email: profile.email,
+          name: profile.name,
+          googleId: profile.googleId,
+          profile: { create: {} },
+        },
+      });
+    }
+
     return this.sign(user, user.tokenVersion);
   }
 
