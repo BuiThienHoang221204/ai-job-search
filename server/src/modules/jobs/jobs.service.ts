@@ -13,6 +13,8 @@ import { derivedFields } from './taxonomy/resolve.js';
 import { jobCardSelect } from './job-card.select.js';
 import {
   filterTree,
+  listOrderFor,
+  type ListOrder,
   MATCH_DETAIL_FIELDS,
   MATCH_STATE_FIELDS,
   orderFor,
@@ -22,7 +24,7 @@ import {
   withSavedFlag,
   withSystemMatch,
 } from './utils/job-view.js';
-import type { CreateJobDto, JobSort, ListJobsQueryDto } from './job.dto.js';
+import type { CreateJobDto, ListJobsQueryDto } from './job.dto.js';
 
 @Injectable()
 export class JobsService {
@@ -96,6 +98,13 @@ export class JobsService {
     });
     return profile ? toMatchProfile(profile) : null;
   }
+  private async occupationOf(userId: string): Promise<string | null> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { occupationCode: true },
+    });
+    return profile?.occupationCode ?? null;
+  }
   private readonly cardSelect = (userId: string) =>
     ({
       ...jobCardSelect(userId),
@@ -105,8 +114,9 @@ export class JobsService {
 
   /** `sort=match` đọc bảng KHÁC (`jobRequirementMatch`) vì thứ hạng đã tính sẵn ở đó, không sắp được trên `Job`. */
   async list(query: ListJobsQueryDto, userId: string) {
-    const jobWhere = whereFrom(query, userId, this.minPercent);
-    const sort = query.sort ?? 'newest';
+    const occupation = query.scored ? await this.occupationOf(userId) : null;
+    const jobWhere = whereFrom(query, userId, this.minPercent, occupation);
+    const sort = listOrderFor(query);
 
     const [rows, total, profile, dictionary] = await Promise.all([
       ...(sort === 'match'
@@ -133,7 +143,7 @@ export class JobsService {
     where: Prisma.JobWhereInput,
     query: ListJobsQueryDto,
     userId: string,
-    sort: JobSort,
+    sort: ListOrder,
   ) {
     return [
       this.prisma.job.findMany({

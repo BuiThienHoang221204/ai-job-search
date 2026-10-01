@@ -20,3 +20,9 @@ export class LoginDto {
   @IsString()
   password!: string;
 }
+
+export class GoogleLoginDto {
+  @IsString()
+  @MinLength(1, { message: 'Thiếu ID token' })
+  idToken!: string;
+}

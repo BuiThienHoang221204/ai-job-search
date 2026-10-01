@@ -30,15 +30,18 @@ export class ModelChain {
     );
   }
 
-  /** So trùng theo dạng ĐẦY ĐỦ, nếu không thì `x` và `opencode/x` thành hai mắt xích và model vừa hết hạn mức được thử lại ngay. */
-  links(requested?: string): Array<string | undefined> {
+  /** So trùng theo dạng ĐẦY ĐỦ, nếu không thì `x` và `opencode/x` thành hai mắt xích và model vừa hết hạn mức được thử lại ngay. `fallbackOverride` thay hẳn `MODEL_FALLBACK_IDS` cho một lượt gọi — dùng khi lượt đó cần một chuỗi RIÊNG (vd. chỉ toàn model nhanh). */
+  links(
+    requested?: string,
+    fallbackOverride?: string[],
+  ): Array<string | undefined> {
     const first = requested ?? (this.options.defaultModelId || undefined);
     const chain: Array<string | undefined> = [first];
     const seen = new Set([
       this.canonical(first ?? this.options.defaultModelId),
     ]);
 
-    for (const id of this.options.fallbackModelIds) {
+    for (const id of fallbackOverride ?? this.options.fallbackModelIds) {
       const key = this.canonical(id);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -52,8 +55,9 @@ export class ModelChain {
     requested: string | undefined,
     attempt: (modelId: string | undefined) => Promise<T>,
     budgetOverrideMs?: number,
+    fallbackOverride?: string[],
   ): Promise<T> {
-    const chain = this.links(requested);
+    const chain = this.links(requested, fallbackOverride);
     const budgetMs =
       budgetOverrideMs ?? this.options.budgetMs ?? DEFAULT_CHAIN_BUDGET_MS;
     const startedAt = Date.now();

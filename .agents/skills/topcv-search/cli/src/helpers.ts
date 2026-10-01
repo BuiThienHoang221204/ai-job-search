@@ -77,22 +77,50 @@ async function curlFetch(url: string): Promise<{ status: number; body: string }>
  * Mốc lùi ban đầu dài hơn hẳn itviec-search (2 giây so với 0,7 giây) vì
  * Cloudflare cần nghỉ lâu hơn mới thả.
  */
+/** Portal chặn IP. Backend nhận mã BLOCKED và tạm ngừng gọi TopCV 30 phút - KHÔNG tìm cách vượt Cloudflare. */
+export class BlockedError extends Error {}
+
+/** Dấu hiệu trang thử thách của Cloudflare. Một widget reCAPTCHA trong form KHÔNG đủ - bẫy đã sập ở joboko-search. */
+const CHALLENGE = /<title>Just a moment|challenges\.cloudflare\.com|cf-chl|cf_chl_opt/i
+
+/** Có nội dung thật: thẻ tìm kiếm hoặc khối mô tả của trang chi tiết. */
+const HAS_CONTENT = /job-item-search-result|box-job-information-detail/
+
+/** Trang chặn = có dấu hiệu thử thách VÀ không có nội dung thật; Cloudflare có lúc trả trang thử thách với mã 200. */
+export const isBlockedPage = (html: string): boolean => CHALLENGE.test(html) && !HAS_CONTENT.test(html)
+
+export type FetchVerdict = "ok" | "not-found" | "blocked" | "retry" | "fail"
+
+/**
+ * Quyết định cho MỘT phản hồi. 403 là BLOCKED NGAY, không thử lại: đo 2026-09-28
+ * và 09-30, cả hai lượt hỏng nhận 403 đủ 5/5 lần trong 30 giây lùi dần - thử
+ * lại không cứu được lượt nào, chỉ gửi thêm 4 request đúng lúc đang bị chặn.
+ */
+export function fetchVerdict(status: number, body: string): FetchVerdict {
+  if (status === 404) return "not-found"
+  if (status === 403) return "blocked"
+  if (status >= 200 && status < 300) return isBlockedPage(body) ? "blocked" : "ok"
+  if (status === 429 || status >= 500) return "retry"
+  return "fail"
+}
+
 export async function htmlFetch(url: string): Promise<string> {
   const maxRetries = 4
   let delay = 2_000
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const { status, body } = await curlFetch(url)
+    const verdict = fetchVerdict(status, body)
 
-    if (status === 404) return ""
-    if (status >= 200 && status < 300) return body
+    if (verdict === "not-found") return ""
+    if (verdict === "ok") return body
+    if (verdict === "blocked") {
+      throw new BlockedError(`TopCV chặn (${status}, Cloudflare); tạm dừng quét portal này`)
+    }
 
-    if (status === 429 || status === 403 || status >= 500) {
+    if (verdict === "retry") {
       if (attempt === maxRetries) {
-        throw new Error(
-          `TopCV trả về ${status} sau ${maxRetries + 1} lần thử` +
-            (status === 403 ? " (Cloudflare chặn; thử giảm tần suất)" : ""),
-        )
+        throw new Error(`TopCV trả về ${status} sau ${maxRetries + 1} lần thử`)
       }
       // Thêm nhiễu ngẫu nhiên: khi cron chạy nhiều truy vấn liên tiếp và cùng
       // gặp 403, lùi đúng bằng nhau sẽ khiến chúng thử lại đồng loạt và lại

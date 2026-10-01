@@ -50,7 +50,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# bun: cả 4 portal CLI chạy bằng bun (xem PortalCliService). Lấy binary từ image
+# bun: mọi portal CLI chạy bằng bun (xem PortalCliService). Lấy binary từ image
 # chính thức thay vì chạy script cài: không thêm một lần tải qua mạng, và phiên
 # bản được ghim theo tag thay vì "bản mới nhất lúc build".
 COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun

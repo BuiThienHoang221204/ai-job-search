@@ -11,7 +11,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { ApplicationsService } from './applications.service.js';
-import { ALL_STATUSES, type StatusGroup } from './transitions.js';
+import { ALL_STATUSES } from './transitions.js';
 
 export class CreateApplicationDto {
   @IsString() jobId!: string;
@@ -25,16 +25,7 @@ export class CreateApplicationDto {
 }
 
 export class ListApplicationsDto extends PaginationQueryDto {
-  @IsOptional()
-  @IsIn(['open', 'closed'])
-  group?: StatusGroup;
-
-  /**
-   * Lọc ĐÚNG một trạng thái, hẹp hơn `group`.
-   *
-   * Cần cho ô chọn tin ở màn Chuẩn bị phỏng vấn: nhóm `open` gồm cả đơn mới chỉ
-   * xem qua, mà soạn bộ đề thì chỉ có nghĩa với đơn đã nộp.
-   */
+  /** Lọc đúng một trạng thái đơn. */
   @IsOptional()
   @IsIn(ALL_STATUSES)
   status?: ApplicationStatus;
@@ -65,7 +56,7 @@ export class ApplicationsController {
   })
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListApplicationsDto) {
-    return this.applications.list(user.id, query.group, query, query.status);
+    return this.applications.list(user.id, query, query.status);
   }
 
   @ApiOperation({ summary: 'Lấy thông tin chi tiết một đơn ứng tuyển theo ID' })

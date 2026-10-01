@@ -264,6 +264,98 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
     });
   });
 
+  describe('scored=1 · cổng ngành', () => {
+    // seedJobs: chẵn là IT, lẻ là FINANCE. Tin 3 đổi sang OTHER để kiểm nhánh "chưa phân loại".
+    let ids: string[];
+
+    beforeEach(async () => {
+      await seedJobs(4);
+      const all = await pageOf({ sort: 'newest', limit: 100 });
+      ids = all.items.map((item) => item.id);
+      await harness.prisma.job.update({
+        where: { id: ids[3] },
+        data: { occupationCode: 'OTHER' },
+      });
+      await harness.prisma.jobRequirementMatch.createMany({
+        data: ids.map((jobId, index) => ({
+          userId: user.id,
+          jobId,
+          met: 3,
+          total: 4,
+          percent: 75,
+          hash: `seed-${index}`,
+        })),
+      });
+    });
+
+    const asItProfile = () =>
+      harness.prisma.profile.update({
+        where: { userId: user.id },
+        data: { occupationCode: 'IT' },
+      });
+
+    const scoredIds = async (query: Record<string, unknown> = {}) =>
+      (await pageOf({ scored: true, limit: 100, ...query })).items
+        .map((item) => item.id)
+        .sort();
+
+    test('hồ sơ IT không thấy tin FINANCE, vẫn thấy tin chưa phân loại', async () => {
+      await asItProfile();
+
+      expect(await scoredIds()).toEqual([ids[0], ids[2], ids[3]].sort());
+    });
+
+    test('chọn ngành khác trên thanh lọc KHÔNG vượt được cổng — muốn xem thì sang "Tất cả việc làm"', async () => {
+      await asItProfile();
+
+      expect(await scoredIds({ occupation: 'FINANCE' })).toEqual([]);
+      expect(await scoredIds({ occupation: 'IT' })).toEqual(
+        [ids[0], ids[2]].sort(),
+      );
+    });
+
+    test('không còn tham số nào tắt được cổng: anyOccupation bị từ chối', async () => {
+      await asItProfile();
+
+      await get({ scored: true, anyOccupation: true }).expect(400);
+    });
+
+    test('LUÔN xếp theo ngày ĐĂNG mới nhất, bỏ qua sort người dùng gửi, tin không có ngày đăng xuống cuối', async () => {
+      // Ngày đăng cố ý NGƯỢC với ngày quét: xếp theo scrapedAt thì ra ids[0..3], sai.
+      const daysAgo = (days: number) =>
+        new Date(Date.now() - days * 86_400_000);
+      const posted: Array<[string, Date | null]> = [
+        [ids[0], daysAgo(10)],
+        [ids[1], daysAgo(5)],
+        [ids[2], daysAgo(1)],
+        [ids[3], null],
+      ];
+      for (const [id, postedAt] of posted) {
+        await harness.prisma.job.update({ where: { id }, data: { postedAt } });
+      }
+      const expected = [ids[2], ids[1], ids[0], ids[3]];
+
+      for (const sort of [undefined, 'newest', 'salary', 'match']) {
+        const page = await pageOf({
+          scored: true,
+          limit: 100,
+          ...(sort ? { sort } : {}),
+        });
+        expect(page.items.map((item) => item.id)).toEqual(expected);
+      }
+    });
+
+    test('hồ sơ chưa rõ ngành thì không chặn gì', async () => {
+      expect(await scoredIds()).toEqual([...ids].sort());
+    });
+
+    test('cổng ngành chỉ áp cho scored, không áp cho "Tất cả việc làm"', async () => {
+      await asItProfile();
+
+      expect((await pageOf({ limit: 100 })).total).toBe(4);
+    });
+  });
+
   describe('lọc bật/tắt', () => {
     beforeEach(() => seedJobs(30));
 

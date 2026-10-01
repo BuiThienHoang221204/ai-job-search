@@ -4,8 +4,10 @@
 #
 #   docker compose up -d
 #
-# `latex`, `pdf`, `omniroute` và `opencode` build tại chỗ vì không có trên
-# registry nào, mỗi dịch vụ một thư mục riêng ngang hàng `server/`.
+# `latex`, `pdf`, `omniroute` và `opencode` có `build:` cho máy dev, nhưng `image:`
+# trỏ ghcr vì CI đã build và đẩy sẵn - server chỉ `pull`, KHÔNG build. Đổi ngược
+# lại là dựng lại đúng sự cố 24/09: build omniroute mất 338 giây ngay trong phiên
+# SSH và bước deploy chết giữa chừng. Mỗi dịch vụ một thư mục ngang hàng `server/`.
 #
 # Chỉ `migrate` còn nằm sau profile; số còn lại lên theo `up -d`. Lưu ý
 # `app` cũng không có profile và nó giữ cổng 3000 - đúng cổng dev server chạy trên
@@ -73,7 +75,7 @@ services:
   omniroute:
     build:
       context: ../omniroute-service
-    image: aijob-omniroute:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/omniroute:${IMAGE_TAG:-latest}
     container_name: aijob-omniroute
     restart: unless-stopped
     shm_size: "1gb"
@@ -106,7 +108,7 @@ services:
           memory: 3G
 
   latex:
-    image: aijob-latex
+    image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/latex:${IMAGE_TAG:-latest}
     build:
       context: ../latex-service
     container_name: aijob-latex
@@ -120,7 +122,7 @@ services:
           cpus: "1"
 
   pdf:
-    image: aijob-pdf
+    image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/pdf:${IMAGE_TAG:-latest}
     build:
       context: ../pdf-service
     container_name: aijob-pdf
@@ -135,7 +137,7 @@ services:
 
   # Mạng riêng `opencode`: container này chạy LLM còn nguyên tool bash/read.
   opencode:
-    image: aijob-opencode
+    image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/opencode:${IMAGE_TAG:-latest}
     build:
       context: ../opencode-service
     container_name: aijob-opencode

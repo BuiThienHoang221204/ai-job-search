@@ -73,7 +73,7 @@ export class InterviewTurnService {
     const { result } = await this.ai.streamText({
       system: interviewTurnSystem(),
       messages: [{ role: 'user', content: openingPrompt }],
-      modelId: process.env.AI_INTERVIEW_MODEL_ID || undefined,
+      modelId: process.env.AI_FAST_MODEL_ID || undefined,
       context: { purpose: 'interview.open', userId },
     });
 
@@ -174,7 +174,7 @@ export class InterviewTurnService {
     const { result } = await this.ai.streamText({
       system: interviewTurnSystem(),
       messages,
-      modelId: process.env.AI_INTERVIEW_MODEL_ID || undefined,
+      modelId: process.env.AI_FAST_MODEL_ID || undefined,
       context: { purpose: 'interview.turn', userId },
     });
 
@@ -254,7 +254,7 @@ export class InterviewTurnService {
     const foreign = countForeign(body);
     if (foreign > 0) {
       this.logger.warn(
-        `Model chèn ${foreign} ký tự ngoài bảng Latin vào câu tiếng Việt, đã xoá. Đây là dấu hiệu model yếu cho tác vụ này - xem AI_INTERVIEW_MODEL_ID.`,
+        `Model chèn ${foreign} ký tự ngoài bảng Latin vào câu tiếng Việt, đã xoá. Đây là dấu hiệu model yếu cho tác vụ này - xem AI_FAST_MODEL_ID.`,
       );
     }
   }

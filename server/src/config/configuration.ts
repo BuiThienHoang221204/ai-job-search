@@ -16,7 +16,18 @@ const configuration = () => ({
 
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? '',
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+
+    /**
+     * Access token đi kèm MỌI request, nên nó là thứ lộ ra nhiều nhất: log,
+     * reverse proxy, báo cáo lỗi. Giữ ngắn để một lần rò rỉ chỉ dùng được
+     * trong chốc lát. Refresh token bù lại phần tiện: nó nằm ở cookie riêng
+     * `path=/api/auth/refresh` nên chỉ đi qua mạng vài lần một ngày.
+     */
+    jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
+    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+
+    /** Dùng làm audience lúc verify ID token - không phải bí mật, Client ID lộ công khai trong mọi trang đăng nhập Google. */
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   },
 
   ai: {
@@ -61,6 +72,7 @@ const configuration = () => ({
        * kiểu gì.
        */
       kilo: process.env.KILO_API_KEY ?? 'public',
+      groq: process.env.GROQ_API_KEY ?? '',
     } as Record<string, string>,
 
     /**
@@ -74,6 +86,7 @@ const configuration = () => ({
       omniroute: process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
       /** Bỏ trống có chủ ý: container `opencode` nằm sau profile riêng, chưa bật thì lõi này phải tự vắng mặt. */
       opencode: process.env.OPENCODE_SERVICE_URL ?? '',
+      groq: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
     } as Record<string, string>,
 
     catalogUrl:
@@ -161,7 +174,7 @@ const configuration = () => ({
      * khoảng bốn đêm, theo thứ tự cũ-trước của `OccupationCrawl`.
      */
     systemQueryLimit: parseInt(
-      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '20',
+      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '30',
       10,
     ),
 

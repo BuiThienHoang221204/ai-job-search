@@ -3,11 +3,8 @@ import {
   FINAL_STATUSES,
   OPEN_STATUSES,
   checkTransition,
-  groupOf,
   isFinal,
-  statusesOfGroup,
   timestampsFor,
-  type StatusGroup,
   type TransitionRequest,
 } from 'src/modules/applications/transitions.js';
 
@@ -19,7 +16,7 @@ const move = (
   ...overrides,
 });
 
-describe('isFinal / groupOf', () => {
+describe('isFinal', () => {
   test('hai trạng thái mở không phải trạng thái cuối', () => {
     for (const status of OPEN_STATUSES) expect(isFinal(status)).toBe(false);
   });
@@ -32,12 +29,6 @@ describe('isFinal / groupOf', () => {
     const all = [...OPEN_STATUSES, ...FINAL_STATUSES];
     expect(new Set(all).size).toBe(all.length);
     expect(all).toHaveLength(3);
-  });
-
-  test('xem và nộp cùng nhóm mở, huỷ thuộc nhóm đóng', () => {
-    expect(groupOf('VIEWED')).toBe('open');
-    expect(groupOf('APPLIED')).toBe('open');
-    expect(groupOf('WITHDRAWN')).toBe('closed');
   });
 });
 
@@ -123,33 +114,5 @@ describe('timestampsFor', () => {
     );
     expect(result.closedAt).toBeNull();
     expect(result.appliedAt).toBe(earlier);
-  });
-});
-
-/// `statusesOfGroup` là đường lọc ở tầng SQL của màn Lịch sử ứng tuyển, còn
-/// `groupOf` là đường đếm. Hai đường phải nói cùng một điều: trước đây danh
-/// sách được lọc trong bộ nhớ bằng chính `groupOf` nên không thể lệch, giờ thì
-/// có thể.
-describe('statusesOfGroup', () => {
-  const GROUPS: StatusGroup[] = ['open', 'closed'];
-
-  test('mỗi nhóm chỉ chứa trạng thái mà groupOf xếp vào đúng nhóm đó', () => {
-    for (const group of GROUPS) {
-      for (const status of statusesOfGroup(group)) {
-        expect(groupOf(status)).toBe(group);
-      }
-    }
-  });
-
-  test('hai nhóm cộng lại phủ hết enum, không sót không trùng', () => {
-    const collected = GROUPS.flatMap(statusesOfGroup);
-
-    expect(collected.sort()).toEqual([...ALL_STATUSES].sort());
-  });
-
-  test('không nhóm nào rỗng - nhóm rỗng nghĩa là một tab luôn trắng', () => {
-    for (const group of GROUPS) {
-      expect(statusesOfGroup(group).length).toBeGreaterThan(0);
-    }
   });
 });

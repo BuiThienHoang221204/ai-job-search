@@ -35,6 +35,10 @@ export type PortalEntry = {
   enabled: boolean;
   /** Portal tự lọc được theo ngày đăng (LinkedIn có --jobage). */
   supportsJobAge: boolean;
+  /** Nhịp riêng khai bằng `delayMs` trong SKILL.md; `null` thì dùng `SCRAPER_PORTAL_DELAY_MS` chung. */
+  delayMs: number | null;
+  /** Mã NHÓM ngành portal phục vụ, khai bằng `occupations` trong SKILL.md; `null` = phục vụ mọi ngành. */
+  occupations: string[] | null;
   description: string;
 };
 
@@ -60,6 +64,7 @@ export type QueryProfile = {
   location: string | null;
   primarySkills: string[];
   targetSectors: string[];
+  subOccupationCode: string | null;
 };
 
 export type ProfileCluster = {
@@ -97,6 +102,8 @@ export type QueryCursor = {
   gained: number;
   /** Đã gửi được ít nhất một request; `markCrawled` chỉ đóng dấu nghề có cờ này. */
   requested: boolean;
+  /** Lỗi của request gần nhất; truy vấn lỗi được đánh `done` để lượt quét đi tiếp các truy vấn khác. */
+  error?: unknown;
 };
 
 /** Những thứ việc thu thập cần từ bên ngoài. Không tự dựng cái nào. */

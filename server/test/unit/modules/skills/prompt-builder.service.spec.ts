@@ -1,5 +1,12 @@
-import type { Profile } from 'src/generated/prisma/client.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { Job, Profile } from 'src/generated/prisma/client.js';
 import { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
+import { PROFILE_LABELS } from 'src/modules/skills/utils/shared-placeholders.js';
+import {
+  EVALUATION_SECTIONS,
+  evaluationPrompt,
+} from 'src/modules/matching/ai/prompt/evaluation.prompt.js';
 
 const service = new PromptBuilderService();
 
@@ -270,5 +277,106 @@ describe('profileSummary', () => {
     expect(
       service.profileSummary(profileOf({ willingToRelocate: true })),
     ).toContain('Sẵn sàng chuyển nơi ở: có');
+  });
+});
+
+/** Khung chấm điểm THẬT, dựng y như `MatchingService.buildPrompt`: đổi file `.md` mà quên nhãn thì test đỏ ở đây. */
+const EVALUATION_MD = readFileSync(
+  join(
+    __dirname,
+    '../../../../../.claude/skills/job-application-assistant/04-job-evaluation.md',
+  ),
+  'utf8',
+);
+
+const sharedFramework = () =>
+  service.renderShared(
+    service.dropSubsection(
+      service.keepSections(EVALUATION_MD, EVALUATION_SECTIONS),
+      'Salary Benchmark',
+    ),
+  );
+
+/** Hồ sơ đủ MỌI trường mà bảng nhãn trỏ tới. */
+const fullProfile = (skill: string): Profile =>
+  profileOf({
+    headline: 'Kế toán tổng hợp',
+    location: 'Hà Nội',
+    country: 'Việt Nam',
+    languages: ['Tiếng Việt'],
+    employmentStatus: 'Đang đi làm',
+    primarySkills: [skill],
+    secondarySkills: ['Excel'],
+    lackingSkills: ['IFRS'],
+    directExperienceDomains: ['Sản xuất'],
+    adjacentExperience: ['Thương mại'],
+    careerGoals: ['Kế toán trưởng'],
+    energizingTasks: ['Lập báo cáo'],
+    drainingTasks: ['Nhập liệu'],
+    commuteConstraint: 'Dưới 10km',
+  });
+
+const JOB = {
+  title: 'Kế toán',
+  company: 'Công ty A',
+  location: 'Hà Nội',
+  workMode: null,
+  salaryRaw: null,
+  tags: [],
+  description: 'Mô tả',
+} as unknown as Job;
+
+describe('renderShared - khung dùng chung để cache được', () => {
+  test('không còn token [YOUR_*] nào lọt vào khung thật', () => {
+    expect(sharedFramework()).not.toMatch(/\[[A-Z][A-Z0-9_]{2,}\]/);
+  });
+
+  test('MỌI nhãn được trỏ tới đều có dòng tương ứng trong profileSummary', () => {
+    // Đổi nhãn bên `profileSummary` mà quên bảng này thì câu trỏ chỉ vào một dòng không tồn tại, và không có gì báo lỗi.
+    const summary = service.profileSummary(fullProfile('MISA'));
+    for (const label of new Set(Object.values(PROFILE_LABELS))) {
+      expect(summary).toContain(`- ${label}: `);
+    }
+  });
+
+  test('hai hồ sơ khác nhau cho ra system prompt GIỐNG HỆT — đây là toàn bộ mục đích', () => {
+    const a = evaluationPrompt(
+      sharedFramework(),
+      service.profileSummary(fullProfile('MISA')),
+      JOB,
+    );
+    const b = evaluationPrompt(
+      sharedFramework(),
+      service.profileSummary(fullProfile('React')),
+      JOB,
+    );
+
+    expect(a.system).toBe(b.system);
+    expect(a.prompt).not.toBe(b.prompt);
+    expect(a.system).not.toContain('MISA');
+  });
+
+  test('token không có nhãn (tên, tài chính) vẫn ra đúng câu NOT_PROVIDED như render', () => {
+    expect(
+      service.renderShared('[YOUR_NAME] [YOUR_FINANCIAL_SITUATION_CONTEXT]'),
+    ).toBe(`${NOT_PROVIDED} ${NOT_PROVIDED}`);
+  });
+
+  test('khung vẫn nói rõ "chưa cung cấp" khi hồ sơ thiếu dòng được trỏ tới', () => {
+    // Luật chấm bảo model chấm thấp mục ghi "chưa cung cấp"; bỏ vế này thì dòng vắng mặt thành im lặng.
+    const output = service.renderShared('[YOUR_PRIMARY_SKILLS]');
+    expect(output).toContain(NOT_PROVIDED);
+    expect(output).toContain('(xem «Kỹ năng chính»)');
+  });
+
+  test('ghi chú chỉ xuất hiện MỘT lần dù có nhiều câu trỏ', () => {
+    const output = sharedFramework();
+    expect(output.split('Ghi chú: «…»').length - 1).toBe(1);
+  });
+
+  test('khung không có token nào thì không chèn ghi chú', () => {
+    expect(service.renderShared('Không có gì để trỏ')).toBe(
+      'Không có gì để trỏ',
+    );
   });
 });

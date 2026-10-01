@@ -57,3 +57,13 @@ export function toMatchProfile(profile: {
     years: yearsOfExperience(profile.experiences),
   };
 }
+
+export const NO_SKILLS_ERROR =
+  'Không rút được kỹ năng nào từ tin này, nên không có căn cứ để đối chiếu hồ sơ.';
+
+/** Bản rút không có kỹ năng nào là bản hỏng: ghi DONE thì luật chấm chỉ còn số năm để đối chiếu. */
+export const hasSkills = (extracted: {
+  requiredSkills: string[];
+  niceToHaveSkills: string[];
+}): boolean =>
+  extracted.requiredSkills.length + extracted.niceToHaveSkills.length > 0;

@@ -1,11 +1,24 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
-import { AuthService } from './auth.service.js';
-import { clearAuthCookie, setAuthCookie } from './auth.cookie.js';
+import type { Request, Response } from 'express';
+import { AuthService, type AuthResult } from './auth.service.js';
+import {
+  REFRESH_COOKIE,
+  clearAuthCookies,
+  setAccessCookie,
+  setRefreshCookie,
+} from './auth.cookie.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Public } from '../../common/decorators/public.decorator.js';
-import { LoginDto, RegisterDto } from './auth.dto.js';
+import { GoogleLoginDto, LoginDto, RegisterDto } from './auth.dto.js';
 import type { AuthUser } from '../../common/types/auth-user.js';
 import { ThrottleAuth } from '../../common/throttle.js';
 
@@ -23,9 +36,7 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.auth.register(dto);
-    setAuthCookie(response, result.accessToken);
-    return result;
+    return issue(response, await this.auth.register(dto));
   }
 
   @Public()
@@ -37,9 +48,37 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.auth.login(dto);
-    setAuthCookie(response, result.accessToken);
-    return result;
+    return issue(response, await this.auth.login(dto));
+  }
+
+  @Public()
+  @ThrottleAuth()
+  @ApiOperation({ summary: 'Đăng nhập / đăng ký bằng Google' })
+  @Post('google')
+  @HttpCode(200)
+  async google(
+    @Body() dto: GoogleLoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return issue(response, await this.auth.loginWithGoogle(dto.idToken));
+  }
+
+  /** `@Public()` vì access token đã hết hạn lúc gọi tới đây; chỉ nhận token qua cookie httpOnly, không nhận qua body/header. */
+  @Public()
+  @ThrottleAuth()
+  @ApiOperation({ summary: 'Đổi refresh token lấy cặp token mới' })
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookies = (request as { cookies?: Record<string, unknown> }).cookies;
+    const token = cookies?.[REFRESH_COOKIE];
+    return issue(
+      response,
+      await this.auth.refresh(typeof token === 'string' ? token : undefined),
+    );
   }
 
   /**
@@ -52,7 +91,21 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   logout(@Res({ passthrough: true }) response: Response) {
-    clearAuthCookie(response);
+    clearAuthCookies(response);
+    return { ok: true };
+  }
+
+  /** Khác `logout`: tăng `tokenVersion` nên mọi token đã phát chết ngay, không riêng cookie của trình duyệt đang gọi. */
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Đăng xuất trên mọi thiết bị' })
+  @Post('logout-all')
+  @HttpCode(200)
+  async logoutAll(
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.auth.revokeAllSessions(user.id);
+    clearAuthCookies(response);
     return { ok: true };
   }
 
@@ -63,3 +116,10 @@ export class AuthController {
     return user;
   }
 }
+
+/** Đặt cả hai cookie rồi trả nguyên kết quả về body. */
+const issue = (response: Response, result: AuthResult): AuthResult => {
+  setAccessCookie(response, result.accessToken);
+  setRefreshCookie(response, result.refreshToken);
+  return result;
+};

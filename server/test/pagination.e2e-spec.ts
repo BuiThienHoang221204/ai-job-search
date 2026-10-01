@@ -153,10 +153,7 @@ describe('Phân trang trên các API danh sách', () => {
     });
   });
 
-  /// `counts` là thứ vẽ các tab trên màn Lịch sử ứng tuyển. Nó ĐẾM TRÊN TOÀN BỘ
-  /// đơn, nên phải đứng yên khi người dùng đổi tab hoặc lật trang - nếu không,
-  /// bấm sang tab "Đã đóng" sẽ làm mọi con số khác tụt về 0.
-  describe('GET /api/applications · counts', () => {
+  describe('GET /api/applications · status', () => {
     beforeEach(async () => {
       for (const status of [
         'VIEWED',
@@ -180,38 +177,41 @@ describe('Phân trang trên các API danh sách', () => {
       }
     });
 
-    const countsOf = async (query: Record<string, unknown>) => {
+    const listOf = async (query: Record<string, unknown>) => {
       const response = await request(harness.server)
         .get('/api/applications')
         .query(query)
         .set(auth(user.token))
         .expect(200);
       return response.body as {
-        items: unknown[];
+        items: Array<{ status: string }>;
         total: number;
-        counts: Record<string, number>;
       };
     };
 
-    test('không đổi khi lọc theo tab', async () => {
-      const expected = { all: 4, open: 3, closed: 1 };
-
-      expect((await countsOf({})).counts).toEqual(expected);
-      expect((await countsOf({ group: 'open' })).counts).toEqual(expected);
-      expect((await countsOf({ group: 'closed' })).counts).toEqual(expected);
+    test('không lọc thì trả mọi đơn', async () => {
+      expect((await listOf({})).total).toBe(4);
     });
 
-    test('total thì ĐỔI theo tab, vì nó đếm trên tập đã lọc', async () => {
-      expect((await countsOf({})).total).toBe(4);
-      expect((await countsOf({ group: 'closed' })).total).toBe(1);
-      expect((await countsOf({ group: 'open' })).total).toBe(3);
+    test('lọc đúng một trạng thái, total đếm trên tập đã lọc', async () => {
+      const viewed = await listOf({ status: 'VIEWED' });
+      expect(viewed.total).toBe(2);
+      expect(viewed.items.every((item) => item.status === 'VIEWED')).toBe(true);
+
+      expect((await listOf({ status: 'APPLIED' })).total).toBe(1);
+      expect((await listOf({ status: 'WITHDRAWN' })).total).toBe(1);
     });
 
-    test('không đổi khi lật sang trang không còn bản ghi nào', async () => {
-      const page = await countsOf({ limit: 2, offset: 50 });
+    test('trạng thái lạ bị từ chối', async () => {
+      await request(harness.server)
+        .get('/api/applications')
+        .query({ status: 'OPEN' })
+        .set(auth(user.token))
+        .expect(400);
+    });
 
-      expect(page.items).toHaveLength(0);
-      expect(page.counts.all).toBe(4);
+    test('không còn trả counts', async () => {
+      expect(await listOf({})).not.toHaveProperty('counts');
     });
   });
 });

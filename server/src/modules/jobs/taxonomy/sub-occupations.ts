@@ -15,7 +15,9 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'qa engineer',
         'qc engineer',
         'automation test',
+        'test automation',
         'manual test',
+        'test engineer',
       ],
     },
     {
@@ -24,6 +26,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
       keywords: [
         'devops',
         'sre',
+        'site reliability',
         'cloud engineer',
         'ha tang',
         'quan tri he thong',
@@ -50,7 +53,8 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'IT_EMBEDDED',
       name: 'Nhúng / IoT',
-      keywords: ['nhung', 'embedded', 'iot', 'firmware', 'vi dieu khien'],
+      // 'embedded' đứng đầu: taxonomyBaseline() lấy keywords[0] làm truy vấn quét, và 'nhung' bỏ dấu trả 0 kết quả.
+      keywords: ['embedded', 'nhung', 'iot', 'firmware', 'vi dieu khien'],
     },
     {
       code: 'IT_PM',
@@ -95,6 +99,8 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         '.net developer',
         'python developer',
         'api developer',
+        'java',
+        'python',
       ],
     },
     {
@@ -119,6 +125,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'lap trinh',
         'ky su phan mem',
         'software engineer',
+        'software engineering',
       ],
     },
   ],
@@ -156,7 +163,14 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'DESIGN_UIUX',
       name: 'UI/UX',
-      keywords: ['ui ux', 'ux designer', 'ui designer', 'product designer'],
+      keywords: [
+        'ui ux',
+        'uiux',
+        'ux designer',
+        'ui designer',
+        'product designer',
+        'thiet ke website',
+      ],
     },
     {
       code: 'DESIGN_GRAPHIC',
@@ -171,7 +185,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'DESIGN_3D',
       name: '3D / Game Art',
-      keywords: ['3d artist', 'game artist', 'modeling'],
+      keywords: ['3d artist', 'game artist', 'modeling', 'character artist'],
     },
   ],
 
@@ -244,6 +258,10 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'sales executive',
         'thi truong',
         'ban hang',
+        'sales representative',
+        'sales consultant',
+        'sales admin',
+        'phong kinh doanh',
       ],
     },
   ],
@@ -280,7 +298,13 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'FIN_AUDIT',
       name: 'Kiểm toán',
-      keywords: ['kiem toan', 'auditor', 'kiem soat noi bo'],
+      keywords: [
+        'kiem toan',
+        'auditor',
+        'audit',
+        'kiem soat noi bo',
+        'thanh tra',
+      ],
     },
     {
       code: 'FIN_TAX',
@@ -292,6 +316,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
       name: 'Ngân hàng',
       keywords: [
         'ngan hang',
+        'banking',
         'tin dung',
         'giao dich vien',
         'quan he khach hang',
@@ -300,7 +325,14 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'FIN_INVEST',
       name: 'Tài chính / Đầu tư',
-      keywords: ['tai chinh', 'dau tu', 'phan tich tai chinh', 'chung khoan'],
+      keywords: [
+        'tai chinh',
+        'dau tu',
+        'phan tich tai chinh',
+        'chung khoan',
+        'finance',
+        'financial',
+      ],
     },
     {
       code: 'FIN_INSURANCE',
@@ -324,6 +356,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'bao hiem xa hoi',
         'nhan su tong hop',
         'hr admin',
+        'nhan su',
       ],
     },
     {
@@ -347,7 +380,14 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'MFG_ELECTRICAL',
       name: 'Điện / Điện tử',
-      keywords: ['dien tu', 'ky su dien', 'electrical', 'tu dong hoa', 'plc'],
+      keywords: [
+        'dien tu',
+        'ky su dien',
+        'electrical',
+        'tu dong hoa',
+        'plc',
+        'co dien',
+      ],
     },
     {
       code: 'MFG_QAQC',
@@ -357,12 +397,20 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'kiem tra chat luong',
         'quality control',
         'quality assurance',
+        'quan ly chat luong',
       ],
     },
     {
       code: 'MFG_OPERATOR',
       name: 'Vận hành máy',
-      keywords: ['van hanh may', 'operator', 'to truong san xuat'],
+      keywords: [
+        'van hanh may',
+        'van hanh',
+        'operator',
+        'to truong san xuat',
+        'bao tri',
+        'production',
+      ],
     },
     {
       code: 'MFG_SAFETY',
@@ -408,6 +456,9 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'import export',
         'chung tu',
         'khai bao hai quan',
+        'hai quan',
+        'import',
+        'export',
       ],
     },
     {

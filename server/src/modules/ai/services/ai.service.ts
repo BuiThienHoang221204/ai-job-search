@@ -83,6 +83,7 @@ export class AiService implements Ai {
       options.modelId,
       (modelId) => this.withFormatFallback({ ...options, modelId }),
       this.chainBudgetMs,
+      options.fallbackModelIds,
     );
   }
 
@@ -250,8 +251,20 @@ export class AiService implements Ai {
     );
   }
 
-  /** Thử lại trong suốt được là nhờ `beginStream` giữ tới khi có mảnh ĐẦU TIÊN — lúc đó chưa byte nào rời máy chủ. */
+  /** Đi chuỗi dự phòng y như `generateObject`: `beginStream` giữ tới mảnh ĐẦU TIÊN nên lúc đổi mắt xích chưa byte nào rời máy chủ. */
   async streamObject<T>(
+    options: StreamObjectOptions<T>,
+  ): Promise<StreamObjectResult<T>> {
+    return this.chain.run(
+      options.modelId,
+      (modelId) => this.streamOnce({ ...options, modelId }),
+      this.chainBudgetMs,
+      options.fallbackModelIds,
+    );
+  }
+
+  /** MỘT mắt xích của `streamObject`, kèm lưới đổi chế độ ép định dạng. */
+  private async streamOnce<T>(
     options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
     const {
@@ -269,7 +282,12 @@ export class AiService implements Ai {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
 
       // Model trong danh sách mà vẫn hỏng: còn đường không-stream để bóc JSON.
-      if (!switchable) return this.withoutStreaming(options, primary);
+      if (!switchable) {
+        this.logger.warn(
+          `streamObject ${options.modelId ?? '(mặc định)'} không phát được mảnh nào; rơi về đường không-stream`,
+        );
+        return this.withoutStreaming(options, primary);
+      }
 
       const fallback = !primary;
       this.logger.warn(
@@ -305,6 +323,7 @@ export class AiService implements Ai {
     const { model, id, provider, ref } = await this.models.create(
       options.modelId,
       structuredOutputs,
+      true,
     );
     const startedAt = Date.now();
 
@@ -319,6 +338,10 @@ export class AiService implements Ai {
           ? error
           : undefined;
         const issues = error ? schemaIssues(error) : [];
+        // Cột `responseText` chỉ giữ 2.000 ký tự và cắt GIỮA — đúng chỗ JSON thường hỏng; in đủ ra log như đường không-stream.
+        if (empty) {
+          this.logSchemaFailure(ref, Date.now() - startedAt, empty, issues);
+        }
         void this.callLog.record({
           context: options.context,
           provider,

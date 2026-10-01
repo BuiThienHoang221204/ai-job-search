@@ -4,6 +4,7 @@ import {
   type TestApp,
   type TestUser,
 } from './support/app-harness.js';
+import { SECTION_KEYS } from 'src/modules/documents/templates/cv-layout.js';
 
 /**
  * Người dùng sửa CV: chữ, thứ tự mục, mục bị ẩn.
@@ -153,7 +154,7 @@ describe('Sửa CV', () => {
 
     expect(layout.order.slice(0, 2)).toEqual(['skills', 'experience']);
     // Khoá thiếu được nối vào cuối chứ không biến mất.
-    expect(layout.order).toHaveLength(5);
+    expect(layout.order).toHaveLength(SECTION_KEYS.length);
     expect(layout.hidden).toEqual(['education']);
   });
 

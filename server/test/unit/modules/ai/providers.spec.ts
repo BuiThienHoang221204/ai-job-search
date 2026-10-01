@@ -4,10 +4,12 @@ import {
   findProvider,
   providerIds,
 } from 'src/modules/ai/providers/index.js';
+import { groq } from 'src/modules/ai/providers/groq.js';
 import { kilo } from 'src/modules/ai/providers/kilo.js';
 import { opencode } from 'src/modules/ai/providers/opencode.js';
 import { omniroute } from 'src/modules/ai/providers/omniroute.js';
 import { openrouter } from 'src/modules/ai/providers/openrouter.js';
+import { streamsJsonFor } from 'src/modules/ai/utils/catalog.js';
 
 /*
  * Mỗi lõi một file, và thêm lõi mới là thêm một file rồi một dòng trong
@@ -133,5 +135,40 @@ describe('Lõi omniroute — gateway không ép được response_format', () =>
     // Wrapper chỉ chuyển tiếp thân request kiểu OpenAI, không ép định dạng nào.
     expect(opencode.honorsResponseFormat).toBe(false);
     expect(opencode.baseURLEnv).toBe('OPENCODE_SERVICE_URL');
+  });
+});
+
+describe('Lõi groq — LPU suy luận nhanh, không phải catalog opencode.ai', () => {
+  test('khai baseURLEnv: không nằm trong catalog ngoài, phải tự hỏi /models của chính nó', () => {
+    expect(groq.baseURLEnv).toBe('GROQ_BASE_URL');
+  });
+
+  test('honorsResponseFormat=false — đo thật 2026-09-30, Groq áp chế độ strict của OpenAI', () => {
+    // response_format bị Groq từ chối 400 ngay trên schema có .optional()/.default()
+    // của match.evaluate: "required is required to be an array including every key
+    // in properties". Đường bơm schema vào prompt mới dùng được.
+    expect(groq.honorsResponseFormat).toBe(false);
+  });
+
+  test('knownNoStructuredOutput và declaresStructuredOutput vẫn để trống — chưa đo từng model riêng lẻ', () => {
+    expect(groq.knownNoStructuredOutput).toBeUndefined();
+    expect(groq.declaresStructuredOutput).toBeUndefined();
+  });
+});
+
+describe('streamsJson — model nào được thử stream', () => {
+  test("opencode khai 'all': model nào của bể cũng stream, kể cả model mới xoay vào", () => {
+    expect(streamsJsonFor(opencode, 'space-bunny-free')).toBe(true);
+    expect(streamsJsonFor(opencode, 'model-chua-tung-thay-free')).toBe(true);
+  });
+
+  test('danh sách rỗng thì không model nào stream', () => {
+    expect(streamsJsonFor(omniroute, 'kc/openrouter/free')).toBe(false);
+  });
+
+  test('danh sách tên thì chỉ đúng tên đó', () => {
+    const descriptor = { ...omniroute, streamsJson: ['a-free'] };
+    expect(streamsJsonFor(descriptor, 'a-free')).toBe(true);
+    expect(streamsJsonFor(descriptor, 'b-free')).toBe(false);
   });
 });

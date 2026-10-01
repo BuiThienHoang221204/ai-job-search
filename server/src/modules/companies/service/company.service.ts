@@ -7,6 +7,7 @@ import {
 import type { CompanyBrief as BriefRecord } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { AiService } from '../../ai/services/ai.service.js';
+import { modelIdsFrom } from '../../../common/model-env.js';
 import type { CompanyBriefPayload } from '../../queue/queue.service.js';
 import {
   BRIEF_SYSTEM,
@@ -124,6 +125,8 @@ export class CompanyService {
           system: BRIEF_SYSTEM,
           prompt: buildBriefPrompt(company, prepared.sources),
           timeoutMs: BRIEF_TIMEOUT_MS,
+          modelId: process.env.AI_FAST_MODEL_ID || undefined,
+          fallbackModelIds: modelIdsFrom(process.env.AI_FAST_FALLBACK_IDS),
         });
 
       for await (const partial of partials) {

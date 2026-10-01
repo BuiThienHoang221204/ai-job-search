@@ -9,6 +9,7 @@ description: >
   Vietnam, job search Ho Chi Minh, job search Ha Noi.
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
+occupations: [IT, DATA_AI]  # mã NHÓM ngành portal phục vụ; thiếu trường này = phục vụ mọi ngành
 allowed-tools: Bash(bun run .agents/skills/itviec-search/cli/src/cli.ts *)
 ---
 

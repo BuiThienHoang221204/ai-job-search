@@ -62,6 +62,7 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
 
 import { z } from 'zod';
 import { AiService } from 'src/modules/ai/services/ai.service.js';
+import { ModelUnavailableError } from 'src/modules/ai/utils/failure-kind.js';
 import type { ModelCatalogService } from 'src/modules/ai/services/model-catalog.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { ConfigService } from '@nestjs/config';
@@ -142,6 +143,8 @@ function build(options?: {
   honorsResponseFormat?: boolean;
   /// `true` = model NÀY đã đo là stream ra JSON parse dần được.
   streamsJson?: boolean;
+  /// Model mà catalog báo là lõi không phục vụ — y như gateway vừa rút nó khỏi `/models`.
+  unavailable?: string[];
 }) {
   const recorded: Recorded[] = [];
 
@@ -161,18 +164,27 @@ function build(options?: {
     // Bản giả trả về CHÍNH id được yêu cầu, nên assert theo `recorded[i].modelId`
     // là đọc được thứ tự model đã thử.
     resolve: (modelId?: string) =>
-      Promise.resolve({
-        providerId: 'opencode',
-        model: { id: modelId ?? 'model-mac-dinh', name: modelId ?? 'mặc định' },
-        baseURL: 'https://gateway.test/v1',
-        apiKey: 'public',
-        // `languageModel` đọc `headers['User-Agent']`. Thiếu khoá này thì cả
-        // suite đỏ với `Cannot read properties of undefined`, và bản thật của
-        // `ModelCatalogService` luôn trả về ít nhất `{}`.
-        headers: {},
-        honorsResponseFormat: options?.honorsResponseFormat ?? true,
-        streamsJson: options?.streamsJson ?? false,
-      }),
+      options?.unavailable?.includes(modelId ?? '')
+        ? Promise.reject(
+            new ModelUnavailableError(
+              `Lõi OpenCode Zen không có model "${modelId}".`,
+            ),
+          )
+        : Promise.resolve({
+            providerId: 'opencode',
+            model: {
+              id: modelId ?? 'model-mac-dinh',
+              name: modelId ?? 'mặc định',
+            },
+            baseURL: 'https://gateway.test/v1',
+            apiKey: 'public',
+            // `languageModel` đọc `headers['User-Agent']`. Thiếu khoá này thì cả
+            // suite đỏ với `Cannot read properties of undefined`, và bản thật của
+            // `ModelCatalogService` luôn trả về ít nhất `{}`.
+            headers: {},
+            honorsResponseFormat: options?.honorsResponseFormat ?? true,
+            streamsJson: options?.streamsJson ?? false,
+          }),
   } as unknown as ModelCatalogService;
 
   const config = {
@@ -636,6 +648,59 @@ describe('AiService.streamObject - lưới đổi chế độ ép định dạng
       'could not parse the response',
     );
     expect(streamObjectMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('AiService.streamObject - chuỗi dự phòng', () => {
+  test('model mặc định vắng khỏi lõi thì stream bằng mắt xích kế, KHÔNG ném ra người gọi', async () => {
+    // Lỗi thật 2026-09-28: stream hỏng vì `space-bunny-free` vắng, giao diện rơi sang hàng đợi và chấm lần hai.
+    streamObjectMock.mockReturnValueOnce(
+      fakeStream([{ diem: 5 }], Promise.resolve({ diem: 5 })),
+    );
+
+    const { service } = build({
+      fallbackModelIds: ['b-free'],
+      unavailable: ['a-free'],
+    });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(stream.modelId).toBe('b-free');
+    expect(await drain(stream.partials)).toEqual([{ diem: 5 }]);
+    expect(streamObjectMock.mock.calls.map(([args]) => args.model.id)).toEqual([
+      'b-free',
+    ]);
+  });
+
+  test('hết hạn mức trước mảnh đầu thì đổi model', async () => {
+    streamObjectMock
+      .mockReturnValueOnce(fakeStream([], Promise.reject(rateLimit('a-free'))))
+      .mockReturnValueOnce(
+        fakeStream([{ diem: 8 }], Promise.resolve({ diem: 8 })),
+      );
+
+    const { service } = build({ fallbackModelIds: ['b-free'] });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(stream.modelId).toBe('b-free');
+    await expect(stream.object).resolves.toEqual({ diem: 8 });
+  });
+
+  test('lỗi schema thì KHÔNG đổi model, dù còn mắt xích dự phòng', async () => {
+    streamObjectMock.mockReturnValue(
+      fakeStream([], Promise.reject(proseInsteadOfJson())),
+    );
+
+    const { service } = build({
+      structuredOutputs: true,
+      fallbackModelIds: ['b-free'],
+    });
+
+    await expect(service.streamObject(call('a-free'))).rejects.toThrow(
+      'could not parse the response',
+    );
+    expect(
+      streamObjectMock.mock.calls.every(([args]) => args.model.id === 'a-free'),
+    ).toBe(true);
   });
 });
 

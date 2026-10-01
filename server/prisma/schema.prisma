@@ -34,7 +34,15 @@ model User {
   id           String   @id @default(cuid())
   role         UserRole @default(USER)
   email        String   @unique
-  passwordHash String
+  /// Null khi tài khoản chỉ đăng nhập bằng Google - không có mật khẩu nào để băm.
+  passwordHash String?
+  /// `sub` của Google, null cho tài khoản chưa từng đăng nhập Google. Dùng để tìm user mà không phụ thuộc email có đổi hay không.
+  googleId     String?  @unique
+  /// Tăng số này để VÔ HIỆU mọi token đã phát cho người dùng. Cả access lẫn
+  /// refresh token đều mang `ver` trong payload; lệch với cột này thì bị từ
+  /// chối ngay, kể cả access token đang còn hạn - chữ ký JWT hợp lệ chỉ chứng
+  /// minh token được ký, không chứng minh nó chưa bị rút lại.
+  tokenVersion Int      @default(0)
   name         String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -124,6 +132,15 @@ model Profile {
   /// `null` = hồ sơ chưa đủ dữ liệu để suy. Cố ý không quy về `OTHER`: gộp mọi
   /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
   occupationCode String?
+
+  /// Nghề cụ thể bên trong nhóm (vd `IT_BACKEND` trong nhóm `IT`) - chỉ do
+  /// bước "Chọn nhanh" ghi tường minh lúc đăng ký, KHÔNG được suy từ
+  /// `headline`/`primarySkills` như `occupationCode`. `null` = chưa chọn.
+  subOccupationCode String?
+
+  /// Mức kinh nghiệm user tự chọn ở bước "Chọn nhanh" lúc đăng ký, dùng cùng
+  /// thang với `Job.seniority` để sau này so khớp được. `UNKNOWN` = chưa chọn.
+  experienceLevel JobSeniority @default(UNKNOWN)
 
   lastFanOutAt DateTime?
 
@@ -814,6 +831,10 @@ model AiCall {
   /// giữ nguyên 1415 trong khi cached_tokens nhảy từ 0 lên 1408 ở lần gọi thứ hai.
   /// Không tách ra thì mọi con số "token đã tiêu" đều thổi phồng, và mọi quyết
   /// định tối ưu prompt đều dựa trên một cái giá không có thật.
+  ///
+  /// CLI opencode thì ngược lại: `tokens.input` KHÔNG gồm cache, nên `usageOf()`
+  /// trong opencode-service cộng `cache.read` vào trước khi trả - đo 2026-09-27,
+  /// thiếu bước đó thì cột này luôn null và AI SDK tính ra `noCache` âm.
   cachedTokens Int?
 
   /// Model dừng vì sao: "stop", "length", "tool-calls"… Chỉ ghi khi lượt gọi hỏng.

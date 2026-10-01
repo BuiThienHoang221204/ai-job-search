@@ -13,6 +13,8 @@ export type GenerateObjectOptions<T> = {
   prompt: string;
   context: AiCallContext;
   modelId?: string;
+  /** Ghi đè `MODEL_FALLBACK_IDS` CHỈ cho lượt gọi này; bỏ trống thì `ModelChain` dùng chuỗi mặc định của hệ thống. */
+  fallbackModelIds?: string[];
   maxRetries?: number;
   timeoutMs?: number;
 };
@@ -25,6 +27,8 @@ export type StreamObjectOptions<T> = {
   prompt: string;
   context: AiCallContext;
   modelId?: string;
+  /** Ghi đè `MODEL_FALLBACK_IDS` CHỈ cho lượt gọi này; bỏ trống thì `ModelChain` dùng chuỗi mặc định của hệ thống. */
+  fallbackModelIds?: string[];
   timeoutMs?: number;
 };
 

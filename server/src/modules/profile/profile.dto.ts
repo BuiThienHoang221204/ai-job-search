@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -146,4 +147,21 @@ export class UpdateProfileDto {
   @IsOptional() @IsBoundedJson(JSON_BOUNDS) educations?: unknown;
   @IsOptional() @IsBoundedJson(JSON_BOUNDS) certificates?: unknown;
   @IsOptional() @IsBoundedJson(JSON_BOUNDS) projects?: unknown;
+}
+
+/** Khớp enum `JobSeniority` trong schema.prisma - khai lại thành mảng runtime để `@IsIn` dùng được, cùng quy ước với `USER_ROLES` ở `admin.dto.ts`. */
+export const EXPERIENCE_LEVELS = [
+  'INTERN',
+  'FRESHER',
+  'JUNIOR',
+  'MIDDLE',
+  'SENIOR',
+  'LEAD',
+] as const;
+
+/** Bước "Chọn nhanh" lúc đăng ký - tách khỏi `UpdateProfileDto` vì route hồ sơ thường không cho ghi `occupationCode` tường minh (nó luôn suy từ `headline`/`primarySkills`). */
+export class QuickStartProfileDto {
+  @IsString() @MaxLength(SHORT) occupationCode!: string;
+  @IsOptional() @IsString() @MaxLength(SHORT) subOccupationCode?: string;
+  @IsOptional() @IsIn(EXPERIENCE_LEVELS) experienceLevel?: string;
 }

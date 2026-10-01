@@ -13,6 +13,9 @@ export const opencode: ProviderDescriptor = {
   /** Wrapper CLI chỉ chuyển tiếp thân request, không ép định dạng — schema phải đi đường bơm vào prompt. */
   honorsResponseFormat: false,
 
+  /** Mọi model, vì bể free xoay vòng nên danh sách tên cứng sẽ lỗi thời; stream hỏng trước mảnh đầu vẫn rơi về đường không-stream. */
+  streamsJson: 'all',
+
   knownNoStructuredOutput: [
     // Trả content rỗng dù đã cho tới 1500 token.
     'laguna-s-2.1-free',

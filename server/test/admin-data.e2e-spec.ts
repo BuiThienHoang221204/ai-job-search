@@ -69,6 +69,7 @@ describe('API dữ liệu của màn quản trị', () => {
     ['get', '/admin/overview'],
     ['get', '/admin/scrape/portals'],
     ['get', '/admin/scrape/batches'],
+    ['get', '/admin/scrape/occupation-coverage'],
     ['get', '/admin/ai-failures/facets'],
     ['post', '/admin/skills/rematch'],
   ] as const)('tài khoản thường gọi %s %s nhận 403', async (method, path) => {
@@ -338,6 +339,55 @@ describe('API dữ liệu của màn quản trị', () => {
       expect(
         json<{ requirements: { status: string } }>(detail).requirements.status,
       ).toBe('DONE');
+    });
+
+    test('số tin theo ngành phân biệt "chưa tới lượt" với "quét rồi vẫn 0 tin"', async () => {
+      await harness.prisma.job.create({
+        data: {
+          source: 'topcv',
+          url: 'https://x/3',
+          title: 'Kế toán tổng hợp',
+          company: 'C',
+          description: 'd',
+          occupationCode: 'FINANCE',
+        },
+      });
+      await harness.prisma.occupationCrawl.create({
+        data: {
+          portal: 'itviec',
+          occupationCode: 'HOS_KITCHEN',
+          lastCrawledAt: new Date(),
+        },
+      });
+
+      const response = await as(admin)
+        .get('/admin/scrape/occupation-coverage')
+        .expect(200);
+      const body = json<{
+        staleDays: number;
+        items: Array<{
+          code: string;
+          jobCount: number;
+          attempted: boolean;
+          stale: boolean;
+        }>;
+      }>(response);
+
+      const finance = body.items.find((row) => row.code === 'FINANCE')!;
+      expect(finance).toMatchObject({
+        jobCount: 1,
+        attempted: false,
+        stale: false,
+      });
+
+      const hospitality = body.items.find((row) => row.code === 'HOSPITALITY')!;
+      expect(hospitality).toMatchObject({
+        jobCount: 0,
+        attempted: true,
+        stale: true,
+      });
+
+      expect(body.items.some((row) => row.code === 'OTHER')).toBe(false);
     });
   });
 

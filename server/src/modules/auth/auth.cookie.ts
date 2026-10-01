@@ -1,52 +1,41 @@
 import type { CookieOptions, Response } from 'express';
 
 export const AUTH_COOKIE = 'aijob_token';
+export const REFRESH_COOKIE = 'aijob_refresh';
 
-/**
- * Phải khớp JWT_EXPIRES_IN=7d. Cookie sống lâu hơn token thì người dùng thấy
- * mình vẫn "đang đăng nhập" nhưng nhận 401 ở mọi thao tác - trạng thái khó
- * hiểu nhất có thể bày ra cho người dùng.
- */
+/** Giới hạn đúng route đổi token - thiếu tiền tố `/api` (`setGlobalPrefix`) thì trình duyệt lặng lẽ không gửi cookie này. */
+const REFRESH_PATH = '/api/auth/refresh';
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+
+/** Phải khớp JWT_REFRESH_EXPIRES_IN=7d - cookie sống lâu hơn token thì người dùng thấy "đang đăng nhập" nhưng nhận 401 ở mọi thao tác. */
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const options = (): CookieOptions => ({
-  /**
-   * JavaScript trong trang không đọc được cookie này. Nhờ vậy một lỗi XSS ở
-   * bất kỳ đâu trong giao diện cũng không lấy được token mang đi.
-   */
-  httpOnly: true,
-
-  /**
-   * 'lax' đủ dùng vì frontend và backend luôn cùng site:
-   * - Khi phát triển: localhost:3000 và localhost:4000. Cookie KHÔNG phân
-   * biệt cổng, chỉ phân biệt tên miền, nên đây là cùng site.
-   */
-  sameSite: 'lax',
-
-  /**
-   * Bật secure ở production thôi: trên http://localhost trình duyệt sẽ lặng lẽ
-   * vứt cookie có cờ secure, và đăng nhập trông như hỏng mà không báo gì.
-   */
-  secure: process.env.NODE_ENV === 'production',
-
+  httpOnly: true, // JS trong trang không đọc được, nên một lỗi XSS không lấy được token.
+  sameSite: 'lax', // Đủ dùng vì frontend/backend luôn cùng site (cookie không phân biệt cổng).
+  secure: process.env.NODE_ENV === 'production', // Bật secure trên localhost thì trình duyệt âm thầm vứt cookie.
   path: '/',
-
-  /**
-   * Cho phép chia sẻ cookie giữa các tên miền con khi chạy thật, ví dụ
-   * COOKIE_DOMAIN=.example.com. Bỏ trống khi phát triển để cookie gắn với
-   * đúng host hiện tại.
-   */
-  domain: process.env.COOKIE_DOMAIN || undefined,
+  domain: process.env.COOKIE_DOMAIN || undefined, // Vd COOKIE_DOMAIN=.example.com để chia sẻ giữa các subdomain lúc chạy thật.
 });
 
-export const setAuthCookie = (response: Response, token: string): void => {
-  response.cookie(AUTH_COOKIE, token, { ...options(), maxAge: SEVEN_DAYS_MS });
+export const setAccessCookie = (response: Response, token: string): void => {
+  response.cookie(AUTH_COOKIE, token, {
+    ...options(),
+    maxAge: FIFTEEN_MINUTES_MS,
+  });
 };
 
-/**
- * Xoá cookie. Phải truyền lại ĐÚNG path và domain như lúc tạo, nếu không
- * trình duyệt coi đây là một cookie khác và cookie cũ vẫn nằm nguyên đó.
- */
-export const clearAuthCookie = (response: Response): void => {
+export const setRefreshCookie = (response: Response, token: string): void => {
+  response.cookie(REFRESH_COOKIE, token, {
+    ...options(),
+    path: REFRESH_PATH,
+    maxAge: SEVEN_DAYS_MS,
+  });
+};
+
+/** Xoá cả hai cookie - phải truyền lại ĐÚNG path/domain lúc tạo, nếu không trình duyệt coi là cookie khác và cookie cũ vẫn còn nguyên. */
+export const clearAuthCookies = (response: Response): void => {
   response.clearCookie(AUTH_COOKIE, options());
+  response.clearCookie(REFRESH_COOKIE, { ...options(), path: REFRESH_PATH });
 };

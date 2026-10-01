@@ -122,7 +122,7 @@ describe('Nhặt việc nền bị rơi', () => {
       where: { id: runId },
     });
     expect(after.status).toBe('FAILED');
-    expect(after.error).toMatch(/Chạy tiếp/);
+    expect(after.error).toMatch(/khởi động lại/);
   });
 
   test('buổi luyện còn mới thì để yên', async () => {
@@ -243,6 +243,10 @@ describe('Nhặt việc nền bị rơi', () => {
       matches: 0,
       deferred: 0,
       agentRuns: 0,
+      upskillReports: 0,
+      interviewPreps: 0,
+      profileDrafts: 0,
+      jobRequirements: 0,
     });
     expect(harness.queue.sent).toEqual([]);
   });

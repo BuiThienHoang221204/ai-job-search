@@ -1,7 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../../common/decorators/roles.decorator.js';
-import { ScrapeBatchesQueryDto, ScrapePortalsQueryDto } from '../admin.dto.js';
+import {
+  OccupationCoverageQueryDto,
+  ScrapeBatchesQueryDto,
+  ScrapePortalsQueryDto,
+} from '../admin.dto.js';
 import { AdminScrapeService } from '../services/admin-scrape.service.js';
 
 @ApiTags('Admin')
@@ -27,5 +31,14 @@ export class AdminScrapeController {
   @Get('batches')
   batches(@Query() query: ScrapeBatchesQueryDto) {
     return this.scrape.batches(query);
+  }
+
+  /** `stale` bật khi ngành ĐÃ được quét trong `staleDays` mà vẫn 0 tin — chưa tới lượt trong chu kỳ phủ không tính. */
+  @ApiOperation({
+    summary: 'Số tin theo ngành, đánh dấu ngành đã quét mà vẫn 0 tin',
+  })
+  @Get('occupation-coverage')
+  occupationCoverage(@Query() query: OccupationCoverageQueryDto) {
+    return this.scrape.occupationCoverage(query);
   }
 }

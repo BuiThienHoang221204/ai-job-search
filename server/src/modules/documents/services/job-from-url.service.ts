@@ -6,6 +6,7 @@ import {
   webLimitsFrom,
   type WebLimits,
 } from '../../../common/web/web-limits.js';
+import { modelIdsFrom } from '../../../common/model-env.js';
 import { AiService } from '../../ai/services/ai.service.js';
 import {
   jobFromUrlPrompt,
@@ -46,6 +47,8 @@ export class JobFromUrlService {
       context: { purpose: 'job.fromUrl', userId },
       system: JOB_FROM_URL_SYSTEM,
       prompt: jobFromUrlPrompt(text),
+      modelId: process.env.AI_FAST_MODEL_ID || undefined,
+      fallbackModelIds: modelIdsFrom(process.env.AI_FAST_FALLBACK_IDS),
     });
 
     if (!object.title || !object.description) {

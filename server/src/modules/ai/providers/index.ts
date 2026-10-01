@@ -1,3 +1,4 @@
+import { groq } from './groq.js';
 import { kilo } from './kilo.js';
 import { opencode } from './opencode.js';
 import { omniroute } from './omniroute.js';
@@ -10,6 +11,7 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [
   openrouter,
   omniroute,
   kilo,
+  groq,
 ];
 
 /** Danh sách id, dùng để tách chuỗi `lõi/model`. */

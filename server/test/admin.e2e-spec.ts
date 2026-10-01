@@ -130,4 +130,14 @@ describe('Hợp đồng dữ liệu màn quản trị', () => {
       .set('Authorization', `Bearer ${user.token}`)
       .expect(403);
   });
+
+  test('POST endpoint chấp nhận body dạng "null" không bị 400', async () => {
+    const response = await request(harness.server)
+      .post('/api/matches/requirements/non-existent-job?force=true')
+      .set('Authorization', `Bearer ${admin.token}`)
+      .set('Content-Type', 'application/json')
+      .send('null');
+
+    expect(response.status).toBe(404);
+  });
 });

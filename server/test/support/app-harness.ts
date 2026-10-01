@@ -5,12 +5,14 @@ import request from 'supertest';
 import { AppModule } from 'src/app.module.js';
 import { configureApp } from 'src/bootstrap.js';
 import { AiService } from 'src/modules/ai/services/ai.service.js';
-import { AUTH_COOKIE } from 'src/modules/auth/auth.cookie.js';
+import { AUTH_COOKIE, REFRESH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
+import { GoogleAuthService } from 'src/modules/auth/google-auth.service.js';
 import { FakeSandbox } from 'src/testing/fake-sandbox.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
+import { FakeGoogleAuth } from 'src/testing/fake-google-auth.js';
 import { FakeQueue } from './fake-queue.js';
 import { truncateAll } from './test-database.js';
 
@@ -30,6 +32,10 @@ export type TestUser = {
   /// frontend thật đi, và nó là đường có rủi ro bảo mật cao hơn - phải có ít
   /// nhất một test đi qua nó chứ không chỉ test đường Bearer.
   cookie: string;
+  /// Refresh token thô, để dựng một Bearer SAI loại và kiểm nó bị từ chối ở API thường.
+  refreshToken: string;
+  /// Cặp `aijob_refresh=...` để gắn vào header Cookie khi gọi `POST /api/auth/refresh`.
+  refreshCookie: string;
 };
 
 export type TestApp = {
@@ -41,6 +47,8 @@ export type TestApp = {
   /// SEAM 2. Thay để KHÔNG test nào chạm Docker: một lượt `docker run` mất 5-10
   /// giây và cần ảnh nhiều GB.
   sandbox: FakeSandbox;
+  /// Bản giả của GoogleAuthService - test tự định nghĩa idToken trỏ tới profile nào, không gọi mạng thật tới Google.
+  google: FakeGoogleAuth;
   /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
   ///
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
@@ -90,6 +98,7 @@ export async function createTestApp(
   const ai = new FakeAi();
   const queue = new FakeQueue();
   const sandbox = new FakeSandbox();
+  const google = new FakeGoogleAuth();
 
   // Đặt TRƯỚC khi compile: `ConfigModule` đọc biến môi trường lúc dựng module,
   // nên đổi sau đó thì không có tác dụng. Không dùng `overrideGuard` được -
@@ -103,9 +112,11 @@ export async function createTestApp(
     .useValue(queue)
     .overrideProvider(SANDBOX)
     .useValue(sandbox)
+    .overrideProvider(GoogleAuthService)
+    .useValue(google)
     .compile();
 
-  const app = moduleRef.createNestApplication();
+  const app = moduleRef.createNestApplication({ bodyParser: false });
   // Đúng cấu hình HTTP của máy chủ thật, không phải một bản dựng lại gần giống.
   configureApp(app);
   await app.init();
@@ -135,6 +146,7 @@ export async function createTestApp(
     // còn lại của hàm không phải làm việc với any.
     const body = response.body as {
       accessToken: string;
+      refreshToken: string;
       user: { id: string };
     };
 
@@ -157,6 +169,14 @@ export async function createTestApp(
         `Đăng ký không đặt cookie ${AUTH_COOKIE}. Nhận được: ${cookies.join(' | ')}`,
       );
     }
+    const refreshCookie = cookies.find((value) =>
+      value.startsWith(`${REFRESH_COOKIE}=`),
+    );
+    if (!refreshCookie) {
+      throw new Error(
+        `Đăng ký không đặt cookie ${REFRESH_COOKIE}. Nhận được: ${cookies.join(' | ')}`,
+      );
+    }
 
     return {
       id: body.user.id,
@@ -166,6 +186,8 @@ export async function createTestApp(
       // Bỏ phần thuộc tính (Path, HttpOnly...); header Cookie chỉ nhận cặp
       // tên=giá trị.
       cookie: authCookie.split(';')[0],
+      refreshToken: body.refreshToken,
+      refreshCookie: refreshCookie.split(';')[0],
     };
   };
 
@@ -176,6 +198,7 @@ export async function createTestApp(
     ai,
     queue,
     sandbox,
+    google,
     signUp,
     promoteToAdmin: async (userId: string): Promise<void> => {
       await prisma.user.update({
@@ -188,6 +211,7 @@ export async function createTestApp(
       ai.reset();
       queue.reset();
       sandbox.reset();
+      google.reset();
     },
     close: async (): Promise<void> => {
       await app.close();
