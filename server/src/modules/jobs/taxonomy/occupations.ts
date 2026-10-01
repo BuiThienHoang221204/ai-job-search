@@ -380,6 +380,22 @@ export const OCCUPATIONS: Occupation[] = [
 /** Mã dùng khi không suy ra được nhóm nào. */
 export const OTHER_CODE = 'OTHER';
 
+const OTHER_SUB_SUFFIX = '_OTHER';
+
+/** Mã giả "nghề con chưa xác định" của một nhóm — chỉ dùng ở cột lọc, không phải mã thật trong `SUB_OCCUPATIONS`. */
+export function otherSubCodeOf(occupationCode: string): string {
+  return `${occupationCode}${OTHER_SUB_SUFFIX}`;
+}
+
+/** Trả về mã nhóm cha nếu `code` là mã giả "Khác" của nhóm đó, ngược lại `null`. */
+export function parentOfOtherSubCode(code: string): string | null {
+  if (!code.endsWith(OTHER_SUB_SUFFIX)) return null;
+  const parent = code.slice(0, -OTHER_SUB_SUFFIX.length);
+  return OCCUPATIONS.some((occupation) => occupation.code === parent)
+    ? parent
+    : null;
+}
+
 /** Nhóm gần đến mức một hồ sơ nhóm này thường ứng tuyển được tin nhóm kia. Quan hệ hai chiều, khai một lần. */
 const ADJACENT_OCCUPATIONS: ReadonlyArray<readonly [string, string]> = [
   ['IT', 'DATA_AI'],

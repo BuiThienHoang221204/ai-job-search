@@ -185,7 +185,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'DESIGN_3D',
       name: '3D / Game Art',
-      keywords: ['3d artist', 'game artist', 'modeling'],
+      keywords: ['3d artist', 'game artist', 'modeling', 'character artist'],
     },
   ],
 
