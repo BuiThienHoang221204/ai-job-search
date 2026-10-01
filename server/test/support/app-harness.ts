@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from 'src/app.module.js';
 import { configureApp } from 'src/bootstrap.js';
 import { AiService } from 'src/modules/ai/services/ai.service.js';
-import { AUTH_COOKIE } from 'src/modules/auth/auth.cookie.js';
+import { AUTH_COOKIE, REFRESH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
@@ -30,6 +30,10 @@ export type TestUser = {
   /// frontend thật đi, và nó là đường có rủi ro bảo mật cao hơn - phải có ít
   /// nhất một test đi qua nó chứ không chỉ test đường Bearer.
   cookie: string;
+  /// Refresh token thô, để dựng một Bearer SAI loại và kiểm nó bị từ chối ở API thường.
+  refreshToken: string;
+  /// Cặp `aijob_refresh=...` để gắn vào header Cookie khi gọi `POST /api/auth/refresh`.
+  refreshCookie: string;
 };
 
 export type TestApp = {
@@ -135,6 +139,7 @@ export async function createTestApp(
     // còn lại của hàm không phải làm việc với any.
     const body = response.body as {
       accessToken: string;
+      refreshToken: string;
       user: { id: string };
     };
 
@@ -157,6 +162,14 @@ export async function createTestApp(
         `Đăng ký không đặt cookie ${AUTH_COOKIE}. Nhận được: ${cookies.join(' | ')}`,
       );
     }
+    const refreshCookie = cookies.find((value) =>
+      value.startsWith(`${REFRESH_COOKIE}=`),
+    );
+    if (!refreshCookie) {
+      throw new Error(
+        `Đăng ký không đặt cookie ${REFRESH_COOKIE}. Nhận được: ${cookies.join(' | ')}`,
+      );
+    }
 
     return {
       id: body.user.id,
@@ -166,6 +179,8 @@ export async function createTestApp(
       // Bỏ phần thuộc tính (Path, HttpOnly...); header Cookie chỉ nhận cặp
       // tên=giá trị.
       cookie: authCookie.split(';')[0],
+      refreshToken: body.refreshToken,
+      refreshCookie: refreshCookie.split(';')[0],
     };
   };
 
