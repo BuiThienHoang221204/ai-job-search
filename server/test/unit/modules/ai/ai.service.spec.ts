@@ -145,6 +145,8 @@ function build(options?: {
   streamsJson?: boolean;
   /// Model mà catalog báo là lõi không phục vụ — y như gateway vừa rút nó khỏi `/models`.
   unavailable?: string[];
+  /// Trần đồng thời theo lõi, mô phỏng `ai.maxConcurrency` thật.
+  maxConcurrency?: Record<string, number | undefined>;
 }) {
   const recorded: Recorded[] = [];
 
@@ -192,6 +194,7 @@ function build(options?: {
       if (key === 'ai.structuredOutputs')
         return options?.structuredOutputs ?? true;
       if (key === 'ai.fallbackModelIds') return options?.fallbackModelIds ?? [];
+      if (key === 'ai.maxConcurrency') return options?.maxConcurrency ?? {};
       return undefined;
     },
   } as unknown as ConfigService;
@@ -851,5 +854,60 @@ describe('AiService.generateObject - tham số truyền xuống SDK', () => {
     expect(signal!.aborted).toBe(false);
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(signal!.aborted).toBe(true);
+  });
+});
+
+describe('AiService.generateObject - cổng giới hạn đồng thời theo lõi', () => {
+  test('hai lượt gọi cùng lõi vượt trần thì lượt sau phải đợi lượt trước xong', async () => {
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+
+    generateObjectMock.mockImplementationOnce(() => {
+      order.push('start-1');
+      return new Promise((resolve) => {
+        releaseFirst = () => {
+          order.push('end-1');
+          resolve({ object: { diem: 1 }, usage: {} });
+        };
+      });
+    });
+    generateObjectMock.mockImplementationOnce(() => {
+      order.push('start-2');
+      return Promise.resolve({ object: { diem: 2 }, usage: {} });
+    });
+
+    const { service } = build({ maxConcurrency: { opencode: 1 } });
+
+    const first = service.generateObject(call('a-free'));
+    // Nhường vòng lặp sự kiện để lượt 1 chắc chắn đã vào `attempt()` và giữ vé.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = service.generateObject(call('a-free'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Lượt 2 chưa được gọi `generateObject` thật vì vé đang bị lượt 1 giữ.
+    expect(order).toEqual(['start-1']);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(['start-1', 'end-1', 'start-2']);
+  });
+
+  test('không cấu hình trần cho lõi thì hai lượt chạy đồng thời, không đợi nhau', async () => {
+    const order: string[] = [];
+
+    generateObjectMock.mockImplementation(() => {
+      order.push('start');
+      return Promise.resolve({ object: { diem: 1 }, usage: {} });
+    });
+
+    const { service } = build();
+
+    await Promise.all([
+      service.generateObject(call('a-free')),
+      service.generateObject(call('a-free')),
+    ]);
+
+    expect(order).toEqual(['start', 'start']);
   });
 });

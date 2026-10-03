@@ -14,6 +14,9 @@ export type ProviderDescriptor = {
 
   baseURLEnv?: string;
 
+  /** Trần đồng thời phía APP cho lõi này, qua `ConcurrencyGate` — chỉ cần khai khi lõi có trần vật lý thật (vd container riêng chỉ nhận N tiến trình cùng lúc). Bỏ trống = không giới hạn. */
+  maxConcurrencyEnv?: string;
+
   honorsResponseFormat?: boolean;
 
   extraHeaders?: Record<string, string>;

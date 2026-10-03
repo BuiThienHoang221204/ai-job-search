@@ -20,6 +20,7 @@ import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt.js';
 import { routeSdkWarnings } from '../utils/sdk-warnings.js';
 import { clipMiddle, emptyStream, streamFrom } from '../utils/stream.js';
 import { AiCallLog } from './ai-call-log.js';
+import { ConcurrencyGate } from '../utils/concurrency-gate.js';
 import { LanguageModelFactory } from './language-model.js';
 import { ModelCatalogService } from './model-catalog.service.js';
 import { DEFAULT_CHAIN_BUDGET_MS, ModelChain } from './model-chain.js';
@@ -49,6 +50,7 @@ export class AiService implements Ai {
   private readonly chainBudgetMs: number;
   private readonly callLog: AiCallLog;
   private readonly models: LanguageModelFactory;
+  private readonly gate: ConcurrencyGate;
   private readonly structuredOutputsDefault: boolean;
 
   /** Lõi nào từ chối `response_format` thì CHỈ lõi đó đổi chế độ — một cờ toàn cục sẽ sai với nửa chuỗi dự phòng trộn nhiều lõi. */
@@ -72,6 +74,9 @@ export class AiService implements Ai {
     });
     this.callLog = new AiCallLog(prisma, this.logger);
     this.models = new LanguageModelFactory(catalog, this.logger);
+    this.gate = new ConcurrencyGate(
+      config.get<Record<string, number | undefined>>('ai.maxConcurrency') ?? {},
+    );
     routeSdkWarnings(this.logger);
   }
 
@@ -169,6 +174,7 @@ export class AiService implements Ai {
       options.modelId,
       structuredOutputs,
     );
+    const release = await this.gate.acquire(provider);
     const startedAt = Date.now();
 
     try {
@@ -182,6 +188,7 @@ export class AiService implements Ai {
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),
       });
+      release();
 
       const durationMs = Date.now() - startedAt;
       this.logger.log(`generateObject ${ref} xong sau ${durationMs}ms`);
@@ -199,6 +206,7 @@ export class AiService implements Ai {
 
       return { object: result.object, modelId: id };
     } catch (error) {
+      release();
       const durationMs = Date.now() - startedAt;
       const issues = schemaIssues(error);
       const empty = NoObjectGeneratedError.isInstance(error)
@@ -325,6 +333,7 @@ export class AiService implements Ai {
       structuredOutputs,
       true,
     );
+    const release = await this.gate.acquire(provider);
     const startedAt = Date.now();
 
     const result = streamObject({
@@ -334,6 +343,7 @@ export class AiService implements Ai {
       prompt: options.prompt,
       abortSignal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       onFinish: ({ usage, error }) => {
+        release();
         const empty = NoObjectGeneratedError.isInstance(error)
           ? error
           : undefined;
@@ -394,6 +404,7 @@ export class AiService implements Ai {
       options.modelId,
       false,
     );
+    const release = await this.gate.acquire(provider);
     const startedAt = Date.now();
 
     // Ghi ở đây chứ không để người gọi tự ghi: đây là chỗ DUY NHẤT biết provider và số token thật.
@@ -420,16 +431,20 @@ export class AiService implements Ai {
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),
-        onFinish: ({ usage }) =>
+        onFinish: ({ usage }) => {
+          release();
           record(true, {
             inputTokens: usage?.inputTokens,
             outputTokens: usage?.outputTokens,
-          }),
-        onError: ({ error }) =>
+          });
+        },
+        onError: ({ error }) => {
+          release();
           record(false, {
             failureKind: classifyFailure(error),
             errorMessage: truncateError(error),
-          }),
+          });
+        },
       }),
     };
   }

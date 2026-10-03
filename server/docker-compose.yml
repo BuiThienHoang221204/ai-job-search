@@ -90,6 +90,7 @@ services:
       JWT_SECRET: ${OMNIROUTE_JWT_SECRET}
       API_KEY_SECRET: ${OMNIROUTE_KEY_SECRET}
       INITIAL_PASSWORD: ${OMNIROUTE_PASSWORD}
+      REQUIRE_API_KEY: "false"
       DISABLE_SQLITE_AUTO_BACKUP: "true"
       PLAYWRIGHT_BROWSERS_PATH: /app/ms-playwright
       # Hạn THỰC THI sau dispatch, không phải hạn xếp hàng; trần UI là 30000ms nên đừng lưu ở Settings → Resilience.
@@ -160,7 +161,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          # 1G bi OOM-kill lien tuc tren production (oom_kill=1190 trong 2 ngay, do 2026-10-04) - CLI opencode moi lan chay can nhieu hon uoc tinh cu.
+          memory: 2G
           cpus: "1"
 
 volumes:

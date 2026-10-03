@@ -13,7 +13,7 @@ const DEFAULTS: Record<string, QueueConfig> = {
   'upskill.report': { concurrency: 5 },
   'document.generate': { concurrency: 8 },
   'company.brief': { concurrency: 3 },
-  'job.requirements': { concurrency: 5 },
+  'job.requirements': { concurrency: 2 },
   'profile.synthesize': { concurrency: 3 },
   // Gọi model qua SkillDictionaryService, KHÔNG phải hàng đợi thuần CPU như chú thích cũ xếp nhầm.
   'skill.canonicalize': { concurrency: 10 },

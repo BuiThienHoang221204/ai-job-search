@@ -89,6 +89,11 @@ const configuration = () => ({
       groq: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
     } as Record<string, string>,
 
+    /** Trần đồng thời phía app theo từng lõi, qua `ConcurrencyGate`. Lõi không có trong map này thì không bị giới hạn. */
+    maxConcurrency: {
+      opencode: Number(process.env.OPENCODE_APP_CONCURRENCY) || 2,
+    } as Record<string, number | undefined>,
+
     catalogUrl:
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
 

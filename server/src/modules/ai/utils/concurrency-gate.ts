@@ -1,0 +1,50 @@
+/** Cổng giới hạn đồng thời THEO LÕI, dùng chung cho mọi purpose gọi `AiService` — một chỗ chặn thay vì chỉnh concurrency riêng ở từng hàng đợi. */
+export class ConcurrencyGate {
+  private readonly limits = new Map<string, number>();
+  private readonly active = new Map<string, number>();
+  private readonly waiters = new Map<string, Array<() => void>>();
+
+  constructor(limits: Record<string, number | undefined>) {
+    for (const [id, limit] of Object.entries(limits)) {
+      if (limit && limit > 0) this.limits.set(id, limit);
+    }
+  }
+
+  /** Lõi không khai trần thì trả về ngay, không giữ vé nào. Gọi hàm trả về để trả vé lại — phải gọi đúng MỘT lần. */
+  async acquire(providerId: string): Promise<() => void> {
+    const limit = this.limits.get(providerId);
+    if (!limit) return () => {};
+
+    await this.wait(providerId, limit);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.release(providerId);
+    };
+  }
+
+  private wait(providerId: string, limit: number): Promise<void> {
+    const current = this.active.get(providerId) ?? 0;
+    if (current < limit) {
+      this.active.set(providerId, current + 1);
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const queue = this.waiters.get(providerId) ?? [];
+      queue.push(resolve);
+      this.waiters.set(providerId, queue);
+    });
+  }
+
+  /** Trả vé thẳng cho người chờ kế tiếp (FIFO) thay vì giảm `active` rồi để người đó tự giành lại. */
+  private release(providerId: string): void {
+    const next = this.waiters.get(providerId)?.shift();
+    if (next) {
+      next();
+      return;
+    }
+    const current = this.active.get(providerId) ?? 0;
+    this.active.set(providerId, Math.max(0, current - 1));
+  }
+}
