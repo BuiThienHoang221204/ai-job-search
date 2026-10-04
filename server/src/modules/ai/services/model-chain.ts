@@ -1,5 +1,6 @@
 import type { Logger } from '@nestjs/common';
 import {
+  classifyFailure,
   isAccessDenied,
   isModelRetired,
   isRateLimited,
@@ -50,7 +51,7 @@ export class ModelChain {
     return chain;
   }
 
-  /** Đi tiếp trong đúng NĂM trường hợp, cả năm nghĩa là "mắt xích này không dùng được". Lỗi schema ném NGAY — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu". */
+  /** Đi tiếp trong đúng BẢY trường hợp, cả bảy nghĩa là "mắt xích này không dùng được" — kể cả TIMEOUT và SCHEMA (chốt 2026-10-05, đổi từ "ném ngay": batch job.requirements đo thật cho thấy 2 loại này chiếm phần lớn lỗi mà trước đó không hề thử mắt xích nào khác). */
   async run<T>(
     requested: string | undefined,
     attempt: (modelId: string | undefined) => Promise<T>,
@@ -81,7 +82,18 @@ export class ModelChain {
         const limited = isRateLimited(error);
         const denied = isAccessDenied(error);
         const sick = isTransientUpstream(error);
-        if (!unavailable && !limited && !retired && !denied && !sick) {
+        const kind = classifyFailure(error);
+        const timedOut = kind === 'TIMEOUT';
+        const badSchema = kind === 'SCHEMA';
+        if (
+          !unavailable &&
+          !limited &&
+          !retired &&
+          !denied &&
+          !sick &&
+          !timedOut &&
+          !badSchema
+        ) {
           throw error;
         }
 
@@ -94,7 +106,11 @@ export class ModelChain {
               ? 'hết hạn mức'
               : denied
                 ? 'lõi từ chối khoá hoặc model này'
-                : 'lõi trả 5xx';
+                : sick
+                  ? 'lõi trả 5xx'
+                  : timedOut
+                    ? 'mắt xích chậm, vượt timeout'
+                    : 'model trả sai định dạng';
         const next = chain[index + 1];
         this.options.logger.warn(
           next

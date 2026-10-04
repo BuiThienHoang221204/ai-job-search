@@ -246,23 +246,37 @@ describe('AiService.generateObject - chuỗi dự phòng khi hết hạn mức',
     expect(argsOf(1).model.id).toBe('b-free');
   });
 
-  test('lỗi KHÔNG phải hạn mức thì ném NGAY, không đổi model', async () => {
-    /*
-     * Nhánh quan trọng nhất của cả file.
-     *
-     * Đổi model vì một lỗi schema sẽ che mất tín hiệu "model này quá yếu cho tác
-     * vụ", và lặng lẽ chuyển cả hệ thống sang model khác mà không ai quyết định.
-     * Sau đó nhật ký chỉ còn cho thấy model cuối cùng hỏng.
-     */
+  test('lỗi schema thì ĐỔI MODEL thay vì ném ngay (chốt 2026-10-05)', async () => {
+    // Trước đây ném ngay để giữ tín hiệu "model yếu"; job.requirements thực tế cho thấy không đổi model thì cả lô mất trắng mỗi khi model mặc định trả sai định dạng — đổi sang cho thử mắt xích kế tiếp.
     const schemaError = new Error('response did not match schema');
-    generateObjectMock.mockRejectedValue(schemaError);
+    generateObjectMock
+      .mockRejectedValueOnce(schemaError)
+      .mockResolvedValueOnce({ object: { diem: 7 }, usage: {} });
 
     const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
 
-    await expect(service.generateObject(call('a-free'))).rejects.toBe(
-      schemaError,
+    const result = await service.generateObject(call('a-free'));
+
+    expect(result).toEqual({ object: { diem: 7 }, modelId: 'b-free' });
+    expect(generateObjectMock).toHaveBeenCalledTimes(2);
+  });
+
+  test('lỗi timeout thì cũng ĐỔI MODEL (chốt 2026-10-05)', async () => {
+    // TIMEOUT không nói gì về chất lượng model — chỉ nói "mắt xích này chậm lúc này", nên không vi phạm lý do chặn SCHEMA.
+    const timeoutError = Object.assign(
+      new Error('The operation was aborted due to timeout'),
+      { name: 'AbortError' },
     );
-    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+    generateObjectMock
+      .mockRejectedValueOnce(timeoutError)
+      .mockResolvedValueOnce({ object: { diem: 7 }, usage: {} });
+
+    const { service } = build({ fallbackModelIds: ['b-free', 'c-free'] });
+
+    const result = await service.generateObject(call('a-free'));
+
+    expect(result).toEqual({ object: { diem: 7 }, modelId: 'b-free' });
+    expect(generateObjectMock).toHaveBeenCalledTimes(2);
   });
 
   test('hết hạn mức toàn chuỗi thì ném lỗi hạn mức CUỐI cùng', async () => {
@@ -688,7 +702,7 @@ describe('AiService.streamObject - chuỗi dự phòng', () => {
     await expect(stream.object).resolves.toEqual({ diem: 8 });
   });
 
-  test('lỗi schema thì KHÔNG đổi model, dù còn mắt xích dự phòng', async () => {
+  test('lỗi schema thì ĐỔI MODEL dự phòng (chốt 2026-10-05)', async () => {
     streamObjectMock.mockReturnValue(
       fakeStream([], Promise.reject(proseInsteadOfJson())),
     );
@@ -701,9 +715,11 @@ describe('AiService.streamObject - chuỗi dự phòng', () => {
     await expect(service.streamObject(call('a-free'))).rejects.toThrow(
       'could not parse the response',
     );
-    expect(
-      streamObjectMock.mock.calls.every(([args]) => args.model.id === 'a-free'),
-    ).toBe(true);
+    const modelsTried = streamObjectMock.mock.calls.map(
+      ([args]) => args.model.id,
+    );
+    expect(modelsTried).toContain('a-free');
+    expect(modelsTried).toContain('b-free');
   });
 });
 
