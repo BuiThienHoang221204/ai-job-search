@@ -185,10 +185,11 @@ export class JobRequirementsService {
       return results;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      // Hết giờ nghĩa là gateway đang nghẽn: rút lẻ lại chỉ dồn thêm N request vào đúng chỗ đang tắc.
-      if (classifyFailure(error) === 'TIMEOUT') {
+      const kind = classifyFailure(error);
+      // TIMEOUT: gateway đang nghẽn, rút lẻ chỉ dồn thêm request vào chỗ đang tắc. SCHEMA (từ 2026-10-05, ModelChain tự đổi model khi gặp cả hai): lượt LÔ đã tự thử nhiều model rồi mới hỏng, rút lẻ lại 5 tin - mỗi tin CŨNG tự thử nhiều model - nhân thời gian một lô lên gấp nhiều lần so với trước.
+      if (kind === 'TIMEOUT' || kind === 'SCHEMA') {
         this.logger.warn(
-          `Lô ${batch.length} tin hết giờ (${message}); ghi FAILED cả lô, không rút lẻ`,
+          `Lô ${batch.length} tin hỏng (${kind}, ${message}); ghi FAILED cả lô, không rút lẻ`,
         );
         for (const entry of batch) {
           results.push(await this.markFailed(entry.job.id, error));
