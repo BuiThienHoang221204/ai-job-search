@@ -7,8 +7,13 @@ const CLI_BIN = process.env.OPENCODE_CLI_BIN ?? 'opencode';
 const WORK_DIR = process.env.OPENCODE_WORK_DIR ?? '/work';
 const TIMEOUT_MS = Number(process.env.OPENCODE_TIMEOUT_MS ?? 180_000);
 
-// Trần tiến trình chạy cùng lúc. Đã đo ~259MB RSS mỗi tiến trình, nên 2 là vừa với `memory: 2G`.
-const MAX_CONCURRENCY = Number(process.env.OPENCODE_MAX_CONCURRENCY ?? 2);
+// `opencode run` nặng vì tự khởi tạo từ đầu mỗi lần (bootstrap, nạp config, tạo session) - đã đo 2026-10-04: gắn vào MỘT `opencode serve` sống sẵn qua `--attach` thì 8 request đồng thời với prompt nặng (~6KB) xong trong 9-14 giây, so với 65-90 giây khi spawn riêng từng tiến trình đầy đủ.
+const SERVE_PORT = Number(process.env.OPENCODE_SERVE_PORT ?? 4097);
+const SERVE_URL = `http://127.0.0.1:${SERVE_PORT}`;
+const SERVE_RESTART_DELAY_MS = Number(process.env.OPENCODE_SERVE_RESTART_DELAY_MS ?? 2_000);
+
+// Trần tiến trình `run --attach` chạy cùng lúc. Không còn giới hạn bởi CPU chia sẻ giữa N tiến trình nặng (việc nặng giờ nằm trong MỘT `serve` dùng chung) - trần này chỉ còn để chặn số tiến trình/session mở cùng lúc không phình vô tội vạ. Đã đo an toàn tới 8 đồng thời trên 1 CPU/2GB; 5 là mức giữ biên an toàn.
+const MAX_CONCURRENCY = Number(process.env.OPENCODE_MAX_CONCURRENCY ?? 5);
 
 // Trần argv. Đặt thấp hơn trần thật để chừa chỗ cho các cờ đi kèm.
 const MESSAGE_LIMIT = Number(process.env.OPENCODE_MESSAGE_LIMIT ?? 100_000);
@@ -78,6 +83,38 @@ function release() {
   running -= 1;
 }
 
+// --- Tiến trình `opencode serve` dùng chung, sống suốt vòng đời service ---
+
+let serveReady = false;
+let serveProcess = null;
+
+function startServe() {
+  serveReady = false;
+  const child = spawn(CLI_BIN, ['serve', '--port', String(SERVE_PORT), '--hostname', '127.0.0.1'], {
+    cwd: WORK_DIR,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  serveProcess = child;
+
+  child.stdout.on('data', (chunk) => {
+    if (chunk.toString().includes('listening on')) serveReady = true;
+  });
+  child.on('error', (error) => {
+    console.error(`opencode serve lỗi: ${error.message}`);
+  });
+  child.on('close', (code) => {
+    serveReady = false;
+    console.error(`opencode serve thoát mã ${code}, khởi động lại sau ${SERVE_RESTART_DELAY_MS}ms`);
+    setTimeout(startServe, SERVE_RESTART_DELAY_MS);
+  });
+}
+
+// Dọn session ngay sau khi đọc xong kết quả - không dọn thì bộ nhớ của `serve` tích luỹ tới OOM (đã đo thật 2026-10-04: oom_kill=2 sau một đợt tải không dọn).
+function deleteSession(id) {
+  if (!id) return;
+  fetch(`${SERVE_URL}/session/${id}`, { method: 'DELETE' }).catch(() => {});
+}
+
 // Hỏi thẳng CLI thay vì chép danh mục: bản hardcode đã sai cả hai chiều một lần rồi.
 function listModels() {
   if (Date.now() - modelsCache.at < MODELS_TTL_MS && modelsCache.ids.length) {
@@ -140,29 +177,35 @@ class CliError extends Error {
   }
 }
 
+/** Nội dung chữ cuối cùng của một session, đọc qua API của `serve` - đáng tin hơn stdout của `run --attach`, vốn chỉ in sự kiện đầu tiên rồi dừng (đã đo thật 2026-10-04). */
+async function finalTextOf(sessionId) {
+  const msgs = await fetch(`${SERVE_URL}/session/${sessionId}/message`).then((r) => r.json());
+  const assistant = [...msgs].reverse().find((m) => m.info?.role === 'assistant');
+  return (assistant?.parts ?? []).map((p) => p.text ?? '').join('');
+}
+
+async function usageOfSession(sessionId) {
+  const session = await fetch(`${SERVE_URL}/session/${sessionId}`).then((r) => r.json());
+  return session.tokens ?? null;
+}
+
 /**
- * Chạy một lượt CLI, gọi `onDelta` với phần chữ MỚI của mỗi mảnh.
+ * Chạy một lượt qua `opencode run --attach`, gắn vào `serve` dùng chung.
  */
-function runCli({ model, message, onDelta, signal }) {
+function runCli({ model, message, signal }) {
   return new Promise((resolve, reject) => {
-    const args = [
-      'run',
-      message,
-      '--model',
-      model,
-      '--format',
-      'json',
-      '--dir',
-      WORK_DIR,
-    ];
+    if (!serveReady) {
+      return reject(new CliError('opencode serve chưa sẵn sàng, thử lại sau', 503));
+    }
+
+    const args = ['run', message, '--attach', SERVE_URL, '--model', model, '--format', 'json'];
 
     // stdin PHẢI đóng: không có TTY mà để ngỏ thì CLI treo tới hết timeout, không in gì.
-    const child = spawn(CLI_BIN, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(CLI_BIN, args, { cwd: WORK_DIR, stdio: ['ignore', 'pipe', 'pipe'] });
 
-    const emitted = new Map();
     let buffer = '';
     let stderr = '';
-    let usage = null;
+    let sessionId = null;
     let settled = false;
 
     const finish = (fn, value) => {
@@ -177,7 +220,7 @@ function runCli({ model, message, onDelta, signal }) {
       finish(reject, new CliError(`CLI không xong trong ${TIMEOUT_MS}ms`, 504));
     }, TIMEOUT_MS);
 
-    // App hết giờ (90s) sớm hơn TIMEOUT_MS (180s): không giết tiến trình thì nó giữ một trong hai chỗ thêm tới 90s cho một người gọi đã bỏ đi.
+    // App hết giờ (90s) sớm hơn TIMEOUT_MS (180s): không giết tiến trình thì nó giữ một trong các chỗ thêm tới 90s cho một người gọi đã bỏ đi.
     const onAbort = () => {
       child.kill('SIGKILL');
       finish(reject, new CliError('client đã ngắt, huỷ tiến trình CLI', 499));
@@ -185,33 +228,15 @@ function runCli({ model, message, onDelta, signal }) {
     if (signal?.aborted) onAbort();
     else signal?.addEventListener('abort', onAbort, { once: true });
 
-    const handleEvent = (event) => {
-      if (event?.type === 'text' && event.part?.id) {
-        const full = typeof event.part.text === 'string' ? event.part.text : '';
-        const seen = emitted.get(event.part.id) ?? '';
-        if (full.length > seen.length && full.startsWith(seen)) {
-          const delta = full.slice(seen.length);
-          emitted.set(event.part.id, full);
-          onDelta?.(delta);
-        } else if (full !== seen) {
-          emitted.set(event.part.id, full);
-          onDelta?.(full);
-        }
-        return;
-      }
-      if (event?.type === 'step_finish' && event.part?.tokens) {
-        usage = event.part.tokens;
-      }
-    };
-
     child.stdout.on('data', (chunk) => {
       buffer += chunk;
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
       for (const line of lines) {
-        if (!line.trim()) continue;
+        if (!line.trim() || sessionId) continue;
         try {
-          handleEvent(JSON.parse(line));
+          const event = JSON.parse(line);
+          if (event?.sessionID) sessionId = event.sessionID;
         } catch {
           // Dòng không phải JSON là log của CLI, bỏ qua.
         }
@@ -224,17 +249,8 @@ function runCli({ model, message, onDelta, signal }) {
 
     child.on('error', (error) => finish(reject, new CliError(error.message, 502)));
 
-    child.on('close', (code) => {
-      if (buffer.trim()) {
-        try {
-          handleEvent(JSON.parse(buffer));
-        } catch {
-          // như trên
-        }
-      }
-
-      const text = [...emitted.values()].join('');
-      const blob = `${stderr}\n${text}`;
+    child.on('close', async (code) => {
+      const blob = `${stderr}\n${buffer}`;
 
       if (ACCESS_DENIED.test(blob)) {
         return finish(reject, new CliError(blob.trim().slice(0, 300), 403));
@@ -242,16 +258,24 @@ function runCli({ model, message, onDelta, signal }) {
       if (RATE_LIMITED.test(blob)) {
         return finish(reject, new CliError(blob.trim().slice(0, 300), 429));
       }
-      if (code !== 0) {
+      if (!sessionId) {
         return finish(
           reject,
-          new CliError(`CLI thoát mã ${code}: ${stderr.trim().slice(0, 300)}`, 502),
+          new CliError(`CLI thoát mã ${code} không rõ session: ${stderr.trim().slice(0, 300)}`, 502),
         );
       }
-      if (!text.trim()) {
-        return finish(reject, new CliError('CLI không trả về nội dung nào', 502));
+
+      try {
+        const [text, usage] = await Promise.all([finalTextOf(sessionId), usageOfSession(sessionId)]);
+        if (!text.trim()) {
+          return finish(reject, new CliError('CLI không trả về nội dung nào', 502));
+        }
+        finish(resolve, { text, usage, sessionId });
+      } catch (error) {
+        finish(reject, new CliError(`đọc kết quả từ serve thất bại: ${error.message}`, 502));
+      } finally {
+        deleteSession(sessionId);
       }
-      finish(resolve, { text, usage });
     });
   });
 }
@@ -327,8 +351,9 @@ async function completions(req, res) {
   }
 
   try {
+    const { text, usage } = await runCli({ model, message, signal });
+
     if (!streaming) {
-      const { text, usage } = await runCli({ model, message, signal });
       return sendJson(res, 200, {
         id,
         object: 'chat.completion',
@@ -354,28 +379,13 @@ async function completions(req, res) {
         choices: [{ index: 0, delta, finish_reason }],
       })}\n\n`;
 
-    // Mở SSE ở mảnh ĐẦU chứ không trước khi chạy CLI: lỗi 429/403 xảy ra trước đó phải thành mã HTTP, không thì chuỗi dự phòng của app không nhận ra.
-    const open = () => {
-      if (res.headersSent) return;
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      });
-      res.write(chunk({ role: 'assistant', content: '' }));
-    };
-
-    const { usage } = await runCli({
-      model,
-      message,
-      signal,
-      onDelta: (delta) => {
-        open();
-        res.write(chunk({ content: delta }));
-      },
+    // `run --attach` không chuyển tiếp từng mảnh chữ ra stdout theo thời gian thực (đã đo 2026-10-04) - gửi cả khối MỘT LẦN, giống hành vi "không stream được" mà `AiService` đã chấp nhận từ trước cho lõi này.
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
     });
-
-    open();
+    res.write(chunk({ role: 'assistant', content: text }));
     res.write(chunk({}, 'stop'));
     res.write(
       `data: ${JSON.stringify({
@@ -408,7 +418,7 @@ const server = createServer((req, res) => {
   const path = (req.url ?? '').split('?')[0];
 
   if (req.method === 'GET' && (path === '/health' || path === '/')) {
-    return sendJson(res, 200, { ok: true, running, queued: waiting.length });
+    return sendJson(res, 200, { ok: true, serveReady, running, queued: waiting.length });
   }
 
   if (req.method === 'GET' && path === '/v1/models') {
@@ -434,6 +444,14 @@ const server = createServer((req, res) => {
 server.headersTimeout = TIMEOUT_MS + 30_000;
 server.requestTimeout = TIMEOUT_MS + 30_000;
 
+startServe();
+
 server.listen(PORT, () => {
-  console.log(`opencode-service nghe cổng ${PORT}, tối đa ${MAX_CONCURRENCY} tiến trình`);
+  console.log(`opencode-service nghe cổng ${PORT}, tối đa ${MAX_CONCURRENCY} tiến trình, gắn vào serve nội bộ cổng ${SERVE_PORT}`);
+});
+
+process.on('SIGTERM', () => {
+  serveProcess?.removeAllListeners('close');
+  serveProcess?.kill('SIGTERM');
+  server.close(() => process.exit(0));
 });

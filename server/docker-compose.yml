@@ -157,7 +157,8 @@ services:
     volumes:
       - opencode_data:/home/opencode/.local/share/opencode
     environment:
-      OPENCODE_MAX_CONCURRENCY: "2"
+      # 2 la tran CPU khi moi request spawn mot tien trinh CLI day du. Doi sang `opencode serve` dung chung qua `--attach` (2026-10-04) thi viec nang khong con bi CPU chia se nhu truoc - da do an toan toi 8 dong thoi tren dung 1 CPU/2GB, 5 la muc giu bien an toan.
+      OPENCODE_MAX_CONCURRENCY: "5"
     deploy:
       resources:
         limits:
