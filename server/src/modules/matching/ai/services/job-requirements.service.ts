@@ -17,6 +17,7 @@ import {
   jobPrompt,
   BATCH_MAX_DESCRIPTION,
   BATCH_SYSTEM,
+  BATCH_TIMEOUT_MS,
   SYSTEM,
 } from '../prompt/job-requirements.prompt.js';
 import {
@@ -163,6 +164,7 @@ export class JobRequirementsService {
           context: { purpose: 'job.requirements' },
           system: BATCH_SYSTEM,
           prompt: batchPrompt(batch.map((entry) => entry.job)),
+          timeoutMs: BATCH_TIMEOUT_MS,
         });
 
       const byIndex = new Map(object.jobs.map((row) => [row.index, row]));
