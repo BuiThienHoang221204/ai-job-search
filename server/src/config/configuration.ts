@@ -73,6 +73,8 @@ const configuration = () => ({
        */
       kilo: process.env.KILO_API_KEY ?? 'public',
       groq: process.env.GROQ_API_KEY ?? '',
+      unorouter: process.env.UNOROUTER_API_KEY ?? '',
+      gemini: process.env.GOOGLE_GEMINI_API_KEY ?? '',
     } as Record<string, string>,
 
     /**
@@ -87,6 +89,11 @@ const configuration = () => ({
       /** Bỏ trống có chủ ý: container `opencode` nằm sau profile riêng, chưa bật thì lõi này phải tự vắng mặt. */
       opencode: process.env.OPENCODE_SERVICE_URL ?? '',
       groq: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
+      unorouter:
+        process.env.UNOROUTER_BASE_URL ?? 'https://api.unorouter.com/v1',
+      gemini:
+        process.env.GOOGLE_GEMINI_BASE_URL ??
+        'https://generativelanguage.googleapis.com/v1beta/openai',
     } as Record<string, string>,
 
     /** Trần đồng thời phía app theo từng lõi, qua `ConcurrencyGate`. Lõi không có trong map này thì không bị giới hạn. */
@@ -98,21 +105,6 @@ const configuration = () => ({
       process.env.OPENCODE_MODELS_URL ?? 'https://models.opencode.ai/api.json',
 
     structuredOutputs: (process.env.AI_STRUCTURED_OUTPUTS ?? 'true') === 'true',
-  },
-
-  /**
-   * Pha 4 · lọc sơ bộ bằng ngữ nghĩa. Nhà cung cấp RIÊNG cho embedding, vì đã
-   * đo: OpenCode không có model embedding nào, OpenRouter cũng vậy (0/413).
-   */
-  semantic: {
-    apiKey: process.env.GEMINI_API_KEY ?? '',
-
-    /**
-     * Số tin đưa cho model chấm điểm với mỗi người dùng, sau khi lọc bằng
-     * vector. Hiện fan-out chấm MỌI tin × MỌI người; đây là con số thay thế
-     * phép nhân đó.
-     */
-    topK: parseInt(process.env.SEMANTIC_TOP_K ?? '10', 10),
   },
 
   skills: {

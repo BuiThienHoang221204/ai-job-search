@@ -31,4 +31,20 @@ export type ProviderDescriptor = {
 
   /** Ngược lại là danh sách CHO PHÉP, chỉ dùng cho lõi `honorsResponseFormat: false`: model đã ĐO là stream ra JSON parse dần được. `'all'` = mọi model của lõi. */
   streamsJson?: readonly string[] | 'all';
+
+  /** Trần đo được của MỘT model — khác nhau theo từng model trong cùng lõi nên là hàm, không phải số tĩnh. Mảng vì một model có thể bị chặn bởi NHIỀU trần cùng lúc (vd Gemini: RPM 5 VÀ RPD 20 — thoả RPM không có nghĩa thoả RPD), `fast-model-scheduler.ts` đòi thoả MỌI phần tử mới coi là còn chỗ. Bỏ trống = chưa đo, coi như luôn còn chỗ. */
+  rateLimitFor?: (modelId: string) => readonly RateLimitSpec[] | undefined;
+
+  /** Danh sách model CỐ ĐỊNH, dùng khi gateway không hỗ trợ `GET /models` (đo thật: Cloudflare trả 405) — `ModelCatalogService.catalogFor` dùng danh sách này thay cho việc tự dò. */
+  staticModels?: readonly string[];
+
+  /** Trần output MẶC ĐỊNH của riêng lõi này quá nhỏ cho model reasoning (đo thật: Cloudflare tự cắt ở 256 token, model reasoning tiêu hết vào suy luận nội bộ, `content` ra null) — đặt cao hơn ở đây để ghi đè, thay vì để `AiService` không set gì (mặc định đúng cho mọi lõi khác). */
+  defaultMaxOutputTokens?: number;
+};
+
+/** `count`: đếm LƯỢT trong `windowMs` (đo UnoRouter: đúng 1/phút). `token`: cộng dồn token trong `windowMs`, so với TPM (đo Groq: TPM là trần thật, RPM trên giấy không phản ánh đúng với prompt nặng). */
+export type RateLimitSpec = {
+  kind: 'count' | 'token';
+  windowMs: number;
+  limit: number;
 };

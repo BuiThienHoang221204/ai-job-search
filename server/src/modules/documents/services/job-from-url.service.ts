@@ -6,7 +6,8 @@ import {
   webLimitsFrom,
   type WebLimits,
 } from '../../../common/web/web-limits.js';
-import { modelIdsFrom } from '../../../common/model-env.js';
+import { fastModelChain } from '../../../common/model-env.js';
+import { estimateTokens } from '../../ai/utils/fast-model-scheduler.js';
 import { AiService } from '../../ai/services/ai.service.js';
 import {
   jobFromUrlPrompt,
@@ -42,13 +43,13 @@ export class JobFromUrlService {
   async extract(userId: string, url: string): Promise<JobFromUrl> {
     const text = await this.read(url);
 
+    const prompt = jobFromUrlPrompt(text);
     const { object } = await this.ai.generateObject<JobFromUrl>({
       schema: jobFromUrlSchema,
       context: { purpose: 'job.fromUrl', userId },
       system: JOB_FROM_URL_SYSTEM,
-      prompt: jobFromUrlPrompt(text),
-      modelId: process.env.AI_FAST_MODEL_ID || undefined,
-      fallbackModelIds: modelIdsFrom(process.env.AI_FAST_FALLBACK_IDS),
+      prompt,
+      ...fastModelChain(estimateTokens(JOB_FROM_URL_SYSTEM, prompt)),
     });
 
     if (!object.title || !object.description) {

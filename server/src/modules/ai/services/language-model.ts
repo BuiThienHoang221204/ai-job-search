@@ -12,6 +12,8 @@ export type ResolvedLanguageModel = {
   provider: string;
   /** Dạng `lõi/model`, chỉ để in ra nhật ký. */
   ref: string;
+  /** Xem `ProviderDescriptor.defaultMaxOutputTokens`. */
+  defaultMaxOutputTokens?: number;
 };
 
 /** Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó là OpenAI-compatible nên không cần adapter thứ hai. */
@@ -97,6 +99,7 @@ export class LanguageModelFactory {
         providerId: resolved.providerId,
         modelId: resolved.model.id,
       }),
+      defaultMaxOutputTokens: resolved.defaultMaxOutputTokens,
     };
   }
 }

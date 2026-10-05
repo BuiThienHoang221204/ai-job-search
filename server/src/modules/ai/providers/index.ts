@@ -1,8 +1,10 @@
+import { gemini } from './gemini.js';
 import { groq } from './groq.js';
 import { kilo } from './kilo.js';
 import { opencode } from './opencode.js';
 import { omniroute } from './omniroute.js';
 import { openrouter } from './openrouter.js';
+import { unorouter } from './unorouter.js';
 import type { ProviderDescriptor } from './types.js';
 
 /** Thêm lõi mới = thêm một file rồi thêm một dòng ở đây. Không class nào phải viết, không gì phải đăng ký với Nest. */
@@ -12,6 +14,8 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [
   omniroute,
   kilo,
   groq,
+  unorouter,
+  gemini,
 ];
 
 /** Danh sách id, dùng để tách chuỗi `lõi/model`. */

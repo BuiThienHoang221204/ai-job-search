@@ -9,6 +9,7 @@ import { kilo } from 'src/modules/ai/providers/kilo.js';
 import { opencode } from 'src/modules/ai/providers/opencode.js';
 import { omniroute } from 'src/modules/ai/providers/omniroute.js';
 import { openrouter } from 'src/modules/ai/providers/openrouter.js';
+import { unorouter } from 'src/modules/ai/providers/unorouter.js';
 import { streamsJsonFor } from 'src/modules/ai/utils/catalog.js';
 
 /*
@@ -153,6 +154,29 @@ describe('Lõi groq — LPU suy luận nhanh, không phải catalog opencode.ai'
   test('knownNoStructuredOutput và declaresStructuredOutput vẫn để trống — chưa đo từng model riêng lẻ', () => {
     expect(groq.knownNoStructuredOutput).toBeUndefined();
     expect(groq.declaresStructuredOutput).toBeUndefined();
+  });
+
+  test('rateLimitFor: TPM là trần thật, gpt-oss-safeguard-20b thấp hơn hẳn 3 model còn lại', () => {
+    expect(groq.rateLimitFor?.('openai/gpt-oss-safeguard-20b')).toEqual([
+      { kind: 'token', windowMs: 60_000, limit: 2000 },
+    ]);
+    expect(groq.rateLimitFor?.('openai/gpt-oss-120b')).toEqual([
+      { kind: 'token', windowMs: 60_000, limit: 8000 },
+      { kind: 'token', windowMs: 24 * 60 * 60 * 1000, limit: 200_000 },
+      { kind: 'count', windowMs: 24 * 60 * 60 * 1000, limit: 1000 },
+    ]);
+  });
+
+  test('rateLimitFor: model lạ trả undefined — an toàn, scheduler coi như còn chỗ', () => {
+    expect(groq.rateLimitFor?.('model-chua-tung-thay')).toBeUndefined();
+  });
+});
+
+describe('Lõi unorouter — rateLimitFor', () => {
+  test('đúng 1 lượt/phút/model, đo trực tiếp 2026-10-04', () => {
+    expect(unorouter.rateLimitFor?.('bất-kỳ-model-nào:free')).toEqual([
+      { kind: 'count', windowMs: 60_000, limit: 1 },
+    ]);
   });
 });
 

@@ -8,10 +8,10 @@ import {
 /**
  * Adapter embedding chạy NGAY TRONG tiến trình, không gọi mạng, không cần khoá.
  *
- * Chọn nó thay `GeminiEmbedder` vì đo ngày 2026-08-24: OpenRouter có 422 model
- * và 0 model embedding, OpenCode cũng vậy — nên đường gateway đang dùng cho mọi
- * lời gọi model khác KHÔNG phục vụ được việc này, và bậc miễn phí của Google là
- * một nhà cung cấp thứ ba phải xin khoá riêng.
+ * Đo ngày 2026-08-24: OpenRouter có 422 model và 0 model embedding, OpenCode
+ * cũng vậy — nên đường gateway đang dùng cho mọi lời gọi model khác KHÔNG phục
+ * vụ được việc này, và một nhà cung cấp embedding riêng (vd Gemini) cần xin
+ * khoá thứ ba. Chạy tại chỗ tránh được cả hai.
  *
  * `q8` chứ không phải `fp32`: đo trên 17 cặp mẫu, bản nén cho kết quả bằng hoặc
  * tốt hơn (chồng lấn 0,193 so với 0,205) trong khi file nhỏ đi 4 lần (266MB so

@@ -16,6 +16,7 @@ import {
   truncateError,
   type SchemaIssue,
 } from '../utils/failure-kind.js';
+import { estimateTokens, markUsed } from '../utils/fast-model-scheduler.js';
 import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt.js';
 import { routeSdkWarnings } from '../utils/sdk-warnings.js';
 import { clipMiddle, emptyStream, streamFrom } from '../utils/stream.js';
@@ -170,9 +171,11 @@ export class AiService implements Ai {
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<{ object: T; modelId: string }> {
-    const { model, id, provider, ref } = await this.models.create(
-      options.modelId,
-      structuredOutputs,
+    const { model, id, provider, ref, defaultMaxOutputTokens } =
+      await this.models.create(options.modelId, structuredOutputs);
+    markUsed(
+      `${provider}/${id}`,
+      estimateTokens(options.system, options.prompt),
     );
     const release = await this.gate.acquire(provider);
     const startedAt = Date.now();
@@ -184,6 +187,9 @@ export class AiService implements Ai {
         system: this.systemFor(options, structuredOutputs),
         prompt: options.prompt,
         maxRetries: options.maxRetries ?? 2,
+        ...(defaultMaxOutputTokens
+          ? { maxOutputTokens: defaultMaxOutputTokens }
+          : {}),
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),
@@ -328,10 +334,11 @@ export class AiService implements Ai {
     options: StreamObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<StreamObjectResult<T>> {
-    const { model, id, provider, ref } = await this.models.create(
-      options.modelId,
-      structuredOutputs,
-      true,
+    const { model, id, provider, ref, defaultMaxOutputTokens } =
+      await this.models.create(options.modelId, structuredOutputs, true);
+    markUsed(
+      `${provider}/${id}`,
+      estimateTokens(options.system, options.prompt),
     );
     const release = await this.gate.acquire(provider);
     const startedAt = Date.now();
@@ -341,6 +348,9 @@ export class AiService implements Ai {
       schema: options.schema,
       system: this.systemFor(options, structuredOutputs),
       prompt: options.prompt,
+      ...(defaultMaxOutputTokens
+        ? { maxOutputTokens: defaultMaxOutputTokens }
+        : {}),
       abortSignal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       onFinish: ({ usage, error }) => {
         release();
@@ -403,6 +413,13 @@ export class AiService implements Ai {
     const { model, id, provider } = await this.models.create(
       options.modelId,
       false,
+    );
+    markUsed(
+      `${provider}/${id}`,
+      estimateTokens(
+        options.system,
+        options.prompt ?? JSON.stringify(options.messages ?? []),
+      ),
     );
     const release = await this.gate.acquire(provider);
     const startedAt = Date.now();

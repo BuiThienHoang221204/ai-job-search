@@ -91,6 +91,8 @@ export type ResolvedModel = {
   honorsResponseFormat: boolean;
   /** Model NÀY stream ra JSON parse dần được. Chỉ có nghĩa khi `honorsResponseFormat` là `false`. */
   streamsJson: boolean;
+  /** Trần output ghi đè của lõi này — xem `ProviderDescriptor.defaultMaxOutputTokens`. Bỏ trống = không set gì (hành vi mặc định cũ). */
+  defaultMaxOutputTokens?: number;
 };
 
 /** Một dòng trong màn quản trị chọn model. `structuredOutput` là `null` khi gateway không khai gì. */

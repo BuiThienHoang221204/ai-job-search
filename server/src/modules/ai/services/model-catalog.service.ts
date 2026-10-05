@@ -100,13 +100,25 @@ export class ModelCatalogService {
     try {
       live = await this.liveModels(declared, apiKey, headers);
     } catch (error) {
-      throw new ModelUnavailableError(
-        `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      if (!descriptor.staticModels?.length) {
+        throw new ModelUnavailableError(
+          `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     }
     if (!live?.size) {
+      if (descriptor.staticModels?.length) {
+        const models: CatalogProvider['models'] = {};
+        for (const id of descriptor.staticModels) models[id] = { id, name: id };
+        return {
+          id: descriptor.id,
+          name: descriptor.label,
+          api: declared,
+          models,
+        };
+      }
       throw new ModelUnavailableError(
         `Lõi ${descriptor.label} tại ${declared} không trả model nào.`,
       );
@@ -214,6 +226,7 @@ export class ModelCatalogService {
       explicitStreamFlag: descriptor.explicitStreamFlag === true,
       honorsResponseFormat: descriptor.honorsResponseFormat !== false,
       streamsJson: streamsJsonFor(descriptor, selected.id),
+      defaultMaxOutputTokens: descriptor.defaultMaxOutputTokens,
     };
   }
 
