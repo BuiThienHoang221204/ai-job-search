@@ -49,8 +49,10 @@ describe('extractJson', () => {
     });
   });
 
-  test('bóc được mảng ở gốc', () => {
-    expect(extractJson('Danh sách: [1,2,3] nhé')).toBe('[1,2,3]');
+  /// Chốt 2026-10-05: không bóc mảng ở gốc nữa — không schema nào trong app gốc là mảng.
+  test('văn bản chỉ có mảng, KHÔNG có object nào thì trả nguyên văn', () => {
+    const raw = 'Danh sách: [1,2,3] nhé';
+    expect(extractJson(raw)).toBe(raw);
   });
 
   test('object LỒNG NHAU lấy đủ tới ngoặc đóng ngoài cùng', () => {
@@ -86,6 +88,13 @@ describe('extractJson', () => {
     const raw = '{"diem": {"a": 1, "b": ["x","y"]';
 
     expect(extractJson(raw)).toBe(raw);
+  });
+
+  /// Hỏng THẬT trên production 2026-10-05: `job.requirements` báo "expected object, received array" vì `[` đứng trước `{` thật trong văn bản.
+  test('dấu [ đứng TRƯỚC object thật trong văn bản không được ưu tiên', () => {
+    const raw =
+      'Tôi sẽ liệt kê theo đúng thứ tự [1-5] bạn yêu cầu: {"jobs":[{"index":1}]}';
+    expect(JSON.parse(extractJson(raw))).toEqual({ jobs: [{ index: 1 }] });
   });
 
   test('chuỗi rỗng không làm ngã', () => {

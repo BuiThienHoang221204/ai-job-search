@@ -56,16 +56,10 @@ export function extractJson(text: string): string {
   const fenced = FENCED_BLOCK.exec(trimmed)?.[1]?.trim();
   if (fenced && parses(fenced)) return fenced;
 
-  // Chỉ bóc theo dấu mở ĐẦU TIÊN của cả chuỗi. Thử lần lượt `{` rồi `[` sẽ moi
-  // một mảnh RUỘT ra khỏi object bị cắt cụt: hỏng thật 2026-09-23, object dở
-  // dang cho ra đúng mảng `strengths` và zod báo "expected object, received
-  // array" — một thông báo lạc hướng hoàn toàn so với nguyên nhân là cắt cụt.
-  const curly = trimmed.indexOf('{');
-  const square = trimmed.indexOf('[');
-  const open = curly === -1 ? '[' : square === -1 || curly < square ? '{' : '[';
-  if (trimmed.indexOf(open) === -1) return text;
+  // Chỉ bóc theo `{`, không rơi về `[` nữa — mọi schema trong app đều là object ở gốc, rơi về `[` luôn cho kết quả SAI (hỏng 2026-09-23, 2026-10-05).
+  if (trimmed.indexOf('{') === -1) return text;
 
-  const slice = balancedSlice(trimmed, open);
+  const slice = balancedSlice(trimmed, '{');
   return slice && parses(slice) ? slice : text;
 }
 
