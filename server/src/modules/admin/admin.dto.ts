@@ -92,6 +92,15 @@ export class AdminJobsQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   canonicalOnly?: boolean;
+
+  /** Khoảng thời gian theo `scrapedAt`, ISO 8601; bỏ trống một đầu là không chặn đầu đó. */
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
 }
 
 export const ALIAS_SOURCES = ['EXACT', 'LLM', 'MANUAL'] as const;

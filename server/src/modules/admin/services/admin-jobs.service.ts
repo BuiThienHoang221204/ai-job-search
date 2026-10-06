@@ -30,6 +30,14 @@ export class AdminJobsService {
             ],
           }
         : {}),
+      ...(query.from || query.to
+        ? {
+            scrapedAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lt: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
     };
 
     const [items, total] = await this.prisma.$transaction([
