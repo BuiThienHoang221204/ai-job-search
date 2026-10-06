@@ -1,5 +1,5 @@
 import { PROVINCES } from './provinces';
-import { normalizeText } from './resolve';
+import { normalizeText } from '@/common/text/vietnamese';
 
 /** Cùng một tin trên ba portal có ba `externalId`, nên `@@unique` không thấy — mỗi bản sao tốn một lượt gọi model. */
 

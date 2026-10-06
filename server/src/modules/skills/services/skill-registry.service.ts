@@ -5,11 +5,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import matter from 'gray-matter';
+import { fingerprint } from '@/common/fingerprint';
 import { toManifest } from '../utils/skill-manifest';
 
 export type SkillManifest = {
@@ -90,11 +90,9 @@ export class SkillRegistryService implements OnModuleInit {
         references.set(file.name, await readFile(join(dir, file.name), 'utf8'));
       }
 
-      const hash = createHash('sha256');
-      hash.update(parsed.content);
+      const hashParts = [parsed.content];
       for (const name of [...references.keys()].sort()) {
-        hash.update(name);
-        hash.update(references.get(name)!);
+        hashParts.push(name, references.get(name)!);
       }
 
       const skill: LoadedSkill = {
@@ -111,7 +109,7 @@ export class SkillRegistryService implements OnModuleInit {
             : undefined,
         body: parsed.content,
         references,
-        contentHash: hash.digest('hex').slice(0, 16),
+        contentHash: fingerprint(hashParts, 16),
       };
 
       this.skills.set(entry.name, skill);

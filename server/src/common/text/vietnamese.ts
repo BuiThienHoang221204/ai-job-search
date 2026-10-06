@@ -13,6 +13,13 @@ export function foldTerm(value: string): string {
     .trim();
 }
 
+/** Như `foldTerm` nhưng ký tự không phải chữ/số thành MỘT dấu cách — output đi vào cột ĐÃ LƯU (`searchText`, `dedupeKey`, `nameKey`), đổi là lệch dữ liệu cũ. */
+export function normalizeText(value: string): string {
+  return foldTerm(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 /** Biên từ chỉ áp ở phía là chữ/số: `.NET` khớp "ASP.NET", `Excel` không khớp "excellence". */
 function patternFor(needle: string): RegExp {
   const cached = patterns.get(needle);

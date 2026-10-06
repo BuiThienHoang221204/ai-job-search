@@ -1,18 +1,8 @@
+import { normalizeText } from '@/common/text/vietnamese';
 import { dedupeKeyOf } from './dedupe';
 import { OCCUPATIONS, OTHER_CODE } from './occupations';
 import { PROVINCES, REMOTE_CODE } from './provinces';
 import { SUB_OCCUPATIONS } from './sub-occupations';
-
-/** Dạng chuẩn DUY NHẤT mà ba hàm dưới và cột `searchText` cùng dùng; `đ` phải xử lý riêng vì `NFD` không tách được nó. */
-export function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/đ/g, 'd')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
 
 /** Bọc bằng dấu cách để so khớp theo TỪ, không phải theo chuỗi con bất kỳ. */
 const padded = (value: string) => ` ${value} `;

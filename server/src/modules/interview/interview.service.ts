@@ -1,5 +1,4 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import type {
   InterviewPrep,
   Job,
@@ -7,6 +6,7 @@ import type {
   Profile,
 } from '@/generated/prisma/client';
 import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { fingerprint } from '@/common/fingerprint';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
@@ -134,13 +134,12 @@ export class InterviewService {
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
 
     const { system, prompt, skillHash } = this.buildPrompt(profile, job, match);
-    const hash = createHash('sha256')
-      .update(skillHash)
-      .update(profile ? JSON.stringify(profile) : 'no-profile')
-      .update(job.description)
-      .update(match?.gaps.join('|') ?? '')
-      .digest('hex')
-      .slice(0, 32);
+    const hash = fingerprint([
+      skillHash,
+      profile ? JSON.stringify(profile) : 'no-profile',
+      job.description,
+      match?.gaps.join('|') ?? '',
+    ]);
 
     if (!force && existing?.status === 'DONE' && existing.promptHash === hash) {
       return { cached: existing };

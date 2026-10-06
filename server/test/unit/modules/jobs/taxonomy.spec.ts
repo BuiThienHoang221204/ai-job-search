@@ -4,9 +4,9 @@ import {
   OTHER_CODE,
 } from 'src/modules/jobs/taxonomy/occupations.js';
 import { PROVINCES } from 'src/modules/jobs/taxonomy/provinces.js';
+import { normalizeText } from 'src/common/text/vietnamese.js';
 import {
   buildSearchText,
-  normalizeText,
   resolveOccupation,
   resolveProvince,
 } from 'src/modules/jobs/taxonomy/resolve.js';

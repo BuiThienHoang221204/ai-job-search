@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { fingerprint } from '@/common/fingerprint';
 import { QUEUE } from './queue.constants';
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
@@ -24,15 +24,12 @@ function batchFingerprint(queue: string, data: object): string {
       `Payload của hàng đợi "${queue}" thiếu mảng "jobIds", không dựng được khoá dedup.`,
     );
   }
-  return createHash('sha256')
-    .update(
-      ids
-        .map((id) => String(id))
-        .sort()
-        .join(','),
-    )
-    .digest('hex')
-    .slice(0, 32);
+  return fingerprint([
+    ids
+      .map((id) => String(id))
+      .sort()
+      .join(','),
+  ]);
 }
 
 /** Ba hình dạng payload, ba khoá. `round` phải vào khoá vì lượt quét kho tự xếp lượt kế TRƯỚC khi nó kết thúc. */

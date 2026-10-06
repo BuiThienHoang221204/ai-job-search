@@ -1,14 +1,10 @@
-import { createHash } from 'node:crypto';
 import type { Job, Profile } from '@/generated/prisma/client';
+import { fingerprint } from '@/common/fingerprint';
 import { isStaleMatch } from '@/modules/matching/rules/staleness';
 
 /** Băm ĐÚNG thứ model nhìn thấy — băm object hồ sơ thì `updatedAt` phá cache còn `tags` đổi lại không nhận ra. */
 export function promptHash(system: string, prompt: string): string {
-  return createHash('sha256')
-    .update(system)
-    .update(prompt)
-    .digest('hex')
-    .slice(0, 32);
+  return fingerprint([system, prompt]);
 }
 
 /** Thêm cờ `saved` vào bản ghi job LỒNG bên trong match, không phải vào chính match. */

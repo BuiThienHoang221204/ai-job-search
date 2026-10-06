@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { fingerprint } from '@/common/fingerprint';
 
 /**
  * Dựng đoạn văn bản đưa đi embedding. Hàm thuần, không phụ thuộc gì — nên kiểm
@@ -83,5 +83,5 @@ export function profileEmbeddingText(profile: EmbeddableProfile): string {
  * hash rẻ hơn nhiều so với gọi lại model để xem có khác không.
  */
 export function embeddingSourceHash(text: string): string {
-  return createHash('sha256').update(text).digest('hex').slice(0, 32);
+  return fingerprint([text]);
 }

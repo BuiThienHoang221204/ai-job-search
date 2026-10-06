@@ -1,5 +1,5 @@
 import { ANONYMOUS_COMPANIES } from '@/modules/jobs/taxonomy/dedupe';
-import { normalizeText } from '@/modules/jobs/taxonomy/resolve';
+import { normalizeText } from '@/common/text/vietnamese';
 
 /** Loại hình pháp nhân, bỏ khi dựng khoá. KHÔNG có `co` đứng một mình: "Cơ khí Hà Nội" sẽ vỡ. */
 const LEGAL_FORMS = [

@@ -1,5 +1,5 @@
 import { stripNoise } from '@/modules/jobs/taxonomy/dedupe';
-import { normalizeText } from '@/modules/jobs/taxonomy/resolve';
+import { normalizeText } from '@/common/text/vietnamese';
 import { SUB_OCCUPATION_POSITIONS } from './sub-occupation-map';
 import type {
   IndexedPosition,

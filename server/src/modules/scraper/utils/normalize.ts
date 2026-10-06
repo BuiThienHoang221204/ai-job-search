@@ -1,3 +1,4 @@
+import { foldTerm } from '@/common/text/vietnamese';
 import type { PortalJobCard, PortalJobDetail } from '../types';
 
 /** Bóc mảng kết quả ra khỏi bao bì, dù CLI gói kiểu nào. */
@@ -118,17 +119,9 @@ const UNIT_WORDS: Record<string, keyof typeof UNIT_MS> = {
   nam: 'year',
 };
 
-/** Bỏ dấu tiếng Việt để "ngày" và "ngay" cùng khớp một khoá. */
-const stripDiacritics = (value: string): string =>
-  value
-    .normalize('NFD')
-    .replace(/\p{Mn}/gu, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D');
-
 /** "4 days ago" / "2 giờ trước" → mốc thời gian; `null` nếu không phải dạng tương đối. */
 function parseRelative(value: string, now: Date): Date | null {
-  const normalized = stripDiacritics(value).toLowerCase();
+  const normalized = foldTerm(value);
 
   const match = normalized.match(
     /(?:^|\s)(\d+)?\s*(minute|minutes|phut|hour|hours|gio|day|days|ngay|week|weeks|tuan|month|months|thang|year|years|nam)\b/,

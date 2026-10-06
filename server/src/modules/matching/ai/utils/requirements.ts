@@ -1,18 +1,17 @@
-import { createHash } from 'node:crypto';
 import type { Job, JobRequirement } from '@/generated/prisma/client';
+import { fingerprint } from '@/common/fingerprint';
 import { yearsOfExperience } from '@/modules/profile/utils/experience-years';
 import type { MatchProfile } from '@/modules/matching/rules/types';
 import type { JobRequirements } from '../schemas/job-requirements.schema';
 
 /** Băm ĐÚNG những trường `jobPrompt` đưa cho model — thêm trường vào prompt mà quên đây thì tin cũ không bao giờ rút lại. */
 export function sourceHash(job: Job): string {
-  return createHash('sha256')
-    .update(job.title)
-    .update(job.description)
-    .update(job.location ?? '')
-    .update(job.workMode ?? '')
-    .digest('hex')
-    .slice(0, 32);
+  return fingerprint([
+    job.title,
+    job.description,
+    job.location ?? '',
+    job.workMode ?? '',
+  ]);
 }
 
 /** Đổi bản ghi database thành hình dạng mà `matchRequirements` nhận. */

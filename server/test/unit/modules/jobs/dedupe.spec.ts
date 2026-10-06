@@ -1,5 +1,5 @@
 import { dedupeKeyOf, stripNoise } from 'src/modules/jobs/taxonomy/dedupe.js';
-import { normalizeText } from 'src/modules/jobs/taxonomy/resolve.js';
+import { normalizeText } from 'src/common/text/vietnamese.js';
 
 /// Khoá này quyết định một tin có bị coi là bản sao hay không, tức là có tốn
 /// một lượt gọi model hay không. Sai theo hướng gộp thừa thì tin thật biến mất

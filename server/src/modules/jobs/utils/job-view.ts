@@ -12,7 +12,7 @@ import type {
   MatchProfile,
   SkillDictionary,
 } from '@/modules/matching/rules/types';
-import { normalizeText } from '../taxonomy/resolve';
+import { normalizeText } from '@/common/text/vietnamese';
 import {
   nearbyOccupations,
   OCCUPATIONS,

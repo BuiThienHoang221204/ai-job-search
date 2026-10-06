@@ -1,8 +1,6 @@
 import { PROVINCES } from 'src/modules/jobs/taxonomy/provinces.js';
-import {
-  normalizeText,
-  resolveProvince,
-} from 'src/modules/jobs/taxonomy/resolve.js';
+import { normalizeText } from 'src/common/text/vietnamese.js';
+import { resolveProvince } from 'src/modules/jobs/taxonomy/resolve.js';
 
 /**
  * Canh một tỉnh không nuốt mất tỉnh khác vì alias ngắn hơn.
