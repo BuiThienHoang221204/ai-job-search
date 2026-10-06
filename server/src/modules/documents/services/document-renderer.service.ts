@@ -25,7 +25,6 @@ import {
 import { renderCvHtml } from '../templates/registry';
 import { cvContent, renderLanguage } from '../utils/cv-content';
 
-/** Nội dung đã soạn → `.tex` trong Storage → PDF. KHÔNG gọi model, chạy lại bao nhiêu lần cũng miễn phí. */
 @Injectable()
 export class DocumentRenderer {
   private readonly logger = new Logger(DocumentRenderer.name);
@@ -36,7 +35,7 @@ export class DocumentRenderer {
     @Inject(PDF_RENDERER) private readonly pdfRenderer: PdfRenderer,
   ) {}
 
-  /** Trả `null` với loại không in được chứ không ném lỗi — đường sinh gọi hàm này cho MỌI loại; ai cần chặt thì kiểm `isPrintable` trước. */
+  /** Trả `null` với loại không in được chứ không ném — đường sinh gọi hàm này cho mọi loại. */
   async render(
     document: Document,
     target: LetterTarget | null,
@@ -84,12 +83,10 @@ export class DocumentRenderer {
     return null;
   }
 
-  /** Khoá luôn bắt đầu bằng `userId` nên không thể đọc chéo workspace của người khác. */
   readSource(storageKey: string): Promise<string> {
     return this.storage.readText(storageKey);
   }
 
-  /** Compile `.tex` ra PDF. `label` chỉ dùng để ghi log, không vào file. */
   async toPdf(tex: string, label: string): Promise<Buffer> {
     const result = await this.latex.compile(tex);
 
@@ -106,7 +103,6 @@ export class DocumentRenderer {
     return result.pdf;
   }
 
-  /** KHÔNG ghi Storage vì sinh lại từ `content` chỉ mất vài mili giây; `null` với loại chưa có mẫu HTML. */
   toHtml(
     document: Document,
     content: unknown,
@@ -123,7 +119,6 @@ export class DocumentRenderer {
     );
   }
 
-  /** In HTML ra PDF. `label` chỉ dùng để ghi log, không vào file. */
   async htmlToPdf(html: string, label: string): Promise<Buffer> {
     const result = await this.pdfRenderer.render(html);
 

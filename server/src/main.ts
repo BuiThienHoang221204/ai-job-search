@@ -13,7 +13,6 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  // Sau reverse proxy mà không tin nó thì mọi request mang IP của proxy: cả site chung một trần rate limit.
   const trustProxyHops = config.get<number>('trustProxyHops') ?? 0;
   if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 

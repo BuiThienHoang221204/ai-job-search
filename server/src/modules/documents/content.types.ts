@@ -1,5 +1,3 @@
-/** Nội dung SAU KHI điền mặc định, dùng chung cho LaTeX và HTML; ràng buộc model nằm ở `schemas/document.schema.ts`. */
-
 export type CvContent = {
   profileStatement: string;
   coreCompetencies: string[];
@@ -36,7 +34,6 @@ export type CoverLetterContent = {
   closing: string;
 };
 
-/** Thông tin liên hệ, ghép từ `User` và `Profile` chứ không do model sinh. */
 export type Identity = {
   name: string;
   email: string;

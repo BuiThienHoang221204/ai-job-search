@@ -3,7 +3,6 @@ import { boundedList, requiredCappedTextVi } from '@/common/model-output';
 
 const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 
-/** `sampleAnswer` nullable là chủ đích; service còn ép `null` một lần nữa ở tầng mã. */
 export const questionAnswerSchema = z.object({
   why: vn(400, 'Nhà tuyển dụng hỏi câu này để dò năng lực gì.'),
   keyPoints: boundedList(

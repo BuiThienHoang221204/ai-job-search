@@ -8,7 +8,6 @@ import {
 
 const vn = (max: number, hint: string) => cappedTextVi(max, hint);
 
-/** CV tailored, dịch từ 05-cv-templates.md. */
 export const cvSchema = (language: OutputLanguage = 'vi') => {
   const t = (max: number, hint: string) => cappedTextIn(language, max, hint);
 
@@ -115,7 +114,6 @@ export const cvSchema = (language: OutputLanguage = 'vi') => {
   });
 };
 
-/** CV sau khi NGƯỜI DÙNG sửa: nới SÀN của `cvSchema` (dòng rỗng là hợp lệ), giữ nguyên TRẦN. Đừng gộp hai schema, xem CLAUDE.md. */
 export const cvEditSchema = z.object({
   profileStatement: z.string().max(600).default(''),
   coreCompetencies: z.array(z.string().min(1).max(160)).max(12).default([]),
@@ -169,7 +167,6 @@ export const cvEditSchema = z.object({
 
 export type CvEditResult = z.infer<typeof cvEditSchema>;
 
-/** Thư xin việc, dịch từ 06-cover-letter-templates.md và 03-writing-style.md. */
 export const coverLetterSchema = z.object({
   salutation: vn(
     120,
@@ -198,7 +195,6 @@ export const coverLetterSchema = z.object({
   closing: vn(400, 'Đoạn kết, hướng về bước tiếp theo.'),
 });
 
-/** KHÔNG có trường liên hệ nào: chữ ký do CODE ghép, vì một số điện thoại bịa trong mail đã gửi thì không ai phát hiện. */
 export const applicationEmailSchema = z.object({
   subject: vn(
     160,
@@ -231,7 +227,6 @@ export const applicationEmailSchema = z.object({
   signOff: vn(60, 'Lời chào kết, ví dụ "Trân trọng,". Kết thúc bằng dấu phẩy.'),
 });
 
-/** Câu trả lời cho ô văn bản tự do trong form ứng tuyển, dịch từ `08-application-forms.md`. */
 export const formAnswerSchema = z.object({
   answers: z
     .array(

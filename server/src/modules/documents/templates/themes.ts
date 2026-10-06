@@ -1,8 +1,5 @@
 import { printBaseCss } from './html';
 
-/** Sáu mẫu, khác nhau hoàn toàn bằng CSS. CẢ SÁU MỘT CỘT: đo trên ATS 2026, một cột 100/100, hai cột 85/100. */
-
-/** Phong cách, dùng để nhóm mẫu ở kho chọn mẫu. */
 export type CvTemplateStyle = 'don-gian' | 'chuyen-nghiep' | 'hien-dai';
 
 export type CvTemplateMeta = {
@@ -10,9 +7,7 @@ export type CvTemplateMeta = {
   name: string;
   description: string;
   style: CvTemplateStyle;
-  /** Màu nhấn mặc định, dạng `#rrggbb`. */
   accent: string;
-  /** Mẫu có dùng màu nhấn hay không. Mẫu đen trắng thì bảng chọn màu phải ẩn đi. */
   usesAccent: boolean;
 };
 
@@ -21,12 +16,10 @@ export type CvTheme = {
   css: (accent: string) => string;
 };
 
-/** Phải là font ĐÃ CÀI trong image `pdf-service`: webfont ngoài không tải được và rơi về font thay thế, không báo lỗi. */
 const SANS = '"Noto Sans", "Liberation Sans", "DejaVu Sans", Arial, sans-serif';
 const SERIF =
   '"Noto Serif", "Liberation Serif", "DejaVu Serif", Georgia, serif';
 
-/** Cỡ chữ là tham số vì mọi khoảng cách tính theo `em`: đổi một chỗ là cả mẫu co cân đối — mẫu "Gọn" chạy như vậy. */
 const base = (options: {
   font: string;
   fontSize: string;
@@ -83,7 +76,6 @@ const classic: CvTheme = {
     description:
       'Tên căn giữa, tiêu đề mục có gạch chân màu. An toàn cho mọi ngành.',
     style: 'chuyen-nghiep',
-    // Giữ đúng màu xanh của moderncv để đối chiếu được với bản LaTeX.
     accent: '#3873b3',
     usesAccent: true,
   },
@@ -116,7 +108,6 @@ const minimal: CvTheme = {
       'Đen trắng, không màu mè. Hợp ngành truyền thống và hồ sơ nhiều chữ.',
     style: 'don-gian',
     accent: '#1a1a1a',
-    // Không dùng màu nhấn: giao diện phải ẩn bảng chọn màu đi.
     usesAccent: false,
   },
   css: () => `
@@ -283,7 +274,6 @@ ${base({ font: SANS, fontSize: '9.5pt', lineHeight: '1.32', margin: '11mm 12mm' 
 `,
 };
 
-/** Thứ tự này là thứ tự hiện trong kho chọn mẫu. `classic` đứng đầu: nó là mặc định. */
 export const CV_THEMES: readonly CvTheme[] = [
   classic,
   minimal,

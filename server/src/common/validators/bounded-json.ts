@@ -1,11 +1,8 @@
 import { registerDecorator, type ValidationOptions } from 'class-validator';
 
 export type JsonBounds = {
-  /** Kích thước tối đa sau khi JSON.stringify, tính bằng byte. */
   maxBytes: number;
-  /** Số phần tử tối đa nếu giá trị là mảng. */
   maxItems: number;
-  /** Độ sâu lồng nhau tối đa. Mặc định đủ cho dữ liệu hồ sơ thật. */
   maxDepth?: number;
 };
 
@@ -31,7 +28,6 @@ function depthOf(value: unknown, limit: number, current = 1): number {
   return current;
 }
 
-/** Kiểm một khối JSON tự do có nằm trong giới hạn hay không. */
 export function checkJsonBounds(
   value: unknown,
   bounds: JsonBounds,
@@ -67,7 +63,6 @@ const MESSAGES: Record<BoundsFailure, string> = {
   'too-large': 'vượt quá dung lượng cho phép',
 };
 
-/** Chặn trên cho một trường JSON tự do. */
 export function IsBoundedJson(
   bounds: JsonBounds,
   validationOptions?: ValidationOptions,

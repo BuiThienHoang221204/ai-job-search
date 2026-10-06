@@ -48,10 +48,6 @@ export class AdminController {
     private readonly queueConfig: QueueConfigService,
   ) {}
 
-  /**
-   * Tỷ lệ hỏng, độ trễ p50/p95 và phân loại nguyên nhân, tách theo tác vụ và
-   * theo model. Đây là câu trả lời cho "gateway free có dùng được không".
-   */
   @ApiOperation({ summary: 'Xem thống kê sức khỏe và hiệu năng tích hợp AI' })
   @Get('ai-health')
   aiHealth(@Query() query: AiHealthQueryDto) {
@@ -73,7 +69,6 @@ export class AdminController {
     return this.admin.recentFailures(query);
   }
 
-  /** Không phải danh sách phân trang: số tác vụ/model hỏng chỉ vài chục, dùng để dựng ô chọn của bộ lọc. */
   @ApiOperation({
     summary: 'Các tác vụ và model có lời gọi hỏng trong khoảng, kèm số lần',
   })
@@ -99,14 +94,12 @@ export class AdminController {
     return this.admin.aiUsage(query.days ?? 7);
   }
 
-  /** Mọi lượt quét của mọi tài khoản; `/scrape/runs` chỉ trả lượt hệ thống và của chính người gọi. */
   @ApiOperation({ summary: 'Lịch sử quét của toàn hệ thống' })
   @Get('scrape/runs')
   scrapeRuns(@Query() query: ScrapeRunsQueryDto) {
     return this.admin.scrapeRuns(query);
   }
 
-  /** Chạy NGAY lượt quét hằng đêm, không đợi tới 23:00. */
   @ApiOperation({
     summary: 'Chạy ngay lập tức tiến trình cào dữ liệu từ các cổng',
   })
@@ -123,12 +116,6 @@ export class AdminController {
     };
   }
 
-  /**
-   * Tính lại mã tỉnh/thành, mã ngành và văn bản tìm kiếm cho tin đã có.
-   *
-   * `?all=true` tính lại TẤT CẢ - dùng sau khi sửa danh mục tỉnh hoặc ngành,
-   * vì tin cũ vẫn giữ mã suy ra từ danh mục phiên bản trước.
-   */
   @ApiOperation({
     summary: 'Backfill taxonomy - cập nhật lại phân loại tỉnh thành/ngành nghề',
   })
@@ -144,7 +131,6 @@ export class AdminController {
     return this.backfill.run(all === 'true');
   }
 
-  /** Nhặt NGAY những việc nền đã rơi, không đợi lượt cron 10 phút. */
   @ApiOperation({
     summary: 'Xử lý ngay lập tức các công việc nền bị lỗi hoặc chưa hoàn thành',
   })
@@ -154,8 +140,6 @@ export class AdminController {
     const result = await this.reconcile.run();
     return { ...result, note: reconcileNote(result) };
   }
-
-  // ── Queue Config ──────────────────────────────────────────────
 
   @ApiOperation({
     summary: 'Lấy danh sách cấu hình concurrency của tất cả hàng đợi',

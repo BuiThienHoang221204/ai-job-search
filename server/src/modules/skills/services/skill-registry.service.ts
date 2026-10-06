@@ -15,10 +15,6 @@ import { toManifest } from '../utils/skill-manifest';
 export type SkillManifest = {
   name: string;
   description: string;
-  /**
-   * Danh sách tool trong frontmatter của Claude Code. Engine chưa thi hành
-   * tool nào, nhưng phải đọc để sau này chặn skill dùng tool không hỗ trợ.
-   */
   allowedTools: string[];
   frameworkVersion?: string;
   contentHash: string;
@@ -30,14 +26,11 @@ export type LoadedSkill = Pick<
   SkillManifest,
   'name' | 'description' | 'allowedTools' | 'frameworkVersion'
 > & {
-  /** Phần thân của SKILL.md, đã bỏ frontmatter. */
   body: string;
-  /** Các file tham chiếu cùng thư mục, ví dụ "04-job-evaluation.md". */
   references: Map<string, string>;
   contentHash: string;
 };
 
-/** Đọc các skill từ .claude/skills/ và giữ trong bộ nhớ. */
 @Injectable()
 export class SkillRegistryService implements OnModuleInit {
   private readonly logger = new Logger(SkillRegistryService.name);
@@ -131,10 +124,6 @@ export class SkillRegistryService implements OnModuleInit {
     return skill;
   }
 
-  /**
-   * Lấy một file tham chiếu, ví dụ
-   * reference('job-application-assistant', '04-job-evaluation.md').
-   */
   reference(skillName: string, fileName: string): string {
     const skill = this.get(skillName);
     const content = skill.references.get(fileName);

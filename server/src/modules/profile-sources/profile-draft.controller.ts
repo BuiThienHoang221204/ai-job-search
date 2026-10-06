@@ -47,7 +47,6 @@ export class ProfileDraftController {
     private readonly synthesizer: ProfileSynthesizerService,
   ) {}
 
-  /** Nộp CV PDF. */
   @ThrottleAi()
   @ApiOperation({ summary: 'Nộp file CV PDF để AI trích xuất thông tin hồ sơ' })
   @ApiConsumes('multipart/form-data')
@@ -96,11 +95,6 @@ export class ProfileDraftController {
       return {
         draftId,
         queued: stream !== 'true',
-        /**
-         * Trả lại số liệu trích xuất ngay trong response: người dùng biết được hệ
-         * thống đọc ra bao nhiêu chữ TRƯỚC khi model chạy xong. Một CV 6 trang chỉ
-         * ra 400 ký tự là dấu hiệu rất rõ ràng, và nói ngay thì đỡ hơn để họ chờ
-         */
         extracted: evidence.map((item) => item.meta),
       };
     } catch (error) {
@@ -110,7 +104,6 @@ export class ProfileDraftController {
     }
   }
 
-  /** Bản nháp mới nhất — màn Upload đọc cái này để theo tiến trình. */
   @ApiOperation({
     summary: 'Lấy bản nháp hồ sơ mới nhất đang xử lý hoặc đã hoàn thành',
   })
@@ -129,7 +122,6 @@ export class ProfileDraftController {
     return { ...page, items: withFailureKinds(page.items) };
   }
 
-  /** File CV gốc đã nộp. Dùng `StreamableFile`, KHÔNG trả `Buffer` trực tiếp. */
   @ApiOperation({ summary: 'Tải xuống hoặc xem file CV PDF gốc đã nộp' })
   @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Get(':id/file')
@@ -148,10 +140,6 @@ export class ProfileDraftController {
     return new StreamableFile(data);
   }
 
-  /**
-   * Đặt SAU 'latest' và 'history': route tĩnh phải khai trước route tham số, nếu
-   * không Nest sẽ khớp `/latest` vào `:id`.
-   */
   @ApiOperation({ summary: 'Lấy chi tiết một bản nháp hồ sơ theo ID' })
   @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Get(':id')
@@ -181,7 +169,6 @@ export class ProfileDraftController {
     });
   }
 
-  /** Chạy lại một bản nháp đã hỏng, dùng lại bằng chứng đã lưu. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Thử lại tiến trình trích xuất bản nháp hồ sơ bị lỗi',
@@ -193,7 +180,6 @@ export class ProfileDraftController {
     return withFailureKind(await this.drafts.retry(user.id, id));
   }
 
-  /** Áp dụng những trường người dùng đã chọn vào hồ sơ thật. */
   @ApiOperation({
     summary:
       'Áp dụng các trường thông tin đã trích xuất từ CV vào hồ sơ chính thức',

@@ -1,17 +1,5 @@
-/** Một dòng kết quả sau khi đã bóc khỏi phản hồi của Serper. */
 export type SearchHit = { title: string; url: string; snippet: string };
 
-/**
- * Bóc kết quả từ phản hồi của Serper (google.serper.dev).
- *
- * Tách khỏi phần gọi mạng vì đây mới là chỗ dễ vỡ âm thầm: Serper trả nhiều
- * khối cạnh nhau (`organic`, `knowledgeGraph`, `answerBox`, `peopleAlsoAsk`),
- * và đọc nhầm khối thì hàm luôn trả về mảng rỗng mà không có lỗi nào — người
- * gọi sẽ kết luận "không tìm thấy gì về công ty này" thay vì "tra cứu hỏng".
- *
- * Tên trường của Serper là `link` và `snippet`, KHÔNG phải `url` và `content`
- * như Tavily.
- */
 export function parseSerper(body: unknown): SearchHit[] {
   if (typeof body !== 'object' || body === null) return [];
 

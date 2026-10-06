@@ -16,29 +16,23 @@ import {
   type PdfRenderResult,
 } from './seam';
 
-/** Ảnh TeX Live, **8,92GB**. `DockerSandbox` đặt `--pull never` nên thiếu ảnh báo lỗi rõ thay vì tải giữa request. */
 export const LATEX_IMAGE = process.env.LATEX_IMAGE ?? 'aijob-latex';
 
-/** Ảnh Chromium. `DockerSandbox` đặt `--pull never` nên phải build trước. */
 export const PDF_IMAGE = process.env.PDF_IMAGE ?? 'aijob-pdf';
 
-/** Đo qua `docker run` kể cả thời gian khởi container: 4,6–5,1 giây; 60s là biên rộng gấp mười. */
 const COMPILE_TIMEOUT_MS = 60_000;
 
-/** Qua `docker run` thì phần lớn thời gian là khởi container chứ không phải in. */
 const RENDER_TIMEOUT_MS = 45_000;
 
 const TEX_NAME = 'main.tex';
 const TEX_PDF_NAME = 'main.pdf';
 const LOG_NAME = 'main.log';
 
-/** Thư mục làm việc bên trong container, do `DockerSandbox` quy định. */
 const WORK = '/work';
 
 const HTML_NAME = 'document.html';
 const HTML_PDF_NAME = 'document.pdf';
 
-/** PHẢI khớp `chromium_argv` trong `pdf-service/server.py` — bản kia mới là bản chạy thật; test canh hai cờ an toàn. */
 const CHROMIUM_COMMAND = [
   'chromium',
   '--headless=new',
@@ -54,7 +48,6 @@ const CHROMIUM_COMMAND = [
   `file://${WORK}/${HTML_NAME}`,
 ];
 
-/** Compile bằng cách chạy `docker run` qua SEAM 2. Dùng cho máy phát triển. */
 @Injectable()
 export class SandboxLatexCompiler implements LatexCompiler {
   private readonly logger = new Logger(SandboxLatexCompiler.name);
@@ -65,7 +58,6 @@ export class SandboxLatexCompiler implements LatexCompiler {
     return this.sandbox.available();
   }
 
-  /** MỘT lượt chạy là đủ — đã kiểm: template không có mục lục lẫn tham chiếu chéo nên không cần lượt hai. */
   async compile(tex: string): Promise<LatexCompileResult> {
     try {
       const result = await this.sandbox.run({
@@ -84,7 +76,6 @@ export class SandboxLatexCompiler implements LatexCompiler {
       const log = result.artifacts[LOG_NAME]?.toString() ?? result.stdout;
       const pdf = result.artifacts[TEX_PDF_NAME];
 
-      // Exit code 0 KHÔNG có nghĩa là xong: `nonstopmode` bỏ qua lỗi rồi vẫn thoát 0.
       if (!pdf || pdf.byteLength === 0) {
         return { ok: false, reason: firstTexError(log), log };
       }
@@ -109,7 +100,6 @@ export class SandboxLatexCompiler implements LatexCompiler {
   }
 }
 
-/** In bằng cách chạy `docker run` qua SEAM 2. Dùng cho máy phát triển. */
 @Injectable()
 export class SandboxPdfRenderer implements PdfRenderer {
   private readonly logger = new Logger(SandboxPdfRenderer.name);
@@ -120,7 +110,6 @@ export class SandboxPdfRenderer implements PdfRenderer {
     return this.sandbox.available();
   }
 
-  /** Ghi HTML vào container, chạy Chromium, lấy PDF ra. */
   async render(html: string): Promise<PdfRenderResult> {
     try {
       const result = await this.sandbox.run({

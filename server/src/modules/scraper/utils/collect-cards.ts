@@ -8,14 +8,11 @@ import type {
 import { withinDays } from './normalize';
 import { messageOf } from '@/common/error-message';
 
-/** Số tin xin cho MỘT request, không phải trần cả lượt — trần đó là `limits.maxJobsPerPortal`, gom qua nhiều trang. */
 const PAGE_SIZE = 25;
 
-/** Portal đang chặn (mã `BLOCKED` từ CLI, hoặc cầu dao của `PortalCliService`): gọi tiếp truy vấn khác chỉ kéo dài lượt chặn. */
 export const isBlockedError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('(BLOCKED)');
 
-/** CHIA ĐỀU hạn ngạch cho mọi truy vấn: bản cũ để truy vấn đầu lấy trọn 50 suất, mà mỗi truy vấn là một NGÀNH. */
 export async function collectCards(
   deps: CollectDeps,
   portal: string,
@@ -65,7 +62,6 @@ export async function collectCards(
   }
 
   const failed = cursors.filter((cursor) => cursor.error !== undefined);
-  // Không gom được tin nào mà có truy vấn lỗi thì lượt phải HỎNG với đúng lý do, không được giả làm "0 tin".
   if (failed.length && !seen.size) throw failed[0].error;
   if (failed.length) {
     deps.log(
@@ -92,7 +88,6 @@ export async function collectCards(
   };
 }
 
-/** `done` chỉ khi một trang tiêu thụ HẾT mà không thêm được tin nào — portal Việt không cam kết sắp theo ngày đăng. */
 async function advance(
   deps: CollectDeps,
   portal: string,
@@ -121,7 +116,6 @@ async function advance(
       );
       return 0;
     }
-    // Chỉ đánh dấu SAU khi request thành công: đóng dấu một nghề chưa quét được là lỗi tự nuôi của vòng xoay.
     cursor.requested = true;
     cursor.page += 1;
 

@@ -11,7 +11,6 @@ import {
 } from '../match-write';
 import type { Candidate } from '../types';
 
-/** Việc LƯU mới là mấu chốt: tính trong bộ nhớ cho 20 tin của trang đang mở thì không lọc "khớp từ 50%" bằng SQL được. */
 @Injectable()
 export class RequirementMatchService {
   private readonly logger = new Logger(RequirementMatchService.name);
@@ -37,7 +36,6 @@ export class RequirementMatchService {
     });
   }
 
-  /** Chạy sau khi rút xong yêu cầu của một tin vừa quét về. */
   async scoreJob(jobId: string): Promise<number> {
     const [requirements, candidates] = await Promise.all([
       this.requirements(jobId),
@@ -46,7 +44,6 @@ export class RequirementMatchService {
     return this.apply(requirements, candidates);
   }
 
-  /** Chạy sau khi danh bạ vừa dày lên: mọi cặp đều có thể đã đổi kết quả. */
   async scoreAll(): Promise<number> {
     const [requirements, candidates] = await Promise.all([
       this.requirements(),
@@ -55,7 +52,6 @@ export class RequirementMatchService {
     return this.apply(requirements, candidates);
   }
 
-  /** Chạy khi hồ sơ được sửa; thiếu nó thì sửa CV xong danh sách vẫn y nguyên. */
   async scoreUser(userId: string): Promise<number> {
     const [requirements, candidates] = await Promise.all([
       this.requirements(),
@@ -100,7 +96,6 @@ export class RequirementMatchService {
     );
   }
 
-  /** Ghi phần ĐÃ ĐỔI, không xoá sạch rồi chèn lại — chạy lại trên dữ liệu không đổi là chuyện mỗi đêm. */
   private async persist(
     fresh: Prisma.JobRequirementMatchCreateManyInput[],
     stale: { userId: string; jobId: string }[],

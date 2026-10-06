@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { boundedList, cappedTextVi } from '@/common/model-output';
 
-/** `.describe()` đi kèm JSON schema lên API: thiếu nó thì model free chấm thang 0-5 rồi trả 4 — hợp kiểu, sai nghĩa. */
 const score = z
   .number()
   .int()
@@ -16,12 +15,9 @@ const note = cappedTextVi(
   'Giải thích ngắn bằng tiếng Việt có dấu, 1-2 câu, nêu bằng chứng cụ thể từ hồ sơ và tin tuyển dụng.',
 ).default('');
 
-/** Kết quả chấm điểm, dịch nguyên từ `.claude/skills/job-application-assistant/04-job-evaluation.md`. */
 export const evaluationSchema = z.object({
-  /** Công đoạn chạy TRƯỚC khi chấm điểm. Nếu FAIL thì các chiều dưới bị bỏ qua. */
   eligibility: z.object({
     verdict: z.enum(['PASS', 'FAIL', 'UNVERIFIED']),
-    /** Trích NGUYÊN VĂN câu dẫn tới kết luận; để trống nếu tin không nói gì về quyền làm việc. */
     quote: cappedTextVi(
       600,
       'Trích nguyên văn câu chữ trong tin về quốc tịch hoặc quyền làm việc.',
@@ -34,7 +30,6 @@ export const evaluationSchema = z.object({
   behavioral: z.object({ score, note }),
   career: z.object({ score, note }),
 
-  /** Location là PASS/FAIL, không tính vào điểm có trọng số. */
   location: z.object({
     pass: z.boolean().catch(false).default(false),
     note: note,
@@ -63,7 +58,6 @@ export const evaluationSchema = z.object({
 
 export type Evaluation = z.infer<typeof evaluationSchema>;
 
-/** Trọng số lấy từ mục "Weighting" của 04-job-evaluation.md. */
 export const WEIGHTS = {
   technical: 0.3,
   experience: 0.25,
@@ -71,7 +65,6 @@ export const WEIGHTS = {
   career: 0.3,
 } as const;
 
-/** Điểm tổng được tính ở server chứ không hỏi model. */
 export const computeOverall = (evaluation: Evaluation): number =>
   Math.round(
     evaluation.technical.score * WEIGHTS.technical +
@@ -82,7 +75,6 @@ export const computeOverall = (evaluation: Evaluation): number =>
 
 export type FitVerdictValue = 'STRONG' | 'GOOD' | 'MODERATE' | 'WEAK' | 'POOR';
 
-/** Ngưỡng lấy từ mục "Thresholds" của 04-job-evaluation.md. */
 export const verdictFor = (overall: number): FitVerdictValue => {
   if (overall >= 75) return 'STRONG';
   if (overall >= 60) return 'GOOD';

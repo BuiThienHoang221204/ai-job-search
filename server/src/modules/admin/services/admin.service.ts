@@ -29,10 +29,8 @@ import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
 import { visibleResponse } from '../utils/response-redaction';
 import { daysAgo } from '@/common/duration';
 
-/** Số nhóm lỗi hiện trên trang tổng quan. */
 const ERROR_GROUPS = 8;
 
-/** Số người dùng tốn token nhất hiện trên bảng xếp hạng. */
 const TOP_USERS = 10;
 
 const TOKEN_SUMS = {
@@ -40,10 +38,6 @@ const TOKEN_SUMS = {
   _sum: { inputTokens: true, outputTokens: true, cachedTokens: true },
 } as const;
 
-/**
- * Trần số bản ghi đọc lên để tính phân vị. Đủ rộng để có ý nghĩa thống kê,
- * đủ hẹp để không kéo cả bảng lên bộ nhớ khi nhật ký lớn dần.
- */
 const MAX_ROWS = 5_000;
 
 @Injectable()
@@ -73,7 +67,6 @@ export class AdminService {
     return { ...buildAiHealth(rows), windowDays: days };
   }
 
-  /** Các lần hỏng gần nhất kèm thông báo thật: bảng tổng hợp cho biết CÓ vấn đề, danh sách này cho biết vấn đề là gì. */
   async recentFailures(query: FailuresQueryDto) {
     const where = failuresWhere(query);
 
@@ -99,7 +92,6 @@ export class AdminService {
     return pageOf(items, total, query);
   }
 
-  /** Các lựa chọn cho bộ lọc nhật ký lỗi kèm số lần hỏng, trong cùng khoảng thời gian. */
   async failureFacets(range: FailureFacetsQueryDto) {
     const where = failureWindow(range);
     const [purposes, models] = await Promise.all([
@@ -129,7 +121,6 @@ export class AdminService {
     };
   }
 
-  /** Một lời gọi đầy đủ; `responseText` bị che nếu gắn với người dùng hoặc tác vụ mang dữ liệu cá nhân. */
   async aiCall(id: string) {
     const call = await this.prisma.aiCall.findUnique({
       where: { id },
@@ -163,7 +154,6 @@ export class AdminService {
     };
   }
 
-  /** Token cộng dồn trong `days` ngày (1 = 24 giờ, chia theo giờ); lời gọi không báo token thì chỉ được đếm số lần. */
   async aiUsage(days: number) {
     const granularity = granularityFor(days);
     const since = windowStart(days);
@@ -232,7 +222,6 @@ export class AdminService {
     };
   }
 
-  /** Trả lời "có gì đang hỏng không": số kỳ này so kỳ trước, lỗi gom nhóm, lượt quét mới nhất mỗi portal và mục cần xử lý. */
   async overview(days: number) {
     const now = new Date();
     const granularity = granularityFor(days);
@@ -304,7 +293,6 @@ export class AdminService {
       this.queue.getStats(),
     ]);
 
-    // Câu lỗi mới nhất của mỗi nhóm, để admin nhận ra lỗi mà không phải mở nhật ký.
     const samples = await Promise.all(
       groups.map((group) =>
         this.prisma.aiCall.findFirst({
@@ -386,7 +374,6 @@ export class AdminService {
     };
   }
 
-  /** Số lời gọi, lần hỏng và token theo từng ô giờ hoặc ngày (giờ Việt Nam). */
   private usageBuckets(granularity: Granularity, since: Date) {
     return this.prisma.$queryRaw<BucketRow[]>`
       select to_char(("createdAt" at time zone 'UTC') at time zone 'Asia/Ho_Chi_Minh', ${PG_BUCKET_FORMAT[granularity]}) as bucket,
@@ -400,7 +387,6 @@ export class AdminService {
       order by 1`;
   }
 
-  /** Lượt quét của mọi tài khoản, kèm email chủ lượt; lượt hệ thống có `user = null`. */
   async scrapeRuns(query: PaginationQueryDto) {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.scrapeRun.findMany({

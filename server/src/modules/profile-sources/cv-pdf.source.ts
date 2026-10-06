@@ -2,16 +2,13 @@ import { Injectable } from '@nestjs/common';
 import type { Evidence, ProfileSource } from './utils/evidence';
 import { extractPdfText, PdfExtractError } from './utils/pdf-text';
 
-/** Đầu vào của nguồn CV PDF. */
 export type CvPdfInput = {
   data: Buffer;
   filename: string;
 };
 
-/** Số ký tự tối đa của text đưa vào prompt tổng hợp. */
 export const MAX_EVIDENCE_CHARS = 40_000;
 
-/** Áp giới hạn độ dài lên text bằng chứng. */
 export function boundEvidenceText(text: string): {
   text: string;
   truncated: boolean;
@@ -20,7 +17,6 @@ export function boundEvidenceText(text: string): {
   return { text: text.slice(0, MAX_EVIDENCE_CHARS), truncated: true };
 }
 
-/** Ném khi PDF là bản scan (không có lớp text). */
 export class ScannedPdfError extends Error {
   constructor() {
     super(
@@ -30,7 +26,6 @@ export class ScannedPdfError extends Error {
   }
 }
 
-/** SEAM 3 · adapter thứ nhất — đọc lớp text của CV PDF. */
 @Injectable()
 export class CvPdfSource implements ProfileSource<CvPdfInput> {
   readonly kind = 'CV_PDF_TEXT' as const;
@@ -59,7 +54,6 @@ export class CvPdfSource implements ProfileSource<CvPdfInput> {
   }
 }
 
-/** Gom `PdfExtractError` và `ScannedPdfError` về một câu cho người dùng. */
 export function cvPdfErrorMessage(error: unknown): string | null {
   if (error instanceof ScannedPdfError) {
     return 'File này là bản scan hoặc ảnh chụp, chưa đọc được. Hãy nộp bản PDF xuất trực tiếp từ Word, LaTeX hoặc Canva.';

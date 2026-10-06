@@ -10,7 +10,6 @@ import { messageOf } from '@/common/error-message';
 
 const JOB_NAME = 'scrape.nightly';
 
-/** KHI NÀO quét: mỗi đêm xếp một `ScrapeRun` cho từng portal rồi thôi — không quét, không ghi tin, việc đó của `ScraperProcessor`. */
 @Injectable()
 export class ScrapeCronService implements OnModuleInit {
   private readonly logger = new Logger(ScrapeCronService.name);
@@ -24,7 +23,6 @@ export class ScrapeCronService implements OnModuleInit {
     private readonly queue: QueueService,
   ) {}
 
-  /** Chỉ vai chạy việc nền mới đăng ký cron — nhiều bản sao app cùng bật là quét trùng, tốn tiền model. */
   onModuleInit(): void {
     if (!runsBackgroundWork()) {
       this.logger.log(`Vai ${appRole()}: không chạy cron quét tin`);

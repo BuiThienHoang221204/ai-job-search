@@ -1,4 +1,3 @@
-/** Trang portal lẫn menu, biểu ngữ và tin gợi ý khác — lấy nhầm là CV sai công ty mà không ai báo. */
 export const JOB_FROM_URL_SYSTEM = [
   'Bạn bóc thông tin tuyển dụng ra khỏi phần chữ của một trang web.',
   'Trang có thể lẫn menu, biểu ngữ và các tin gợi ý khác. Chỉ lấy TIN CHÍNH của trang.',

@@ -13,19 +13,10 @@ import type { Request, Response } from 'express';
 import { Prisma } from '@/generated/prisma/client';
 import { PRISMA_ERROR } from '@/prisma/prisma-errors';
 
-/**
- * Lỗi Prisma lọt ra tới tầng HTTP thì dịch sang đúng mã trạng thái, thay vì
- * để Nest trả 500 cho mọi trường hợp.
- */
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(PrismaExceptionFilter.name);
 
-  /**
-   * Mỗi mã lỗi dựng một HttpException thật thay vì tự viết JSON: nhờ vậy thân
-   * phản hồi khớp từng chữ với các lỗi do controller ném ra, giao diện chỉ cần
-   * một cách đọc lỗi duy nhất.
-   */
   private static readonly byCode: Record<string, () => HttpException> = {
     [PRISMA_ERROR.UNIQUE_VIOLATION]: () =>
       new ConflictException('Dữ liệu đã tồn tại'),

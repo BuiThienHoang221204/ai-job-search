@@ -3,7 +3,6 @@ import type { CvContent } from '../content.types';
 import type { CvContentResult } from '../schemas/document.schema';
 import type { DocumentLanguage } from '../templates/cv-layout';
 
-/** Loại tài liệu có bản LaTeX để in ra — khai một chỗ, vì trước đó nó là hai `storageKey: null` cách nhau 160 dòng. */
 const PRINTABLE: readonly DocumentKind[] = ['CV', 'COVER_LETTER'];
 
 export const isPrintable = (kind: DocumentKind): boolean =>
@@ -15,7 +14,7 @@ export const renderLanguage = (document: Document): DocumentLanguage =>
 const hasText = (...parts: Array<string | null | undefined>): boolean =>
   parts.some((part) => (part ?? '').trim().length > 0);
 
-/** Dòng rỗng được LƯU nhưng không được VẼ; lọc ở đây vì cả đường HTML lẫn LaTeX đều đi qua hàm này. */
+/** Dòng rỗng được lưu nhưng không được vẽ; cả đường HTML lẫn LaTeX đều đi qua đây. */
 export const cvContent = (content: unknown): CvContent => {
   const cv = content as CvContentResult;
   return {

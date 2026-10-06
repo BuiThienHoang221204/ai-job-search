@@ -10,30 +10,25 @@ import type {
   SkillDictionary,
 } from './types';
 
-/** Kỹ năng phụ đáng ít điểm hơn kỹ năng bắt buộc, nhưng không phải không đáng gì. */
 const NICE_TO_HAVE_WEIGHT = 0.5;
 
 const UNMET_PRIOR_WEIGHT = 2;
 
 const normalise = (value: string) => value.trim().toLowerCase();
 
-/** Chỉ NĂNG LỰC vào mẫu số: địa điểm và quốc tịch là điều kiện lọc, để vào mẫu số thì người tỉnh khác bị trừ điểm kỹ năng. */
 const SCORED_KINDS: ReadonlySet<CheckKind> = new Set<CheckKind>([
   'SKILL',
   'NICE',
   'YEARS',
 ]);
 
-/** Dòng nói về NĂNG LỰC nghề; số năm tính điểm nhưng một mình nó không làm nên "phù hợp". */
 const SKILL_KINDS: ReadonlySet<CheckKind> = new Set<CheckKind>([
   'SKILL',
   'NICE',
 ]);
 
-/** Kỹ năng của hồ sơ đáp ứng được một yêu cầu, kèm lý do vì sao. */
 type SkillHit = { skill: string; viaDictionary: boolean } | null;
 
-/** So chữ TRƯỚC rồi mới tra danh bạ — thứ tự cố ý: so chữ không tốn gì và không bao giờ sai kiểu gộp nghề. */
 function findSkill(
   profileSkills: string[],
   required: string,
@@ -54,7 +49,6 @@ function findSkill(
   return synonym ? { skill: synonym, viaDictionary: true } : null;
 }
 
-/** FAIL chỉ khi tin ĐÒI quốc tịch mà hồ sơ khai khác; chưa khai thì UNVERIFIED — đoán sai là loại thẳng ứng viên đủ điều kiện. */
 function checkEligibility(
   requirements: JobRequirements,
   profile: MatchProfile,
@@ -73,7 +67,6 @@ function checkEligibility(
   return profile.workPermit ? 'PASS' : 'UNVERIFIED';
 }
 
-/** Nơi làm việc có nằm trong tầm với của ứng viên không. */
 function checkLocation(
   requirements: JobRequirements,
   profile: MatchProfile,
@@ -90,7 +83,7 @@ function checkLocation(
   return home === job;
 }
 
-/** Đối chiếu hồ sơ với yêu cầu đã rút, KHÔNG gọi model. Trả từng dòng kiểm tra — thứ điểm AI không làm được. */
+/** Đối chiếu hồ sơ với yêu cầu đã rút bằng luật, KHÔNG gọi model. */
 export function matchRequirements(
   requirements: JobRequirements,
   profile: MatchProfile,
@@ -175,7 +168,6 @@ export function matchRequirements(
     }
   }
 
-  // Không có dòng kỹ năng nào thì không có gì để nói "phù hợp": số năm một mình từng đưa tin giáo viên lên 100% cho hồ sơ IT.
   const unscorable = eligibility === 'FAIL' || skillTotal === 0;
 
   const score = unscorable ? 0 : Math.round((metWeight / totalWeight) * 100);

@@ -12,27 +12,22 @@ import { QueueConfigService } from './queue-config.service';
 import type { QueueStats, QueueStatsItem, QueueStatus } from './queue.types';
 import { messageOf } from '@/common/error-message';
 
-/** Một đường import cho 37 file gọi tới: chúng không cần biết module chia file thế nào bên trong. */
 export { QUEUE, QUEUE_POLICY } from './queue.constants';
 export type * from './queue.types';
 
-/** Hàng đợi chạy trên chính Postgres, không cần Redis. */
 @Injectable()
 export class QueueService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(QueueService.name);
   private boss!: PgBoss;
   private started!: Promise<void>;
 
-  /** Đọc lại concurrency từ database mỗi 30 giây — admin đổi số là worker nhận trong vòng một nhịp. */
   private refreshTimer?: NodeJS.Timeout;
 
-  /** Ghi lại kết quả khởi tạo để readiness probe đọc được. */
   private isStarted = false;
   private startupError: string | null = null;
 
   constructor(private readonly queueConfig: QueueConfigService) {}
 
-  /** Khởi tạo KHÔNG await ở đây: mọi hàm công khai await `this.started`, nhờ vậy caller gọi sớm vẫn đúng thứ tự. */
   onModuleInit(): void {
     this.started = (async () => {
       try {
@@ -81,12 +76,10 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     await this.boss?.stop({ graceful: true });
   }
 
-  /** Trạng thái khởi tạo, cho readiness probe. */
   status(): QueueStatus {
     return { ready: this.isStarted, error: this.startupError };
   }
 
-  /** Thống kê realtime mọi hàng đợi, hỏi song song vì 11 lần `getQueue` tuần tự là 11 vòng đi-về database. */
   async getStats(): Promise<QueueStats> {
     await this.started;
 
@@ -110,7 +103,6 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     };
   }
 
-  /** Tạo hàng đợi, và nâng cấp policy nếu hàng đợi đã tồn tại với policy khác. */
   private async ensureQueue(name: string): Promise<void> {
     const existing = await this.boss.getQueue(name);
 
@@ -138,7 +130,6 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     await this.boss.createQueue(name, { policy: QUEUE_POLICY });
   }
 
-  /** Xếp một việc. Khoá dedup SUY RA từ payload, người gọi không truyền vào được. */
   async send<T extends object>(
     queue: string,
     data: T,
@@ -151,7 +142,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     });
   }
 
-  /** Xếp NHIỀU việc bằng một lệnh. `returnId` là bắt buộc, thiếu nó thì `insert` luôn trả `null` và log báo 0. */
+  /** Xếp nhiều việc một lệnh; thiếu `returnId` thì `insert` luôn trả `null`. */
   async sendMany<T extends object>(queue: string, items: T[]): Promise<number> {
     await this.started;
     if (!items.length) return 0;
@@ -167,7 +158,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     return ids?.length ?? 0;
   }
 
-  /** Đăng ký worker. Vai `api` thoát ở đây thay vì để từng processor tự kiểm — đây là seam duy nhất cả 7 processor đi qua. */
+  /** Đăng ký worker; vai `api` thoát ở đây nên mọi processor tự thừa hưởng. */
   async work<T extends object>(
     queue: string,
     handler: (data: T) => Promise<void>,
@@ -183,7 +174,6 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
     await this.boss.work<T>(
       queue,
       {
-        // `batchSize` giữ 1 và song song lấy từ `localConcurrency`: pg-boss áp kết quả handler cho CẢ lô, gom lô là một việc hỏng kéo đổ việc lành.
         batchSize: 1,
         pollingIntervalSeconds: 2,
         localConcurrency: concurrency,

@@ -4,13 +4,11 @@ import type { ModelRef } from './model-ref';
 import type { ProviderDescriptor } from '../providers/index';
 import type { CatalogModel, CatalogProvider, ModelListing } from '../ai.types';
 
-/** Adapter dự án THẬT SỰ cài. OpenRouter khai SDK riêng trong catalog nhưng API của nó là OpenAI-compatible nên chạy bằng adapter chung. */
 const SUPPORTED_NPMS = new Set([
   '@ai-sdk/openai-compatible',
   '@openrouter/ai-sdk-provider',
 ]);
 
-/** Model khai adapter nào thì thắng; không khai thì theo lõi; lõi cũng không khai thì mặc định openai-compatible. */
 export function usableAdapter(
   model: CatalogModel,
   provider: CatalogProvider,
@@ -19,10 +17,8 @@ export function usableAdapter(
     model.provider?.npm ?? provider.npm ?? '@ai-sdk/openai-compatible',
   );
 }
-/** Trần số id in kèm câu lỗi: đủ để thấy bể free vừa xoay, không đủ để một catalog 400 model làm ngập log. */
 const SERVED_HINT_LIMIT = 10;
 
-/** Kèm danh sách đang phục vụ để phân biệt "bể free vừa rút model" với "gõ sai tên trong .env". */
 export function servedHint(provider: CatalogProvider): string {
   const ids = Object.keys(provider.models);
   const shown = ids.slice(0, SERVED_HINT_LIMIT).join(', ');
@@ -30,7 +26,6 @@ export function servedHint(provider: CatalogProvider): string {
   return `(đang phục vụ ${ids.length} model: ${shown}${more})`;
 }
 
-/** Model này có được thử stream không, theo lời khai `streamsJson` của lõi. */
 export function streamsJsonFor(
   descriptor: ProviderDescriptor,
   modelId: string,
@@ -39,7 +34,6 @@ export function streamsJsonFor(
   return allowed === 'all' || allowed?.includes(modelId) === true;
 }
 
-/** Tìm đúng model được yêu cầu, và nói rõ VÌ SAO khi không dùng được — ba lý do khác nhau, ba câu khác nhau. */
 export function selectModel(
   provider: CatalogProvider,
   descriptor: ProviderDescriptor,
@@ -66,7 +60,6 @@ export function selectModel(
   return found;
 }
 
-/** Danh sách cho màn quản trị: model mặc định lên đầu, còn lại theo tên. Lời khai của gateway thua danh sách ĐÃ ĐO. */
 export function toListing(
   models: CatalogModel[],
   descriptor: ProviderDescriptor,

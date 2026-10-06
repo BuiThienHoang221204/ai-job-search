@@ -1,6 +1,3 @@
-/** Chỉ `scripts/crawl-salary-reference.mjs` dùng, chạy lúc CRAWL — không code nào trong app import file này. */
-
-/** Tầng mặc định: ngành của nguồn. */
 const BY_INDUSTRY: Record<string, string> = {
   'it-software': 'IT',
   'accounting-auditing-finance': 'FINANCE',
@@ -11,7 +8,6 @@ const BY_INDUSTRY: Record<string, string> = {
   'engineering-manufacturing': 'MANUFACTURING',
 };
 
-/** Tầng ghi đè cho những vị trí nằm lệch nhóm của nguồn. */
 const BY_POSITION: Record<string, string> = {
   'ai-engineer': 'DATA_AI',
   'data-analyst': 'DATA_AI',
@@ -42,7 +38,6 @@ const BY_POSITION: Record<string, string> = {
   'legal-compliance-specialist': 'OTHER',
 };
 
-/** Nguồn LẶP LẠI slug ngành ở đầu slug vị trí ("it-software-data-analyst") — không cắt tiền tố thì mọi quy tắc ghi đè đều trượt. `null` = không xếp được, và đoán bừa còn tệ hơn không có. */
 export function referenceOccupation(
   positionSlug: string,
   industrySlug: string,

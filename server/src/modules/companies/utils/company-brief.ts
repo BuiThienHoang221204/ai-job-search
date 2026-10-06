@@ -3,12 +3,10 @@ import type { CompanyBrief as BriefRecord } from '@/generated/prisma/client';
 import type { NumberedSource } from './company-brief.prompt';
 import { boundedList, cappedTextVi } from '@/common/model-output';
 
-/** `catch` để một nhãn lạ không giết cả bản tóm tắt, chỉ mất nhãn màu. */
 export const companyVerdict = z
   .enum(['positive', 'mixed', 'negative', 'no_reviews_yet', 'unknown'])
   .catch('unknown');
 
-/** Model trả SỐ THỨ TỰ nguồn, không trả URL - nó không có đường bịa đường dẫn. */
 const usedSource = z.object({
   index: z
     .number()
@@ -20,7 +18,6 @@ const usedSource = z.object({
   ),
 });
 
-/** Điểm ngoài thang 5 thành `null`: nhiều khả năng model đọc thang khác. */
 const ratingOutOfFive = z
   .number()
   .nullable()
@@ -31,7 +28,6 @@ const ratingOutOfFive = z
     value === null || value < 0 || value > 5 ? null : value,
   );
 
-/** KHÔNG có `confidence`: độ tin cậy do code suy ra, hỏi model thì nó tự chấm. */
 export const companyBriefSchema = z.object({
   verdict: companyVerdict.describe(
     'Kết luận chung về công ty với tư cách NƠI LÀM VIỆC. Dùng "no_reviews_yet" khi trang đánh giá CÓ tồn tại cho công ty này nhưng chưa ai viết gì (ví dụ trang ghi "Đánh giá chung 0.0" hoặc mời bạn là người đầu tiên). Dùng "unknown" khi nguồn hoàn toàn không nhắc tới môi trường làm việc.',
@@ -83,10 +79,8 @@ export const CONFIDENCES = {
   low: 'LOW',
 } as const;
 
-/** `read` đọc được cả trang · `snippet` chỉ có đoạn trích · `unreachable` tải hỏng. */
 export type SourceStatus = 'read' | 'snippet' | 'unreachable';
 
-/** Mọi nguồn ĐÃ KIỂM. `usedFor: null` = đã tra chỗ này rồi mà không có gì. */
 export type BriefSource = {
   url: string;
   title: string;
@@ -136,7 +130,6 @@ export function resolveSources(
   ];
 }
 
-/** Không đọc được nguồn nào vẫn phải lưu, nếu không mỗi lượt xem lại tra lại. */
 export function emptyBrief(): CompanyBrief {
   return {
     verdict: 'unknown',

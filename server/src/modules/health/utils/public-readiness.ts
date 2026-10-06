@@ -5,7 +5,6 @@ export type PublicReadiness = {
   checks: Record<keyof ReadinessReport['checks'], { ok: boolean }>;
 };
 
-// /ready là route công khai: chỉ báo phép kiểm nào hỏng, bỏ thông báo lỗi vì nó chứa host, cổng và lỗi driver.
 export function toPublicReadiness(report: ReadinessReport): PublicReadiness {
   const checks = Object.fromEntries(
     Object.entries(report.checks).map(([name, check]) => [

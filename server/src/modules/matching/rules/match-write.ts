@@ -3,13 +3,10 @@ import { toMatchProfile, toRequirements } from '../ai/utils/requirements';
 import { matchRequirements } from './requirement-match';
 import type { Candidate, SkillDictionary } from './types';
 
-/** Hồ sơ tối thiểu cần có để việc chấm điểm còn có nghĩa — cùng câu hỏi với `profileSelect`/`toCandidate` dưới đây. */
 export const MIN_COMPLETION_TO_SCORE = 30;
 
-/** Bảng nhân theo (số người × số tin) nên cặp không khớp KỸ NĂNG nào thì không ghi — khớp số năm không tính. */
 const MIN_SKILLS_TO_STORE = 1;
 
-/** Đổi công thức chấm là phải bump: vân tay cũ vẫn khớp thì mọi cặp giữ nguyên điểm tính bằng công thức cũ. */
 const FORMULA_VERSION = 'v3';
 
 export const profileSelect = {
@@ -35,7 +32,6 @@ export const toCandidate = (row: ProfileRow): Candidate => ({
 
 export const pairKey = (userId: string, jobId: string) => `${userId}::${jobId}`;
 
-/** `dictionarySize` là đầu vào thứ ba và dễ quên nhất: thiếu nó thì danh bạ dày lên mà mọi cặp đã tính vẫn giữ kết quả cũ. */
 export function fingerprint(
   requirement: JobRequirement,
   stamp: string,
@@ -49,7 +45,6 @@ export type MatchWrites = {
   stale: { userId: string; jobId: string }[];
 };
 
-/** Nhân (tin × hồ sơ) rồi chia làm hai: cặp cần ghi và cặp cần bỏ. KHÔNG chạm database. */
 export function planMatchWrites(
   requirements: JobRequirement[],
   candidates: Candidate[],

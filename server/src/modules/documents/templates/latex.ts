@@ -5,19 +5,17 @@ import {
   type DocumentLanguage,
 } from './cv-layout';
 
-/** Escape văn bản trước khi nhúng vào LaTeX. */
+/** Escape ký tự đặc biệt trước khi nhúng chữ vào LaTeX. */
 export const escapeLatex = (input: string): string =>
   input
     .replace(/\\/g, '\u0000')
     .replace(/([&%$#_{}])/g, '\\$1')
     .replace(/~/g, '\\textasciitilde{}')
     .replace(/\^/g, '\\textasciicircum{}')
-    // NUL làm placeholder là có ý: nó không thể xuất hiện trong văn bản thật,
-    // nên không bao giờ đụng độ với nội dung người dùng.
     // eslint-disable-next-line no-control-regex
     .replace(/\u0000/g, '\\textbackslash{}');
 
-/** Tên file an toàn cho khóa Storage: bỏ dấu tiếng Việt, chỉ giữ chữ và số. */
+/** Tên file an toàn cho khoá Storage: bỏ dấu tiếng Việt, chỉ giữ chữ và số. */
 export const slugify = (input: string): string =>
   input
     .normalize('NFD')
@@ -28,14 +26,11 @@ export const slugify = (input: string): string =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 
-// Các type nội dung đã chuyển sang `content.types.ts` để module HTML dùng chung mà
-// không phải import từ module LaTeX. Xuất lại ở đây để chỗ nào đang import từ
-// `latex.js` vẫn chạy nguyên.
 export type { CoverLetterContent, CvContent, Identity } from '../content.types';
 
 const item = (text: string) => `  \\item ${escapeLatex(text)}`;
 
-/** Sinh một macro liên hệ, hoặc KHÔNG sinh gì khi không có dữ liệu. */
+/** Không có dữ liệu thì không sinh macro — macro rỗng vẫn vẽ icon và lọt tên icon vào lớp chữ ATS. */
 const contactMacro = (
   macro: string,
   value: string | null | undefined,
@@ -47,11 +42,9 @@ const contactMacro = (
   return `\\${macro}${suffix}{${escapeLatex(trimmed)}}`;
 };
 
-/** Ghép các macro liên hệ, bỏ những cái không có dữ liệu. */
 const contactBlock = (lines: string[]): string =>
   lines.filter((line) => line.length > 0).join('\n');
 
-/** Sinh CV theo moderncv/banking, dùng khớp template trong cv/main_example.tex. */
 export const renderCv = (
   identity: Identity,
   content: CvContent,
@@ -156,11 +149,9 @@ ${skills}
 `;
 };
 
-/** Ngày tháng bằng tiếng Việt. */
 const vietnameseDate = (now: Date): string =>
   `Ngày ${now.getDate()} tháng ${now.getMonth() + 1} năm ${now.getFullYear()}`;
 
-/** Sinh thư xin việc bằng phần **letter của `moderncv`** (lualatex). */
 export const renderCoverLetter = (
   identity: Identity,
   company: string,

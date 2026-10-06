@@ -1,6 +1,5 @@
 import type { Prisma } from '@/generated/prisma/client';
 
-/** Khai tường minh vì `include: { job: true }` kéo cả `description` — đo 2026-08-22: 42,7% phản hồi cho thứ không màn nào vẽ. */
 export const JOB_CARD_FIELDS = {
   id: true,
   source: true,
@@ -22,7 +21,6 @@ export const JOB_CARD_FIELDS = {
   occupationCode: true,
 } satisfies Prisma.JobSelect;
 
-/** Thẻ công việc kèm cờ "đã lưu" của chính người đang xem. */
 export const jobCardSelect = (userId: string) =>
   ({
     ...JOB_CARD_FIELDS,

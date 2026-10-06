@@ -60,7 +60,6 @@ export class AdminJobsService {
     return pageOf(items, total, query);
   }
 
-  /** Nguồn tin và số tin mỗi nguồn, để dựng bộ lọc. */
   async sources(query: PaginationQueryDto) {
     const [rows, [{ total }]] = await Promise.all([
       this.prisma.job.groupBy({

@@ -21,7 +21,6 @@ import { requirementBatches } from '../utils/requirement-batches';
 import type { SearchPlan } from '../planning/search-plan.schema';
 import { messageOf } from '@/common/error-message';
 
-/** ĐIỀU PHỐI: nối `QueryPlanner` → `collectCards` → `JobWriter` → hàng đợi, và đọc lịch sử `ScrapeRun`. Không tự chạm portal dòng nào. */
 @Injectable()
 export class ScraperService {
   private readonly logger = new Logger(ScraperService.name);
@@ -56,7 +55,6 @@ export class ScraperService {
     this.autoScore = config.get<boolean>('scraper.autoScore') ?? false;
   }
 
-  /** `userId = null` là lần quét của HỆ THỐNG (cron) — xem ghi chú trên model `ScrapeRun`. */
   async create(userId: string | null, portal: string): Promise<ScrapeRun> {
     if (!this.portals.has(portal)) {
       throw new NotFoundException(`Portal chưa được đăng ký: ${portal}`);
@@ -64,7 +62,6 @@ export class ScraperService {
     return this.prisma.scrapeRun.create({ data: { userId, portal } });
   }
 
-  /** Lập kế hoạch → thu thẻ → lưu → xếp việc nền. Lỗi ở BẤT KỲ bước nào cũng thành `FAILED` có lời giải thích, không ném ra ngoài. */
   async run(runId: string): Promise<ScrapeRun> {
     const run = await this.prisma.scrapeRun.findUnique({
       where: { id: runId },
@@ -154,7 +151,6 @@ export class ScraperService {
     }
   }
 
-  /** Lượt NGƯỜI DÙNG lập kế hoạch từ hồ sơ (bị chặn sớm nếu portal không phục vụ ngành của họ); lượt HỆ THỐNG xoay vòng cụm nghề và trả `clusterCodes` để đóng dấu đã quét. */
   private async planFor(run: ScrapeRun): Promise<
     | { skip: string }
     | {
@@ -193,7 +189,6 @@ export class ScraperService {
     return { plan, modelId, clusterCodes: null };
   }
 
-  /** MỘT lượt rút cho mỗi tin, dùng chung cho mọi hồ sơ — đây là thứ giữ chi phí ở mức O(số tin). */
   private async extractRequirements(jobIds: string[]): Promise<number> {
     if (!jobIds.length) return 0;
 
@@ -204,7 +199,6 @@ export class ScraperService {
     return jobIds.length;
   }
 
-  /** Xếp hàng chấm điểm cho các tin vừa lưu. */
   private async fanOut(
     userId: string | null,
     jobIds: string[],
@@ -272,7 +266,6 @@ export class ScraperService {
     return queued;
   }
 
-  /** Kèm cả lượt quét hệ thống — chính chúng mới mang tin về, giấu đi thì lịch sử trông như không có gì xảy ra. */
   async history(userId: string, query: PaginationQueryDto) {
     const where = { OR: [{ userId }, { userId: null }] };
 
@@ -288,7 +281,6 @@ export class ScraperService {
     return pageOf(items, total, query);
   }
 
-  /** Khoá theo `userId` HOẶC lượt hệ thống, giống `history` — người dùng xem được lượt cron đã mang tin về cho mình. */
   async get(userId: string, id: string) {
     const run = await this.prisma.scrapeRun.findFirst({
       where: { id, OR: [{ userId }, { userId: null }] },

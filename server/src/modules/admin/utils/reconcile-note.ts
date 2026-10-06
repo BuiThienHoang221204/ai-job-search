@@ -1,6 +1,5 @@
 import type { ReconcileResult } from '@/modules/reconcile/services/reconcile.service';
 
-/** Câu báo cho admin sau một lượt nhặt việc rơi — phải tính cả năm bảng bị ĐÁNH HỎNG, không chỉ hai bảng được xếp lại. */
 export function reconcileNote(result: ReconcileResult): string {
   const requeued = result.documents + result.matches;
   const failed =

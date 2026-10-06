@@ -3,7 +3,6 @@ const COMBINING_MARKS = /[̀-ͯ]/g;
 
 const patterns = new Map<string, RegExp>();
 
-/** Hạ chữ thường, bỏ dấu tiếng Việt, GIỮ ký hiệu — `C++`, `.NET`, `C#` phải còn nguyên. */
 export function foldTerm(value: string): string {
   return value
     .toLowerCase()
@@ -13,14 +12,12 @@ export function foldTerm(value: string): string {
     .trim();
 }
 
-/** Như `foldTerm` nhưng ký tự không phải chữ/số thành MỘT dấu cách — output đi vào cột ĐÃ LƯU (`searchText`, `dedupeKey`, `nameKey`), đổi là lệch dữ liệu cũ. */
 export function normalizeText(value: string): string {
   return foldTerm(value)
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
 
-/** Biên từ chỉ áp ở phía là chữ/số: `.NET` khớp "ASP.NET", `Excel` không khớp "excellence". */
 function patternFor(needle: string): RegExp {
   const cached = patterns.get(needle);
   if (cached) return cached;
@@ -36,14 +33,13 @@ function patternFor(needle: string): RegExp {
   return pattern;
 }
 
-/** `text` chứa `term` như một TỪ (bỏ dấu, bỏ hoa thường) — khớp chuỗi con thì "IT" ăn "Digital Marketing". */
 export function containsTerm(text: string, term: string): boolean {
   const needle = foldTerm(term);
   if (needle.length < 2) return false;
   return patternFor(needle).test(foldTerm(text));
 }
 
-/** Đếm bao nhiêu `terms` xuất hiện trong `text`, khớp theo TỪ và không đếm trùng cách viết. */
+/** Đếm số `terms` khớp theo TỪ trong `text`, không đếm trùng cách viết. */
 export function countTerms(text: string, terms: string[]): number {
   const matched = new Set<string>();
   for (const term of terms) {

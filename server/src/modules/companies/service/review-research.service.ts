@@ -7,7 +7,6 @@ import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
 import type { SearchHit } from '../utils/review-sources';
 import { messageOf } from '@/common/error-message';
 
-/** Cửa duy nhất ra mạng, tách khỏi `CompanyService` để test không cần mạng. */
 @Injectable()
 export class ReviewResearchService {
   private readonly logger = new Logger(ReviewResearchService.name);
@@ -22,7 +21,6 @@ export class ReviewResearchService {
     return this.web.search.apiKey !== '';
   }
 
-  /** Hỏng thì trả mảng rỗng: thiếu một câu truy vấn không đáng làm hỏng cả lượt. */
   async search(query: string): Promise<SearchHit[]> {
     try {
       const response = await fetch(this.web.search.url, {
@@ -52,7 +50,6 @@ export class ReviewResearchService {
     }
   }
 
-  /** Chữ của một trang, hoặc `null` khi tải hỏng hay trang không có nội dung. */
   async readPage(url: string): Promise<string | null> {
     try {
       const page = await fetchPage(url, {

@@ -9,7 +9,6 @@ import { DocumentRenderer } from './document-renderer.service';
 import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
 import { messageOf } from '@/common/error-message';
 
-/** Máy trạng thái PENDING → RUNNING → DONE/FAILED, và là nhánh DUY NHẤT của module gọi model. */
 @Injectable()
 export class DocumentGenerator {
   private readonly logger = new Logger(DocumentGenerator.name);
@@ -20,7 +19,6 @@ export class DocumentGenerator {
     private readonly renderer: DocumentRenderer,
   ) {}
 
-  /** Mọi thứ một lượt soạn thảo cần tra, trong đúng một lượt đi database. */
   async context(document: Document) {
     const [user, profile, job] = await Promise.all([
       this.prisma.user.findUniqueOrThrow({
@@ -45,7 +43,7 @@ export class DocumentGenerator {
     return { profile, target: letterTarget(job, params), params, identity };
   }
 
-  /** Tìm tài liệu, khoá theo `userId`, rồi giành chỗ RUNNING. */
+  /** Tìm tài liệu theo `userId` rồi giành chỗ RUNNING. */
   private async claim(userId: string, documentId: string): Promise<Document> {
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, userId },
@@ -61,7 +59,6 @@ export class DocumentGenerator {
     return document;
   }
 
-  /** Ghi kết quả và đóng trạng thái DONE. */
   private finish(
     documentId: string,
     content: unknown,
@@ -81,7 +78,7 @@ export class DocumentGenerator {
     });
   }
 
-  /** Ghi lỗi vào bản ghi rồi trả lại câu lỗi cho người gọi tự quyết cách báo. */
+  /** Ghi lỗi vào bản ghi rồi trả câu lỗi để người gọi tự quyết cách báo. */
   private async fail(
     documentId: string,
     error: unknown,
@@ -96,7 +93,6 @@ export class DocumentGenerator {
     return { document, message };
   }
 
-  /** Chỉ CV và thư xin việc chảy dần được; loại khác rơi về đường đồng bộ. */
   async *streamGenerate(
     userId: string,
     documentId: string,

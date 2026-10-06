@@ -12,13 +12,10 @@ import {
 } from './seam';
 import { messageOf } from '@/common/error-message';
 
-/** Đo trên dịch vụ thường trú: lượt đầu 3,6 giây, ổn định 2,6–3,1 giây — nhanh hơn `docker run` (5,1s). */
 const LATEX_TIMEOUT_MS = 70_000;
 
-/** Đo 0,61–0,70 giây một bản in; 30 giây cố ý DÀI HƠN timeout 25s phía dịch vụ để app luôn nhận được log. */
 const RENDER_TIMEOUT_MS = 30_000;
 
-/** Ghép các dòng `Missing character` mà dịch vụ gửi qua header. */
 const WARNING_SEPARATOR = ' | ';
 
 type ServiceCall = {
@@ -28,16 +25,12 @@ type ServiceCall = {
   body: string;
   timeoutMs: number;
   logger: Logger;
-  /** Đưa vào câu log khi không gọi được dịch vụ, ví dụ `LaTeX`. */
   label: string;
-  /** Đổi log của dịch vụ thành một câu cho người dùng. */
   firstError: (log: string) => string;
 };
 
-/** PDF về được, hoặc một `PdfFailure` đã dựng sẵn câu cho người dùng. */
 type ServiceResult = { pdf: Buffer; response: Response } | PdfFailure;
 
-/** Health check chung: dịch vụ có trả lời `/health` không. */
 async function serviceAvailable(baseUrl: string): Promise<boolean> {
   try {
     const response = await fetch(`${baseUrl}/health`, {
@@ -49,7 +42,6 @@ async function serviceAvailable(baseUrl: string): Promise<boolean> {
   }
 }
 
-/** Log lỗi trong thân phản hồi JSON của cả hai dịch vụ. */
 async function readLog(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { log?: unknown; error?: unknown };
@@ -61,7 +53,7 @@ async function readLog(response: Response): Promise<string> {
   }
 }
 
-/** Gửi nội dung sang dịch vụ rồi phân loại phản hồi — phần giống nhau của hai adapter. */
+/** Gửi nội dung sang dịch vụ PDF rồi phân loại phản hồi — dùng chung cho hai adapter. */
 async function postToService(call: ServiceCall): Promise<ServiceResult> {
   let response: Response;
   try {
@@ -90,7 +82,6 @@ async function postToService(call: ServiceCall): Promise<ServiceResult> {
   return { pdf, response };
 }
 
-/** Compile bằng cách gọi dịch vụ `latex-service` qua HTTP. */
 @Injectable()
 export class HttpLatexCompiler implements LatexCompiler {
   private readonly logger = new Logger(HttpLatexCompiler.name);
@@ -122,18 +113,15 @@ export class HttpLatexCompiler implements LatexCompiler {
     };
   }
 
-  /** Cảnh báo ký tự font đi qua HEADER nên phải base64: header HTTP chỉ nhận ISO-8859-1. */
   private readWarnings(response: Response): string[] {
     const header = response.headers.get('x-latex-warnings-b64');
     if (!header) return [];
 
-    // `Buffer.from(_, 'base64')` không bao giờ ném: ký tự lạ bị bỏ qua.
     const decoded = Buffer.from(header, 'base64').toString('utf8');
     return missingGlyphs(decoded.split(WARNING_SEPARATOR).join('\n'));
   }
 }
 
-/** In bằng cách gọi dịch vụ `pdf-service` qua HTTP. */
 @Injectable()
 export class HttpPdfRenderer implements PdfRenderer {
   private readonly logger = new Logger(HttpPdfRenderer.name);
@@ -162,7 +150,6 @@ export class HttpPdfRenderer implements PdfRenderer {
   }
 }
 
-/** Số trang từ header. Trả 0 nghĩa là "không biết", chỗ gọi bỏ qua phép kiểm. */
 function readPages(response: Response): number {
   const header = response.headers.get('x-pdf-pages');
   if (!header) return 0;

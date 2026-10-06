@@ -56,7 +56,6 @@ export class InterviewService {
     private readonly queue: QueueService,
   ) {}
 
-  /** Xếp hàng đợi VÀ ghi bản ghi PENDING ngay, nếu không giao diện tải lại vẫn thấy danh sách cũ; bản DONE thì để yên. */
   async enqueue(
     userId: string,
     jobId: string,
@@ -124,7 +123,7 @@ export class InterviewService {
     return { system, prompt, skillHash: skill.contentHash };
   }
 
-  /** Phần chung của đường đồng bộ và đường stream: đọc dữ liệu, dựng prompt, tính hash, giành chỗ RUNNING. */
+  /** Phần chung của đường đồng bộ và stream: đọc dữ liệu, dựng prompt, tính hash, giành chỗ RUNNING. */
   private async prepare(
     userId: string,
     jobId: string,
@@ -167,7 +166,7 @@ export class InterviewService {
     return { system, prompt, hash };
   }
 
-  /** Ghi lỗi vào bản ghi rồi trả lại câu lỗi cho người gọi tự quyết cách báo. */
+  /** Ghi lỗi vào bản ghi rồi trả câu lỗi cho người gọi tự quyết cách báo. */
   private async fail(
     userId: string,
     jobId: string,

@@ -18,7 +18,6 @@ import { messageOf } from '@/common/error-message';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** Nơi DUY NHẤT đi hỏi model catalog và gateway. Mọi phép lọc, chọn, xếp thứ tự nằm ở `utils/catalog.ts`. */
 @Injectable()
 export class ModelCatalogService {
   private readonly logger = new Logger(ModelCatalogService.name);
@@ -46,7 +45,6 @@ export class ModelCatalogService {
     return this.config.get<string>('ai.modelId')!;
   }
 
-  /** Header riêng của một lõi. Hiện chỉ có `User-Agent`, và chỉ `opencode` dùng tới. */
   private headersFor(descriptor: ProviderDescriptor): Record<string, string> {
     const headers = { ...(descriptor.extraHeaders ?? {}) };
     if (!descriptor.userAgentEnv) return headers;
@@ -56,7 +54,6 @@ export class ModelCatalogService {
     return headers;
   }
 
-  /** Key của một lõi. Thiếu key là lỗi cấu hình, không phải lỗi lúc chạy. */
   private apiKeyFor(descriptor: ProviderDescriptor): string {
     const keys = this.config.get<Record<string, string>>('ai.apiKeys') ?? {};
     const key = keys[descriptor.id];
@@ -68,14 +65,13 @@ export class ModelCatalogService {
     return key;
   }
 
-  /** Lõi nào khai `baseURLEnv` thì bỏ qua catalog ngoài và tự dựng danh sách từ chính `/models` của nó. */
   private baseURLFor(descriptor: ProviderDescriptor): string | undefined {
     if (!descriptor.baseURLEnv) return undefined;
     const urls = this.config.get<Record<string, string>>('ai.baseURLs') ?? {};
     return urls[descriptor.id] || undefined;
   }
 
-  /** Danh sách model của một lõi: từ catalog ngoài, hoặc từ chính gateway khi lõi khai `baseURLEnv`. */
+  /** Model của một lõi: từ catalog ngoài, hoặc từ chính `/models` khi lõi khai `baseURLEnv`. */
   private async catalogFor(
     descriptor: ProviderDescriptor,
     apiKey: string,
@@ -131,7 +127,6 @@ export class ModelCatalogService {
     return { id: descriptor.id, name: descriptor.label, api: declared, models };
   }
 
-  /** Catalog dùng chung cho mọi lõi, cache 5 phút. */
   async loadCatalog(): Promise<Record<string, CatalogProvider>> {
     if (this.catalogCache && this.catalogCache.expiresAt > Date.now()) {
       return this.catalogCache.value;
@@ -153,7 +148,7 @@ export class ModelCatalogService {
     return value;
   }
 
-  /** Model gateway ĐANG phục vụ, giữ nguyên phần thân để lõi nào biết đọc capability thì đọc. Catalog ghi OpenCode có 27 model free trong khi gateway chỉ phục vụ 7. */
+  /** Model gateway ĐANG phục vụ — catalog thường khai nhiều hơn số gateway thật sự phục vụ. */
   private async liveModels(
     baseURL: string,
     apiKey: string,
@@ -186,7 +181,7 @@ export class ModelCatalogService {
     return entries;
   }
 
-  /** KHÔNG bao giờ tự thay model khác: bản cũ lấy `models[0]` khi không tìm thấy, mà OpenRouter có 351 model gồm loại trả tiền — gõ sai một ký tự trong `.env` thành hoá đơn chạy theo cron. */
+  /** KHÔNG bao giờ tự thay model khác khi không tìm thấy: gõ sai `.env` không được thành hoá đơn. */
   async resolve(ref?: string): Promise<ResolvedModel> {
     const target = parseModelRef(
       ref ?? this.defaultModelId,
@@ -227,7 +222,6 @@ export class ModelCatalogService {
     };
   }
 
-  /** Không hỏi được `/models` thì BỎ QUA chứ không ném — mất một lượt kiểm không đáng làm đổ cả tác vụ. */
   private async assertServed(
     descriptor: ProviderDescriptor,
     modelId: string,
@@ -256,18 +250,14 @@ export class ModelCatalogService {
     }
   }
 
-  /** Model dùng được của một lõi, đã áp đúng bộ lọc mà `resolve()` áp. */
   async listModels(providerId?: string): Promise<ModelListing[]> {
     const id = providerId ?? this.defaultProviderId;
     const descriptor = findProvider(id);
     if (!descriptor) throw new Error(`Không biết lõi model: ${id}`);
 
     const apiKey = this.apiKeyFor(descriptor);
-    const provider = await this.catalogFor(
-      descriptor,
-      apiKey,
-      this.headersFor(descriptor),
-    );
+    const headers = this.headersFor(descriptor);
+    const provider = await this.catalogFor(descriptor, apiKey, headers);
 
     const models = Object.values(provider.models).filter((model) =>
       usableAdapter(model, provider),
@@ -275,7 +265,8 @@ export class ModelCatalogService {
 
     let live: Map<string, Record<string, unknown>> | undefined;
     try {
-      if (provider.api) live = await this.liveModels(provider.api, apiKey);
+      if (provider.api)
+        live = await this.liveModels(provider.api, apiKey, headers);
     } catch {
       live = undefined;
     }

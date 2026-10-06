@@ -1,14 +1,12 @@
 import { z, type ZodType } from 'zod';
 import { formatIssue, truncateError, type SchemaIssue } from './failure-kind';
 
-/** Bơm JSON Schema vào cuối system prompt, cho lõi KHÔNG ép được bằng `response_format`. `null` = không dựng được schema, người gọi phải log. */
 export function schemaInstruction<T>(
   system: string,
   schema: ZodType<T>,
 ): string | null {
   let json: unknown;
   try {
-    // `io: 'input'` là BẮT BUỘC: schema có `.transform()` thì bản mặc định ném, và model sinh ra bản TRƯỚC transform.
     json = z.toJSONSchema(schema, { io: 'input' });
   } catch {
     return null;
@@ -25,7 +23,6 @@ export function schemaInstruction<T>(
   ].join('\n');
 }
 
-/** Lỗi lệch schema nối thêm chi tiết từng trường; lỗi khác chỉ cắt ngắn. */
 export function errorMessageOf(error: unknown, issues: SchemaIssue[]): string {
   return issues.length
     ? `${truncateError(error, 200)} | ${issues.map(formatIssue).join(' | ')}`

@@ -11,16 +11,10 @@ import { RolesGuard } from './guards/roles.guard';
 import { UserThrottlerGuard } from './guards/user-throttler.guard';
 import { RequestLogMiddleware } from './middleware/request-log.middleware';
 
-/**
- * Nơi đặt những thứ cắt ngang mọi module: filter, middleware, guard,
- * decorator, và các type dùng chung.
- */
 @Module({
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    // Sau JwtAuthGuard để đếm theo tài khoản; route @Public vẫn bị đếm, theo IP.
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
-    // Toàn cục để `@Roles()` luôn có hiệu lực; phải đứng sau JwtAuthGuard vì cần `request.user`.
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_FILTER, useClass: PrismaExceptionFilter },
   ],

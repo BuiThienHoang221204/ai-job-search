@@ -3,11 +3,6 @@ import {
   type PaginationQueryDto,
 } from './dto/pagination.dto';
 
-/**
- * Hình dạng chung của mọi response danh sách. `total` là tổng thật trên toàn
- * bộ tập đã lọc, KHÔNG phải độ dài của `items` - đó là thứ client cần để biết
- * còn trang nào phía sau.
- */
 export interface Page<T> {
   items: T[];
   total: number;
@@ -15,7 +10,6 @@ export interface Page<T> {
   offset: number;
 }
 
-/** Áp mặc định rồi đổi sang đúng tên tham số Prisma. */
 export function pageArgs(query: PaginationQueryDto = {}): {
   take: number;
   skip: number;
@@ -23,7 +17,6 @@ export function pageArgs(query: PaginationQueryDto = {}): {
   return { take: query.limit ?? DEFAULT_PAGE_SIZE, skip: query.offset ?? 0 };
 }
 
-/** Cắt một danh sách đã nằm sẵn trong bộ nhớ (cache, cấu hình) thành trang. */
 export function pageFromArray<T>(
   all: T[],
   query: PaginationQueryDto = {},
@@ -32,7 +25,6 @@ export function pageFromArray<T>(
   return pageOf(all.slice(skip, skip + take), all.length, query);
 }
 
-/** Gói kết quả `findMany` + `count` lại thành một trang. */
 export function pageOf<T>(
   items: T[],
   total: number,

@@ -12,7 +12,6 @@ import {
 } from './dashboard.utils';
 import { DAY_MS, daysAgo } from '@/common/duration';
 
-/** Đường ĐỌC của màn hình Tổng quan. */
 @Injectable()
 export class DashboardService {
   constructor(
@@ -20,7 +19,6 @@ export class DashboardService {
     private readonly applications: ApplicationsService,
   ) {}
 
-  /** Tin bị cổng điều kiện loại KHÔNG được tính vào các con số phù hợp. */
   private static readonly ELIGIBLE = {
     status: 'DONE',
     NOT: { eligibility: 'FAIL' },
@@ -55,7 +53,6 @@ export class DashboardService {
         where: eligible,
         orderBy: { overallScore: 'desc' },
         take: 3,
-        // Thẻ công việc, không phải cả tin: `include` kéo về cả `description`.
         include: { job: { select: jobCardSelect(userId) } },
       }),
       this.prisma.jobMatch.findMany({

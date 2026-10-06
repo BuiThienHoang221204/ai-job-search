@@ -1,7 +1,5 @@
-/** Stream rỗng cho trường hợp model không phát được mảnh nào — người gọi vẫn `for await` được mà không phải kiểm null. */
 export async function* emptyStream(): AsyncIterable<unknown> {}
 
-/** Nối lại mảnh ĐẦU đã lấy ra để thăm dò với phần còn lại của stream. */
 export async function* streamFrom(
   head: unknown,
   rest: AsyncIterator<unknown>,
@@ -14,7 +12,7 @@ export async function* streamFrom(
   }
 }
 
-/** Cắt GIỮA chứ không cắt đuôi: trường bị thiếu thường nằm ở cuối JSON, cắt đuôi là vứt đúng phần cần xem. */
+/** Cắt GIỮA chứ không cắt đuôi: trường bị thiếu thường nằm ở cuối JSON. */
 export function clipMiddle(text: string, limit: number): string {
   if (text.length <= limit) return text;
   const half = Math.floor(limit / 2);

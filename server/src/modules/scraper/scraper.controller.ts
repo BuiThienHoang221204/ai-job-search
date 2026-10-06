@@ -34,7 +34,6 @@ export class ScraperController {
     private readonly queue: QueueService,
   ) {}
 
-  /** Danh sách portal đã đăng ký. Giao diện dùng để dựng menu chọn. */
   @ApiOperation({
     summary:
       'Lấy danh sách các cổng thông tin (portals) cào dữ liệu đã đăng ký',
@@ -44,7 +43,6 @@ export class ScraperController {
     return { portals: this.portals.describePortals() };
   }
 
-  /** Nhận portal mới mà không khởi động lại máy chủ — dùng sau khi thêm thư mục portal hoặc đổi cờ `enabled:`. */
   @ApiOperation({
     summary: 'Tải lại danh sách cổng thông tin cấu hình từ đĩa (Admin)',
   })
@@ -70,12 +68,10 @@ export class ScraperController {
   @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy scraper theo ID' })
   @ApiParam({ name: 'id', description: 'ID của lượt chạy scraper' })
   @Get('runs/:id')
-  // Lỗi thô của lượt quét chứa lệnh CLI và đường dẫn trên máy chủ; người dùng chỉ cần biết loại lỗi.
   async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return withFailureKind(await this.scraper.get(user.id, id));
   }
 
-  /** Đường GHI: tạo bản ghi PENDING rồi xếp hàng đợi — một lượt quét mất vài phút vì phải giữ nhịp với portal. */
   @ThrottleScrape()
   @ApiOperation({
     summary: 'Bắt đầu một lượt quét tin tuyển dụng mới từ cổng thông tin',

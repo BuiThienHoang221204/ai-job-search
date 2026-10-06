@@ -43,10 +43,8 @@ const BRIEF_TIMEOUT_MS = 120_000;
 const TTL_DAYS = 60;
 const MAX_SOURCES = 5;
 
-/** Nguồn chỉ có đoạn trích, thêm SAU các trang đọc được. */
 const MAX_SNIPPETS = 2;
 
-/** Trần chữ MỖI nguồn. Năm nguồn nhân trần này là toàn bộ đầu vào của model. */
 const SOURCE_BUDGET = 5_000;
 
 @Injectable()
@@ -59,7 +57,6 @@ export class CompanyService {
     private readonly research: ReviewResearchService,
   ) {}
 
-  /** Bản tìm hiểu của một tin: tra theo `jobId`, không theo tên tự do. */
   async forJob(jobId: string): Promise<BriefView> {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
@@ -89,7 +86,6 @@ export class CompanyService {
     };
   }
 
-  /** Payload cho hàng đợi, `null` khi bản hiện có còn hạn. */
   async planRefresh(
     jobId: string,
     force: boolean,
@@ -109,7 +105,6 @@ export class CompanyService {
     };
   }
 
-  /** Tìm hiểu một công ty: ba câu tìm kiếm, năm trang, một lời gọi model. */
   async *streamBuild(
     company: string,
   ): AsyncGenerator<ModelStreamEvent<BriefRecord>> {
@@ -179,7 +174,6 @@ export class CompanyService {
     return this.save(prepared, emptyBrief(), null);
   }
 
-  /** Nguồn đưa vào model; trang chặn vẫn giữ lại bằng đoạn trích Google. */
   private async collectSources(company: string): Promise<{
     sources: NumberedSource[];
     unreachable: Array<{ url: string; title: string }>;

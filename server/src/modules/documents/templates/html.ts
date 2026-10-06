@@ -1,6 +1,3 @@
-/** Hạ tầng dùng chung cho mọi mẫu CV dạng HTML. Dáng vẻ nằm ở `themes.ts`. */
-
-/** Ranh giới an toàn: bản HTML này nhúng vào iframe trong phiên đăng nhập, sót một dấu `<` là một lỗ XSS. */
 export const escapeHtml = (input: string): string =>
   input
     .replace(/&/g, '&amp;')
@@ -9,7 +6,6 @@ export const escapeHtml = (input: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-/** Ghép các mảnh có thật thành một dòng, bỏ qua mảnh thiếu. */
 export const joinParts = (
   parts: Array<string | null | undefined>,
   separator = ' · ',
@@ -19,7 +15,6 @@ export const joinParts = (
     .filter((part): part is string => Boolean(part))
     .join(separator);
 
-/** HTML phải TỰ CHỨA: `pdf-service` chặn mọi tên miền, tài nguyên ngoài rơi về font thay thế mà không báo lỗi. */
 export const htmlDocument = (options: {
   title: string;
   css: string;
@@ -40,7 +35,6 @@ ${options.body}
 </html>
 `;
 
-/** CSS chống vỡ trang; mỗi luật sửa một kiểu hỏng cụ thể — chi tiết ở CLAUDE.md, mục "CV đi đường HTML". */
 export const printBaseCss = `
 /* Chromium không in màu nền: thiếu dòng này thì mẫu có dải màu in ra trắng trơn, dù xem trước vẫn đúng. */
 * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

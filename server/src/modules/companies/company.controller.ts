@@ -21,7 +21,6 @@ import { QUEUE, QueueService } from '../queue/queue.service';
 import { RefreshBriefDto } from './company.dto';
 import { CompanyService } from './service/company.service';
 
-/** Không kiểm quyền sở hữu: `Job` và `CompanyBrief` là dữ liệu chung. */
 @ApiTags('Companies')
 @ApiBearerAuth()
 @Controller('companies')

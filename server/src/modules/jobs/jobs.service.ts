@@ -97,7 +97,6 @@ export class JobsService {
       requirements: true,
     }) satisfies Prisma.JobSelect;
 
-  /** `sort=match` đọc bảng KHÁC (`jobRequirementMatch`) vì thứ hạng đã tính sẵn ở đó, không sắp được trên `Job`. */
   async list(query: ListJobsQueryDto, userId: string) {
     const stored = await this.profileOf(userId);
     const occupation = query.scored ? (stored?.occupationCode ?? null) : null;
@@ -224,7 +223,6 @@ export class JobsService {
     return { ...scored, salaryGuide };
   }
 
-  /** Chỉ kiểm tin CÓ tồn tại, đừng gọi `get()` — nó kéo theo cả bảng lương và điểm phù hợp rồi vứt đi. */
   async save(userId: string, jobId: string) {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },

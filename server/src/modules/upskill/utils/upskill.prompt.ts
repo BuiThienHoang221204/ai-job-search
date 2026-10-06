@@ -1,11 +1,9 @@
 import type { JobRequirement } from '@/generated/prisma/client';
 import type { UpskillGaps } from '../upskill.schema';
 
-/** Mục của file skill mà từng lời gọi giữ lại; đổi tiêu đề trong `.md` thì `keepSections` trả về RỖNG. */
 export const GAPS_SECTIONS = ['step 3', 'step 4', 'step 5'];
 export const PLAN_SECTIONS = ['step 6', 'step 7'];
 
-/** Số ký tự mô tả thô dùng khi tin CHƯA có yêu cầu đã rút. */
 export const RAW_DESCRIPTION_CHARS = 600;
 
 export type ScoredJob = {
@@ -42,11 +40,6 @@ export const PLAN_SYSTEM = [
   '- Viết tiếng Việt có dấu, mỗi trường là câu hoàn chỉnh.',
 ].join('\n');
 
-/**
- * Yêu cầu ĐÃ RÚT nếu có, mô tả thô nếu chưa. Phải kiểm `status === 'DONE'`:
- * bản ghi PENDING/FAILED vẫn tồn tại với mảng kỹ năng RỖNG, nên chỉ kiểm khác
- * null là gửi cho model một khối trống mà không có gì báo.
- */
 export function jobFacts(job: ScoredJob['job']): string[] {
   const requirements = job.requirements;
 
@@ -69,7 +62,6 @@ export function jobFacts(job: ScoredJob['job']): string[] {
   ].filter(Boolean);
 }
 
-/** Trọng số gap: tin càng ít phù hợp càng nói lên nhiều về chỗ ứng viên còn thiếu. */
 export function gapsPrompt(
   framework: string,
   profileSummary: string,
@@ -106,7 +98,6 @@ export function gapsPrompt(
   return { system, prompt };
 }
 
-/** Lời gọi 2 KHÔNG mang mô tả công việc — thêm lại là quay về đúng bản một-lời-gọi đã hỏng. */
 export function planPrompt(
   framework: string,
   profileSummary: string,
@@ -116,8 +107,6 @@ export function planPrompt(
     '\n',
   );
 
-  // Sắp ở TypeScript chứ không tin model đã sắp: nhãn "sắp theo độ ưu tiên"
-  // trong prompt phải đúng, không thì nó là một câu nói dối gửi cho model.
   const hardLines = [...gaps.hardGaps]
     .sort((a, b) => b.priority - a.priority)
     .map(

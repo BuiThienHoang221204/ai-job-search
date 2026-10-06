@@ -1,7 +1,5 @@
-/** Số ứng viên đưa cho model chọn. Rộng hơn không giúp, chỉ làm loãng đề bài. */
 export const SHORTLIST = 5;
 
-/** Số chuỗi hỏi trong MỘT lượt gọi model. Hạn mức tính theo lượt, không theo token. */
 export const BATCH = 20;
 
 export const SYSTEM = [
@@ -21,14 +19,12 @@ export const SYSTEM = [
   '- Mỗi chuỗi trong đề bài phải có đúng một dòng trả lời.',
 ].join('\n');
 
-/** Chuỗi cần phân loại kèm ứng viên gần nhất, đã rút gọn về đúng thứ model cần thấy. */
 export type MergeQuestion = {
   index: number;
   raw: string;
   near: { name: string; aliases: string[] }[];
 };
 
-/** Phải in cả `aliases` của ứng viên: thiếu chúng thì model gộp dây chuyền mà không biết nhóm đã phình tới đâu. */
 export function skillMergePrompt(questions: MergeQuestion[]): string {
   const body = questions
     .map((row) =>

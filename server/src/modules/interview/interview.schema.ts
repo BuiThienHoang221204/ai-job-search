@@ -3,9 +3,7 @@ import { requiredCappedTextVi } from '@/common/model-output';
 
 const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 
-/** Bộ câu hỏi phỏng vấn, dịch từ `.claude/skills/job-application-assistant/07-interview-prep.md`. */
 export const interviewPrepSchema = z.object({
-  /** File skill quy định dùng khung STAR: Situation - Task - Action - Result. */
   starAnswers: z
     .array(
       z.object({

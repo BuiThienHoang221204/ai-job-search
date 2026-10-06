@@ -68,7 +68,6 @@ export class DocumentsController {
     return { ...page, items: withFailureKinds(page.items) };
   }
 
-  /** TRẢ VỀ cho người dùng soát chứ không tạo tài liệu luôn: ba ô điền sẵn rẻ hơn một CV sai công ty. */
   @ThrottleAi()
   @ApiOperation({ summary: 'Bóc tin tuyển dụng từ một đường dẫn' })
   @Post('job-from-url')
@@ -76,7 +75,6 @@ export class DocumentsController {
     return this.jobFromUrl.extract(user.id, dto.url);
   }
 
-  /** Phải đứng TRƯỚC `@Get(':id')`, nếu không Nest khớp "cv-templates" vào `:id` rồi trả 404. */
   @ApiOperation({ summary: 'Lấy danh mục các mẫu CV hiện có' })
   @Get('cv-templates')
   templates() {
@@ -90,7 +88,6 @@ export class DocumentsController {
     return withFailureKind(await this.documents.get(user.id, id));
   }
 
-  /** Trả về file .tex thô để tải xuống hoặc xem trước. */
   @ApiOperation({ summary: 'Lấy mã nguồn LaTeX (.tex) của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id/source')
@@ -99,7 +96,6 @@ export class DocumentsController {
     return this.documents.source(user.id, id);
   }
 
-  /** Đổi mẫu trình bày của CV. Không `@ThrottleAi()` vì route này không gọi model. */
   @ApiOperation({ summary: 'Cập nhật mẫu trình bày (template) cho CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/template')
@@ -113,7 +109,6 @@ export class DocumentsController {
     );
   }
 
-  /** Hai header bảo mật là lớp chặn THỨ HAI sau `escapeHtml`: CSP `sandbox` không kèm `allow-scripts`. */
   @ApiOperation({ summary: 'Lấy bản xem trước HTML của CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Get(':id/preview')
@@ -128,11 +123,9 @@ export class DocumentsController {
     return this.documents.previewHtml(user.id, id, query);
   }
 
-  /** POST vì nội dung CV không nhét vừa query string, nhưng vẫn KHÔNG ghi gì vào database. */
   @ApiOperation({ summary: 'Xem trước bản nháp HTML chưa lưu của CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Post(':id/preview')
-  // 200 chứ không phải 201 mặc định của Nest: route này KHÔNG tạo ra gì.
   @HttpCode(200)
   @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Content-Security-Policy', 'sandbox')
@@ -145,7 +138,6 @@ export class DocumentsController {
     return this.documents.previewHtml(user.id, id, dto);
   }
 
-  /** Lưu bản CV người dùng đã sửa. Không gọi model. */
   @ApiOperation({ summary: 'Lưu nội dung chỉnh sửa của CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/cv')
@@ -157,7 +149,6 @@ export class DocumentsController {
     return withFailureKind(await this.documents.updateCv(user.id, id, dto));
   }
 
-  /** Tạo PDF rồi trả về bytes. `engine=html` đi đường mẫu HTML, mặc định là LaTeX. */
   @ApiOperation({ summary: 'Tải file PDF của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id/pdf')
@@ -192,7 +183,6 @@ export class DocumentsController {
     });
   }
 
-  /** Ba nguồn: tin đã lưu, JD dán tay, hoặc không nhắm vị trí nào ("CV tổng quát"). */
   @ThrottleAi()
   @ApiOperation({ summary: 'Tạo tài liệu CV mới bằng AI' })
   @Post('cv')
@@ -225,7 +215,6 @@ export class DocumentsController {
     return this.handOff(user.id, document.id, dto.stream);
   }
 
-  /** Nhận `jobId` của tin có sẵn, HOẶC JD dán tay kèm tên công ty và vị trí — luôn phải có đích. */
   @ThrottleAi()
   @ApiOperation({ summary: 'Tạo tài liệu Mail ứng tuyển mới bằng AI' })
   @Post('application-email')
@@ -256,14 +245,12 @@ export class DocumentsController {
     return this.handOff(user.id, document.id);
   }
 
-  /** `stream = true` nghĩa là người gọi sẽ tự stream, nên ĐỪNG xếp hàng đợi — xếp nữa là hai lượt gọi model cho một lần bấm. */
   private async handOff(userId: string, documentId: string, stream?: boolean) {
     if (stream) return { queued: false, documentId };
     await this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId });
     return { queued: true, documentId };
   }
 
-  /** Render lại `.tex` từ nội dung đã lưu, KHÔNG gọi model. */
   @ApiOperation({ summary: 'Render lại mã LaTeX của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Put(':id/rerender')
@@ -271,7 +258,6 @@ export class DocumentsController {
     return withFailureKind(await this.documents.rerender(user.id, id));
   }
 
-  /** Chạy ngay một tài liệu đã tạo. Dùng để thử nghiệm. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Tạo tài liệu đồng bộ ngay lập tức (không qua hàng đợi)',

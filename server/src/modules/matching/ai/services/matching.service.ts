@@ -53,7 +53,6 @@ export class MatchingService {
       skill.references.get(REFERENCE_FILE) ?? '',
       EVALUATION_SECTIONS,
     );
-    // Khung KHÔNG mang hồ sơ: `system` giống hệt mọi lượt chấm nên phần đầu prompt cache được xuyên người dùng.
     const framework = this.prompts.renderShared(
       this.prompts.dropSubsection(selected, 'Salary Benchmark'),
     );
@@ -65,7 +64,7 @@ export class MatchingService {
     );
   }
 
-  /** Phần chung của đường đồng bộ và đường stream: đọc dữ liệu, dựng prompt, tính hash, giành quyền chấm. */
+  /** Phần chung của chấm đồng bộ và stream: đọc dữ liệu, dựng prompt, tính hash, giành quyền chấm. */
   private async prepare(
     userId: string,
     jobId: string,
@@ -102,7 +101,7 @@ export class MatchingService {
     return { inputs: { profile, job, system, prompt, hash } };
   }
 
-  /** Ghi lỗi vào bản ghi rồi trả lại câu lỗi cho người gọi tự quyết cách báo. */
+  /** Đánh dấu cặp FAILED và trả câu lỗi để người gọi tự quyết cách báo. */
   private async fail(
     userId: string,
     jobId: string,
@@ -120,7 +119,6 @@ export class MatchingService {
     return { match, message };
   }
 
-  /** Chấm điểm một cặp (user, job) và lưu kết quả. */
   async evaluate(
     userId: string,
     jobId: string,
@@ -222,7 +220,6 @@ export class MatchingService {
     });
   }
 
-  /** Giành quyền chấm một cặp (user, job). */
   private async claim(userId: string, jobId: string): Promise<boolean> {
     const staleBefore = new Date(Date.now() - STALE_RUNNING_MS);
 
@@ -258,7 +255,6 @@ export class MatchingService {
     return profile?.updatedAt ?? null;
   }
 
-  /** Danh sách kết quả đã chấm cho màn "Việc làm phù hợp". Chỉ đọc DB, không gọi AI. */
   async listMatches(userId: string, query: PaginationQueryDto = {}) {
     const where = { userId, status: 'DONE' as const };
 
@@ -267,8 +263,6 @@ export class MatchingService {
         where,
         orderBy: { overallScore: 'desc' },
         ...pageArgs(query),
-        // `select` chứ không `include`: `include` kéo về cả `description`, và
-        // riêng cột đó là 42,7% dung lượng phản hồi này. Xem `job-card.select`.
         select: {
           ...LIST_FIELDS,
           job: { select: jobCardSelect(userId) },
@@ -301,7 +295,6 @@ export class MatchingService {
     return withStaleFlag(withSavedFlag(match), updatedAt);
   }
 
-  /** Chỉ `DONE` mới tính: `FAILED` là trạng thái cuối người dùng bấm lại được, `PENDING`/`RUNNING` để khoá dedup lo. */
   async findDoneScore(userId: string, jobId: string) {
     return this.prisma.jobMatch.findFirst({
       where: { userId, jobId, status: 'DONE' },
@@ -309,7 +302,6 @@ export class MatchingService {
     });
   }
 
-  /** Ghi `PENDING` NGAY lúc xếp hàng, để giao diện đọc trạng thái từ DB thay vì giữ "tôi vừa bấm" trong bộ nhớ trình duyệt. */
   async markPending(userId: string, jobId: string): Promise<void> {
     const revived = await this.prisma.jobMatch.updateMany({
       where: { userId, jobId, status: 'FAILED' },
@@ -322,7 +314,6 @@ export class MatchingService {
         data: { userId, jobId, status: 'PENDING' },
       });
     } catch (error) {
-      // Đã có bản ghi nghĩa là đang PENDING/RUNNING/DONE - không có gì để đổi.
       if (!isUniqueViolation(error)) throw error;
     }
   }

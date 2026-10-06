@@ -22,7 +22,6 @@ import { GoogleLoginDto, LoginDto, RegisterDto } from './auth.dto';
 import type { AuthUser } from '@/common/types/auth-user';
 import { ThrottleAuth } from '@/common/throttle';
 
-/** Đăng ký và đăng nhập vừa ĐẶT COOKIE vừa trả token trong body. */
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -63,7 +62,6 @@ export class AuthController {
     return issue(response, await this.auth.loginWithGoogle(dto.idToken));
   }
 
-  /** `@Public()` vì access token đã hết hạn lúc gọi tới đây; chỉ nhận token qua cookie httpOnly, không nhận qua body/header. */
   @Public()
   @ThrottleAuth()
   @ApiOperation({ summary: 'Đổi refresh token lấy cặp token mới' })
@@ -81,11 +79,6 @@ export class AuthController {
     );
   }
 
-  /**
-   * `@Public()` là cố ý: đăng xuất khi token đã hết hạn vẫn phải xoá được
-   * cookie, nếu không người dùng mắc kẹt với một cookie chết mà không có cách
-   * nào bỏ đi. Route này chỉ xoá cookie, không đọc gì của ai.
-   */
   @Public()
   @ApiOperation({ summary: 'Đăng xuất khỏi hệ thống' })
   @Post('logout')
@@ -95,7 +88,6 @@ export class AuthController {
     return { ok: true };
   }
 
-  /** Khác `logout`: tăng `tokenVersion` nên mọi token đã phát chết ngay, không riêng cookie của trình duyệt đang gọi. */
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Đăng xuất trên mọi thiết bị' })
   @Post('logout-all')
@@ -117,7 +109,6 @@ export class AuthController {
   }
 }
 
-/** Đặt cả hai cookie rồi trả nguyên kết quả về body. */
 const issue = (response: Response, result: AuthResult): AuthResult => {
   setAccessCookie(response, result.accessToken);
   setRefreshCookie(response, result.refreshToken);

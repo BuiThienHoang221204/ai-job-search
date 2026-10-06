@@ -4,7 +4,6 @@ import { yearsOfExperience } from '@/modules/profile/utils/experience-years';
 import type { MatchProfile } from '@/modules/matching/rules/types';
 import type { JobRequirements } from '../schemas/job-requirements.schema';
 
-/** Bản rút đã có, xong, và cùng nguồn — không cần gọi model lại. */
 export function isUpToDate(
   record: { status: string; sourceHash: string | null } | null | undefined,
   hash: string,
@@ -12,7 +11,6 @@ export function isUpToDate(
   return record?.status === 'DONE' && record.sourceHash === hash;
 }
 
-/** Băm ĐÚNG những trường `jobPrompt` đưa cho model — thêm trường vào prompt mà quên đây thì tin cũ không bao giờ rút lại. */
 export function sourceHash(job: Job): string {
   return fingerprint([
     job.title,
@@ -22,7 +20,6 @@ export function sourceHash(job: Job): string {
   ]);
 }
 
-/** Đổi bản ghi database thành hình dạng mà `matchRequirements` nhận. */
 export function toRequirements(row: JobRequirement): JobRequirements {
   return {
     requiredSkills: row.requiredSkills,
@@ -37,7 +34,7 @@ export function toRequirements(row: JobRequirement): JobRequirements {
   };
 }
 
-/** `headline` đi vào CÙNG danh sách kỹ năng: tin đòi "kế toán" mà hồ sơ chỉ khai Excel/Misa sẽ khớp 0 dù chức danh ghi rõ. */
+/** Hồ sơ cho phép đối chiếu; `headline` được gộp vào danh sách kỹ năng. */
 export function toMatchProfile(profile: {
   headline?: string | null;
   primarySkills: string[];
@@ -65,7 +62,6 @@ export function toMatchProfile(profile: {
 export const NO_SKILLS_ERROR =
   'Không rút được kỹ năng nào từ tin này, nên không có căn cứ để đối chiếu hồ sơ.';
 
-/** Bản rút không có kỹ năng nào là bản hỏng: ghi DONE thì luật chấm chỉ còn số năm để đối chiếu. */
 export const hasSkills = (extracted: {
   requiredSkills: string[];
   niceToHaveSkills: string[];

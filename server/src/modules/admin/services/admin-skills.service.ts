@@ -10,7 +10,6 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import type { SkillsQueryDto } from '../admin.dto';
 
-/** Số kỹ năng gần nhất theo embedding gợi ý để gộp. */
 const NEIGHBORS = 8;
 
 @Injectable()
@@ -93,7 +92,6 @@ export class AdminSkillsService {
     });
     if (!skill) throw new NotFoundException(`Không tìm thấy kỹ năng: ${id}`);
 
-    // Chỉ so trong cùng model embedding: vector của hai model khác nhau không so được.
     const neighbors = await this.prisma.$queryRaw<
       { id: string; name: string; similarity: number; aliases: number }[]
     >`
@@ -108,7 +106,6 @@ export class AdminSkillsService {
     return { ...skill, neighbors };
   }
 
-  /** Chỉ đổi tên hiển thị; embedding giữ nguyên nên việc tìm ứng viên cho chuỗi mới không đổi. */
   async rename(id: string, name: string) {
     await this.ensureSkill(id);
     return this.prisma.canonicalSkill.update({
@@ -118,7 +115,6 @@ export class AdminSkillsService {
     });
   }
 
-  /** Chuyển một cách viết sang kỹ năng khác và đánh dấu MANUAL; kỹ năng cũ hết alias thì xoá luôn. */
   async moveAlias(key: string, skillId: string) {
     const [alias] = await Promise.all([
       this.prisma.skillAlias.findUnique({ where: { key } }),
@@ -148,7 +144,6 @@ export class AdminSkillsService {
     });
   }
 
-  /** Dồn mọi cách viết của `sourceId` sang `targetId` (đánh dấu MANUAL) rồi xoá `sourceId`. */
   async merge(sourceId: string, targetId: string) {
     if (sourceId === targetId) {
       throw new BadRequestException('Không thể gộp một kỹ năng vào chính nó.');
@@ -165,7 +160,6 @@ export class AdminSkillsService {
     });
   }
 
-  /** Đối chiếu lại toàn kho theo danh bạ mới; chặng sau đó tự phát suất chấm AI trong hạn mức. */
   async rematchAll() {
     const queueJobId = await this.queue.send(QUEUE.REQUIREMENT_MATCH, {});
     return { queued: queueJobId !== null, queueJobId };

@@ -24,7 +24,6 @@ import {
   typeLabel,
 } from './question-bank.utils';
 
-/** Ngân hàng câu hỏi tĩnh. Chỉ đọc `READY`; đáp án sinh LƯỜI, 91% câu chưa ai mở. */
 @Injectable()
 export class QuestionBankService {
   private readonly logger = new Logger(QuestionBankService.name);
@@ -34,7 +33,6 @@ export class QuestionBankService {
     private readonly ai: AiService,
   ) {}
 
-  /** Mỗi chiều đếm theo các bộ lọc KHÁC đang bật, không theo chính nó. */
   async facets(query: ListQuestionsQueryDto = {}) {
     const { search, industry, type, difficulty } = questionFilters(query);
     const base = { status: 'READY' as const, ...search };
@@ -115,7 +113,6 @@ export class QuestionBankService {
     return decorate(row);
   }
 
-  /** Đã có `answeredAt` thì KHÔNG gọi model lần nữa - đó là điểm của sinh lười. */
   async ensureAnswer(id: string, userId: string) {
     const row = await this.prisma.interviewQuestion.findFirst({
       where: { id, status: 'READY' },

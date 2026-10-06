@@ -12,7 +12,6 @@ export const MAX_SHORTLIST_PER_RUN = 300;
 
 export const COOLDOWN_HOURS = 6;
 
-/** Ai lâu chưa được phát suất thì lên trước — `null` coi như lâu nhất. */
 const olderFirst = (a: ShortlistCandidate, b: ShortlistCandidate): number => {
   const left = a.lastFanOutAt?.getTime() ?? 0;
   const right = b.lastFanOutAt?.getTime() ?? 0;
@@ -20,7 +19,6 @@ const olderFirst = (a: ShortlistCandidate, b: ShortlistCandidate): number => {
   return a.userId.localeCompare(b.userId);
 };
 
-/** Gom tin theo user, mỗi user giữ tối đa `topN` tin. */
 export function groupByUser(
   rows: ShortlistRow[],
   lastFanOutAt: Map<string, Date | null>,
@@ -46,7 +44,6 @@ export function groupByUser(
     .sort(olderFirst);
 }
 
-/** Phát THEO VÒNG: mọi người nhận lựa chọn số 1 trước rồi mới tới số 2, nên chạm trần `MAX_SHORTLIST_PER_RUN` thì ai cũng có vài tin thay vì vài người lấy hết. */
 export function planShortlist(input: ShortlistInput): ShortlistPlan {
   const topN = input.topN ?? AI_TOP_N;
   const maxPerRun = input.maxPerRun ?? MAX_SHORTLIST_PER_RUN;

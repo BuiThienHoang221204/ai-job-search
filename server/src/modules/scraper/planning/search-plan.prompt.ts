@@ -1,7 +1,5 @@
-/** Tinh chỉnh truy vấn là việc PHỤ: hỏng thì rơi về bản tất định, nên không đáng chờ lâu. */
 export const PLAN_TIMEOUT_MS = 30_000;
 
-/** Luật NGÔN NGỮ THEO NGÀNH cũng nằm ở `.describe()` của `query` trong schema, phải giữ khớp — chọn sai là trả về KHÔNG GÌ CẢ. */
 export const SEARCH_PLAN_SYSTEM = [
   'Bạn sinh từ khóa tìm việc cho một ứng viên tại Việt Nam. Ứng viên có thể thuộc BẤT KỲ ngành nghề nào - hãy đọc hồ sơ để biết, đừng giả định.',
   '',

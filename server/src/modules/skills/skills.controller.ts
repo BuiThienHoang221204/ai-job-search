@@ -3,11 +3,6 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { SkillRegistryService } from './services/skill-registry.service';
 
-/**
- * Công cụ vận hành, không phải dữ liệu người dùng: danh sách skill để lộ tên và
- * hash của khung prompt đang chạy, còn `reload` buộc máy chủ đọc lại đĩa. Vì
- * vậy cả hai route đều chỉ dành cho ADMIN - trước đây controller này không có
- */
 @ApiTags('Skills Registry')
 @ApiBearerAuth()
 @Controller('skills')
@@ -24,10 +19,6 @@ export class SkillsController {
     return { skills: this.registry.list() };
   }
 
-  /**
-   * Nạp lại skill từ đĩa mà không phải khởi động lại server - để sửa SKILL.md
-   * rồi thử ngay.
-   */
   @ApiOperation({
     summary: 'Tải lại danh sách kỹ năng từ đĩa SKILL.md (Admin)',
   })

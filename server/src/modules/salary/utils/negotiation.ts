@@ -9,7 +9,6 @@ import {
   type Seniority,
 } from '../salary.types';
 
-/** Số năm suy ra từ cấp bậc, dùng khi tin không nói rõ. `LEAD` bằng `SENIOR` vì nguồn lương không tách hai mốc này. */
 const SENIORITY_YEARS: Record<Seniority, number | null> = {
   INTERN: 0,
   FRESHER: 0,
@@ -20,25 +19,18 @@ const SENIORITY_YEARS: Record<Seniority, number | null> = {
   UNKNOWN: null,
 };
 
-/** Mốc điểm phù hợp coi là "không lợi không hại" — mục tiêu rơi đúng giữa khoảng. Chưa chấm điểm cũng dùng mốc này. */
 const NEUTRAL_FIT = 50;
 
-/** Từ mốc này trở lên mới được nới TRẦN: hồ sơ mạnh thì có quyền đòi cao hơn khung. */
 const STRONG_FIT = 75;
 
-/** Từ mốc này trở xuống thì hạ SÀN: đòi bằng người khác khi hồ sơ yếu là tự loại mình. */
 const WEAK_FIT = 40;
 
-/** Sàn không bao giờ thấp hơn lương hiện tại +10% — đổi việc mà giảm lương thì không có gì để deal. */
 const MIN_RAISE_OVER_CURRENT = 1.1;
 
-/** Làm tròn 500 nghìn. Xem `roundToStep`. */
 const ROUNDING = 500_000;
 
-/** Nguồn không có mốc theo kinh nghiệm thì tự dựng khoảng ±25% quanh trung vị. */
 const SPREAD_WITHOUT_BAND = 0.25;
 
-/** Biên nới thêm cho hồ sơ rất mạnh hoặc rất yếu, tối đa 15% — nới rộng hơn là bịa ra một khoảng không có trong dữ liệu. */
 const STRETCH_FOR_FIT = 0.15;
 
 /** Số năm thành nhãn mốc. Chữ phải khớp ĐÚNG chữ của nguồn, xem `EXPERIENCE_LABELS`. */
@@ -50,7 +42,6 @@ export function labelForYears(years: number | null): ExperienceLabel | null {
   return 'Trên 5 năm';
 }
 
-/** Tin nói rõ số năm thì tin; không thì suy từ cấp bậc. `UNKNOWN` trả `null` chứ không đoán 0. */
 export function requiredYearsOf(
   minYears: number | null,
   seniority: Seniority,
@@ -78,7 +69,6 @@ function pickNumbers<T>(rows: T[], read: (row: T) => number | null): number[] {
   return values;
 }
 
-/** Lấy mốc kinh nghiệm tương ứng ở MỌI vị trí trong nhóm; vị trí thiếu mốc đó thì vắng mặt, không đẩy số 0 vào. */
 function bandsAt(
   positions: ReferencePosition[],
   label: ExperienceLabel | null,
@@ -92,12 +82,10 @@ function bandsAt(
   return bands;
 }
 
-/** Làm tròn 500k: đây là con số người dùng mang đi deal lương, lẻ tới đơn vị đồng là giả vờ chính xác. */
 function roundToStep(value: number): number {
   return Math.max(ROUNDING, Math.round(value / ROUNDING) * ROUNDING);
 }
 
-/** Kẹp vào khoảng, bỏ qua cận nào là `null` — nguồn thường chỉ có một trong hai đầu. */
 function clamp(value: number, min: number | null, max: number | null): number {
   let result = value;
   if (min !== null) result = Math.max(result, min);
@@ -105,7 +93,6 @@ function clamp(value: number, min: number | null, max: number | null): number {
   return result;
 }
 
-/** Ba con số sàn/mục tiêu/trần. `null` khi không có lấy một mức lương nào để dựa vào — thà không hiện gì còn hơn hiện số bịa. */
 export function negotiationRange(
   input: NegotiationInput,
 ): NegotiationRange | null {

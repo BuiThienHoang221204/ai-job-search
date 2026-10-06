@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { cvEditSchema, type CvEditResult } from '../schemas/document.schema';
 
-/** Đổi lỗi zod thành 400 — để `parse` ném thẳng thì Nest trả 500, giao diện không có gì cho người dùng sửa. */
+/** Đổi lỗi zod thành 400 — để ném thẳng thì Nest trả 500. */
 export const parseCvEdit = (raw: unknown): CvEditResult => {
   const parsed = cvEditSchema.safeParse(raw);
   if (parsed.success) return parsed.data;
@@ -14,7 +14,7 @@ export const parseCvEdit = (raw: unknown): CvEditResult => {
   throw new BadRequestException(`Nội dung CV không hợp lệ — ${detail}`);
 };
 
-/** Ba trường của một JD dán tay, hoặc 400 — kiểm lại ngoài DTO để service tự đứng vững. */
+/** Ba trường của một JD dán tay, hoặc 400. */
 export function requirePastedJob(input: {
   jobDescription?: string;
   company?: string;

@@ -52,7 +52,6 @@ export class AiShortlistService {
 
   private topRows(userId: string | undefined): Promise<ShortlistRow[]> {
     const cooldownBefore = new Date(Date.now() - this.cooldownHours * HOUR_MS);
-    // Cùng cổng ngành với danh sách "phù hợp": suất AI mất tiền thật, tin lạc ngành không đáng một lượt gọi model.
     const pairs = nearbyOccupationPairs();
 
     return this.prisma.$queryRawUnsafe<ShortlistRow[]>(

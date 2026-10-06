@@ -18,7 +18,6 @@ import {
 
 const BCRYPT_ROUNDS = 12;
 
-// Email không tồn tại vẫn băm thử với hash giả cùng cost: bỏ qua bcrypt thì phản hồi nhanh hơn ~250ms, đủ để dò email nào đã đăng ký.
 let dummyHash: Promise<string> | undefined;
 const timingPadHash = () =>
   (dummyHash ??= hash('careelot-timing-pad', BCRYPT_ROUNDS));
@@ -40,7 +39,6 @@ export class AuthService {
     private readonly google: GoogleAuthService,
   ) {}
 
-  /** Chặn email trùng bằng unique của DB, KHÔNG đọc trước: vừa đóng khe race, vừa để cả hai nhánh cùng trả SAU khi băm mật khẩu — trả sớm thì đo thời gian là đoán được email nào đã đăng ký. */
   async register(dto: RegisterDto): Promise<AuthResult> {
     const user = await this.prisma.user
       .create({
@@ -75,7 +73,6 @@ export class AuthService {
     return this.sign(user, user.tokenVersion);
   }
 
-  /** Email Google xác nhận rồi (`email_verified`) thì tự liên kết với tài khoản mật khẩu đã có cùng email, không bắt đăng nhập lại bằng mật khẩu. */
   async loginWithGoogle(idToken: string): Promise<AuthResult> {
     const profile = await this.google.verify(idToken);
 
@@ -106,7 +103,7 @@ export class AuthService {
     try {
       payload = this.jwt.verify(token);
     } catch {
-      // Chữ ký sai hoặc hết hạn: để `payload = null` rơi xuống cùng một câu báo bên dưới.
+      // Chữ ký sai hoặc hết hạn: rơi xuống cùng một câu báo bên dưới.
     }
     if (!isRefreshPayload(payload)) {
       throw new UnauthorizedException('Refresh token không hợp lệ');
@@ -128,7 +125,6 @@ export class AuthService {
     return this.sign(user, user.tokenVersion);
   }
 
-  /** Vô hiệu MỌI token đã phát (kể cả access còn hạn) - gọi ở mọi chỗ phiên phải chết: đăng xuất mọi thiết bị, đổi mật khẩu, khoá tài khoản. */
   async revokeAllSessions(userId: string): Promise<void> {
     await this.prisma.user.update({
       where: { id: userId },

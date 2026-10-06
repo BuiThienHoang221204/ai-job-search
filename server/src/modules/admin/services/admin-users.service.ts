@@ -57,7 +57,6 @@ export class AdminUsersService {
     return pageOf(items, total, query);
   }
 
-  /** Không trả hồ sơ đầy đủ: admin cần biết tài khoản dùng hệ thống ra sao, không cần đọc CV của họ. */
   async detail(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },

@@ -48,7 +48,6 @@ export class InterviewController {
     return this.interview.get(user.id, jobId);
   }
 
-  /** Đường GHI, không đồng bộ. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Đưa yêu cầu chuẩn bị phỏng vấn vào hàng đợi xử lý',
@@ -78,7 +77,6 @@ export class InterviewController {
     });
   }
 
-  /** Chạy ngay, dùng để thử nghiệm và đo chất lượng model. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Tạo tài liệu chuẩn bị phỏng vấn đồng bộ ngay lập tức',

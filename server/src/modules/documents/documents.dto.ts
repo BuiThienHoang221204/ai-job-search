@@ -16,7 +16,6 @@ import {
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import type { PdfEngine } from './services/documents.service';
 
-/** Chỉ kiểm khi người dùng ĐÃ chạm vào một trong ba trường — chép điều kiện của mail sang đây là giết "CV tổng quát", xem README. */
 const pastedJob = (dto: CreateCvDto): boolean =>
   !dto.jobId &&
   (dto.jobDescription !== undefined ||
@@ -28,10 +27,8 @@ export class CreateCvDto {
 
   @IsOptional() @IsIn(['vi', 'en']) language?: 'vi' | 'en';
 
-  /** Người gọi tự stream nên ĐỪNG xếp hàng đợi — thiếu cờ này là hai lượt gọi model cho một lần bấm. */
   @IsOptional() @IsBoolean() stream?: boolean;
 
-  /** Trần và câu báo lỗi giữ khớp `CreateApplicationEmailDto`. */
   @ValidateIf(pastedJob)
   @IsString({ message: 'Thiếu mô tả công việc' })
   @Length(50, 60_000, {
@@ -50,18 +47,15 @@ export class CreateCvDto {
   title?: string;
 }
 
-/** Chọn đường sinh PDF. `@IsIn` để chuỗi lạ bị báo lỗi thay vì rơi về mặc định. */
 export class PdfQueryDto {
   @IsOptional() @IsIn(['latex', 'html']) engine?: PdfEngine;
 }
 
-/** Để `unknown` rồi cho zod kiểm trong service: khai hình dạng lần hai bằng class-validator là hai bản sẽ trôi khỏi nhau. */
 export class UpdateCvDto {
   @IsOptional() @IsObject() content?: unknown;
   @IsOptional() @IsObject() layout?: unknown;
 }
 
-/** Xem trước bản nháp CHƯA lưu. Thiếu trường nào thì lấy bản đã lưu cho trường đó. */
 export class PreviewBodyDto extends UpdateCvDto {
   @IsOptional() @IsString() @Length(1, 40) templateId?: string;
 
@@ -70,7 +64,6 @@ export class PreviewBodyDto extends UpdateCvDto {
   accent?: string;
 }
 
-/** Xem trước một mẫu mà KHÔNG lưu. Bỏ trống thì xem đúng mẫu đang lưu. */
 export class PreviewQueryDto {
   @IsOptional() @IsString() @Length(1, 40) templateId?: string;
 
@@ -79,7 +72,6 @@ export class PreviewQueryDto {
   accent?: string;
 }
 
-/** `templateId` do service tra trong `templates/registry.ts`; `accent` chặn bằng regex vì nó đi thẳng vào CSS. */
 export class SetTemplateDto {
   @IsString() @Length(1, 40) templateId!: string;
 
@@ -91,15 +83,12 @@ export class SetTemplateDto {
 export class CreateCoverLetterDto {
   @IsString() jobId!: string;
 
-  /** Xem docblock của `CreateCvDto.stream`. */
   @IsOptional() @IsBoolean() stream?: boolean;
 }
 
-/** Có `jobId` thì ba trường kia bị bỏ qua, không có thì cả ba bắt buộc — nửa bộ dữ liệu bị chặn ở đây. */
 export class CreateApplicationEmailDto {
   @IsOptional() @IsString() jobId?: string;
 
-  /** Sàn 50 cao hơn sàn 20 của tin tuyển dụng: JD ngắn hơn thế không đủ cho model viết mail mà không bịa. */
   @ValidateIf((dto: CreateApplicationEmailDto) => !dto.jobId)
   @IsString({ message: 'Thiếu mô tả công việc' })
   @Length(50, 60_000, {
@@ -107,7 +96,6 @@ export class CreateApplicationEmailDto {
   })
   jobDescription?: string;
 
-  /** Dùng `@Length` thay cặp min/max và đặt `message` tiếng Việt: giao diện NỐI cả mảng lỗi, thiếu giá trị là mọi decorator hỏng cùng lúc. */
   @ValidateIf((dto: CreateApplicationEmailDto) => !dto.jobId)
   @IsString({ message: 'Thiếu tên công ty' })
   @Length(1, 300, { message: 'Tên công ty phải từ 1 tới 300 ký tự' })
@@ -145,6 +133,5 @@ export class ListDocumentsDto extends PaginationQueryDto {
   @IsIn(['CV', 'COVER_LETTER', 'APPLICATION_EMAIL', 'FORM_ANSWER'])
   kind?: 'CV' | 'COVER_LETTER' | 'APPLICATION_EMAIL' | 'FORM_ANSWER';
 
-  /** Chỉ tài liệu đã tạo cho ĐÚNG tin này. */
   @IsOptional() @IsString() jobId?: string;
 }

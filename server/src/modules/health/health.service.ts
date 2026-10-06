@@ -9,7 +9,6 @@ import {
 import { QueueService } from '../queue/queue.service';
 import { messageOf } from '@/common/error-message';
 
-/** Hạn cho từng phép kiểm tra. */
 const CHECK_TIMEOUT_MS = 2_000;
 
 export type CheckResult = { ok: boolean; error?: string };
@@ -19,9 +18,7 @@ export type ReadinessReport = {
   checks: {
     database: CheckResult;
     queue: CheckResult;
-    /** Môi trường tạo PDF từ LaTeX (thư xin việc). */
     latex: CheckResult;
-    /** Môi trường in PDF từ HTML (CV). */
     pdf: CheckResult;
   };
 };
@@ -55,7 +52,6 @@ const withTimeout = async (
   }
 };
 
-/** Kiểm một bộ in PDF có trả lời không; `available()` trả `false` cũng là hỏng, kèm câu báo riêng. */
 const probe = (
   target: { available(): Promise<boolean> },
   label: string,
@@ -77,7 +73,6 @@ export class HealthService {
     @Inject(PDF_RENDERER) private readonly pdf: PdfRenderer,
   ) {}
 
-  /** Các phụ thuộc đã sẵn sàng nhận việc hay chưa. */
   async readiness(): Promise<ReadinessReport> {
     const status = this.queue.status();
     const queue: CheckResult = status.ready
@@ -90,7 +85,6 @@ export class HealthService {
       probe(this.pdf, 'pdf', 'môi trường in PDF không phản hồi'),
     ]);
 
-    // `latex` và `pdf` cố ý KHÔNG tính vào `ready`: mất PDF thì người dùng vẫn dùng được mọi thứ khác, đừng để orchestrator khởi động lại cả app.
     return {
       ready: database.ok && queue.ok,
       checks: { database, queue, latex, pdf },

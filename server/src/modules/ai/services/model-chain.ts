@@ -20,7 +20,6 @@ export type ModelChainOptions = {
   logger: Logger;
 };
 
-/** Lý do bỏ qua mắt xích, hoặc `null` nếu lỗi thuộc về TÁC VỤ và phải ném ngay. Thứ tự kiểm giữ nguyên vì nó quyết định câu log. */
 function skipReason(error: unknown): string | null {
   if (error instanceof ModelUnavailableError) return error.message;
   if (isModelRetired(error)) return 'gateway đã rút model này';
@@ -33,18 +32,16 @@ function skipReason(error: unknown): string | null {
   return null;
 }
 
-/** Phần CHÍNH SÁCH, tách khỏi `AiService`: nó không biết SDK, prisma hay schema, chỉ trả lời "lỗi này là mắt xích hỏng hay tác vụ hỏng". */
 export class ModelChain {
   constructor(private readonly options: ModelChainOptions) {}
 
-  /** Dạng đầy đủ `lõi/model`, để so trùng không phụ thuộc cách viết tắt. */
   private canonical(ref: string): string {
     return formatModelRef(
       parseModelRef(ref, providerIds(), this.options.defaultProviderId),
     );
   }
 
-  /** So trùng theo dạng ĐẦY ĐỦ, nếu không thì `x` và `opencode/x` thành hai mắt xích và model vừa hết hạn mức được thử lại ngay. `fallbackOverride` thay hẳn `MODEL_FALLBACK_IDS` cho một lượt gọi — dùng khi lượt đó cần một chuỗi RIÊNG (vd. chỉ toàn model nhanh). */
+  /** So trùng theo dạng ĐẦY ĐỦ `lõi/model`; `fallbackOverride` thay hẳn `MODEL_FALLBACK_IDS`. */
   links(
     requested?: string,
     fallbackOverride?: string[],
@@ -64,7 +61,7 @@ export class ModelChain {
     return chain;
   }
 
-  /** Đi tiếp trong đúng BẢY trường hợp, cả bảy nghĩa là "mắt xích này không dùng được" — kể cả TIMEOUT và SCHEMA (chốt 2026-10-05, đổi từ "ném ngay": batch job.requirements đo thật cho thấy 2 loại này chiếm phần lớn lỗi mà trước đó không hề thử mắt xích nào khác). */
+  /** Lỗi thuộc về model thì đi tiếp mắt xích (xem `skipReason`), lỗi của tác vụ thì ném ngay. */
   async run<T>(
     requested: string | undefined,
     attempt: (modelId: string | undefined) => Promise<T>,
@@ -78,7 +75,6 @@ export class ModelChain {
     let lastSkipped: unknown;
 
     for (const [index, modelId] of chain.entries()) {
-      // Ngân sách chặn cả CHUỖI, không chỉ từng mắt xích: mỗi `attempt` nhận một `AbortSignal.timeout` MỚI. Mắt đầu luôn được chạy trọn hạn của nó.
       const elapsed = Date.now() - startedAt;
       if (index > 0 && elapsed >= budgetMs) {
         this.options.logger.warn(

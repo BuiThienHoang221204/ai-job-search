@@ -2,7 +2,6 @@ import { foldTerm } from '@/common/text/vietnamese';
 import type { PortalJobCard, PortalJobDetail } from '../types';
 import { MINUTE_MS, HOUR_MS, DAY_MS } from '@/common/duration';
 
-/** Bóc mảng kết quả ra khỏi bao bì, dù CLI gói kiểu nào. */
 export function unwrapList(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload;
   if (typeof payload !== 'object' || payload === null) return [];
@@ -30,18 +29,14 @@ export function normalizeDescription(input: string | null): string | null {
   return cleaned.length > 0 ? cleaned : null;
 }
 
-/** Mô tả ngắn hơn mức này thì không đủ để chấm điểm. */
 export const MIN_DESCRIPTION_LENGTH = 80;
 
-/** VietnamWorks cắt mô tả rồi thêm dấu ba chấm — bản cụt vẫn dài hơn ngưỡng 80 nên không nhánh nào bắt được. */
 export const looksTruncated = (description: string): boolean =>
   /(\.\.\.|…)\s*$/.test(description);
 
-/** Suy `slug` khi CLI không trả về. */
 const slugOf = (row: Record<string, unknown>): string | null =>
   text(row.slug) ?? text(row.id) ?? null;
 
-/** Chuẩn hoá một thẻ việc làm. Trả null nếu thiếu thứ không thể suy ra được. */
 export function normalizeCard(input: unknown): PortalJobCard | null {
   if (typeof input !== 'object' || input === null) return null;
   const row = input as Record<string, unknown>;
@@ -79,7 +74,6 @@ export function normalizeCards(payload: unknown): PortalJobCard[] {
     .filter((card): card is PortalJobCard => card !== null);
 }
 
-/** Chuẩn hoá một tin chi tiết. `detail` luôn trả về một object, không phải mảng. */
 export function normalizeDetail(payload: unknown): PortalJobDetail | null {
   const card = normalizeCard(payload);
   if (!card) return null;
@@ -88,17 +82,15 @@ export function normalizeDetail(payload: unknown): PortalJobDetail | null {
   return { ...card, description: normalizeDescription(text(row.description)) };
 }
 
-/** Bốn portal nói ngày đăng theo bốn kiểu, và không kiểu nào là timestamp. */
 const UNIT_MS: Record<string, number> = {
   minute: MINUTE_MS,
   hour: HOUR_MS,
   day: DAY_MS,
   week: 7 * DAY_MS,
-  month: 30 * DAY_MS, // đủ dùng cho một nhãn "x tháng trước"
+  month: 30 * DAY_MS,
   year: 365 * DAY_MS,
 };
 
-/** Nhận cả tiếng Anh lẫn tiếng Việt: portal đổi ngôn ngữ theo `Accept-Language` mà backend không điều khiển được. */
 const UNIT_WORDS: Record<string, keyof typeof UNIT_MS> = {
   minute: 'minute',
   minutes: 'minute',
@@ -120,7 +112,6 @@ const UNIT_WORDS: Record<string, keyof typeof UNIT_MS> = {
   nam: 'year',
 };
 
-/** "4 days ago" / "2 giờ trước" → mốc thời gian; `null` nếu không phải dạng tương đối. */
 function parseRelative(value: string, now: Date): Date | null {
   const normalized = foldTerm(value);
 
@@ -137,7 +128,6 @@ function parseRelative(value: string, now: Date): Date | null {
   return new Date(now.getTime() - amount * UNIT_MS[UNIT_WORDS[match[2]]]);
 }
 
-/** Ngày tuyệt đối: ISO ("2025-07-21", "2025-07-21T09:00:00Z") hoặc dd/mm/yyyy. */
 function parseAbsolute(value: string): Date | null {
   const dmy = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (dmy) {
@@ -150,7 +140,7 @@ function parseAbsolute(value: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/** Đổi chuỗi ngày đăng của portal thành mốc thời gian. */
+/** Đổi chuỗi ngày đăng của portal (tương đối hoặc tuyệt đối) thành mốc thời gian. */
 export function parsePostedAt(
   value: string | null | undefined,
   now: Date = new Date(),
@@ -165,7 +155,6 @@ export function parsePostedAt(
   return parsed;
 }
 
-/** Không đọc được ngày đăng thì mặc định GIỮ: ITviec và TopCV thỉnh thoảng không in nhãn ngày, loại sạch là mất tin thật. */
 export function withinDays(
   value: string | null | undefined,
   days: number,

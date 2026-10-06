@@ -10,7 +10,6 @@ import type { UserRole } from '@/generated/prisma/enums';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import type { AuthUser } from '../types/auth-user';
 
-/** Chặn route theo vai trò. Đi cặp với decorator `@Roles()`. */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}

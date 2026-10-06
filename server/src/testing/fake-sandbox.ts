@@ -6,12 +6,7 @@ import {
   type SandboxSpec,
 } from '../modules/sandbox/sandbox.interface';
 
-/** Bản giả của SEAM 2. */
 export class FakeSandbox implements SandboxRunner {
-  /**
-   * Mọi spec đã nhận, theo thứ tự. Dùng để khẳng định cả những thứ caller phải
-   * truyền đúng — cắt mạng, tắt shell escape, timeout.
-   */
   readonly calls: SandboxSpec[] = [];
 
   private results: SandboxResult[] = [];

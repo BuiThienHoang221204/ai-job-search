@@ -1,7 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import type { GoogleProfile } from '../modules/auth/google-auth.service';
 
-/** Bản giả của GoogleAuthService - test tự định nghĩa idToken trỏ tới profile nào, không gọi mạng thật tới Google. */
 export class FakeGoogleAuth {
   private readonly profiles = new Map<string, GoogleProfile>();
 

@@ -1,4 +1,3 @@
-/** Giữ đúng MỘT object JSON khỏi chữ model stream ra: bỏ hàng rào ```json và câu dẫn phía trước, bỏ hàng rào đóng phía sau. */
 export class JsonObjectFilter {
   private started = false;
   private finished = false;
@@ -6,7 +5,6 @@ export class JsonObjectFilter {
   private inString = false;
   private escaped = false;
 
-  // Chỉ nhận `{`: `streamObject` của app luôn dùng schema object, còn `[` trong câu dẫn ("[Kết quả]") sẽ bị nhận nhầm là gốc.
   push(chunk: string): string {
     let out = '';
     for (const char of chunk) {
@@ -38,7 +36,7 @@ type ChunkPayload = {
   choices?: { index?: number; delta?: { content?: unknown } }[];
 };
 
-/** Viết lại MỘT dòng SSE: chỉ đụng `delta.content`, mọi thứ khác (usage, finish_reason, [DONE]) đi nguyên vẹn. */
+/** Viết lại MỘT dòng SSE: chỉ đụng `delta.content`, mọi thứ khác đi nguyên vẹn. */
 function rewriteLine(
   line: string,
   filters: Map<number, JsonObjectFilter>,
@@ -67,7 +65,6 @@ function rewriteLine(
   return changed ? `data: ${JSON.stringify(payload)}` : line;
 }
 
-/** Áp `JsonObjectFilter` lên phản hồi `text/event-stream`; phản hồi khác trả nguyên vẹn. Cặp với `extractJsonFromResponse` của đường không-stream. */
 export function extractJsonFromStream(response: Response): Response {
   if (!response.ok || !response.body) return response;
   if (
@@ -87,7 +84,6 @@ export function extractJsonFromStream(response: Response): Response {
         buffer += decoder.decode(chunk, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
-        // Chưa có dòng trọn vẹn thì không gửi gì: một dòng trống chèn thêm là tín hiệu "hết sự kiện" của SSE.
         if (!lines.length) return;
         const out = lines.map((line) => rewriteLine(line, filters)).join('\n');
         controller.enqueue(encoder.encode(`${out}\n`));

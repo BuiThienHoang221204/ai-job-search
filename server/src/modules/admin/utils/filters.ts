@@ -1,7 +1,6 @@
 import type { Prisma } from '@/generated/prisma/client';
 import type { FailuresQueryDto } from '../admin.dto';
 
-/** Khoảng `[from, to)` cho một cột thời gian; `undefined` khi không lọc — Prisma bỏ qua khoá mang giá trị đó. */
 export function dateRange(range: {
   from?: string;
   to?: string;
@@ -13,7 +12,6 @@ export function dateRange(range: {
   };
 }
 
-/** Portal đã gỡ khỏi registry vẫn còn lượt cũ trong DB; giữ chúng thì giao diện báo động giả mãi mãi. */
 export function registeredOnly<T extends { portal: string }>(
   rows: T[],
   portals: string[],
@@ -22,12 +20,10 @@ export function registeredOnly<T extends { portal: string }>(
   return rows.filter((row) => registered.has(row.portal));
 }
 
-/** Điều kiện "lời gọi hỏng trong khoảng [from, to)" dùng chung cho nhật ký lỗi và bộ lọc của nó. */
 export function failureWindow(range: { from?: string; to?: string }) {
   return { ok: false, createdAt: dateRange(range) };
 }
 
-/** Bộ lọc nhật ký lỗi; `OTHER` lấy cả `failureKind = null` vì giao diện hiện null là OTHER. */
 export function failuresWhere(
   query: FailuresQueryDto,
 ): Prisma.AiCallWhereInput {

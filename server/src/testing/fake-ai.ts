@@ -7,14 +7,11 @@ import type {
   StreamTextResult,
 } from '../modules/ai/ai.types';
 
-/** Kết quả xếp sẵn cho một lần gọi: hoặc object mà model "trả về", hoặc lỗi để thử nhánh thất bại. */
 type Scripted = { object: unknown } | { error: Error };
 
 export const FAKE_MODEL_ID = 'fake-model';
 
-/** Bản giả của `AiService` cho test: không mạng, không tiền, không chờ. */
 export class FakeAi implements Ai {
-  /** Nhật ký mọi lần gọi, để test khẳng định "đã gọi đúng tác vụ với đúng prompt" chứ không chỉ "có gọi". */
   readonly calls: Array<{
     purpose: string;
     userId?: string;
@@ -25,30 +22,25 @@ export class FakeAi implements Ai {
 
   private readonly scripted: Scripted[] = [];
 
-  /** Xếp sẵn các object sẽ trả về, theo đúng thứ tự sẽ được gọi. */
   willReturn(...objects: unknown[]): this {
     for (const object of objects) this.scripted.push({ object });
     return this;
   }
 
-  /** Xếp sẵn một lần gọi thất bại. */
   willFail(error: Error): this {
     this.scripted.push({ error });
     return this;
   }
 
-  /** Còn bao nhiêu kết quả chưa dùng. Test nên khẳng định về 0 ở cuối: còn dư nghĩa là một nhánh đã không chạy như tưởng. */
   get pending(): number {
     return this.scripted.length;
   }
 
-  /** Xoá nhật ký và các kết quả chưa dùng. */
   reset(): void {
     this.calls.length = 0;
     this.scripted.length = 0;
   }
 
-  /** `schema.parse` chạy THẬT, nên không thể xếp một object gần đúng: hình dạng nào model thật không trả được thì test cũng không nhận. */
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {

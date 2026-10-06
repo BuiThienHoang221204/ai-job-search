@@ -1,4 +1,3 @@
-/** Mảng và type đi liền nhau — `ExperienceLabel` suy ra từ chính mảng này, tách ra là phải import giá trị vào file type. */
 export const EXPERIENCE_LABELS = [
   'Dưới 1 năm',
   '1–3 năm',
@@ -8,13 +7,11 @@ export const EXPERIENCE_LABELS = [
 
 export type ExperienceLabel = (typeof EXPERIENCE_LABELS)[number];
 
-/** Nguồn suy ra mốc kinh nghiệm: hồ sơ ứng viên, hay yêu cầu của tin. */
 export type ExperienceSource = 'PROFILE' | 'POSTING';
 
 export type Seniority =
   'INTERN' | 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'UNKNOWN';
 
-/** Khớp ĐÚNG một vị trí, hay phải gộp cả nhóm nghề. */
 export type SalaryBasis = 'POSITION' | 'SUB_OCCUPATION';
 
 export interface ReferenceBand {
@@ -46,7 +43,6 @@ export interface IndexedPosition {
   tokens: string[];
 }
 
-/** Hai chiều tra: theo ngành để dò tên, theo slug để lấy thẳng. Dựng một lần rồi cache. */
 export interface PositionIndex {
   byOccupation: Map<string, IndexedPosition[]>;
   bySlug: Map<string, ReferencePosition>;
@@ -84,7 +80,6 @@ export interface NegotiationRange {
   expectedBelowFloor: boolean;
 }
 
-/** Đúng những trường của tin mà việc tra lương cần — không nhận cả bản ghi `Job`. */
 export interface SalaryGuideJob {
   title: string;
   occupationCode: string | null;
@@ -104,7 +99,6 @@ export interface SalaryGuideProfile {
   expectedSalary: number | null;
 }
 
-/** `positionSlug` chỉ có khi khớp ĐÚNG một vị trí — nhóm theo nghề thì không có trang chi tiết nào để dẫn tới. */
 export type SalaryGuide = NegotiationRange & {
   positionSlug: string | null;
 };

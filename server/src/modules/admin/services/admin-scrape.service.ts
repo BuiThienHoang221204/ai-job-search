@@ -17,10 +17,8 @@ import { occupationCoverage } from '../utils/occupation-coverage';
 import { daysAgo } from '@/common/duration';
 import { dateRange, registeredOnly } from '../utils/filters';
 
-/** Mặc định `staleDays` khi không truyền — khớp `SCRAPER_MAX_AGE_DAYS`, đủ để chu kỳ phủ ~4 đêm chạy xong. */
 const DEFAULT_STALE_DAYS = 7;
 
-/** Trần số lượt đọc lên để gom; ~4 lượt mỗi đêm nên đủ cho hơn một năm. */
 const MAX_RUNS = 2_000;
 
 @Injectable()
@@ -31,7 +29,6 @@ export class AdminScrapeService {
     private readonly config: ConfigService,
   ) {}
 
-  /** Tình trạng từng portal trong khoảng thời gian đã chọn, kèm cấu hình đọc từ SKILL.md. */
   async portals(query: TimeRangeQueryDto) {
     const runs = await this.recentRuns(query);
     const cap = this.cap();
@@ -42,7 +39,6 @@ export class AdminScrapeService {
     return { cap, ...pageFromArray(items, query) };
   }
 
-  /** Lịch sử theo lượt đêm, mỗi lượt gồm kết quả của từng portal. */
   async batches(query: ScrapeBatchesQueryDto) {
     const runs = registeredOnly(
       await this.recentRuns(query),
@@ -55,7 +51,6 @@ export class AdminScrapeService {
     return pageFromArray(items, query);
   }
 
-  /** Số tin theo ngành ghép với mốc quét gần nhất — biến màn hình "Chọn ngành nghề" mà admin tự chụp ảnh thành một phép đo tự động. */
   async occupationCoverage(query: OccupationCoverageQueryDto) {
     const staleDays = query.staleDays ?? DEFAULT_STALE_DAYS;
     const cutoff = daysAgo(staleDays);

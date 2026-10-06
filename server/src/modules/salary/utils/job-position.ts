@@ -8,12 +8,9 @@ import type {
   ResolvedPosition,
 } from '../salary.types';
 
-/** Phải khớp 80% số từ của TÊN VỊ TRÍ, không phải của tên tin — tin dài lê thê vẫn khớp đúng, còn tên vị trí ngắn thì khó khớp bừa. */
 export const TITLE_MATCH_THRESHOLD = 0.8;
-/** Chặn dưới tuyệt đối: khớp 1/1 từ vẫn đạt 100% tỉ lệ, mà một từ trùng thì gần như chắc chắn là trùng bừa. */
 export const MIN_MATCHED_TOKENS = 2;
 
-/** Từ mô tả điều kiện tuyển, không mô tả NGHỀ — để lại thì "Kế toán 2 năm kinh nghiệm" không khớp được "Kế toán". */
 const ROLE_NOISE = [
   'kinh nghiem',
   'tot nghiep',
@@ -33,33 +30,27 @@ const ROLE_NOISE = [
   'all level',
 ];
 
-/** Dấu mở đầu phần phụ của tên tin: địa điểm, mức lương, cấp bậc. */
 const HEAD_SEPARATORS = /[-–—([|/,]/;
 
-/** Đầu ngắn hơn mức này thì dấu phân tách đó không phải ranh giới thật — "C# Developer" cắt ở "-" sẽ ra "C". */
 const MIN_HEAD_LENGTH = 3;
 
-/** Cắt đuôi sau dấu gạch/ngoặc: "Kế toán tổng hợp (Hà Nội)" phải khớp như "Kế toán tổng hợp". Đầu quá ngắn thì giữ cả tên. */
 function roleHead(title: string): string {
   const head = title.split(HEAD_SEPARATORS)[0];
   return head.trim().length >= MIN_HEAD_LENGTH ? head : title;
 }
 
-/** Bỏ CỤM nguyên từ chứ không phải chuỗi con — đệm khoảng trắng hai đầu để "senior" không ăn mất một từ chứa nó. */
 function dropPhrases(normalized: string, phrases: string[]): string {
   let text = ` ${normalized} `;
   for (const phrase of phrases) text = text.split(` ${phrase} `).join(' ');
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** Tên vị trí thành danh sách từ để đối chiếu. Bỏ từ một ký tự vì chúng khớp bừa với mọi tên. */
 export function roleTokens(value: string): string[] {
   return dropPhrases(stripNoise(normalizeText(value)), ROLE_NOISE)
     .split(' ')
     .filter((token) => token.length > 1);
 }
 
-/** Tách từ SẴN cho mọi vị trí, một lần. Dò lúc có request thì mỗi lần tra là một lượt tách cả bảng lương. */
 export function buildPositionIndex(rows: ReferencePosition[]): PositionIndex {
   const byOccupation = new Map<string, IndexedPosition[]>();
   const bySlug = new Map<string, ReferencePosition>();
@@ -77,7 +68,6 @@ export function buildPositionIndex(rows: ReferencePosition[]): PositionIndex {
   return { byOccupation, bySlug };
 }
 
-/** Điểm = tỉ lệ từ của TÊN VỊ TRÍ được tin phủ. Hoà điểm thì chọn tên dài hơn — cụ thể hơn thì đúng hơn. */
 function matchByTitle(
   title: string,
   occupationCode: string,
@@ -122,7 +112,6 @@ function matchByTitle(
   return best.position;
 }
 
-/** Đường lùi bằng bảng ánh xạ tay khi không dò được tên. Slug không có trong kho thì bỏ qua, không ném. */
 function matchBySubOccupation(
   subOccupationCode: string,
   index: PositionIndex,
@@ -138,7 +127,6 @@ function matchBySubOccupation(
   return positions;
 }
 
-/** Ưu tiên khớp ĐÚNG một vị trí; không được thì gộp cả nhóm nghề; vẫn không được thì `null` chứ không đoán. */
 export function resolveJobPosition(
   job: {
     title: string;

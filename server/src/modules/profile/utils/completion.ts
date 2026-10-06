@@ -1,6 +1,5 @@
 import type { Profile } from '@/generated/prisma/client';
 
-/** Trường quyết định chất lượng chấm điểm, kèm nhãn tiếng Việt để hiện cho người dùng biết thiếu gì. */
 export const SCORED_FIELDS = [
   { key: 'primarySkills', label: 'Kỹ năng chính' },
   { key: 'experiences', label: 'Kinh nghiệm làm việc' },
@@ -17,7 +16,6 @@ export const SCORED_FIELDS = [
   { key: 'targetSectors', label: 'Ngành mục tiêu' },
 ] as const satisfies ReadonlyArray<{ key: keyof Profile; label: string }>;
 
-/** Đã điền = có nội dung thật: mảng rỗng và chuỗi toàn khoảng trắng đều tính là chưa điền. */
 const isFilled = (value: unknown): boolean => {
   if (Array.isArray(value)) return value.length > 0;
   if (value === null || value === undefined) return false;

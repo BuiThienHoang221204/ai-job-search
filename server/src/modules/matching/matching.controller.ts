@@ -41,7 +41,6 @@ export class MatchingController {
     private readonly shortlist: AiShortlistService,
   ) {}
 
-  /** Đường ĐỌC, chỉ truy vấn DB — dashboard và danh sách việc làm đều vào đây. */
   @ApiOperation({
     summary: 'Lấy danh sách điểm tương thích công việc của người dùng',
   })
@@ -58,7 +57,6 @@ export class MatchingController {
     return match && withFailureKind(match);
   }
 
-  /** Đường GHI không đồng bộ: trả về ngay, worker chấm ở nền, giao diện hiện PENDING rồi cập nhật. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Đưa yêu cầu đánh giá độ tương thích công việc vào hàng đợi',
@@ -82,7 +80,6 @@ export class MatchingController {
     return { queued: true, alreadyScored: false, queueJobId: id };
   }
 
-  /** Rút yêu cầu của một tin ngay (Pha A). Dùng để đo chất lượng rút trích. */
   @Roles('ADMIN')
   @ThrottleAi()
   @ApiOperation({
@@ -103,7 +100,6 @@ export class MatchingController {
     return this.requirements.extract(jobId, force === 'true');
   }
 
-  /** Trả về ngay: việc chạy theo từng lô ở hàng đợi nền, mỗi lô tự xếp lô kế cho tới khi hết. */
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Tái cấu trúc danh bạ kỹ năng chuẩn hóa (Admin)' })
   @Post('dictionary/rebuild')
@@ -112,7 +108,6 @@ export class MatchingController {
     return { queued: true, queueJobId: id };
   }
 
-  /** Chạy ĐỒNG BỘ để đọc được ngay số suất đã phát, thay vì đợi lượt quét kế. */
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Phát suất AI cho top-N tin phù hợp nhất (Admin)' })
   @ApiQuery({
@@ -146,7 +141,6 @@ export class MatchingController {
     });
   }
 
-  /** Chấm điểm đồng bộ, dùng để thử nghiệm và đo chất lượng model — một lần gọi mất vài giây. */
   @ThrottleAi()
   @ApiOperation({
     summary: 'Đánh giá độ tương thích công việc đồng bộ ngay lập tức',

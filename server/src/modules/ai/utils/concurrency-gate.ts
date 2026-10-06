@@ -1,4 +1,3 @@
-/** Cổng giới hạn đồng thời THEO LÕI, dùng chung cho mọi purpose gọi `AiService` — một chỗ chặn thay vì chỉnh concurrency riêng ở từng hàng đợi. */
 export class ConcurrencyGate {
   private readonly limits = new Map<string, number>();
   private readonly active = new Map<string, number>();
@@ -10,7 +9,6 @@ export class ConcurrencyGate {
     }
   }
 
-  /** Lõi không khai trần thì trả về ngay, không giữ vé nào. Gọi hàm trả về để trả vé lại — phải gọi đúng MỘT lần. */
   async acquire(providerId: string): Promise<() => void> {
     const limit = this.limits.get(providerId);
     if (!limit) return () => {};
@@ -37,7 +35,6 @@ export class ConcurrencyGate {
     });
   }
 
-  /** Trả vé thẳng cho người chờ kế tiếp (FIFO) thay vì giảm `active` rồi để người đó tự giành lại. */
   private release(providerId: string): void {
     const next = this.waiters.get(providerId)?.shift();
     if (next) {

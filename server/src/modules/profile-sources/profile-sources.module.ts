@@ -8,7 +8,6 @@ import { ProfileDraftProcessor } from './profile-draft.processor';
 import { ProfileDraftService } from './services/profile-draft.service';
 import { ProfileSynthesizerService } from './services/profile-synthesizer.service';
 
-/** SEAM 3 · đọc hồ sơ từ nguồn ngoài — Agent 1 của đề tài. */
 @Module({
   imports: [AiModule, ProfileModule, StorageModule],
   controllers: [ProfileDraftController],

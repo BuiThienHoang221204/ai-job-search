@@ -3,7 +3,6 @@ import type { Response } from 'express';
 import type { ModelStreamEvent } from './stream-event';
 import { messageOf } from './error-message';
 
-/** Mọi lượt gọi model nay đi đường KHÔNG stream, nên có tác vụ im lặng tới 254 giây — proxy cắt kết nối, và client không phân biệt được "đang chạy" với "chết". */
 const HEARTBEAT_MS = 10_000;
 
 export type NdjsonStream<T> = {
@@ -15,7 +14,6 @@ export type NdjsonStream<T> = {
   onAbandon?: () => void;
 };
 
-/** Một sự kiện lẻ thành stream, cho nhánh trả kết quả cache mà không gọi model. */
 export function justDone<T>(result: T): AsyncIterable<ModelStreamEvent<T>> {
   return {
     // eslint-disable-next-line @typescript-eslint/require-await
@@ -25,14 +23,7 @@ export function justDone<T>(result: T): AsyncIterable<ModelStreamEvent<T>> {
   };
 }
 
-/**
- * Đẩy `ModelStreamEvent` ra response dạng NDJSON — sáu route stream dùng chung khối này.
- *
- * `X-Accel-Buffering: no` là bắt buộc: nginx gom buffer thì người dùng không thấy
- * gì cho tới khi cả lượt xong, đúng thứ mà stream sinh ra để tránh. Hỏng GIỮA
- * chừng thì `destroy()` chứ không `end()` — đã gửi nửa dòng JSON, đóng tử tế
- * khiến bên đọc tưởng dữ liệu đã đủ.
- */
+/** Đẩy sự kiện ra NDJSON; hỏng giữa chừng thì `destroy()` để client không tưởng dữ liệu đã đủ. */
 export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
   const { response, logger, label, events, prelude, onAbandon } = stream;
 
@@ -45,7 +36,6 @@ export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
 
   let finished = false;
 
-  /** DÒNG TRỐNG chứ không phải loại sự kiện mới: client cũ đã bỏ qua dòng trống sẵn, nên server lên trước cũng không làm vỡ gì. */
   const beat = setInterval(() => {
     if (!finished) response.write('\n');
   }, HEARTBEAT_MS);

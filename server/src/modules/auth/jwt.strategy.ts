@@ -10,11 +10,6 @@ import { isAccessPayload } from './jwt-payload';
 
 export type { JwtPayload } from './jwt-payload';
 
-/**
- * Lấy token từ cookie httpOnly. Cần `cookieParser()` đã chạy ở main.ts,
- * không thì `request.cookies` là undefined và mọi request đều 401.
- * Thu hẹp kiểu từng bước thay vì ép kiểu: @types/cookie-parser khai
- */
 const fromCookie = (request: Request): string | null => {
   const cookies: unknown = (request as { cookies?: unknown }).cookies;
   if (typeof cookies !== 'object' || cookies === null) return null;
@@ -29,11 +24,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly prisma: PrismaService,
   ) {
     super({
-      /**
-       * Cookie được xét TRƯỚC. Giao diện web dùng cookie; Bearer giữ lại cho
-       * script, bài kiểm thử và ứng dụng di động sau này. Bỏ Bearer đi thì mọi
-       * công cụ dòng lệnh gọi API đều phải mô phỏng cookie.
-       */
       jwtFromRequest: ExtractJwt.fromExtractors([
         fromCookie,
         ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -43,7 +33,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  /** Ngoài chữ ký còn phải đúng `typ==='access'` (chặn refresh token làm Bearer) và `ver===tokenVersion` (điểm thu hồi). */
   async validate(payload: unknown): Promise<AuthUser> {
     if (!isAccessPayload(payload)) throw new UnauthorizedException();
 

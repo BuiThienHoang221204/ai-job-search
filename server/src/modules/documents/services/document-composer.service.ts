@@ -42,17 +42,14 @@ export interface ComposeInput {
   profile: Profile | null;
   target: LetterTarget | null;
   params: DocumentParams;
-  /** Danh tính đã tra sẵn. Mail ứng tuyển ghép chữ ký từ đây, KHÔNG hỏi model. */
   identity: Identity;
 }
 
 export interface ComposeResult {
-  /** Hình dạng khác nhau theo `document.kind`; caller ghi thẳng vào `content`. */
   content: unknown;
   modelId: string;
 }
 
-/** Soạn NỘI DUNG, không biết gì về LaTeX/Storage/trạng thái — nhờ vậy kiểm prompt chỉ cần `FakeAi`. */
 @Injectable()
 export class DocumentComposer {
   constructor(
@@ -62,7 +59,6 @@ export class DocumentComposer {
     private readonly prompts: PromptBuilderService,
   ) {}
 
-  /** Chọn cây bút theo loại tài liệu. Mỗi nhánh là một lời gọi model. */
   compose(input: ComposeInput): Promise<ComposeResult> {
     const { document, profile, target, params, identity } = input;
 
@@ -84,7 +80,6 @@ export class DocumentComposer {
     }
   }
 
-  /** Một mục của file skill, đã điền token `[YOUR_*]` từ hồ sơ. */
   private section(file: string, keep: string[], profile: Profile | null) {
     const skill = this.skills.get(SKILL_NAME);
     return this.prompts.render(
@@ -93,12 +88,11 @@ export class DocumentComposer {
     );
   }
 
-  /** Quy tắc viết lách dùng chung cho cả CV lẫn thư xin việc. */
   private writingRules(profile: Profile | null): string {
     return this.section('03-writing-style.md', WRITING_SECTIONS, profile);
   }
 
-  /** Thế mạnh và khoảng trống lượt chấm điểm đã tìm ra; JD dán tay không có tin nào để tra nên trả rỗng. */
+  /** Thế mạnh và khoảng trống từ lượt chấm điểm; JD dán tay không có tin nên trả rỗng. */
   private async matchHints(
     userId: string,
     target: LetterTarget,
@@ -216,7 +210,6 @@ export class DocumentComposer {
     );
   }
 
-  /** Khác thư xin việc: có tiêu đề mail, ngắn hơn một nửa, và chữ ký do CODE ghép chứ không hỏi model. */
   private async applicationEmail(
     document: Document,
     profile: Profile | null,
@@ -261,8 +254,6 @@ export class DocumentComposer {
         ...object,
         company: target.company,
         position: target.title,
-        // Chữ ký KHÔNG đi qua model: một số điện thoại bịa trong mail đã gửi đi
-        // là thứ người dùng không có cách nào phát hiện.
         signature: {
           name: identity.name,
           email: identity.email,

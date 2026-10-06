@@ -34,13 +34,10 @@ import type {
   StreamTextResult,
 } from '../ai.types';
 
-/** Gateway free không trả 429 khi quá tải, nó chỉ chậm dần — đã đo một lượt kéo 517 giây. Thiếu hạn này thì worker bị ôm chỗ gần 9 phút. */
 const DEFAULT_TIMEOUT_MS = 90_000;
 
-/** Trần ký tự khi in nguyên văn thứ model trả về. */
 const LOG_TEXT_LIMIT = 4000;
 
-/** Thấp hơn trần log vì cột này nằm trong database và chứa dữ liệu cá nhân — xem docblock của trường trong `schema.prisma`. */
 const DB_TEXT_LIMIT = 2000;
 
 /** Các cột lỗi của `ai_calls`, chung cho đường stream và không-stream. */
@@ -56,7 +53,6 @@ function failureFields(error: unknown, issues: SchemaIssue[]) {
   };
 }
 
-/** Mọi lời gọi model của cả hệ thống đi qua đây. Ba cộng tác viên bên dưới là seam NỘI BỘ, không module nào ngoài file này được dựng chúng. */
 @Injectable()
 export class AiService implements Ai {
   private readonly logger = new Logger(AiService.name);
@@ -67,7 +63,6 @@ export class AiService implements Ai {
   private readonly gate: ConcurrencyGate;
   private readonly structuredOutputsDefault: boolean;
 
-  /** Lõi nào từ chối `response_format` thì CHỈ lõi đó đổi chế độ — một cờ toàn cục sẽ sai với nửa chuỗi dự phòng trộn nhiều lõi. */
   private readonly learnedModes = new Map<string, boolean>();
 
   constructor(
@@ -94,7 +89,6 @@ export class AiService implements Ai {
     routeSdkWarnings(this.logger);
   }
 
-  /** Sinh dữ liệu có cấu trúc theo schema Zod. Hỏng ở một model thì `ModelChain` quyết định có đi tiếp mắt xích hay không. */
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
@@ -106,13 +100,10 @@ export class AiService implements Ai {
     );
   }
 
-  /** Chế độ ép định dạng thật cho một lời gọi: mặc định của lõi, trừ khi lõi đó đã bị ghi nhận là từ chối. */
   private async modeFor(modelId: string | undefined): Promise<{
     providerId: string;
     mode: boolean;
-    /** Lõi có HAI chế độ dùng được hay chỉ một. Chỉ một thì thử lại ở chế độ kia là tự làm hỏng. */
     switchable: boolean;
-    /** Model NÀY có đáng thử stream không — quyết định theo từng model, không theo lõi. */
     canStream: boolean;
   }> {
     const { providerId, structuredOutputs, honorsResponseFormat, canStream } =
@@ -128,7 +119,6 @@ export class AiService implements Ai {
     };
   }
 
-  /** Đổi chế độ ép định dạng nếu gateway từ chối chế độ đang dùng. Thử lại ĐÚNG một lần ở chế độ còn lại. */
   private async withFormatFallback<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
@@ -152,7 +142,6 @@ export class AiService implements Ai {
       }
 
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
-      // Lõi chỉ có một chế độ dùng được thì lật sang chế độ kia là BỎ luôn phần schema trong prompt mà không được gì.
       if (!switchable) throw error;
 
       this.logger.warn(
@@ -163,7 +152,7 @@ export class AiService implements Ai {
     }
   }
 
-  /** Chế độ `response_format` giữ nguyên system prompt; chế độ bơm prompt thì nối JSON Schema vào cuối. Dựng schema hỏng thì CẢNH BÁO chứ không im lặng. */
+  /** Chế độ `response_format` giữ nguyên system prompt; chế độ bơm prompt nối JSON Schema vào cuối. */
   private systemFor<T>(
     options: { system: string; schema: ZodType<T> },
     structuredOutputs: boolean,
@@ -179,7 +168,7 @@ export class AiService implements Ai {
     return options.system;
   }
 
-  /** Mở đầu chung của cả ba đường gọi model: dựng model, ghi lượt dùng cho `fast-model-scheduler`, rồi xin chỗ ở cổng song song. */
+  /** Mở đầu chung: dựng model, ghi lượt dùng cho `fast-model-scheduler`, xin chỗ ở cổng song song. */
   private async open(
     modelId: string | undefined,
     structuredOutputs: boolean,
@@ -196,7 +185,7 @@ export class AiService implements Ai {
     return { ...created, release, startedAt: Date.now() };
   }
 
-  /** MỘT lượt gọi trên MỘT model, đã chốt chế độ ép định dạng. Ghi `ai_calls` cho cả nhánh xong lẫn nhánh hỏng. */
+  /** MỘT lượt gọi trên MỘT model; ghi `ai_calls` cho cả nhánh xong lẫn nhánh hỏng. */
   private async attempt<T>(
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
@@ -270,7 +259,7 @@ export class AiService implements Ai {
     }
   }
 
-  /** In nguyên văn thứ model trả về: lệch schema mà không thấy chữ nó viết thì không có cách nào biết nó hiểu sai chỗ nào. */
+  /** In nguyên văn thứ model trả về khi lệch schema, để biết model hiểu sai chỗ nào. */
   private logSchemaFailure(
     ref: string,
     durationMs: number,
@@ -294,7 +283,6 @@ export class AiService implements Ai {
     );
   }
 
-  /** Đi chuỗi dự phòng y như `generateObject`: `beginStream` giữ tới mảnh ĐẦU TIÊN nên lúc đổi mắt xích chưa byte nào rời máy chủ. */
   async streamObject<T>(
     options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
@@ -306,7 +294,6 @@ export class AiService implements Ai {
     );
   }
 
-  /** MỘT mắt xích của `streamObject`, kèm lưới đổi chế độ ép định dạng. */
   private async streamOnce<T>(
     options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
@@ -316,7 +303,6 @@ export class AiService implements Ai {
       canStream,
     } = await this.modeFor(options.modelId);
 
-    // Model chưa ĐO là stream ra JSON được thì đừng thử: đường stream không có lưới, và lượt hỏng đó cũng không cho người dùng thấy gì.
     if (!canStream) return this.withoutStreaming(options, primary);
 
     try {
@@ -324,7 +310,6 @@ export class AiService implements Ai {
     } catch (error) {
       if (!NoObjectGeneratedError.isInstance(error)) throw error;
 
-      // Model trong danh sách mà vẫn hỏng: còn đường không-stream để bóc JSON.
       if (!switchable) {
         this.logger.warn(
           `streamObject ${options.modelId ?? '(mặc định)'} không phát được mảnh nào; rơi về đường không-stream`,
@@ -341,7 +326,6 @@ export class AiService implements Ai {
     }
   }
 
-  /** Trả về hình dạng stream nhưng KHÔNG stream: `partials` rỗng, `object` có ngay. Người gọi vốn đã xử lý được ca này. */
   private async withoutStreaming<T>(
     options: StreamObjectOptions<T>,
     mode: boolean,
@@ -358,7 +342,7 @@ export class AiService implements Ai {
     };
   }
 
-  /** Giữ lại tới khi có mảnh đầu: model trả văn xuôi thì `partialObjectStream` không phát gì, và lúc đó vẫn còn đường lùi. */
+  /** Giữ tới mảnh đầu tiên: model trả văn xuôi thì vẫn còn đường lùi sang chế độ/model khác. */
   private async beginStream<T>(
     options: StreamObjectOptions<T>,
     structuredOutputs: boolean,
@@ -393,7 +377,6 @@ export class AiService implements Ai {
           ? error
           : undefined;
         const issues = error ? schemaIssues(error) : [];
-        // Cột `responseText` chỉ giữ 2.000 ký tự và cắt GIỮA — đúng chỗ JSON thường hỏng; in đủ ra log như đường không-stream.
         if (empty) {
           this.logSchemaFailure(ref, Date.now() - startedAt, empty, issues);
         }
@@ -436,7 +419,7 @@ export class AiService implements Ai {
     };
   }
 
-  /** KHÔNG có chuỗi dự phòng, và đó là chủ đích: token đầu đã rời đi thì trình duyệt đã vẽ nửa câu, không còn đường lùi sang model khác. */
+  /** KHÔNG có chuỗi dự phòng: token đầu đã rời đi thì không còn đường lùi sang model khác. */
   async streamText(
     options: StreamTextOptions,
   ): Promise<{ modelId: string; result: StreamTextResult }> {
@@ -450,7 +433,6 @@ export class AiService implements Ai {
       ),
     );
 
-    // Ghi ở đây chứ không để người gọi tự ghi: đây là chỗ DUY NHẤT biết provider và số token thật.
     const record = (ok: boolean, extra: Record<string, unknown>) => {
       if (!options.context) return;
       void this.callLog.record({

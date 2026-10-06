@@ -25,17 +25,12 @@ export class CreateApplicationDto {
 }
 
 export class ListApplicationsDto extends PaginationQueryDto {
-  /** Lọc đúng một trạng thái đơn. */
   @IsOptional()
   @IsIn(ALL_STATUSES)
   status?: ApplicationStatus;
 }
 
 export class UpdateStatusDto {
-  /**
-   * Danh sách hợp lệ dựng từ chính enum, không gõ tay lại. Gõ tay lại nghĩa là
-   * thêm một trạng thái vào schema mà quên sửa ở đây thì API lặng lẽ từ chối.
-   */
   @IsIn(ALL_STATUSES)
   status!: ApplicationStatus;
 
@@ -66,12 +61,6 @@ export class ApplicationsController {
     return this.applications.get(user.id, id);
   }
 
-  /**
-   * Tạo đơn. Chặn nếu công việc chưa chấm điểm hoặc eligibility = FAIL.
-   * `skipDocuments=true` chỉ lưu lịch sử, không tự sinh CV/thư — dùng khi
-   * người dùng tự nộp trên trang tuyển dụng.
-   * `cvDocumentId` ghi nhận CV nào được chọn để nộp.
-   */
   @ApiOperation({ summary: 'Tạo đơn ứng tuyển mới cho một công việc' })
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
@@ -83,10 +72,6 @@ export class ApplicationsController {
     );
   }
 
-  /**
-   * Đổi trạng thái. Luôn là 'user' vì đường vào duy nhất là người dùng bấm
-   * nút; hệ thống không có route nào tự đổi trạng thái hộ.
-   */
   @ApiOperation({ summary: 'Cập nhật trạng thái đơn ứng tuyển' })
   @ApiParam({ name: 'id', description: 'ID của đơn ứng tuyển' })
   @Put(':id/status')

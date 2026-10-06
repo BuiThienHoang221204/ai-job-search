@@ -5,28 +5,11 @@ import {
   type SemanticIndex,
 } from './semantic-index';
 
-/**
- * Adapter embedding chạy NGAY TRONG tiến trình, không gọi mạng, không cần khoá.
- *
- * Đo ngày 2026-08-24: OpenRouter có 422 model và 0 model embedding, OpenCode
- * cũng vậy — nên đường gateway đang dùng cho mọi lời gọi model khác KHÔNG phục
- * vụ được việc này, và một nhà cung cấp embedding riêng (vd Gemini) cần xin
- * khoá thứ ba. Chạy tại chỗ tránh được cả hai.
- *
- * `q8` chứ không phải `fp32`: đo trên 17 cặp mẫu, bản nén cho kết quả bằng hoặc
- * tốt hơn (chồng lấn 0,193 so với 0,205) trong khi file nhỏ đi 4 lần (266MB so
- * với 1.059MB) và RAM giảm từ 1.445MB xuống 583MB.
- */
 const MODEL_ID = 'Xenova/multilingual-e5-base';
 const DTYPE = 'q8';
 
-/** Lô lớn hơn không nhanh thêm mà tốn RAM tuyến tính. Đo: 4ms/chuỗi. */
 const BATCH = 64;
 
-/**
- * `e5` được huấn luyện với tiền tố phân biệt câu hỏi và tài liệu. Ở đây hai vế
- * ngang hàng nhau nên dùng CÙNG một tiền tố cho cả hai.
- */
 const PREFIX = 'query: ';
 
 type Extractor = (
@@ -41,10 +24,6 @@ export class LocalEmbedder implements SemanticIndex {
 
   private extractor: Promise<Extractor> | null = null;
 
-  /**
-   * Nạp model MỘT lần rồi giữ lại. Lần đầu mất khoảng 33 giây từ cache đĩa và
-   * lâu hơn nhiều nếu chưa có file, nên tuyệt đối không nạp lại mỗi lượt gọi.
-   */
   private load(): Promise<Extractor> {
     this.extractor ??= (async () => {
       const startedAt = Date.now();

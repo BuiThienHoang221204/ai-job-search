@@ -1,14 +1,11 @@
 import type { ApplicationStatus } from '@/generated/prisma/enums';
 
-/** Ai yêu cầu đổi trạng thái. */
 export type TransitionActor = 'user' | 'system';
 
-/** Đơn đã khép lại, không còn chờ hồi âm. */
 export const FINAL_STATUSES = [
   'WITHDRAWN',
 ] as const satisfies readonly ApplicationStatus[];
 
-/** Đơn còn đang chạy. */
 export const OPEN_STATUSES = [
   'VIEWED',
   'APPLIED',
@@ -17,7 +14,6 @@ export const OPEN_STATUSES = [
 export const isFinal = (status: ApplicationStatus): boolean =>
   (FINAL_STATUSES as readonly ApplicationStatus[]).includes(status);
 
-/** Mọi trạng thái, dựng từ chính hai mảng trên chứ không gõ tay lại. */
 export const ALL_STATUSES = [
   ...OPEN_STATUSES,
   ...FINAL_STATUSES,
@@ -31,13 +27,6 @@ export type TransitionRequest = {
 
 export type TransitionResult = { ok: true } | { ok: false; reason: string };
 
-/**
- * Kiểm tra một lần đổi trạng thái có hợp lệ không.
- *
- * Với ba trạng thái thì mọi đường đi đều hợp lý ngoài đời - nộp rồi huỷ, huỷ rồi
- * nộp lại, đánh dấu nhầm rồi sửa - nên chỉ còn hai điều bị chặn: đổi sang chính
- * trạng thái đang có, và HỆ THỐNG tự mở lại một đơn người dùng đã đóng.
- */
 export function checkTransition(request: TransitionRequest): TransitionResult {
   const { from, to, actor } = request;
 
@@ -55,7 +44,6 @@ export function checkTransition(request: TransitionRequest): TransitionResult {
   return { ok: true };
 }
 
-/** Mốc thời gian cần ghi kèm khi chuyển sang trạng thái mới. */
 export function timestampsFor(
   to: ApplicationStatus,
   current: { appliedAt: Date | null; closedAt: Date | null },

@@ -1,9 +1,6 @@
 import { PROVINCES } from './provinces';
 import { normalizeText } from '@/common/text/vietnamese';
 
-/** Cùng một tin trên ba portal có ba `externalId`, nên `@@unique` không thấy — mỗi bản sao tốn một lượt gọi model. */
-
-/** Nhãn trang trí, không nói gì về công việc. Cố ý KHÔNG có "moi"/"new"/"hot" — chúng là từ thật trong "chuyen vien moi gioi". */
 const NOISE_PHRASES = [
   'tuyen gap',
   'tuyen dung',
@@ -17,7 +14,6 @@ const NOISE_PHRASES = [
   'full time',
 ];
 
-/** Tên công ty vô danh. Gộp mọi tin ẩn danh cùng tỉnh vào một là sai nặng. */
 export const ANONYMOUS_COMPANIES = [
   'khong ro',
   'cong ty bao mat',
@@ -26,7 +22,6 @@ export const ANONYMOUS_COMPANIES = [
   'n a',
 ];
 
-/** Mọi cách viết tỉnh/thành, đã chuẩn hoá, dài trước ngắn sau. */
 const PROVINCE_TOKENS = PROVINCES.flatMap((province) => [
   normalizeText(province.name),
   ...province.aliases,
@@ -50,7 +45,7 @@ export function stripNoise(normalized: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** Vân tay: công ty + chức danh đã bỏ nhiễu + tỉnh. `null` khi không đủ dữ liệu — tin đó coi như duy nhất. */
+/** Vân tay công ty + chức danh + tỉnh; `null` khi thiếu dữ liệu — tin đó coi như duy nhất. */
 export function dedupeKeyOf(
   title: string,
   company: string,

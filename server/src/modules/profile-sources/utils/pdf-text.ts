@@ -1,34 +1,20 @@
 import { PDFParse } from 'pdf-parse';
 import { messageOf } from '@/common/error-message';
 
-/** Kích thước file lớn nhất nhận vào. */
 export const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
-/** Số trang lớn nhất được đọc. */
 export const MAX_PDF_PAGES = 10;
 
-/** Dưới ngưỡng này thì coi như KHÔNG có lớp text. Tính theo TRANG, xem README. */
 export const MIN_CHARS_PER_PAGE = 120;
 
 export type PdfTextResult = {
-  /** Text đã ghép của các trang đọc được. KHÔNG TIN CẬY: nó sẽ đi vào prompt. */
   text: string;
-  /** Tổng số trang của tài liệu, kể cả phần bị `MAX_PDF_PAGES` cắt. */
   pages: number;
-  /** Số trang thực sự đã đọc. */
   pagesRead: number;
-  /** false nghĩa là PDF scan (ảnh), cần đường vision thay vì đường text. */
   hasTextLayer: boolean;
 };
 
-export type PdfErrorKind =
-  /** File không phải PDF, hoặc hỏng. */
-  | 'INVALID'
-  /** PDF có mật khẩu. */
-  | 'ENCRYPTED'
-  /** Vượt `MAX_PDF_BYTES`. */
-  | 'TOO_LARGE'
-  | 'OTHER';
+export type PdfErrorKind = 'INVALID' | 'ENCRYPTED' | 'TOO_LARGE' | 'OTHER';
 
 export class PdfExtractError extends Error {
   constructor(
@@ -40,7 +26,6 @@ export class PdfExtractError extends Error {
   }
 }
 
-/** Ưu tiên TÊN LỚP của pdfjs; chỉ dò nội dung khi lỗi bị bọc lại và mất `name`. */
 function classifyPdfError(error: unknown): PdfErrorKind {
   const name = (error as { name?: string })?.name ?? '';
   const message = messageOf(error);
@@ -52,7 +37,6 @@ function classifyPdfError(error: unknown): PdfErrorKind {
   return 'OTHER';
 }
 
-/** Đọc lớp text của PDF. */
 export async function extractPdfText(data: Buffer): Promise<PdfTextResult> {
   if (data.byteLength > MAX_PDF_BYTES) {
     throw new PdfExtractError(

@@ -14,7 +14,6 @@ export const QUESTION_TYPES = [
 export const DIFFICULTIES = ['Dễ', 'Trung bình', 'Khó'] as const;
 
 export class ListQuestionsQueryDto extends PaginationQueryDto {
-  /** Mã lạ bị chặn ở tầng validate chứ không rơi vào truy vấn. */
   @IsOptional()
   @IsIn(OCCUPATION_CODES)
   industry?: string;
@@ -27,7 +26,6 @@ export class ListQuestionsQueryDto extends PaginationQueryDto {
   @IsIn(DIFFICULTIES)
   difficulty?: (typeof DIFFICULTIES)[number];
 
-  /** Tìm trong nội dung câu hỏi tiếng Việt, khớp chuỗi con không phân biệt hoa thường. */
   @IsOptional()
   @IsString()
   @MaxLength(80)

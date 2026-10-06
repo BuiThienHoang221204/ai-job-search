@@ -23,7 +23,6 @@ import {
 } from '../admin.dto';
 import { AdminSkillsService } from '../services/admin-skills.service';
 
-/** Máy đọc danh bạ qua cache 60 giây mỗi tiến trình, nên sửa ở đây có hiệu lực chậm nhất sau một phút. */
 @ApiTags('Admin')
 @ApiBearerAuth()
 @Controller('admin/skills')
@@ -62,7 +61,6 @@ export class AdminSkillsController {
     return this.skills.rename(id, dto.name);
   }
 
-  /** Khoá alias đi trong body: `c++`, `c#`, `node/express` không đi an toàn trên đường dẫn. */
   @ApiOperation({ summary: 'Chuyển một cách viết sang kỹ năng chuẩn khác' })
   @Post('aliases/move')
   @HttpCode(200)

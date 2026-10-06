@@ -19,14 +19,13 @@ export type AiCallEntry = {
   responseText?: string;
 };
 
-/** Sổ ghi mọi lượt gọi model — nguồn của bảng `ai_calls` và màn `ai-health`. Ghi được hay không là việc PHỤ, nên `record` nuốt lỗi của chính nó. */
 export class AiCallLog {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: Logger,
   ) {}
 
-  /** Ghi lại một lần gọi. KHÔNG bao giờ được làm hỏng lần gọi thật. */
+  /** Ghi lại một lần gọi; KHÔNG bao giờ được làm hỏng lần gọi thật. */
   async record(entry: AiCallEntry): Promise<void> {
     try {
       await this.prisma.aiCall.create({

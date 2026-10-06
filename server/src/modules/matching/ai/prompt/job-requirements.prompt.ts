@@ -1,9 +1,7 @@
 import type { Job } from '@/generated/prisma/client';
 
-/** Dài hơn mức này thì đi đường lẻ. Đo 563 tin: p50 2.556, p95 5.993 — mức này giữ ~95% số tin ở đường gộp. */
 export const BATCH_MAX_DESCRIPTION = 6_000;
 
-/** Lô 5 tin thật dưới tải 8 đồng thời đã đo tới 64s (đo 2026-10-04); trần mặc định 90s quá sát. */
 export const BATCH_TIMEOUT_MS = 120_000;
 
 export const SYSTEM = [
@@ -32,7 +30,6 @@ export const BATCH_SYSTEM = [
   '- Tin nào không đọc được thì vẫn trả phần tử của nó với danh sách kỹ năng rỗng, đừng bỏ qua.',
 ].join('\n');
 
-/** Phần của tin thật sự đi vào prompt — `sourceHash` phải băm đúng những trường này. */
 export function jobPrompt(job: Job): string {
   return [
     `Chức danh: ${job.title}`,
@@ -45,7 +42,6 @@ export function jobPrompt(job: Job): string {
   ].join('\n');
 }
 
-/** Số trong ngoặc vuông là thứ `extractMany` dùng để ánh xạ ngược, nên nó bắt đầu từ 1 chứ không từ 0. */
 export function batchPrompt(jobs: Job[]): string {
   return jobs
     .map((job, offset) => `=== TIN [${offset + 1}] ===\n${jobPrompt(job)}`)

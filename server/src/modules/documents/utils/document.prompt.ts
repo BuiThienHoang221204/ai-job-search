@@ -1,10 +1,8 @@
 import { LANGUAGE_RULE, type OutputLanguage } from '@/common/model-output';
 import type { LetterTarget } from './letter-target';
 
-/** Timeout cho việc soạn CV và thư xin việc — đo được 39–84s, xem CLAUDE.md mục "Đo trước khi đoán". */
 export const DOCUMENT_TIMEOUT_MS = 180_000;
 
-/** Mục của file skill mà từng loại tài liệu giữ lại; đổi tiêu đề trong `.md` thì `keepSections` trả về RỖNG. */
 export const CV_SECTIONS = ['section-by-section tailoring'];
 export const LETTER_SECTIONS = [
   'tailoring guidelines',
@@ -22,7 +20,6 @@ export const FORM_SECTIONS = [
   'field type: hard character limits',
 ];
 
-/** Phần khung dùng chung: đây là thứ chặn model bịa ra công ty, con số và chứng chỉ. */
 export function groundingRules(language: OutputLanguage = 'vi'): string[] {
   return [
     'Quy tắc không được phá:',
@@ -33,12 +30,10 @@ export function groundingRules(language: OutputLanguage = 'vi'): string[] {
   ];
 }
 
-/** Phần đã tra sẵn từ file skill và từ database; hàm dựng prompt không tự đi lấy. */
 type Sources = {
   framework: string;
   writingRules: string;
   profileSummary: string;
-  /** Thế mạnh và khoảng trống lượt chấm điểm đã tìm ra. Rỗng với JD dán tay. */
   matchHints?: string[];
 };
 

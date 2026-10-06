@@ -16,16 +16,12 @@ import {
 } from '../schemas/job-source.schema';
 import { messageOf } from '@/common/error-message';
 
-/** Dưới mốc này thì trang không có nội dung thật, chỉ có khung. */
 const THIN_PAGE = 800;
 
-/** Trần chữ đưa vào prompt sau khi bóc HTML. */
 const TEXT_LIMIT = 20_000;
 
-/** Portal chặn máy chủ là chuyện thường, nên mọi nhánh hỏng đều chỉ sang đường dán chữ thay vì báo "hỏng". */
 const PASTE_INSTEAD = 'Hãy copy nội dung tin rồi dán vào ô mô tả công việc.';
 
-/** Bóc tin ra khỏi link rồi TRẢ CHO NGƯỜI DÙNG SOÁT; không ghi thành `Job`, xem README. */
 @Injectable()
 export class JobFromUrlService {
   private readonly logger = new Logger(JobFromUrlService.name);
@@ -59,7 +55,6 @@ export class JobFromUrlService {
     return object;
   }
 
-  /** Chữ của trang, hoặc một lỗi nói rõ phải làm gì tiếp. */
   private async read(url: string): Promise<string> {
     let page;
     try {

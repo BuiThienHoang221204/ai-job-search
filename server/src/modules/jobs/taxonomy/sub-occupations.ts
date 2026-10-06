@@ -53,7 +53,6 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'IT_EMBEDDED',
       name: 'Nhúng / IoT',
-      // 'embedded' đứng đầu: taxonomyBaseline() lấy keywords[0] làm truy vấn quét, và 'nhung' bỏ dấu trả 0 kết quả.
       keywords: ['embedded', 'nhung', 'iot', 'firmware', 'vi dieu khien'],
     },
     {

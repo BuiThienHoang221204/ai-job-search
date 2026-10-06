@@ -11,13 +11,11 @@ export interface RunLite {
   finishedAt: Date | null;
 }
 
-/** Cron và nút "Quét ngay" tạo mọi portal trong vài giây; hai lượt cách nhau quá mức này là hai lượt khác nhau. */
 export const BATCH_GAP_MS = 5 * 60 * 1000;
 
 export interface Batch {
   id: string;
   startedAt: Date;
-  /** Có lượt do một tài khoản tự chạy, không phải cron hay nút "Quét ngay" của admin. */
   manual: boolean;
   userEmail: string | null;
   runs: Record<string, RunLite>;
@@ -25,7 +23,6 @@ export interface Batch {
   failed: number;
 }
 
-/** Gom lượt quét (mới nhất trước) thành lượt đêm: cùng chủ, tạo gần nhau, mỗi portal xuất hiện một lần. */
 export function groupBatches(runs: RunLite[]): Batch[] {
   const sorted = [...runs].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -64,24 +61,19 @@ export function groupBatches(runs: RunLite[]): Batch[] {
   return batches;
 }
 
-/** Số lượt gần nhất đưa vào đường xu hướng của mỗi portal. */
 export const TREND_RUNS = 14;
 
 export interface PortalStats {
   portal: string;
   runs: number;
   failed: number;
-  /** Số lượt hỏng liên tiếp tính từ lượt mới nhất; >0 nghĩa là portal đang hỏng. */
   failStreak: number;
   lastRun: RunLite | null;
   lastSuccessAt: Date | null;
-  /** Tin mới của các lượt gần nhất, cũ trước mới sau. */
   newSeries: number[];
-  /** Lượt xong gần nhất lấy đủ trần `maxJobsPerPortal`: portal còn tin nhưng bị cắt. */
   hitCap: boolean;
 }
 
-/** Tình trạng một portal từ các lượt của nó (thứ tự bất kỳ). */
 export function portalStats(
   portal: string,
   runs: RunLite[],

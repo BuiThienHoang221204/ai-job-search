@@ -3,11 +3,6 @@ import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
-/**
- * Guard xác thực mặc định của toàn ứng dụng - `CommonModule` đăng ký nó qua
- * APP_GUARD, nên KHÔNG cần (và không nên) gắn `@UseGuards(JwtAuthGuard)` ở
- * từng controller nữa. Gắn lại chỉ khiến người đọc tưởng những controller
- */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(private readonly reflector: Reflector) {

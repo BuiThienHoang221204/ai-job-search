@@ -1,5 +1,4 @@
 import { HOUR_MS } from '@/common/duration';
-/** Một nhóm đã cộng dồn từ `ai_calls`; token để null khi provider không báo. */
 export interface UsageGroup {
   calls: number;
   failed: number;
@@ -12,7 +11,6 @@ export interface UsageRow extends UsageGroup {
   totalTokens: number;
 }
 
-/** Dạng Prisma trả về từ `groupBy` với `_count` và `_sum`. */
 export interface GroupedSums {
   _count: { _all: number };
   _sum: {
@@ -35,7 +33,6 @@ export const toUsageRow = (group: GroupedSums, failed = 0): UsageRow => {
   };
 };
 
-/** Ghép nhóm tổng với số lời gọi hỏng của cùng khoá, khoá không có lần hỏng thì failed = 0. */
 export function withFailed<K extends string>(
   key: K,
   all: Array<GroupedSums & Record<K, string | null>>,
@@ -48,13 +45,11 @@ export function withFailed<K extends string>(
   })) as Array<UsageRow & Record<K, string | null>>;
 }
 
-/** Nhiều token nhất lên đầu, hoà thì nhiều lời gọi hơn lên đầu. */
 export const byTokensDesc = <T extends UsageRow>(rows: T[]): T[] =>
   [...rows].sort((a, b) => b.totalTokens - a.totalTokens || b.calls - a.calls);
 
 export type Granularity = 'hour' | 'day';
 
-/** Một ô thời gian của biểu đồ; `bucket` là giờ Việt Nam dạng YYYY-MM-DD hoặc YYYY-MM-DDTHH. */
 export interface BucketRow {
   bucket: string;
   calls: number;
@@ -65,23 +60,20 @@ export interface BucketRow {
 
 const VN_OFFSET_MS = 7 * HOUR_MS;
 
-/** Cửa sổ 1 ngày chia theo giờ, dài hơn chia theo ngày: một cột duy nhất không nói được gì. */
 export const granularityFor = (days: number): Granularity =>
   days <= 1 ? 'hour' : 'day';
 
-/** Mẫu `to_char` của Postgres khớp đúng khoá do `vnBucket` sinh ra. */
 export const PG_BUCKET_FORMAT: Record<Granularity, string> = {
   day: 'YYYY-MM-DD',
   hour: 'YYYY-MM-DD"T"HH24',
 };
 
-/** Khoá ô thời gian theo giờ Việt Nam. */
 export const vnBucket = (date: Date, granularity: Granularity): string =>
   new Date(date.getTime() + VN_OFFSET_MS)
     .toISOString()
     .slice(0, granularity === 'day' ? 10 : 13);
 
-/** Đầu ô đầu tiên (giờ Việt Nam), để tổng số và biểu đồ đếm cùng một tập lời gọi. */
+/** Đầu ô đầu tiên theo giờ Việt Nam, để tổng số và biểu đồ đếm cùng một tập lời gọi. */
 export function windowStart(days: number, now = new Date()): Date {
   const granularity = granularityFor(days);
   const local = new Date(now.getTime() + VN_OFFSET_MS);
@@ -93,7 +85,7 @@ export function windowStart(days: number, now = new Date()): Date {
   return new Date(local.getTime() - VN_OFFSET_MS - (days - 1) * 24 * HOUR_MS);
 }
 
-/** Điền đủ các ô của cửa sổ, ô không có lời gọi ra 0 thay vì biến mất khỏi biểu đồ. */
+/** Điền đủ các ô của cửa sổ; ô không có lời gọi ra 0 thay vì biến mất. */
 export function fillBuckets(
   rows: BucketRow[],
   days: number,

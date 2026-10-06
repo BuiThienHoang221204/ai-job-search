@@ -3,10 +3,8 @@ export type CheckKind = 'SKILL' | 'NICE' | 'YEARS' | 'ELIGIBILITY' | 'LOCATION';
 export type RequirementCheck = {
   label: string;
   kind: CheckKind;
-  /** `null` khi hồ sơ thiếu dữ liệu để kết luận - không tính vào mẫu số. */
   met: boolean | null;
   note?: string;
-  /** Đáp ứng NHỜ danh bạ từ tương đương chứ không nhờ trùng chữ — giao diện phải hiện để model gộp sai thì thấy ngay. */
   via?: string;
 };
 
@@ -16,7 +14,6 @@ export type MatchProfile = {
   workPermit: string | null;
   location: string | null;
   willingToRelocate: boolean;
-  /** Số năm kinh nghiệm. `null` khi hồ sơ chưa có dữ liệu có kiểu. */
   years: number | null;
 };
 
@@ -31,10 +28,8 @@ export type RequirementMatch = {
   eligibility: 'PASS' | 'FAIL' | 'UNVERIFIED';
 };
 
-/** Dạng bỏ dấu → mã chuẩn. Cùng mã là cùng kỹ năng kể cả khi không chung ký tự nào (`Y tá` / `Điều dưỡng`). */
 export type SkillDictionary = ReadonlyMap<string, string>;
 
-/** Một hồ sơ đã rút gọn về đúng thứ phép đối chiếu cần, kèm dấu thời gian để tính vân tay. */
 export type Candidate = {
   userId: string;
   profile: MatchProfile;

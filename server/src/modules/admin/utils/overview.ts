@@ -1,13 +1,8 @@
 import { HOUR_MS } from '@/common/duration';
-/** Ngưỡng của khối "Cần xử lý"; đổi ở đây là đổi cho cả giao diện. */
 export const OVERVIEW_THRESHOLDS = {
-  /** Tỷ lệ thành công AI dưới mức này là sự cố. */
   minSuccessRate: 80,
-  /** Dưới số lời gọi này thì tỷ lệ chưa đủ ý nghĩa để báo động. */
   minCallsForRate: 20,
-  /** Tổng việc đang chờ vượt mức này là hàng đợi đang ứ. */
   maxQueueWaiting: 50,
-  /** Cron quét chạy 23h mỗi đêm; quá mức này không có lượt nào là cron đã lỡ nhịp hoặc đang tắt. */
   scrapeStaleHours: 26,
 } as const;
 
@@ -22,15 +17,12 @@ export interface AttentionItem {
   action: string;
 }
 
-/** Tỷ lệ phần trăm làm tròn 1 chữ số, null khi chưa có lời gọi nào. */
 export const rate = (ok: number, total: number): number | null =>
   total === 0 ? null : Math.round((ok / total) * 1000) / 10;
 
-/** Tỷ lệ đủ mẫu để so sánh; kỳ chỉ có vài lời gọi thì "0%" là nhiễu, không phải mốc. */
 export const comparableRate = (ok: number, total: number): number | null =>
   total < OVERVIEW_THRESHOLDS.minCallsForRate ? null : rate(ok, total);
 
-/** Loại lỗi xuất hiện nhiều nhất, null khi không có lần hỏng nào. */
 export function topFailureKind(
   kinds: Array<{ kind: string | null; count: number }>,
 ): { kind: string; count: number } | null {
@@ -38,7 +30,6 @@ export function topFailureKind(
   return top ? { kind: top.kind ?? 'OTHER', count: top.count } : null;
 }
 
-/** Cửa sổ ngay trước, cùng độ dài, kết thúc đúng lúc cửa sổ hiện tại bắt đầu. */
 export const previousSince = (since: Date, now = new Date()): Date =>
   new Date(since.getTime() - (now.getTime() - since.getTime()));
 
@@ -46,7 +37,6 @@ export interface AttentionInput {
   calls: number;
   ok: number;
   previousSuccessRate: number | null;
-  /** Loại lỗi nhiều nhất cộng trên MỌI tác vụ, để nói nguyên nhân ngay trong câu báo. */
   topFailure: { kind: string; count: number } | null;
   failed: number;
   queueWaiting: number;
@@ -55,7 +45,6 @@ export interface AttentionInput {
   now?: Date;
 }
 
-/** Luật sinh các mục "Cần xử lý", nặng trước nhẹ sau. */
 export function buildAttention(input: AttentionInput): AttentionItem[] {
   const t = OVERVIEW_THRESHOLDS;
   const items: AttentionItem[] = [];

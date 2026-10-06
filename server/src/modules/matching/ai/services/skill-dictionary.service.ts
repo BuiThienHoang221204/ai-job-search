@@ -22,10 +22,8 @@ import { nearest, type Canonical } from '../utils/nearest';
 import { picksFor } from '../utils/merge-picks';
 import { messageOf } from '@/common/error-message';
 
-/** Hạn dùng của bảng tra trong bộ nhớ. */
 const CACHE_MS = 60_000;
 
-/** `remaining` là số cách viết chưa biết mà lượt này CỐ Ý chưa đụng tới. */
 export type IngestResult = { added: number; remaining: number };
 
 type Candidate = {
@@ -36,12 +34,10 @@ type Candidate = {
   near: Canonical[];
 };
 
-/** `ok: false` = model không trả lời được, lô này phải để nguyên cho lượt sau. */
 type Decision = { ok: boolean; picks: Map<number, number> };
 
 const vectorLiteral = (vector: number[]) => `[${vector.join(',')}]`;
 
-/** Như `PROVINCES.aliases` nhưng máy tự điền: embedding thu hẹp ứng viên, model quyết, kết quả ghi DB và dùng lại mãi. */
 @Injectable()
 export class SkillDictionaryService {
   private readonly logger = new Logger(SkillDictionaryService.name);
@@ -55,7 +51,7 @@ export class SkillDictionaryService {
     @Inject(SEMANTIC_INDEX) private readonly semantic: SemanticIndex,
   ) {}
 
-  /** Cache ngắn hạn trong bộ nhớ: mỗi lần mở danh sách việc làm đều cần, mà bảng chỉ đổi khi hàng đợi nền xong một lô. */
+  /** Bảng tra cách viết → kỹ năng chuẩn, cache ngắn hạn trong bộ nhớ. */
   async lookup(): Promise<SkillDictionary> {
     if (this.cache && Date.now() < this.cacheUntil) return this.cache;
 
@@ -67,7 +63,6 @@ export class SkillDictionaryService {
     return this.cache;
   }
 
-  /** Mọi cách viết kỹ năng đang tồn tại trong database, cả tin lẫn hồ sơ. */
   async allTerms(): Promise<string[]> {
     const [requirements, profiles] = await Promise.all([
       this.prisma.jobRequirement.findMany({
@@ -129,7 +124,7 @@ export class SkillDictionaryService {
     return rows[0].id;
   }
 
-  /** Chuỗi đã có trong danh bạ thì bỏ qua hoàn toàn (không embed, không hỏi model) — đó là thứ làm chi phí giảm dần. */
+  /** Phân loại cách viết mới theo lô; chuỗi đã có trong danh bạ thì bỏ qua, không gọi model. */
   async ingest(
     rawTerms: string[],
     maxNew = Number.POSITIVE_INFINITY,
@@ -173,7 +168,6 @@ export class SkillDictionaryService {
     return { added, remaining };
   }
 
-  /** Hỏi model một lượt cho cả lô; chuỗi chưa có ứng viên nào thì không hỏi — nó chắc chắn là kỹ năng chuẩn mới. */
   private async decide(candidates: Candidate[]): Promise<Decision> {
     const askable = candidates.filter((row) => row.near.length > 0);
     if (!askable.length) return { ok: true, picks: new Map() };
@@ -190,7 +184,6 @@ export class SkillDictionaryService {
         object.decisions,
         askable.map((row) => row.index),
       );
-      // Trả lời thiếu dòng là hỏng NGẦM: dòng vắng mặt thành kỹ năng chuẩn mới, ghi nhãn EXACT y như khi code tự quyết.
       if (!picks) {
         this.logger.warn(
           `Model bỏ sót dòng: hỏi ${askable.length} chuỗi, nhận ${object.decisions.length} lựa chọn hợp lệ`,
@@ -210,8 +203,6 @@ export class SkillDictionaryService {
     decision: Decision,
     canonicals: Canonical[],
   ): Promise<number> {
-    // Lô hỏng thì KHÔNG ghi gì. Ghi đại thành kỹ năng mới là quyết định vĩnh
-    // viễn dựa trên một lượt gọi model hết hạn mức, và không nhánh nào xét lại.
     if (!decision.ok) return 0;
 
     let added = 0;

@@ -1,6 +1,3 @@
-/** Bố cục CV: mục nào đứng trước, mục nào ẩn. Tách khỏi nội dung. */
-
-/** Khoá của sáu mục cố định. Thứ tự ở đây là thứ tự mặc định. */
 export const SECTION_KEYS = [
   'profile',
   'competencies',
@@ -54,11 +51,10 @@ export const DEFAULT_LAYOUT: CvLayout = {
 const isSectionKey = (value: unknown): value is SectionKey =>
   typeof value === 'string' && SECTION_KEYS.includes(value as SectionKey);
 
-/** Lọc lấy khoá hợp lệ, bỏ trùng, giữ nguyên thứ tự xuất hiện. */
 const cleanKeys = (raw: unknown): SectionKey[] =>
   Array.isArray(raw) ? [...new Set(raw.filter(isSectionKey))] : [];
 
-/** Khoá thiếu được NỐI VÀO CUỐI chứ không bỏ đi, nhờ vậy thêm mục ở bản sau không làm CV cũ mất mục. */
+/** Khoá mục thiếu được nối vào cuối, nên thêm mục ở bản sau không làm CV cũ mất mục. */
 export const resolveLayout = (raw: unknown): CvLayout => {
   const stored = (raw ?? {}) as { order?: unknown; hidden?: unknown };
   const order = cleanKeys(stored.order);

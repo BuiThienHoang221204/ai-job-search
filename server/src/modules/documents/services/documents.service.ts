@@ -21,10 +21,8 @@ import { parseCvEdit, requirePastedJob } from '../utils/document-input';
 import { resolveLayout } from '../templates/cv-layout';
 import { isTemplateId, resolveTemplateOptions } from '../templates/registry';
 
-/** Đường sinh PDF: `latex` đi qua file `.tex` đã lưu, `html` dựng thẳng từ `Document.content`. */
 export type PdfEngine = 'latex' | 'html';
 
-/** Tạo, đọc, biên tập tài liệu. KHÔNG gọi model — chỉ mượn `generator.context()` để vẽ lại. */
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -33,7 +31,6 @@ export class DocumentsService {
     private readonly renderer: DocumentRenderer,
   ) {}
 
-  /** Render lại `.tex` từ `content` đã lưu, KHÔNG gọi model. */
   async rerender(userId: string, documentId: string): Promise<Document> {
     const document = await this.get(userId, documentId);
 
@@ -52,7 +49,7 @@ export class DocumentsService {
     return this.writeSource(document, document.content);
   }
 
-  /** Vẽ lại file nguồn từ `content` rồi ghi `storageKey` — KHÔNG gọi model. Sửa `content` mà quên bước này thì `.tex` và PDF LaTeX còn chữ cũ. */
+  /** Vẽ lại file nguồn từ `content` rồi ghi `storageKey` — quên bước này thì PDF LaTeX còn chữ cũ. */
   private async writeSource(
     document: Document,
     content: unknown,
@@ -80,7 +77,6 @@ export class DocumentsService {
     return job;
   }
 
-  /** HAI nguồn: tin đã lưu, hoặc JD dán tay — JD dán tay không được ghi thành `Job`, xem README. */
   async createApplicationEmail(
     userId: string,
     input: {
@@ -111,7 +107,6 @@ export class DocumentsService {
     );
   }
 
-  /** BA nguồn: tin đã lưu, JD dán tay, hoặc "CV tổng quát" không nhắm vị trí nào — xem README. */
   async createCv(
     userId: string,
     input: {
@@ -207,7 +202,6 @@ export class DocumentsService {
     return document;
   }
 
-  /** Đọc file `.tex`. `get` đã khoá theo `userId` nên không đọc chéo được. */
   async source(userId: string, id: string): Promise<string> {
     const document = await this.get(userId, id);
     if (!document.storageKey) {
@@ -216,7 +210,6 @@ export class DocumentsService {
     return this.renderer.readSource(document.storageKey);
   }
 
-  /** Đổi mẫu CV, KHÔNG gọi model. `templateId` lạ bị từ chối vì người dùng đang chốt lựa chọn. */
   async setTemplate(
     userId: string,
     id: string,
@@ -244,7 +237,6 @@ export class DocumentsService {
     });
   }
 
-  /** Lưu bản CV đã sửa (chữ, thứ tự mục, mục ẩn). Sinh lại bằng AI tạo tài liệu MỚI, không đè lên đây. */
   async updateCv(
     userId: string,
     id: string,
@@ -284,7 +276,7 @@ export class DocumentsService {
     return this.writeSource(updated, content);
   }
 
-  /** HTML để nhúng vào khung xem trước; `override` cho xem thử mẫu khác mà không ghi database. */
+  /** HTML cho khung xem trước; `override` cho thử mẫu khác mà không ghi database. */
   async previewHtml(
     userId: string,
     id: string,
@@ -305,8 +297,6 @@ export class DocumentsService {
 
     const { identity } = await this.generator.context(document);
 
-    // Bản nháp CHƯA lưu vẫn xem trước được: đây là thứ cho phép vừa gõ vừa thấy
-    // kết quả mà không ghi database sau mỗi phím.
     const previewed = {
       ...document,
       templateId: override?.templateId ?? document.templateId,
@@ -332,7 +322,6 @@ export class DocumentsService {
     return html;
   }
 
-  /** Hai đường PDF cùng tồn tại là TẠM THỜI, để đối chiếu trong lúc chuyển đổi. */
   async pdf(userId: string, id: string, engine: PdfEngine = 'latex') {
     if (engine === 'html') {
       const html = await this.previewHtml(userId, id);

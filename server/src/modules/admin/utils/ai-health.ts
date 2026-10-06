@@ -34,7 +34,6 @@ export type AiHealth = {
   }>;
 };
 
-/** Phân vị theo phương pháp "nearest rank" trên mảng đã sắp. */
 export function percentile(sortedMs: number[], p: number): number {
   if (!sortedMs.length) return 0;
   const rank = Math.ceil((p / 100) * sortedMs.length);

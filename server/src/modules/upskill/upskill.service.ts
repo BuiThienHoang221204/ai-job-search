@@ -35,14 +35,11 @@ import { messageOf } from '@/common/error-message';
 
 const SKILL_NAME = 'upskill';
 
-/** Dưới ngưỡng này, "xu hướng thị trường" chỉ là đặc điểm của vài tin lẻ. */
 const MIN_JOBS_FOR_AGGREGATE = 3;
 
-/** Lời gọi 1 mang tới 30 mô tả công việc nên hạn dài hơn; mỗi lời gọi < `server.setTimeout` 5' và tổng hai lời gọi < `STUCK_AFTER_MS` 10'. */
 const GAPS_TIMEOUT_MS = 180_000;
 const PLAN_TIMEOUT_MS = 120_000;
 
-/** Hai lời gọi có thể rơi vào hai model khác nhau (chuỗi dự phòng), nên ghi một cái là ghi sai. */
 function modelIdOf(gapsModelId: string, planModelId: string): string {
   return gapsModelId === planModelId
     ? planModelId
@@ -66,7 +63,6 @@ export class UpskillService {
     private readonly prompts: PromptBuilderService,
   ) {}
 
-  /** `job_matches` đóng vai `job_search_tracker.csv` của skill gốc, `overallScore` chính là `fit_rating`. */
   private async collectJobs(userId: string, jobId?: string) {
     const include = { job: { include: { requirements: true } } };
 
@@ -88,7 +84,6 @@ export class UpskillService {
     });
   }
 
-  /** HAI lời gọi model (khoảng trống → lộ trình), không phải một — bản một-lời-gọi đã đo là không chạy nổi ở AGGREGATE, xem CLAUDE.md. */
   async *streamGenerate(
     reportId: string,
   ): AsyncGenerator<ModelStreamEvent<UpskillReport>> {
@@ -187,7 +182,7 @@ export class UpskillService {
     return { report, profile, matches };
   }
 
-  /** Lời gọi 1 — yêu cầu của tin vào, khoảng trống ra. */
+  /** Lời gọi 1: yêu cầu của tin vào, khoảng trống ra. */
   private gapsCall({
     report,
     profile,
@@ -205,7 +200,7 @@ export class UpskillService {
     };
   }
 
-  /** Lời gọi 2 — hồ sơ vẫn phải có mặt để biết chỗ nào bỏ qua được, nhưng mô tả công việc thì KHÔNG. */
+  /** Lời gọi 2 KHÔNG mang mô tả công việc — thêm lại là quay về bản một-lời-gọi đã hỏng. */
   private planCall(
     { report, profile }: Prepared,
     gaps: UpskillGaps,
@@ -222,7 +217,7 @@ export class UpskillService {
     };
   }
 
-  /** Lưu khoảng trống ngay sau lời gọi 1, để lời gọi 2 hỏng thì công của lời gọi 1 không mất. */
+  /** Lưu khoảng trống ngay sau lời gọi 1 để lời gọi 2 hỏng thì không mất công. */
   private saveGaps({ report, matches }: Prepared, gaps: UpskillGaps) {
     return this.prisma.upskillReport.update({
       where: { id: report.id },
@@ -269,7 +264,6 @@ export class UpskillService {
     });
   }
 
-  /** Khung phân tích lấy từ file skill, đã điền hồ sơ. */
   private framework(profile: Profile | null, sections: string[]): string {
     const skill = this.skills.get(SKILL_NAME);
     return this.prompts.render(

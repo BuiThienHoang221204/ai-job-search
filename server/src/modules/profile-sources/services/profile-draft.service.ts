@@ -34,7 +34,6 @@ export class ProfileDraftService {
     @Inject(STORAGE) private readonly storage: Storage,
   ) {}
 
-  /** Nhận một CV PDF: rút bằng chứng, lưu file gốc, tạo bản nháp, xếp vào hàng đợi. */
   async createFromCv(
     userId: string,
     input: CvPdfInput,
@@ -62,7 +61,6 @@ export class ProfileDraftService {
     return { draftId: draft.id, evidence };
   }
 
-  /** File PDF gốc của một bản nháp, đọc từ Storage. */
   async file(
     userId: string,
     draftId: string,
@@ -77,7 +75,6 @@ export class ProfileDraftService {
     };
   }
 
-  /** Bản nháp mới nhất, kể cả đang chạy hoặc đã hỏng. */
   async latest(userId: string): Promise<ProfileDraft> {
     const draft = await this.prisma.profileDraft.findFirst({
       where: { userId },
@@ -95,7 +92,6 @@ export class ProfileDraftService {
     return draft;
   }
 
-  /** Người dùng rời trang giữa lượt stream: xếp lại vào hàng đợi để lượt đọc không mất trắng. */
   async requeue(userId: string, draftId: string): Promise<void> {
     const draft = await this.prisma.profileDraft.findFirst({
       where: { id: draftId, userId },
@@ -116,7 +112,6 @@ export class ProfileDraftService {
     });
   }
 
-  /** Người dùng bấm chạy lại bản FAILED, dùng bằng chứng ĐÃ LƯU nên không phải nộp lại file. */
   async retry(userId: string, draftId: string): Promise<ProfileDraft> {
     const draft = await this.get(userId, draftId);
 
@@ -166,7 +161,6 @@ export class ProfileDraftService {
     return pageOf(items, total, query);
   }
 
-  /** Áp dụng một phần đề xuất vào hồ sơ thật. */
   async apply(
     userId: string,
     draftId: string,

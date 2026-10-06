@@ -6,7 +6,6 @@ const perMinuteAndDay = (rpm: number, rpd: number): RateLimitSpec[] => [
   { kind: 'count', windowMs: DAY_MS, limit: rpd },
 ];
 
-/** Catalog trả id có tiền tố `models/`, phải giữ nguyên khi so khớp. */
 const LIMIT_GROUPS: [string[], RateLimitSpec[]][] = [
   [
     ['models/gemini-3.5-flash-lite', 'models/gemini-3.1-flash-lite'],
@@ -36,13 +35,10 @@ const LIMITS = new Map(
   LIMIT_GROUPS.flatMap(([ids, specs]) => ids.map((id) => [id, specs] as const)),
 );
 
-/** Không có trong catalog models.opencode.ai, không cần thẻ thanh toán để lấy key (đo 2026-10-05, khác Cerebras). */
 export const gemini: ProviderDescriptor = {
   id: 'gemini',
   label: 'Gemini API',
   apiKeyEnv: 'GOOGLE_GEMINI_API_KEY',
   baseURLEnv: 'GOOGLE_GEMINI_BASE_URL',
-
-  /** RPM + RPD thật từ aistudio.google.com/rate-limit của tài khoản 2026-10-05, cả hai cùng áp dụng; KHÔNG lấy từ trang pricing công khai, TPM 250.000 quá lớn nên không theo dõi. */
   rateLimitFor: (modelId) => LIMITS.get(modelId),
 };

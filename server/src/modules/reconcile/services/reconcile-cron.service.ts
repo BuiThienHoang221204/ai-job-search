@@ -8,7 +8,6 @@ import { messageOf } from '@/common/error-message';
 
 const JOB_NAME = 'reconcile.stuck-work';
 
-/** Lịch chạy `ReconcileService`. */
 @Injectable()
 export class ReconcileCronService implements OnModuleInit {
   private readonly logger = new Logger(ReconcileCronService.name);
@@ -20,7 +19,6 @@ export class ReconcileCronService implements OnModuleInit {
     private readonly reconcile: ReconcileService,
   ) {}
 
-  /** Chỉ vai chạy việc nền mới đăng ký cron; nhiều bản sao cùng bật là cùng nhặt một đống việc. */
   onModuleInit(): void {
     if (!runsBackgroundWork()) {
       this.logger.log(`Vai ${appRole()}: không chạy cron nhặt việc rơi`);
@@ -50,7 +48,6 @@ export class ReconcileCronService implements OnModuleInit {
     this.logger.log(`Cron nhặt việc rơi: "${schedule}" theo giờ ${timeZone}`);
   }
 
-  /** Một lượt quét, có chốt chống chồng lượt. */
   async runOnce(): Promise<void> {
     if (this.running) {
       this.logger.warn('Lượt nhặt trước còn đang chạy; bỏ qua lượt này');

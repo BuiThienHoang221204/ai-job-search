@@ -18,7 +18,6 @@ const MONTHS = [
 const OPEN_ENDED = ['present', 'current', 'now', 'nay', 'hien tai', 'den nay'];
 const RANGE_SPLIT = /\s*(?:[-–—]|to|den|toi)\s*/;
 
-/** Số tháng tuyệt đối tính từ năm 0, để trừ hai mốc ra khoảng cách. */
 type Milestone = number;
 
 type Span = { from: Milestone; to: Milestone };
@@ -64,7 +63,6 @@ function parseSpan(period: unknown, now: Date): Span | null {
   return { from, to };
 }
 
-/** Gộp khoảng chồng lấn rồi cộng: làm hai việc song song không thành gấp đôi. */
 function totalMonths(spans: Span[]): number {
   const sorted = [...spans].sort((a, b) => a.from - b.from);
 
@@ -80,7 +78,7 @@ function totalMonths(spans: Span[]): number {
   return months;
 }
 
-/** `null` khi có MỘT mục đọc không chắc — bỏ qua mục hỏng rồi vẫn trả số thì ra số nhỏ hơn sự thật mà trông vẫn đáng tin. */
+/** `null` khi có một mục đọc không chắc, để không trả số nhỏ hơn sự thật. */
 export function yearsOfExperience(
   experiences: unknown,
   now: Date = new Date(),

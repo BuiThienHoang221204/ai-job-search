@@ -1,6 +1,5 @@
 import type { Job } from '@/generated/prisma/client';
 
-/** Mục của khung đánh giá được giữ lại; đổi tiêu đề trong `.md` thì `keepSections` trả về RỖNG. */
 export const EVALUATION_SECTIONS = [
   'eligibility gate',
   'scoring dimensions',
@@ -8,7 +7,6 @@ export const EVALUATION_SECTIONS = [
   'thresholds',
 ];
 
-/** Dựng prompt chấm điểm từ khung đã tra sẵn; hàm này không tự đọc file skill lẫn database. */
 export function evaluationPrompt(
   framework: string,
   profileSummary: string,

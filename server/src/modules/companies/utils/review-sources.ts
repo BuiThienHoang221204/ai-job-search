@@ -2,7 +2,6 @@ import type { SearchHit } from '@/common/web/serper';
 
 export type { SearchHit };
 
-/** Trang có đánh giá của người đi làm. Vị trí trong mảng là thứ hạng ưu tiên. */
 const REVIEW_HOSTS = [
   'itviec.com',
   'reviewcongty.com',
@@ -16,7 +15,6 @@ const REVIEW_HOSTS = [
   'indeed.com',
 ];
 
-/** Đăng nhập mới đọc được, hoặc nội dung là video - tải về chỉ nhận khung rỗng. */
 const BLOCKED_HOSTS = [
   'facebook.com',
   'instagram.com',
@@ -29,7 +27,6 @@ const BLOCKED_HOSTS = [
   'twitter.com',
 ];
 
-/** Đường dẫn của MỘT tin tuyển dụng, không phải trang công ty. */
 const JOB_PATHS = [
   /\/it-jobs\//,
   /\/viec-lam/,
@@ -52,18 +49,14 @@ export function hostOf(url: string): string | null {
   }
 }
 
-/** Khớp cả tên miền con: `vn.indeed.com` vẫn là `indeed.com`. */
 function matches(host: string, known: string): boolean {
   return host === known || host.endsWith(`.${known}`);
 }
 
-/** Chặn tải nhưng đoạn trích vẫn đáng đọc: nhóm Facebook là nơi người Việt hỏi nhau. */
 const SNIPPET_HOSTS = ['facebook.com', 'threads.net'];
 
-/** Đoạn trích ngắn hơn mức này chỉ là tiêu đề lặp lại, không phải nội dung. */
 const MIN_SNIPPET = 60;
 
-/** Nguồn không tải được nhưng đoạn trích đã trả tiền rồi. Mỗi tên miền một mục. */
 export function pickSnippetSources(hits: SearchHit[], limit = 2): SearchHit[] {
   const seen = new Set<string>();
   const picked: SearchHit[] = [];
@@ -82,7 +75,6 @@ export function pickSnippetSources(hits: SearchHit[], limit = 2): SearchHit[] {
   return picked;
 }
 
-/** Nguồn có phải trang đánh giá chuyên hay chỉ là một kết quả Google bất kỳ. */
 export function isReviewHost(url: string): boolean {
   const host = hostOf(url);
   return host !== null && REVIEW_HOSTS.some((known) => matches(host, known));
@@ -93,7 +85,6 @@ function rankOf(host: string): number {
   return index === -1 ? REVIEW_HOSTS.length : index;
 }
 
-/** Chọn trang đáng tải, mỗi tên miền một trang. Lọc bài PR là việc của model. */
 export function pickReviewSources(hits: SearchHit[], limit = 5): SearchHit[] {
   const eligible: Array<{ hit: SearchHit; host: string; order: number }> = [];
 
@@ -121,7 +112,6 @@ export function pickReviewSources(hits: SearchHit[], limit = 5): SearchHit[] {
   return picked;
 }
 
-/** Từ khoá đánh dấu đoạn nói về nơi làm việc. Có cả bản không dấu vì nhiều trang viết vậy. */
 const REVIEW_HINTS = [
   'đánh giá',
   'danh gia',
@@ -155,7 +145,6 @@ const BEFORE = 300;
 const AFTER = 500;
 const SEPARATOR = '\n…\n';
 
-/** Số lần khớp tối đa cho mỗi từ khoá, chặn trang lặp một chữ hàng nghìn lần. */
 const MAX_HITS_PER_HINT = 20;
 
 function hintPositions(lower: string): number[] {
@@ -176,7 +165,6 @@ function hintPositions(lower: string): number[] {
 
 type Window = { start: number; end: number; hits: number };
 
-/** Gộp các cửa sổ chồng lấn, đếm luôn số từ khoá rơi vào mỗi đoạn. */
 function mergeWindows(positions: number[], length: number): Window[] {
   const merged: Window[] = [];
 
@@ -196,11 +184,9 @@ function mergeWindows(positions: number[], length: number): Window[] {
   return merged;
 }
 
-/** Banner cookie và điều khoản: đo trên TopCV chiếm phần lớn 9.263 ký tự. */
 const CHROME_LINE =
   /cookie|quyền riêng tư|chấp nhận tất cả|từ chối tất cả|điều khoản sử dụng|chính sách bảo mật|tải ứng dụng|privacy polic|terms of (use|service)/i;
 
-/** Bỏ những dòng không bao giờ là nội dung về nơi làm việc. */
 export function stripChrome(text: string): string {
   return text
     .split('\n')
@@ -208,7 +194,6 @@ export function stripChrome(text: string): string {
     .join('\n');
 }
 
-/** Giữ phần nói về nơi làm việc, chọn theo MẬT ĐỘ từ khoá chứ không theo thứ tự trang. */
 export function trimToReviewText(raw: string, budget = 5_000): string {
   const text = stripChrome(raw);
   if (text.length <= budget) return text;
@@ -239,7 +224,6 @@ export function trimToReviewText(raw: string, budget = 5_000): string {
 
 export type BriefConfidence = 'high' | 'medium' | 'low';
 
-/** Suy từ số nguồn đọc được, không hỏi model. Một trang chuyên nặng hơn ba blog. */
 export function confidenceOf(urls: string[]): BriefConfidence {
   const total = urls.length;
   const known = urls.filter(isReviewHost).length;

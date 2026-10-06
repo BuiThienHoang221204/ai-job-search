@@ -1,4 +1,3 @@
-/** Bảng ánh xạ TAY từ mã nghề sang slug vị trí của nguồn lương, dùng làm đường lùi khi dò theo tên tin không ra. */
 export const SUB_OCCUPATION_POSITIONS: Record<string, string[]> = {
   IT_BACKEND: [
     'it-software-backend-developer',

@@ -1,14 +1,11 @@
 import { z } from 'zod';
 import { cappedText, requiredCappedText } from '@/common/model-output';
 
-/** DANH TÍNH của một mục: thiếu là cả mục vô nghĩa, từ chối mới đúng. */
 const line = (max: number, hint: string) => requiredCappedText(max, hint);
 
-/** Trường MÔ TẢ mà CV có quyền không ghi — `.min(1)` ở đây làm mất trắng cả lượt đọc, xem CLAUDE.md. */
 const optionalText = (max: number, hint: string) =>
   cappedText(max, hint).default('');
 
-/** Khớp `ExperienceItem` ở frontend, TRỪ `id` — id do frontend sinh, model không được đặt. */
 const experienceItem = z.object({
   company: line(160, 'Tên công ty, ghi đúng như trong CV.'),
   position: line(160, 'Chức danh.'),
@@ -60,7 +57,6 @@ const projectItem = z.object({
   period: z.string().max(60).optional(),
 });
 
-/** Hình dạng hồ sơ do model đề xuất từ bằng chứng. */
 export const profileProposalSchema = z.object({
   headline: z
     .string()
@@ -116,7 +112,6 @@ export const profileProposalSchema = z.object({
     .transform((items) => items.slice(0, 20)),
   projects: z.array(projectItem).transform((items) => items.slice(0, 15)),
 
-  /** Những gì model KHÔNG tìm thấy trong bằng chứng. */
   missing: z
     .array(line(200, 'Một thông tin hồ sơ cần mà bằng chứng không có.'))
     .transform((items) => items.slice(0, 15))
@@ -124,7 +119,6 @@ export const profileProposalSchema = z.object({
       'Liệt kê những phần KHÔNG suy ra được từ bằng chứng, để người dùng tự bổ sung. Viết bằng tiếng Việt.',
     ),
 
-  /** Ghi chú của model về độ tin cậy của chính nó. */
   notes: z
     .array(line(300, 'Một điểm cần lưu ý về cách đọc bằng chứng.'))
     .transform((items) => items.slice(0, 10)),

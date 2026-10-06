@@ -17,14 +17,12 @@ export class ProfileController {
     return this.profile.get(user.id);
   }
 
-  /** PUT nhưng thân request là MỘT PHẦN hồ sơ, không phải toàn bộ. */
   @ApiOperation({ summary: 'Cập nhật một phần thông tin hồ sơ người dùng' })
   @Put()
   update(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
     return this.profile.update(user.id, dto);
   }
 
-  /** Bước "Chọn nhanh" lúc đăng ký - DTO riêng vì `occupationCode` không có mặt trong `UpdateProfileDto`, route hồ sơ thường không cho ghi tường minh trường này. */
   @ApiOperation({
     summary: 'Ghi nhanh ngành nghề + kinh nghiệm lúc onboarding',
   })

@@ -15,13 +15,10 @@ import { MatchingService } from './ai/services/matching.service';
 import { RequirementMatchService } from './rules/services/requirement-match.service';
 import { SkillDictionaryService } from './ai/services/skill-dictionary.service';
 
-/** Số cách viết mới xử lý trong MỘT lượt. Khớp lô hỏi model của service. */
 const BATCH = 20;
 
-/** Để lượt đối chiếu kịp ghi xong trước khi phát suất AI. */
 const SETTLE_SECONDS = 60;
 
-/** Một DÂY CHUYỀN năm chặng, gom một chỗ để đọc được thứ tự: EXTRACT_REQUIREMENTS → SKILL_CANONICALIZE → REQUIREMENT_MATCH → AI_SHORTLIST → EVALUATE_MATCH. */
 @Injectable()
 export class MatchingProcessor implements OnModuleInit {
   private readonly logger = new Logger(MatchingProcessor.name);
@@ -44,7 +41,6 @@ export class MatchingProcessor implements OnModuleInit {
     await this.workEvaluateMatch();
   }
 
-  /** Pha A: rút yêu cầu của tin, rồi đẩy sang danh bạ kỹ năng. */
   private workExtractRequirements(): Promise<void> {
     return this.queue.work<ExtractRequirementsPayload>(
       QUEUE.EXTRACT_REQUIREMENTS,
@@ -65,7 +61,6 @@ export class MatchingProcessor implements OnModuleInit {
     );
   }
 
-  /** Dựng danh bạ TRƯỚC rồi mới xếp lượt đối chiếu — đối chiếu sớm thì `Y tá` chưa khớp `Điều dưỡng` và phải đợi lượt sau. */
   private workSkillCanonicalize(): Promise<void> {
     return this.queue.work<SkillCanonicalizePayload>(
       QUEUE.SKILL_CANONICALIZE,
@@ -95,7 +90,6 @@ export class MatchingProcessor implements OnModuleInit {
     );
   }
 
-  /** Đối chiếu hồ sơ với yêu cầu đã rút. KHÔNG gọi model. */
   private workRequirementMatch(): Promise<void> {
     return this.queue.work<RequirementMatchPayload>(
       QUEUE.REQUIREMENT_MATCH,
@@ -119,7 +113,6 @@ export class MatchingProcessor implements OnModuleInit {
     );
   }
 
-  /** Chọn top-N tin đáng cho AI chấm. Đây là chốt chi phí của cả dây chuyền. */
   private workAiShortlist(): Promise<void> {
     return this.queue.work<AiShortlistPayload>(
       QUEUE.AI_SHORTLIST,
@@ -134,7 +127,6 @@ export class MatchingProcessor implements OnModuleInit {
     );
   }
 
-  /** Mắt cuối: lượt gọi model thật cho MỘT cặp (user, job). */
   private workEvaluateMatch(): Promise<void> {
     return this.queue.work<EvaluateMatchPayload>(
       QUEUE.EVALUATE_MATCH,
@@ -176,7 +168,6 @@ export class MatchingProcessor implements OnModuleInit {
     ];
   }
 
-  /** Tự nối vòng từng lô thay vì chạy một mạch: 1.616 cách viết ≈ 81 lượt gọi, mà bậc free khoá sau vài chục lượt. */
   private async sweepDictionary(round: number): Promise<void> {
     const terms = await this.dictionary.allTerms();
     const { added, remaining } = await this.dictionary.ingest(terms, BATCH);

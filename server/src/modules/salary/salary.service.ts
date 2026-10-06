@@ -12,13 +12,10 @@ import type {
   SalaryGuideRequirements,
 } from './salary.types';
 
-/** Số vị trí cùng ngành hiển thị trong bảng xếp hạng. */
 const PEER_LIMIT = 6;
 
-/** Bảng tham chiếu đổi theo lượt crawl chứ không theo request, nên cache 10 phút là quá đủ. */
 const INDEX_CACHE_MS = 10 * 60_000;
 
-/** Chỉ đọc cột cần cho việc dò tên — kéo cả bản ghi về rồi vứt là tốn băng thông mỗi 10 phút. */
 const INDEX_SELECT = {
   positionSlug: true,
   positionName: true,
@@ -37,7 +34,6 @@ const INDEX_SELECT = {
   },
 } as const;
 
-/** Cửa DUY NHẤT để đọc dữ liệu lương — đổi sang nguồn thống kê từ kho tin sau này chỉ sửa trong đây. */
 @Injectable()
 export class SalaryService {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,7 +41,6 @@ export class SalaryService {
   private index: PositionIndex | null = null;
   private indexUntil = 0;
 
-  /** Dựng bảng tra một lần rồi giữ trong bộ nhớ; mỗi request tự dò tên sẽ là một lần quét cả bảng lương. */
   private async positionIndex(): Promise<PositionIndex> {
     if (this.index && Date.now() < this.indexUntil) return this.index;
 
@@ -59,7 +54,6 @@ export class SalaryService {
     return this.index;
   }
 
-  /** Không dò ra vị trí thì trả `null` chứ không đoán — một khoảng lương bịa còn tệ hơn không có khoảng nào. */
   async guideForJob(
     job: SalaryGuideJob,
     requirements: SalaryGuideRequirements | null,
@@ -91,7 +85,6 @@ export class SalaryService {
     };
   }
 
-  /** Danh mục ngành kèm số vị trí đang có số, để giao diện dựng thanh lọc. */
   async occupations() {
     const grouped = await this.prisma.salaryReference.groupBy({
       by: ['occupationCode'],
@@ -108,7 +101,6 @@ export class SalaryService {
       .sort((a, b) => b.positionCount - a.positionCount);
   }
 
-  /** Mã ngành lạ đã bị `ListPositionsQueryDto` chặn ở tầng validate, không rơi tới đây. */
   async positions(query: ListPositionsQueryDto) {
     const rows = await this.prisma.salaryReference.findMany({
       where: {
@@ -155,7 +147,6 @@ export class SalaryService {
     };
   }
 
-  /** Các vị trí cùng ngành, xếp theo lương giảm dần, để một con số lẻ có chỗ đứng. */
   private async peers(occupationCode: string | null, currentSlug: string) {
     if (!occupationCode) return [];
 

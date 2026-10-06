@@ -22,7 +22,6 @@ import {
 } from '../planning/search-plan.schema';
 import { messageOf } from '@/common/error-message';
 
-/** Quét CÁI GÌ: sinh danh sách từ khoá — từ hồ sơ (lượt người dùng) hoặc từ cụm nghề (lượt cron). KHÔNG phải provider Nest, `ScraperService` tự dựng. */
 export class QueryPlanner {
   private readonly logger = new Logger(QueryPlanner.name);
 
@@ -33,12 +32,10 @@ export class QueryPlanner {
     private readonly systemQueryLimit: number,
   ) {}
 
-  /** Bản KHÔNG gọi model, dựng thẳng từ hồ sơ. Vừa là đầu vào cho model vừa là đường lùi khi model hỏng. */
   private deterministicQueries(profile: Profile | null): SearchPlan {
     return { queries: planFromProfile(profile) };
   }
 
-  /** `maxRetries: 0` vì đã có đường lùi tất định — thử lại chỉ làm chậm một lượt quét vốn đã dài. */
   private async refineQueries(
     profile: Profile | null,
     userId: string,
@@ -57,7 +54,6 @@ export class QueryPlanner {
     return { plan: object, modelId };
   }
 
-  /** Hồ sơ TRỐNG thì trả kế hoạch rỗng và KHÔNG gọi model — không có từ khoá mặc định nào là trung lập. */
   async forUser(
     profile: Profile | null,
     userId: string,
@@ -83,7 +79,6 @@ export class QueryPlanner {
     }
   }
 
-  /** Lượt cron: gom hồ sơ theo NGHỀ, cộng sàn phủ taxonomy cho nghề chưa ai có hồ sơ, lọc theo `occupations` của portal RỒI MỚI xoay vòng — lọc sau xoay vòng sẽ để nghề portal không phục vụ chiếm suất mãi mãi vì không bao giờ được đóng dấu. */
   async forSystem(
     portal: string,
     occupations: string[] | null,
@@ -130,7 +125,6 @@ export class QueryPlanner {
     };
   }
 
-  /** Chỉ đóng dấu nghề THẬT SỰ gửi được request: đóng nhầm là lỗi tự nuôi, nghề đó vòng sau lại rơi đúng chỗ bị cắt. */
   async markCrawled(portal: string, clusterCodes: string[]): Promise<void> {
     const now = new Date();
     for (const occupationCode of clusterCodes) {

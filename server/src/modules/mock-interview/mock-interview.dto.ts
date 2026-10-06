@@ -1,7 +1,6 @@
 import { IsOptional, IsString, Length } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 
-/** Lọc danh sách buổi luyện, để tìm lại buổi đang dở sau khi tải lại trang. */
 export class ListMockInterviewsDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()

@@ -14,7 +14,6 @@ import {
   type PublicReadiness,
 } from './utils/public-readiness';
 
-/** Hai probe cho orchestrator, và chúng trả lời HAI câu hỏi khác nhau. */
 @ApiTags('System Health')
 @Controller()
 export class HealthController {
@@ -25,7 +24,6 @@ export class HealthController {
     private readonly queue: QueueService,
   ) {}
 
-  // Chỉ liveness bỏ qua throttle: nó không chạm phụ thuộc nào, còn /ready mỗi lần gọi truy vấn DB và có thể chạy docker.
   @SkipThrottle()
   @Public()
   @ApiOperation({

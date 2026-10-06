@@ -1,7 +1,5 @@
-/** Câu dùng khi hồ sơ không có dữ liệu; `render` và `renderShared` phải in ĐÚNG cùng một chuỗi. */
 export const NOT_PROVIDED = '(hồ sơ chưa cung cấp thông tin này)';
 
-/** Token `[YOUR_*]` → NHÃN DÒNG mà `profileSummary` in ra; đổi nhãn bên đó thì phải đổi ở đây, có test ghim. */
 export const PROFILE_LABELS: Record<string, string> = {
   YOUR_PRIMARY_SKILLS: 'Kỹ năng chính',
   YOUR_SECONDARY_SKILLS: 'Kỹ năng phụ',
@@ -24,15 +22,12 @@ export const PROFILE_LABELS: Record<string, string> = {
   YOUR_LINKEDIN_HEADLINE: 'Chức danh',
 };
 
-/** Câu trỏ CỐ ĐỊNH thay cho dữ liệu: giống hệt với mọi hồ sơ nên nhà cung cấp cache được cả khung. Giữ NGẮN — nó lặp lại ở mọi token. */
 export function pointerTo(label: string): string {
   return `(xem «${label}»)`;
 }
 
-/** Nói MỘT lần ở đầu khung thay vì lặp trong từng câu trỏ; thiếu vế "chưa cung cấp" thì dòng vắng mặt thành im lặng với model. */
 export const POINTER_NOTE = `Ghi chú: «…» trỏ tới dòng cùng nhãn trong HỒ SƠ ỨNG VIÊN ở phần yêu cầu; hồ sơ không có dòng đó nghĩa là ${NOT_PROVIDED}.`;
 
-/** Thay mọi `[YOUR_*]` bằng câu trỏ, KHÔNG đọc hồ sơ; token không có nhãn (tên, tài chính) luôn là NOT_PROVIDED như bản `render`. */
 export function renderShared(template: string): string {
   let pointed = false;
   const rendered = template.replace(

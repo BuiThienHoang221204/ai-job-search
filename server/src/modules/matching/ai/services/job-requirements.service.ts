@@ -78,7 +78,7 @@ export class JobRequirementsService {
     });
   }
 
-  /** Rút trích yêu cầu của một tin. Bỏ qua nếu nội dung chưa đổi. */
+  /** Rút yêu cầu của một tin bằng model; bỏ qua nếu nội dung chưa đổi so với lần rút trước. */
   async extract(jobId: string, force = false): Promise<JobRequirement> {
     const [job, existing] = await Promise.all([
       this.prisma.job.findUnique({ where: { id: jobId } }),
@@ -110,7 +110,6 @@ export class JobRequirementsService {
     }
   }
 
-  /** Một lượt gọi cho cả lô; tin quá dài, lô hỏng, hay lô thiếu phần tử đều lùi về đường lẻ — gộp lô không bao giờ tệ hơn không gộp. */
   async extractMany(
     jobIds: string[],
     force = false,
@@ -181,7 +180,6 @@ export class JobRequirementsService {
     } catch (error) {
       const message = messageOf(error);
       const kind = classifyFailure(error);
-      // TIMEOUT: gateway đang nghẽn, rút lẻ chỉ dồn thêm request vào chỗ đang tắc. SCHEMA (từ 2026-10-05, ModelChain tự đổi model khi gặp cả hai): lượt LÔ đã tự thử nhiều model rồi mới hỏng, rút lẻ lại 5 tin - mỗi tin CŨNG tự thử nhiều model - nhân thời gian một lô lên gấp nhiều lần so với trước.
       if (kind === 'TIMEOUT' || kind === 'SCHEMA') {
         this.logger.warn(
           `Lô ${batch.length} tin hỏng (${kind}, ${message}); ghi FAILED cả lô, không rút lẻ`,

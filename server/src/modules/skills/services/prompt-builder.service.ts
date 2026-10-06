@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Profile } from '@/generated/prisma/client';
 import { NOT_PROVIDED, renderShared } from '../utils/shared-placeholders';
 
-/** Thay các token [PLACEHOLDER] trong file skill bằng dữ liệu hồ sơ lấy từ DB. */
 @Injectable()
 export class PromptBuilderService {
   private readonly logger = new Logger(PromptBuilderService.name);
@@ -62,7 +61,6 @@ export class PromptBuilderService {
     return rendered;
   }
 
-  /** Như `render` nhưng KHÔNG điền hồ sơ: khung ra giống hệt với mọi người dùng để nhà cung cấp cache được, hồ sơ nằm ở `profileSummary`. */
   renderShared(template: string): string {
     return renderShared(template);
   }
@@ -82,7 +80,6 @@ export class PromptBuilderService {
     return kept.join('\n\n');
   }
 
-  /** Bỏ MỌI mục con `###` khớp tên — `04-job-evaluation.md` có hai mục "Salary Benchmark", thiếu cờ `g` là sót một. */
   dropSubsection(markdown: string, heading: string): string {
     const pattern = new RegExp(
       `^### .*${heading}[\\s\\S]*?(?=^### |^## |(?![\\s\\S]))`,
@@ -138,16 +135,6 @@ export class PromptBuilderService {
         `- Kinh nghiệm làm việc (JSON): ${this.clipJson(profile.experiences, 1500)}`,
       );
     }
-    /*
-     * Dự án và chứng chỉ là BẰNG CHỨNG ngang hàng với kinh nghiệm, không phải
-     * phần trang trí.
-     *
-     * Trước đây hai khối này bị bỏ khỏi tóm tắt dù đã được đọc từ CV và lưu vào
-     * `Profile`. Với hồ sơ lập trình viên, hậu quả đo được là model chỉ thấy một
-     * dòng "Full Stack Developer tại công ty X" trong khi toàn bộ phần chứng
-     * minh năng lực - RAG, MCP, xử lý 3.000 hóa đơn/tháng - nằm ở `projects`.
-     * Điểm phù hợp bị dìm và CV, thư, mail sinh ra chỉ nói chung chung được.
-     */
     if (profile.projects) {
       lines.push(`- Dự án (JSON): ${this.clipJson(profile.projects, 1200)}`);
     }
@@ -166,7 +153,6 @@ export class PromptBuilderService {
     }
 
     const joined = lines.join('\n');
-    // Trần tổng cho khối hồ sơ: dossier + system đã ~10k tok, vượt 4k ở đây là phình 19k
     if (joined.length > 4000) {
       return `${joined.slice(0, 4000)}\n… [cắt ${joined.length - 4000} ký tự hồ sơ]`;
     }

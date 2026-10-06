@@ -17,17 +17,13 @@ import { messageOf } from '@/common/error-message';
 
 const run = promisify(execFile);
 
-/** Nghỉ sau khi một lượt CLI XONG, chồng lên nhịp giữa hai lần gọi — lượt chạy lâu vẫn phải nghỉ chứ không đi tiếp ngay. */
 const REST_AFTER_CALL_MS = 1_200;
 
-/** CLI báo `BLOCKED` (captcha, thử thách chống bot) thì ngừng gọi portal đó chừng này — gọi tiếp khi đang bị chặn chỉ kéo dài lượt chặn. */
 export const BLOCKED_COOLDOWN_MS = 30 * 60_000;
 
-/** `delayMs` trong frontmatter phải là số nguyên dương; khai sai thì bỏ qua để portal vẫn chạy với nhịp chung. */
 const delayFrom = (raw: unknown): number | null =>
   typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : null;
 
-/** `occupations` trong frontmatter phải là mảng chuỗi không rỗng; khai sai hoặc vắng mặt thì portal coi như phục vụ mọi ngành. */
 const occupationsFrom = (raw: unknown): string[] | null =>
   Array.isArray(raw) &&
   raw.length > 0 &&
@@ -35,12 +31,10 @@ const occupationsFrom = (raw: unknown): string[] | null =>
     ? raw
     : null;
 
-/** Suy khoá portal từ tên thư mục skill. */
 export function portalKeyFrom(directory: string): string {
   return directory.replace(/-(search|jobs|portal)$/, '');
 }
 
-/** Một thư mục skill có đủ điều kiện làm portal hay không. Thiếu `enabled` là BẬT, vì portal cũ không khai trường này. */
 export function evaluateCandidate(input: {
   directory: string;
   hasSkillFile: boolean;
@@ -56,7 +50,6 @@ export function evaluateCandidate(input: {
   if (!input.hasSkillFile) return { skip: 'không có SKILL.md' };
   if (!input.hasCli) return { skip: 'không có cli/src/cli.ts' };
 
-  // Chỉ `enabled: false` mới tắt; vắng mặt hay giá trị khác đều là bật.
   const enabled = input.frontmatter.enabled !== false;
 
   return {
@@ -79,7 +72,6 @@ export function evaluateCandidate(input: {
   };
 }
 
-/** Lấy tin BẰNG CÁCH NÀO: adapter duy nhất của SEAM 5 — chạy CLI trong `.agents/skills/` và giữ nhịp chống chặn IP. */
 @Injectable()
 export class PortalCliService implements OnModuleInit {
   private readonly logger = new Logger(PortalCliService.name);
@@ -89,13 +81,10 @@ export class PortalCliService implements OnModuleInit {
   private readonly delayMs: number;
   private portals = new Map<string, PortalEntry>();
 
-  /** Nhịp theo TỪNG portal chứ không phải một mốc chung: chờ ITviec không có lý do gì để hoãn LinkedIn. */
   private lastCallAt = new Map<string, number>();
 
-  /** Mốc KẾT THÚC, tách khỏi mốc bắt đầu — hai mốc cho ra hai ràng buộc khác nhau, xem `pace`. */
   private lastDoneAt = new Map<string, number>();
 
-  /** Mốc hết hạn tạm ngừng của từng portal, đặt khi CLI báo `BLOCKED`. */
   private blockedUntil = new Map<string, number>();
 
   constructor(config: ConfigService) {
@@ -176,7 +165,6 @@ export class PortalCliService implements OnModuleInit {
     return this.portals.has(portal);
   }
 
-  /** HAI ràng buộc chồng nhau: cách lần GỌI trước `delayMs`, và cách lần XONG trước `REST_AFTER_CALL_MS`. */
   private async pace(portal: string): Promise<void> {
     const now = Date.now();
     const started = this.lastCallAt.get(portal);
@@ -192,7 +180,7 @@ export class PortalCliService implements OnModuleInit {
     this.lastCallAt.set(portal, Date.now());
   }
 
-  /** Chốt chặn DUY NHẤT chạm portal — mọi `search` và `detail` đều qua đây, nên nhịp không phụ thuộc người gọi có nhớ hay không. */
+  /** Chốt DUY NHẤT chạm portal — mọi `search`/`detail` đi qua đây nên luôn được giữ nhịp. */
   private async invoke<T>(portal: string, args: string[]): Promise<T> {
     const config = this.portals.get(portal);
     if (!config) {
@@ -244,7 +232,6 @@ export class PortalCliService implements OnModuleInit {
     }
   }
 
-  /** Các CLI KHÔNG cùng hình dạng đầu ra: ba cái trả mảng trần, linkedin trả `{ meta, results }` và gọi `postedAt` là `date`. */
   async search(portal: string, args: SearchArgs): Promise<PortalJobCard[]> {
     const argv = ['search', '--format', 'json'];
     if (args.query) argv.push('--query', args.query);

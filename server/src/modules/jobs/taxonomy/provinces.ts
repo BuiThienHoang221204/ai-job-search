@@ -1,4 +1,3 @@
-/** 34 tỉnh sau sáp nhập 1/7/2025. `aliases` là cách viết THẬT của portal (kể cả tên tỉnh cũ), không phải cách viết chuẩn. */
 export interface Province {
   code: string;
   name: string;
@@ -117,5 +116,4 @@ export const PROVINCES: Province[] = [
   { code: 'CM', name: 'Cà Mau', aliases: ['ca mau', 'bac lieu'] },
 ];
 
-/** Làm việc ở nước ngoài hoặc từ xa không gắn tỉnh nào. */
 export const REMOTE_CODE = 'REMOTE';

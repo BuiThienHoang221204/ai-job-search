@@ -31,7 +31,6 @@ export class AdminUsersController {
     return this.users.detail(id);
   }
 
-  /** Vai trò đọc tươi từ DB mỗi request nên đổi xong có hiệu lực ngay. */
   @ApiOperation({ summary: 'Đổi vai trò USER / ADMIN' })
   @ApiParam({ name: 'id', description: 'ID người dùng' })
   @Put(':id/role')

@@ -20,7 +20,6 @@ import {
   type PdfRenderer,
 } from './pdf/seam';
 
-/** Chọn cách compile LaTeX theo môi trường. */
 const latexCompilerProvider = {
   provide: LATEX_COMPILER,
   inject: [ConfigService, SANDBOX],
@@ -41,7 +40,6 @@ const latexCompilerProvider = {
   },
 };
 
-/** Chọn cách in HTML ra PDF theo môi trường. Song song với `latexCompilerProvider`. */
 const pdfRendererProvider = {
   provide: PDF_RENDERER,
   inject: [ConfigService, SANDBOX],

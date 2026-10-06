@@ -13,7 +13,6 @@ import { ThrottleAi } from '@/common/throttle';
 import { ListQuestionsQueryDto } from './question-bank.dto';
 import { QuestionBankService } from './question-bank.service';
 
-/** Ba route ĐỌC `@Public()` nên phải có hạn mức riêng; route sinh đáp án thì không. */
 @ApiTags('Question Bank')
 @Controller('question-bank')
 @Throttle({ default: { limit: 60, ttl: 60_000 } })
@@ -44,7 +43,6 @@ export class QuestionBankController {
     return this.questions.get(id);
   }
 
-  /** Đường GHI duy nhất, và là đường duy nhất gọi model. */
   @ApiOperation({
     summary: 'Sinh đáp án cho một câu hỏi, hoặc trả về đáp án đã có',
   })

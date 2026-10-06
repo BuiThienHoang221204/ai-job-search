@@ -1,6 +1,3 @@
-/** Hàm thuần của màn Tổng quan: đếm khoảng trống kỹ năng, rồi dựng thẻ gợi ý. */
-
-/** Chuẩn hóa tên công nghệ để so khớp giữa hồ sơ và tag của tin tuyển dụng. */
 export function normaliseSkill(value: string): string {
   const base = value.toLowerCase().replace(/[\s._-]/g, '');
   return base.length > 4 && base.endsWith('js') ? base.slice(0, -2) : base;
@@ -8,11 +5,9 @@ export function normaliseSkill(value: string): string {
 
 export type SkillGap = { skill: string; jobCount: number };
 
-/** `null` chỉ khi CHƯA CÓ dữ liệu — điểm trung bình đúng bằng 0 vẫn là một con số. */
 export const roundedScore = (value: number | null | undefined) =>
   value == null ? null : Math.round(value);
 
-/** Trung bình làm tròn, bỏ qua lượt chưa có điểm. */
 export function average(values: Array<number | null>): number | null {
   const numbers = values.filter((value): value is number => value !== null);
   if (!numbers.length) return null;
@@ -29,7 +24,6 @@ type ScoreRow = {
   careerScore: number | null;
 };
 
-/** "Điểm phù hợp hôm nay" trên giao diện: trung bình từng trục của mấy lần chấm gần nhất. */
 export function todayScore(recent: ScoreRow[]) {
   return {
     overall: average(recent.map((match) => match.overallScore)),
@@ -41,7 +35,6 @@ export function todayScore(recent: ScoreRow[]) {
   };
 }
 
-/** Đếm từ khóa xuất hiện trong các tin đã chấm điểm mà hồ sơ KHÔNG có. */
 export function recurringGaps(
   scored: Array<{ job: { tags: string[] } }>,
   knownSkills: string[],
@@ -89,7 +82,6 @@ export type SuggestionInput = {
   ineligibleCount: number;
 };
 
-/** Ngưỡng trên nó mới coi là "rất phù hợp, nên nộp sớm". */
 const HOT_MATCH_SCORE = 85;
 const HOT_MATCH_MAX_DAYS = 7;
 

@@ -3,7 +3,6 @@ import type { ListQuestionsQueryDto } from './question-bank.dto';
 
 const OCCUPATION_NAMES = new Map(OCCUPATIONS.map((o) => [o.code, o.name]));
 
-/** Loại câu hỏi KHÔNG được có đáp án mẫu: phải là trải nghiệm của chính ứng viên. */
 export const NO_SAMPLE_ANSWER = new Set(['HANH_VI', 'DONG_CO']);
 
 const TYPE_LABELS: Record<string, string> = {
@@ -52,7 +51,6 @@ export function questionWhere(query: ListQuestionsQueryDto = {}) {
   };
 }
 
-/** Thêm tên tiếng Việt và cờ được phép có đáp án mẫu cho một hàng. */
 export function decorate<
   T extends { industry: string | null; type: string | null },
 >(row: T) {
@@ -64,6 +62,5 @@ export function decorate<
   };
 }
 
-/** Xếp giảm dần theo số lượng, dùng chung cho cả ba chiều của thanh lọc. */
 export const byCount = <T extends { count: number }>(rows: T[]): T[] =>
   [...rows].sort((a, b) => b.count - a.count);

@@ -1,4 +1,3 @@
-/** Hàng rào ``` ở BẤT KỲ đâu, không bắt buộc bao trọn phản hồi — model hay viết một câu dẫn trước khi mở hàng rào. */
 const FENCED_BLOCK = /```[a-zA-Z]*[^\S\r\n]*\r?\n([\s\S]*?)```/;
 
 const parses = (text: string): boolean => {
@@ -10,9 +9,6 @@ const parses = (text: string): boolean => {
   }
 };
 
-/**
- * Cắt đúng một giá trị JSON cân bằng ngoặc, bắt đầu từ `open` đầu tiên.
- */
 function balancedSlice(text: string, open: '{' | '['): string | null {
   const close = open === '{' ? '}' : ']';
   const start = text.indexOf(open);
@@ -45,9 +41,6 @@ function balancedSlice(text: string, open: '{' | '['): string | null {
   return null;
 }
 
-/**
- * Bóc JSON ra khỏi thứ model thật sự viết. Không bóc được thì trả NGUYÊN VĂN.
- */
 export function extractJson(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return text;
@@ -56,14 +49,12 @@ export function extractJson(text: string): string {
   const fenced = FENCED_BLOCK.exec(trimmed)?.[1]?.trim();
   if (fenced && parses(fenced)) return fenced;
 
-  // Chỉ bóc theo `{`, không rơi về `[` nữa — mọi schema trong app đều là object ở gốc, rơi về `[` luôn cho kết quả SAI (hỏng 2026-09-23, 2026-10-05).
   if (trimmed.indexOf('{') === -1) return text;
 
   const slice = balancedSlice(trimmed, '{');
   return slice && parses(slice) ? slice : text;
 }
 
-/** Áp `extractJson` lên phần `content` của phản hồi chat. Bỏ qua stream: nó là `text/event-stream`, không phải JSON. */
 export async function extractJsonFromResponse(
   response: Response,
 ): Promise<Response> {

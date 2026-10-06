@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** Truy vấn tìm việc do AI sinh từ hồ sơ ứng viên. */
 export const searchPlanSchema = z.object({
   queries: z
     .array(

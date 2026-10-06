@@ -16,10 +16,8 @@ import type { PortalJobCard, SaveOutcome, SaveResult } from '../types';
 import { messageOf } from '@/common/error-message';
 import { DAY_MS } from '@/common/duration';
 
-/** Chỉ gộp trùng trong 30 ngày: tin cũ đã hết hạn không được nuốt mất tin cùng tên đăng lại mùa sau. */
 const DEDUPE_WINDOW_MS = 30 * DAY_MS;
 
-/** LƯU tin: tách tin mới, lấy mô tả đầy đủ, tính trường dẫn xuất, nhận ra bản sao giữa portal. KHÔNG phải provider Nest, `ScraperService` tự dựng. */
 export class JobWriter {
   private readonly logger = new Logger(JobWriter.name);
 
@@ -28,7 +26,6 @@ export class JobWriter {
     private readonly portals: JobSourceRouter,
   ) {}
 
-  /** Tin ĐÃ CÓ chỉ làm mới dữ liệu thẻ, không gọi `detail` lần nữa — đó là chỗ tốn tiền nhất mỗi đêm. */
   async save(portal: string, cards: PortalJobCard[]): Promise<SaveOutcome> {
     const existing = await this.prisma.job.findMany({
       where: { source: portal, externalId: { in: cards.map((c) => c.id) } },
@@ -80,7 +77,6 @@ export class JobWriter {
     };
   }
 
-  /** Lưu MỘT tin. Nói rõ vì sao một tin không có id để đưa vào việc nền. */
   private async saveCard(
     portal: string,
     card: PortalJobCard,
@@ -138,7 +134,6 @@ export class JobWriter {
       : { kind: 'saved', jobId: job.id };
   }
 
-  /** Id bản gốc ở portal khác, `null` khi đây là tin đầu tiên mang vân tay đó. */
   private async findOriginal(dedupeKey: string | null): Promise<string | null> {
     if (!dedupeKey) return null;
 
@@ -154,7 +149,6 @@ export class JobWriter {
     return original?.id ?? null;
   }
 
-  /** NUỐT lỗi thay vì để nổi lên: thẻ có thể đã mang mô tả cụt nhưng dùng được, ném ở đây là mất luôn cả tin. */
   private async detailDescription(
     portal: string,
     slug: string,
@@ -169,7 +163,6 @@ export class JobWriter {
     }
   }
 
-  /** Cập nhật dữ liệu THẺ cho những tin đã có trong database. */
   private async refreshKnownCards(
     portal: string,
     cards: PortalJobCard[],

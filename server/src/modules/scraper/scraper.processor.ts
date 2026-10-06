@@ -6,7 +6,6 @@ import {
 } from '../queue/queue.service';
 import { ScraperService } from './services/scraper.service';
 
-/** Nhận `SCRAPE_RUN` khỏi hàng đợi rồi gọi `ScraperService.run`. Đây là chỗ một lượt quét THẬT SỰ bắt đầu chạy. */
 @Injectable()
 export class ScraperProcessor implements OnModuleInit {
   private readonly logger = new Logger(ScraperProcessor.name);

@@ -8,7 +8,6 @@ export type GoogleProfile = {
   name: string;
 };
 
-/** SEAM: verify một ID token của Google. Bản giả trong test tránh gọi mạng thật tới Google. */
 @Injectable()
 export class GoogleAuthService {
   private readonly client: OAuth2Client;
@@ -19,7 +18,6 @@ export class GoogleAuthService {
     this.client = new OAuth2Client(this.clientId);
   }
 
-  /** Verify chữ ký + audience; `email_verified` phải đúng vì đây là cơ sở để tự liên kết với tài khoản mật khẩu đã có cùng email. */
   async verify(idToken: string): Promise<GoogleProfile> {
     let payload;
     try {

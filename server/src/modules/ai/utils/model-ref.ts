@@ -1,7 +1,6 @@
-/** Một mắt xích trong chuỗi model: chạy ở lõi nào, model nào. */
 export type ModelRef = { providerId: string; modelId: string };
 
-/** Tách ở dấu `/` ĐẦU TIÊN vì model id của OpenRouter tự nó chứa `/`. Không có tiền tố hợp lệ thì cả chuỗi là model id của lõi mặc định, nên `.env` cũ vẫn chạy. */
+/** Tách ở dấu `/` ĐẦU TIÊN; không có tiền tố lõi hợp lệ thì cả chuỗi là model id của lõi mặc định. */
 export function parseModelRef(
   raw: string,
   knownProviderIds: readonly string[],
@@ -21,7 +20,6 @@ export function parseModelRef(
   return { providerId: defaultProviderId, modelId: value };
 }
 
-/** Ngược của `parseModelRef`. Dùng cho log và cho cột `modelId` của `ai_calls`. */
 export function formatModelRef(ref: ModelRef): string {
   return `${ref.providerId}/${ref.modelId}`;
 }

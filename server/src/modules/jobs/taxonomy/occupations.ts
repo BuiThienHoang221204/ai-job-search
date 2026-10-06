@@ -1,4 +1,3 @@
-/** Phẳng một tầng, cố ý không phân cấp. THỨ TỰ CÓ NGHĨA: mục đứng trước thắng khi một tin khớp nhiều nhóm. */
 export interface Occupation {
   code: string;
   name: string;
@@ -75,7 +74,6 @@ export const OCCUPATIONS: Occupation[] = [
       'enterprise applications',
       'enterprise data',
     ],
-    // 'engineer' trần đã gỡ 2026-10-01: khớp cả Mechanical/Facilities/HVAC Engineer (113/612 tin IT đo được), không riêng phần mềm. Cụm ghép ở trên là để vớt lại các vai trò IT thật (Site Reliability, Embedded, Hardware...) không còn khớp từ khoá chung nào khác.
   },
   {
     code: 'DESIGN',
@@ -99,7 +97,6 @@ export const OCCUPATIONS: Occupation[] = [
       'character artist',
       'environment modeler',
     ],
-    // 'thiet ke' trần đã gỡ 2026-10-01: khớp cả "Kỹ Sư Thiết Kế Cơ Khí" (11 tin đo được), không riêng thiết kế sáng tạo.
   },
   {
     code: 'MARKETING',
@@ -190,7 +187,6 @@ export const OCCUPATIONS: Occupation[] = [
       'workforce',
       'people partner',
     ],
-    // 'tro ly' trần đã gỡ 2026-10-01: khớp "trợ lý" của mọi ngành (trợ lý kho, trợ lý sale logistics...), không riêng HR.
   },
   {
     code: 'MANUFACTURING',
@@ -377,17 +373,14 @@ export const OCCUPATIONS: Occupation[] = [
   },
 ];
 
-/** Mã dùng khi không suy ra được nhóm nào. */
 export const OTHER_CODE = 'OTHER';
 
 const OTHER_SUB_SUFFIX = '_OTHER';
 
-/** Mã giả "nghề con chưa xác định" của một nhóm — chỉ dùng ở cột lọc, không phải mã thật trong `SUB_OCCUPATIONS`. */
 export function otherSubCodeOf(occupationCode: string): string {
   return `${occupationCode}${OTHER_SUB_SUFFIX}`;
 }
 
-/** Trả về mã nhóm cha nếu `code` là mã giả "Khác" của nhóm đó, ngược lại `null`. */
 export function parentOfOtherSubCode(code: string): string | null {
   if (!code.endsWith(OTHER_SUB_SUFFIX)) return null;
   const parent = code.slice(0, -OTHER_SUB_SUFFIX.length);
@@ -396,12 +389,11 @@ export function parentOfOtherSubCode(code: string): string | null {
     : null;
 }
 
-/** Nhóm gần đến mức một hồ sơ nhóm này thường ứng tuyển được tin nhóm kia. Quan hệ hai chiều, khai một lần. */
 const ADJACENT_OCCUPATIONS: ReadonlyArray<readonly [string, string]> = [
   ['IT', 'DATA_AI'],
 ];
 
-/** Mã nhóm được coi là "cùng ngành" với hồ sơ: chính nó, nhóm liền kề, và `OTHER` vì tin chưa phân loại được thì không có căn cứ để loại. */
+/** Nhóm coi là cùng ngành với hồ sơ: chính nó, nhóm liền kề, và `OTHER`. */
 export function nearbyOccupations(code: string): string[] {
   const near = new Set([code, OTHER_CODE]);
   for (const [left, right] of ADJACENT_OCCUPATIONS) {
@@ -411,7 +403,6 @@ export function nearbyOccupations(code: string): string[] {
   return [...near];
 }
 
-/** Cùng quan hệ `nearbyOccupations` dưới dạng hai mảng song song, để SQL `unnest` tra theo cặp (ngành hồ sơ, ngành tin). */
 export function nearbyOccupationPairs(): { profile: string[]; job: string[] } {
   const profile: string[] = [];
   const job: string[] = [];

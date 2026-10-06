@@ -4,12 +4,10 @@ import { OCCUPATIONS, OTHER_CODE } from './occupations';
 import { PROVINCES, REMOTE_CODE } from './provinces';
 import { SUB_OCCUPATIONS } from './sub-occupations';
 
-/** Bọc bằng dấu cách để so khớp theo TỪ, không phải theo chuỗi con bất kỳ. */
 const padded = (value: string) => ` ${value} `;
 
 const REMOTE_HINTS = ['remote', 'lam viec tu xa', 'tu xa', 'work from home'];
 
-/** Trả `null` khi không chắc, KHÔNG đoán bừa: gán sai tỉnh thì tin nổi lên ở bộ lọc người tỉnh khác, còn không gán thì chỉ vắng mặt. */
 const ALIASES: ReadonlyArray<{ name: string; code: string }> =
   PROVINCES.flatMap((province) =>
     [normalizeText(province.name), ...province.aliases].map((name) => ({
@@ -43,7 +41,6 @@ export function resolveOccupation(title: string, tags: string[]): string {
   return fromTags ?? OTHER_CODE;
 }
 
-/** Khớp TỪ + khớp TIỀN TỐ cho từ khoá ≥4 ký tự: thiếu tiền tố thì `ReactJS` trượt, mở rộng hơn thì `pr` nuốt `production`. */
 const PREFIX_MIN_LENGTH = 4;
 
 function matchOccupation(haystack: string): string | null {
@@ -83,7 +80,6 @@ export function resolveSubOccupation(
   return firstMatch(padded(normalizeText(tags.join(' '))), subs);
 }
 
-/** Tiêu đề + công ty + thẻ. KHÔNG gộp `description`: mô tả 60KB làm index trigram phình và mọi từ khoá đều khớp. */
 export function buildSearchText(
   title: string,
   company: string,
@@ -92,7 +88,7 @@ export function buildSearchText(
   return normalizeText([title, company, ...tags].join(' '));
 }
 
-/** Gọi trọn bộ resolver một lượt — đây là thứ DUY NHẤT đường ghi tin nên gọi, để mọi tin có cùng bộ cột dẫn xuất. */
+/** Trọn bộ cột dẫn xuất của một tin — đường ghi tin chỉ nên gọi hàm này. */
 export function derivedFields(
   title: string,
   company: string,

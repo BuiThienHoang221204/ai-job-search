@@ -29,7 +29,6 @@ export class ApplicationsService {
     private readonly queue: QueueService,
   ) {}
 
-  /** Tạo đơn ứng tuyển cho một công việc. */
   async create(
     userId: string,
     jobId: string,
@@ -101,7 +100,6 @@ export class ApplicationsService {
     return application;
   }
 
-  /** Bước 2 và 3 của SKILL.md: CV theo vị trí và thư xin việc. */
   private async prepareDocuments(
     userId: string,
     jobId: string,
@@ -127,7 +125,6 @@ export class ApplicationsService {
     ]);
   }
 
-  /** Danh sách đơn phân trang, lọc tuỳ chọn theo một trạng thái. */
   async list(
     userId: string,
     query: PaginationQueryDto,
@@ -212,7 +209,6 @@ export class ApplicationsService {
     return { ...application, documents, interviewPrep };
   }
 
-  /** Đổi trạng thái đơn. */
   async updateStatus(
     userId: string,
     id: string,
@@ -254,7 +250,6 @@ export class ApplicationsService {
     return updated;
   }
 
-  /** Số liệu cho màn hình Tổng quan. */
   async countsFor(userId: string): Promise<{ total: number; active: number }> {
     const rows = await this.prisma.application.findMany({
       where: { userId },

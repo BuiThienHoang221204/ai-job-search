@@ -10,7 +10,6 @@ import { JwtStrategy } from './jwt.strategy';
 @Module({
   imports: [
     PassportModule,
-    // Không có signOptions.expiresIn mặc định: AuthService.token() tự truyền expiresIn riêng cho access/refresh ở mỗi lần ký.
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

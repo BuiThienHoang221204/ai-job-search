@@ -54,7 +54,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 ## Cách viết code trong `server/src`
 
-**Comment chỉ được MỘT DÒNG.** Dạng `/** ... */` một dòng đặt ngay trên khai báo, hoặc `//`. Không docblock nhiều dòng, không khối chú thích kể lể bên trong thân hàm. Lý do dài (đo được gì, vì sao chọn cách này, bẫy đã sập) thì viết vào chính file này hoặc `server/README.md` — chỗ đó người ta còn đọc, còn docblock 20 dòng nằm giữa code thì vừa đẩy hàm ra khỏi màn hình vừa mục nát khi code đổi. Quy ước này thay quy ước "không comment" chốt 2026-08-24 và quy ước docblock trước đó.
+**Mặc định KHÔNG comment.** Chỉ hàm nào vừa có NHIỀU logic vừa được gọi từ NHIỀU nơi (thường là hàm trong `utils/` và method của service) mới được một dòng `/** ... */` ngắn ngay trên khai báo. Không comment cho hằng, kiểu, trường, class, import; không `//` trong thân hàm; không docblock nhiều dòng. Ngoại lệ duy nhất là chỉ thị cho công cụ (`eslint-disable`, `@ts-expect-error`). Lý do dài (đo được gì, vì sao chọn cách này, bẫy đã sập) thì viết vào chính file này hoặc `server/README.md` — chỗ đó người ta còn đọc, còn comment nằm giữa code thì mục nát khi code đổi. Chốt 2026-10-06, thay quy ước "comment một dòng" trước đó.
 
 **Service chỉ giữ phần chạm DATABASE.** Truy vấn Prisma, transaction, phân trang, kiểm quyền sở hữu — ở lại service. Mọi thứ khác (thuần hàm, định dạng chuỗi, dựng prompt, suy ra nhãn, ánh xạ dữ liệu) tách sang `utils/` cùng module. Kiểm nhanh: hàm không đụng `this.prisma` thì nó không thuộc về service.
 

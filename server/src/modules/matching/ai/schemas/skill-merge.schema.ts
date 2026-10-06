@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** Model trả lời bằng SỐ THỨ TỰ: cho nó tự viết tên là mở đường cho một chuỗi gần đúng nhưng không có thật. */
 export const skillMergeSchema = z.object({
   decisions: z
     .array(

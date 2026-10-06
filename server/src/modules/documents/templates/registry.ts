@@ -4,34 +4,26 @@ import { resolveLayout, type DocumentLanguage } from './cv-layout';
 import { htmlDocument } from './html';
 import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes';
 
-/** Chỗ DUY NHẤT biết `templateId` là chuỗi gì — thêm mẫu = thêm một mục trong `themes.ts`, không sửa controller. */
-
-/** Mẫu mặc định. Phải khớp `@default` của cột `Document.templateId`. */
 export const DEFAULT_TEMPLATE_ID = 'classic';
 
-/** Tuỳ chọn trình bày. Người dùng chọn, KHÔNG phải model sinh. */
 export type CvTemplateOptions = {
   accent: string;
 };
 
-/** Danh mục mẫu để giao diện dựng kho chọn mẫu. */
 export const CV_TEMPLATES: readonly CvTemplateMeta[] = CV_THEMES.map(
   (theme) => theme.meta,
 );
 
-/** Id có nằm trong danh mục hay không. */
 export const isTemplateId = (value: string): boolean =>
   CV_THEMES.some((theme) => theme.meta.id === value);
 
-/** Không thấy thì về mặc định chứ không ném lỗi: gỡ một mẫu sẽ để lại tài liệu cũ trỏ vào id đã mất. */
 const findTheme = (templateId: string | null | undefined): CvTheme =>
   CV_THEMES.find((theme) => theme.meta.id === templateId) ?? CV_THEMES[0];
 
-/** Chỉ nhận `#rrggbb`. Màu đi thẳng vào CSS nên đây là ranh giới an toàn. */
 export const isAccent = (value: unknown): value is string =>
   typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
 
-/** Nhận `unknown` vì nguồn là cột Json; giá trị hỏng quay về mặc định chứ không làm hỏng cả bản CV. */
+/** Giá trị hỏng từ cột Json quay về mặc định chứ không làm hỏng cả bản CV. */
 export const resolveTemplateOptions = (
   templateId: string | null | undefined,
   raw: unknown,
@@ -43,7 +35,6 @@ export const resolveTemplateOptions = (
   return { accent: isAccent(accent) ? accent : theme.meta.accent };
 };
 
-/** Sinh CV thành một tài liệu HTML tự chứa, theo mẫu đã chọn. */
 export const renderCvHtml = (
   identity: Identity,
   content: CvContent,
@@ -56,8 +47,6 @@ export const renderCvHtml = (
   const options = resolveTemplateOptions(templateId, rawOptions);
   const layout = resolveLayout(rawLayout);
 
-  // `page-bar` là phần tử trang trí có ở MỌI mẫu; mẫu nào không tạo dáng cho nó
-  // thì nó là div rỗng không chiếm chỗ.
   const body = [
     '<div class="page-bar"></div>',
     buildCvHeader(identity),

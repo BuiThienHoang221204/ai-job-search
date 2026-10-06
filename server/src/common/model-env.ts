@@ -1,6 +1,5 @@
 import { pickStart } from '../modules/ai/utils/fast-model-scheduler';
 
-/** Đọc một biến môi trường dạng danh sách "a,b,c" thành mảng đã trim, bỏ rỗng; trả `undefined` khi rỗng — mảng RỖNG (khác `undefined`) sẽ bị `ModelChain` hiểu là "cố ý không có mắt xích dự phòng nào" và xoá mất `MODEL_FALLBACK_IDS` mặc định. */
 export function modelIdsFrom(raw: string | undefined): string[] | undefined {
   const ids = (raw ?? '')
     .split(',')
@@ -9,7 +8,7 @@ export function modelIdsFrom(raw: string | undefined): string[] | undefined {
   return ids.length ? ids : undefined;
 }
 
-/** Chọn TRƯỚC mắt xích bắt đầu cho các điểm gọi AI_FAST_* theo model nào còn chỗ NGAY BÂY GIỜ (xem `fast-model-scheduler.ts`); `fallbackModelIds` giữ nguyên danh sách gốc vì `ModelChain.links()` đã tự dedupe. */
+/** Chọn mắt xích đầu cho các điểm gọi AI_FAST_* theo model còn hạn mức ngay lúc này. */
 export function fastModelChain(estimatedTokens: number): {
   modelId?: string;
   fallbackModelIds?: string[];

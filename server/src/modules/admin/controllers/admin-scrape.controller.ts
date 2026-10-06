@@ -15,7 +15,6 @@ import { AdminScrapeService } from '../services/admin-scrape.service';
 export class AdminScrapeController {
   constructor(private readonly scrape: AdminScrapeService) {}
 
-  /** `cap` là trần `scraper.maxJobsPerPortal`: lượt lấy đủ trần là portal còn tin nhưng bị cắt. */
   @ApiOperation({
     summary:
       'Tình trạng từng portal: lượt gần nhất, số lần hỏng, xu hướng tin mới',
@@ -33,7 +32,6 @@ export class AdminScrapeController {
     return this.scrape.batches(query);
   }
 
-  /** `stale` bật khi ngành ĐÃ được quét trong `staleDays` mà vẫn 0 tin — chưa tới lượt trong chu kỳ phủ không tính. */
   @ApiOperation({
     summary: 'Số tin theo ngành, đánh dấu ngành đã quét mà vẫn 0 tin',
   })

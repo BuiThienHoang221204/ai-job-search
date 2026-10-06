@@ -60,7 +60,6 @@ export function withMatchState<
   return { ...rest, match: matches[0] ?? null };
 }
 
-/** Luật `stale` dùng CHUNG với `matching`, đừng chép lại: hai bên lệch nhau thì trang chi tiết và danh sách nói khác nhau. */
 export function withMatchDetail<
   T extends { matches: { evaluatedAt: Date | null }[] },
 >(job: T, profileUpdatedAt: Date | null) {
@@ -77,7 +76,7 @@ export function withMatchDetail<
   };
 }
 
-/** Chưa rút được yêu cầu thì rơi về đếm từ khoá, và nói rõ `kind` để giao diện đừng hiện như điểm thật. */
+/** Chưa rút được yêu cầu thì rơi về đếm từ khoá, kèm `kind` để giao diện không hiện như điểm thật. */
 export function withSystemMatch<
   T extends {
     title: string;
@@ -129,13 +128,11 @@ export function withSystemMatch<
   };
 }
 
-/** Cổng ngành của "Việc làm phù hợp" KHÔNG có lối thoát: bộ lọc ngành của người dùng giao với nó; muốn xem ngành khác thì sang "Tất cả việc làm". */
 export function occupationGate(
   query: ListJobsQueryDto,
   profileOccupation: string | null,
 ): Prisma.JobWhereInput | null {
   if (!query.scored) return null;
-  // Hồ sơ chưa rõ ngành thì không có căn cứ nào để biết "ngành của họ".
   if (!profileOccupation || profileOccupation === OTHER_CODE) return null;
 
   return {
@@ -146,12 +143,6 @@ export function occupationGate(
   };
 }
 
-/**
- * Kết hợp `occupation` (tích cả nhóm) và `subOccupation` (tích nghề con, kể cả
- * mã giả "Khác" của `otherSubCodeOf`) bằng OR — AND sẽ xoá mất tin chỉ khớp
- * một trong hai phía, ví dụ tích cả nhóm DESIGN rồi tích thêm một nghề con của
- * FINANCE sẽ cho ra giao rỗng nếu ANDed.
- */
 function occupationFacetWhere(
   query: ListJobsQueryDto,
 ): Prisma.JobWhereInput | null {
@@ -177,7 +168,6 @@ function occupationFacetWhere(
   return clauses.length === 1 ? clauses[0] : { OR: clauses };
 }
 
-/** `duplicateOfId: null` là bộ lọc CỐ ĐỊNH: bản sao giữa các portal được lưu nhưng không được hiện. */
 export function whereFrom(
   query: ListJobsQueryDto,
   userId: string,
@@ -208,17 +198,14 @@ export function whereFrom(
   };
 }
 
-/** Thứ tự nội bộ, KHÔNG mở qua HTTP: `posted` chỉ dành cho "Việc làm phù hợp". */
 export type ListOrder = JobSort | 'posted';
 
-/** "Việc làm phù hợp" LUÔN xếp theo ngày đăng mới nhất; `sort` người dùng gửi lên bị bỏ qua để link cũ vẫn mở được. */
 export const listOrderFor = (query: ListJobsQueryDto): ListOrder =>
   query.scored ? 'posted' : (query.sort ?? 'newest');
 
 export function orderFor(
   sort: ListOrder,
 ): Prisma.JobOrderByWithRelationInput[] {
-  // Không index được (postedAt nullable, cần NULLS LAST), nhưng danh sách "phù hợp" chỉ vài trăm tin mỗi người.
   if (sort === 'posted') {
     return [
       { postedAt: { sort: 'desc', nulls: 'last' } },
@@ -234,7 +221,6 @@ export function orderFor(
 
 type CountRow = { _count: number };
 
-/** Cây bộ lọc: mọi mã trong taxonomy đều hiện, kể cả mã đang có 0 tin. */
 export function filterTree(
   byProvince: (CountRow & { provinceCode: string | null })[],
   byOccupation: (CountRow & { occupationCode: string | null })[],
@@ -263,7 +249,6 @@ export function filterTree(
         name: sub.name,
         count: subCounts.get(sub.code) ?? 0,
       }));
-      // Tin khớp nhóm nhưng không khớp nghề con nào (chức danh quá chung, hoặc nghề nằm ngoài danh mục) — xem CLAUDE.md mục "nghề con".
       const unclassified =
         total - subs.reduce((sum, sub) => sum + sub.count, 0);
 

@@ -1,4 +1,3 @@
-/** `noSample` là câu hỏi đòi trải nghiệm riêng của ứng viên — bịa một câu chuyện cá nhân ở đó là dạy người ta nói dối. */
 export function questionAnswerSystem(noSample: boolean): string {
   return [
     'Bạn là chuyên gia tuyển dụng người Việt, soạn nội dung cho ngân hàng câu hỏi phỏng vấn dùng ở thị trường Việt Nam.',
@@ -9,7 +8,6 @@ export function questionAnswerSystem(noSample: boolean): string {
   ].join('\n');
 }
 
-/** `text` khai `String?` trong schema nên có thể null — giữ nguyên hành vi cũ, xem ghi chú ở `ensureAnswer`. */
 export function questionAnswerPrompt(
   text: string | null,
   occupation: string | null,

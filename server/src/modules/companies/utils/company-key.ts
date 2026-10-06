@@ -1,7 +1,6 @@
 import { ANONYMOUS_COMPANIES } from '@/modules/jobs/taxonomy/dedupe';
 import { normalizeText } from '@/common/text/vietnamese';
 
-/** Loại hình pháp nhân, bỏ khi dựng khoá. KHÔNG có `co` đứng một mình: "Cơ khí Hà Nội" sẽ vỡ. */
 const LEGAL_FORMS = [
   'cong ty co phan',
   'cong ty tnhh mot thanh vien',

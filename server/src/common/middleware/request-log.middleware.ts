@@ -1,13 +1,8 @@
 import { Injectable, Logger, type NestMiddleware } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 
-/** Quá ngưỡng này thì dòng log lên mức warn. */
 const SLOW_REQUEST_MS = 1_000;
 
-/**
- * Ghi một dòng cho mỗi request: phương thức, đường dẫn, mã trạng thái, thời
- * gian. Nest không tự làm việc này.
- */
 @Injectable()
 export class RequestLogMiddleware implements NestMiddleware {
   private readonly logger = new Logger('HTTP');

@@ -10,20 +10,16 @@ export type ResolvedLanguageModel = {
   model: LanguageModel;
   id: string;
   provider: string;
-  /** Dạng `lõi/model`, chỉ để in ra nhật ký. */
   ref: string;
-  /** Xem `ProviderDescriptor.defaultMaxOutputTokens`. */
   defaultMaxOutputTokens?: number;
 };
 
-/** Mọi lõi đều chạy qua `createOpenAICompatible`, kể cả OpenRouter: API của nó là OpenAI-compatible nên không cần adapter thứ hai. */
 export class LanguageModelFactory {
   constructor(
     private readonly catalog: ModelCatalogService,
     private readonly logger: Logger,
   ) {}
 
-  /** `honorsResponseFormat: false` nghĩa là lõi chỉ có MỘT chế độ dùng được — người gọi phải biết để không lật sang chế độ kia. */
   async structuredOutputModeFor(
     modelId: string | undefined,
     fallbackDefault: boolean,
@@ -31,7 +27,6 @@ export class LanguageModelFactory {
     providerId: string;
     structuredOutputs: boolean;
     honorsResponseFormat: boolean;
-    /** Lõi ép được định dạng, HOẶC chính model này đã đo là stream ra JSON được. */
     canStream: boolean;
   }> {
     const resolved = await this.catalog.resolve(modelId);
@@ -44,7 +39,6 @@ export class LanguageModelFactory {
     };
   }
 
-  /** `jsonStream` chỉ bật cho `streamObject`: lọc stream của `streamText` là cắt mất chữ của người dùng. */
   async create(
     modelId: string | undefined,
     structuredOutputs: boolean,
@@ -78,7 +72,6 @@ export class LanguageModelFactory {
         }
       }
       const response = await originalFetch(input, { ...init, headers, body });
-      // Áp cho CẢ hai chế độ: phản hồi vốn đã là JSON hợp lệ thì hàm trả lại nguyên vẹn, nên không có gì để mất.
       const unwrapped = await extractJsonFromResponse(response);
       return jsonStream ? extractJsonFromStream(unwrapped) : unwrapped;
     };

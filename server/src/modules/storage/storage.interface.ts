@@ -6,7 +6,6 @@ export type StoredFile = {
   updatedAt: Date;
 };
 
-/** Trừu tượng hóa nơi lưu trữ file của người dùng. */
 export interface Storage {
   read(key: string): Promise<Buffer>;
   readText(key: string): Promise<string>;
@@ -16,6 +15,5 @@ export interface Storage {
   delete(key: string): Promise<void>;
 }
 
-/** Ghép đường dẫn trong workspace của một người dùng. */
 export const userKey = (userId: string, ...segments: string[]): string =>
   [userId, ...segments].join('/');
