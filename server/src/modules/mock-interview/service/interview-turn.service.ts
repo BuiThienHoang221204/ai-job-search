@@ -5,10 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { ModelMessage } from 'ai';
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { AiService } from '../../ai/services/ai.service.js';
-import { MockInterviewService } from './mock-interview.service.js';
+import type { Prisma } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { MockInterviewService } from './mock-interview.service';
 import {
   countForeign,
   createStreamScrubber,
@@ -18,13 +18,13 @@ import {
   splitTurnParts,
   TURN_MARKER,
   type TurnParts,
-} from '../utils/interview-turn.prompt.js';
+} from '../utils/interview-turn.prompt';
 import {
   askUserStep,
   attachAnswer,
   HEAD_BUFFER,
   type StreamedTurn,
-} from '../utils/mock-interview.js';
+} from '../utils/mock-interview';
 
 @Injectable()
 export class InterviewTurnService {

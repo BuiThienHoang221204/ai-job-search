@@ -1,5 +1,5 @@
-import type { Prisma } from '../../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
+import type { Prisma } from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 
 export const ASK_USER_TOOL = 'ask_user';
 

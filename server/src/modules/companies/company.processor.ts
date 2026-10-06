@@ -3,8 +3,8 @@ import {
   QUEUE,
   QueueService,
   type CompanyBriefPayload,
-} from '../queue/queue.service.js';
-import { CompanyService } from './service/company.service.js';
+} from '../queue/queue.service';
+import { CompanyService } from './service/company.service';
 
 @Injectable()
 export class CompanyProcessor implements OnModuleInit {

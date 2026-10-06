@@ -1,9 +1,9 @@
 import { Body, Controller, Get, HttpCode, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { QuickStartProfileDto, UpdateProfileDto } from './profile.dto.js';
-import { ProfileService } from './profile.service.js';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { QuickStartProfileDto, UpdateProfileDto } from './profile.dto';
+import { ProfileService } from './profile.service';
 
 @ApiTags('Profile')
 @ApiBearerAuth()

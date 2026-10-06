@@ -6,12 +6,12 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { ThrottleAi } from '../../common/throttle.js';
-import { ListQuestionsQueryDto } from './question-bank.dto.js';
-import { QuestionBankService } from './question-bank.service.js';
+import { Public } from '@/common/decorators/public.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { ThrottleAi } from '@/common/throttle';
+import { ListQuestionsQueryDto } from './question-bank.dto';
+import { QuestionBankService } from './question-bank.service';
 
 /** Ba route ĐỌC `@Public()` nên phải có hạn mức riêng; route sinh đáp án thì không. */
 @ApiTags('Question Bank')

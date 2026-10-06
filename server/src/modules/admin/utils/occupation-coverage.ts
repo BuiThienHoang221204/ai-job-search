@@ -1,5 +1,5 @@
-import { OCCUPATIONS, OTHER_CODE } from '../../jobs/taxonomy/occupations.js';
-import { SUB_OCCUPATIONS } from '../../jobs/taxonomy/sub-occupations.js';
+import { OCCUPATIONS, OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
+import { SUB_OCCUPATIONS } from '@/modules/jobs/taxonomy/sub-occupations';
 
 export interface OccupationCoverageRow {
   code: string;

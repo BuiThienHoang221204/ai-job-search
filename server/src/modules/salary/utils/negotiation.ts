@@ -7,7 +7,7 @@ import {
   type ReferenceBand,
   type ReferencePosition,
   type Seniority,
-} from '../salary.types.js';
+} from '../salary.types';
 
 /** Số năm suy ra từ cấp bậc, dùng khi tin không nói rõ. `LEAD` bằng `SENIOR` vì nguồn lương không tách hai mốc này. */
 const SENIORITY_YEARS: Record<Seniority, number | null> = {

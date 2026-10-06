@@ -1,15 +1,18 @@
 import { Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { dedupeKeyOf } from '../../jobs/taxonomy/dedupe.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { dedupeKeyOf } from '@/modules/jobs/taxonomy/dedupe';
 
-import { derivedFields, resolveProvince } from '../../jobs/taxonomy/resolve.js';
-import { JobSourceRouter } from './job-source.router.js';
+import {
+  derivedFields,
+  resolveProvince,
+} from '@/modules/jobs/taxonomy/resolve';
+import { JobSourceRouter } from './job-source.router';
 import {
   MIN_DESCRIPTION_LENGTH,
   looksTruncated,
   parsePostedAt,
-} from '../utils/normalize.js';
-import type { PortalJobCard, SaveOutcome, SaveResult } from '../types.js';
+} from '../utils/normalize';
+import type { PortalJobCard, SaveOutcome, SaveResult } from '../types';
 
 /** Chỉ gộp trùng trong 30 ngày: tin cũ đã hết hạn không được nuốt mất tin cùng tên đăng lại mùa sau. */
 const DEDUPE_WINDOW_MS = 30 * 86_400_000;

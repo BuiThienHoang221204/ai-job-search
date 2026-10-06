@@ -1,4 +1,4 @@
-import type { ReadinessReport } from '../health.service.js';
+import type { ReadinessReport } from '../health.service';
 
 export type PublicReadiness = {
   ready: boolean;

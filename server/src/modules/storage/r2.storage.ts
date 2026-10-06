@@ -8,7 +8,7 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
-import type { Storage, StoredFile } from './storage.interface.js';
+import type { Storage, StoredFile } from './storage.interface';
 
 @Injectable()
 export class R2Storage implements Storage {

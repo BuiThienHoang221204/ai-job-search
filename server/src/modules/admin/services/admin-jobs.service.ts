@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import type { AdminJobsQueryDto } from '../admin.dto.js';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import type { Prisma } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import type { AdminJobsQueryDto } from '../admin.dto';
 
 const JOB_COUNTS = {
   _count: { select: { matches: true, duplicates: true, applications: true } },

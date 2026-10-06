@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import { appRole, runsBackgroundWork } from '../../../config/app-role.js';
-import { ReconcileService } from './reconcile.service.js';
+import { appRole, runsBackgroundWork } from '@/config/app-role';
+import { ReconcileService } from './reconcile.service';
 
 const JOB_NAME = 'reconcile.stuck-work';
 

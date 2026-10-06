@@ -4,10 +4,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { STUCK_AFTER_MS } from '../../../common/duration.js';
+import type { Prisma } from '@/generated/prisma/client';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { STUCK_AFTER_MS } from '@/common/duration';
 import {
   DOCUMENT_LABEL,
   formatInterviewDossier,
@@ -16,7 +16,7 @@ import {
   trimToolOutput,
   type InterviewDossier,
   type ListMockInterviewsQuery,
-} from '../utils/mock-interview.js';
+} from '../utils/mock-interview';
 
 @Injectable()
 export class MockInterviewService {

@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
-import { JobsModule } from '../jobs/jobs.module.js';
-import { QueueModule } from '../queue/queue.module.js';
-import { ReconcileModule } from '../reconcile/reconcile.module.js';
-import { ScraperModule } from '../scraper/scraper.module.js';
-import { AdminJobsController } from './controllers/admin-jobs.controller.js';
-import { AdminScrapeController } from './controllers/admin-scrape.controller.js';
-import { AdminJobsService } from './services/admin-jobs.service.js';
-import { AdminScrapeService } from './services/admin-scrape.service.js';
-import { AdminSkillsController } from './controllers/admin-skills.controller.js';
-import { AdminSkillsService } from './services/admin-skills.service.js';
-import { AdminUsersController } from './controllers/admin-users.controller.js';
-import { AdminUsersService } from './services/admin-users.service.js';
-import { AdminController } from './controllers/admin.controller.js';
-import { AdminService } from './services/admin.service.js';
+import { JobsModule } from '../jobs/jobs.module';
+import { QueueModule } from '../queue/queue.module';
+import { ReconcileModule } from '../reconcile/reconcile.module';
+import { ScraperModule } from '../scraper/scraper.module';
+import { AdminJobsController } from './controllers/admin-jobs.controller';
+import { AdminScrapeController } from './controllers/admin-scrape.controller';
+import { AdminJobsService } from './services/admin-jobs.service';
+import { AdminScrapeService } from './services/admin-scrape.service';
+import { AdminSkillsController } from './controllers/admin-skills.controller';
+import { AdminSkillsService } from './services/admin-skills.service';
+import { AdminUsersController } from './controllers/admin-users.controller';
+import { AdminUsersService } from './services/admin-users.service';
+import { AdminController } from './controllers/admin.controller';
+import { AdminService } from './services/admin.service';
 
 @Module({
   imports: [ScraperModule, ReconcileModule, JobsModule, QueueModule],

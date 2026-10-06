@@ -11,7 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 
 const trimmed = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() || undefined : value;

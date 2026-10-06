@@ -9,17 +9,17 @@ import type {
   DocumentKind,
   DocumentLanguage,
   Prisma,
-} from '../../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { DocumentGenerator } from './document-generator.service.js';
-import { DocumentRenderer } from './document-renderer.service.js';
-import { emailTitle } from '../utils/letter-target.js';
-import { isPrintable } from '../utils/cv-content.js';
-import { parseCvEdit, requirePastedJob } from '../utils/document-input.js';
-import { resolveLayout } from '../templates/cv-layout.js';
-import { isTemplateId, resolveTemplateOptions } from '../templates/registry.js';
+} from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { DocumentGenerator } from './document-generator.service';
+import { DocumentRenderer } from './document-renderer.service';
+import { emailTitle } from '../utils/letter-target';
+import { isPrintable } from '../utils/cv-content';
+import { parseCvEdit, requirePastedJob } from '../utils/document-input';
+import { resolveLayout } from '../templates/cv-layout';
+import { isTemplateId, resolveTemplateOptions } from '../templates/registry';
 
 /** Đường sinh PDF: `latex` đi qua file `.tex` đã lưu, `html` dựng thẳng từ `Document.content`. */
 export type PdfEngine = 'latex' | 'html';

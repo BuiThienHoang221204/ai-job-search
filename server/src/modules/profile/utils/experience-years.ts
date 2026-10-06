@@ -1,4 +1,4 @@
-import { foldTerm } from '../../../common/text/vietnamese.js';
+import { foldTerm } from '@/common/text/vietnamese';
 
 const MONTHS = [
   'jan',

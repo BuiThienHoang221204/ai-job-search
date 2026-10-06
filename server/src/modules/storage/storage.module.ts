@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { R2Storage } from './r2.storage.js';
-import { STORAGE } from './storage.interface.js';
+import { R2Storage } from './r2.storage';
+import { STORAGE } from './storage.interface';
 
 @Global()
 @Module({

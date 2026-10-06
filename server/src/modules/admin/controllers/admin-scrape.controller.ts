@@ -1,12 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../../common/decorators/roles.decorator.js';
+import { Roles } from '@/common/decorators/roles.decorator';
 import {
   OccupationCoverageQueryDto,
   ScrapeBatchesQueryDto,
   ScrapePortalsQueryDto,
-} from '../admin.dto.js';
-import { AdminScrapeService } from '../services/admin-scrape.service.js';
+} from '../admin.dto';
+import { AdminScrapeService } from '../services/admin-scrape.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()

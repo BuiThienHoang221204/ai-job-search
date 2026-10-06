@@ -1,5 +1,5 @@
-import { OCCUPATIONS } from '../../jobs/taxonomy/occupations.js';
-import { EXPERIENCE_LABELS } from '../salary.types.js';
+import { OCCUPATIONS } from '@/modules/jobs/taxonomy/occupations';
+import { EXPERIENCE_LABELS } from '../salary.types';
 
 const OCCUPATION_NAMES = new Map(OCCUPATIONS.map((o) => [o.code, o.name]));
 

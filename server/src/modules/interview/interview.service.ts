@@ -5,29 +5,29 @@ import type {
   Job,
   JobMatch,
   Profile,
-} from '../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../common/pagination.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { AiService } from '../ai/services/ai.service.js';
-import type { ModelStreamEvent } from '../../common/stream-event.js';
+} from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { AiService } from '../ai/services/ai.service';
+import type { ModelStreamEvent } from '@/common/stream-event';
 import {
   withFailureKind,
   withFailureKinds,
   streamFailureEvent,
-} from '../ai/utils/failure-view.js';
-import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
+} from '../ai/utils/failure-view';
+import { PromptBuilderService } from '../skills/services/prompt-builder.service';
+import { SkillRegistryService } from '../skills/services/skill-registry.service';
 import {
   interviewPrepSchema,
   type InterviewPrepResult,
-} from './interview.schema.js';
+} from './interview.schema';
 import {
   BEHAVIOURAL_SECTIONS,
   buildPrepPrompt,
   PREP_SECTIONS,
-} from './utils/interview-prep.prompt.js';
+} from './utils/interview-prep.prompt';
 
 const SKILL_NAME = 'job-application-assistant';
 

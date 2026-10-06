@@ -3,8 +3,8 @@ import {
   QUEUE,
   QueueService,
   type ScrapeRunPayload,
-} from '../queue/queue.service.js';
-import { ScraperService } from './services/scraper.service.js';
+} from '../queue/queue.service';
+import { ScraperService } from './services/scraper.service';
 
 /** Nhận `SCRAPE_RUN` khỏi hàng đợi rồi gọi `ScraperService.run`. Đây là chỗ một lượt quét THẬT SỰ bắt đầu chạy. */
 @Injectable()

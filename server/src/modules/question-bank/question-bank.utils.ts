@@ -1,5 +1,5 @@
-import { OCCUPATIONS } from '../jobs/taxonomy/occupations.js';
-import type { ListQuestionsQueryDto } from './question-bank.dto.js';
+import { OCCUPATIONS } from '../jobs/taxonomy/occupations';
+import type { ListQuestionsQueryDto } from './question-bank.dto';
 
 const OCCUPATION_NAMES = new Map(OCCUPATIONS.map((o) => [o.code, o.name]));
 

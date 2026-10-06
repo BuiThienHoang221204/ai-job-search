@@ -4,8 +4,8 @@ import type {
   PlannedQuery,
   PortalJobCard,
   QueryCursor,
-} from '../types.js';
-import { withinDays } from './normalize.js';
+} from '../types';
+import { withinDays } from './normalize';
 
 /** Số tin xin cho MỘT request, không phải trần cả lượt — trần đó là `limits.maxJobsPerPortal`, gom qua nhiều trang. */
 const PAGE_SIZE = 25;

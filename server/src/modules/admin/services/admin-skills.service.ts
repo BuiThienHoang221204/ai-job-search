@@ -3,12 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import { foldTerm } from '../../../common/text/vietnamese.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { QUEUE, QueueService } from '../../queue/queue.service.js';
-import type { SkillsQueryDto } from '../admin.dto.js';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { foldTerm } from '@/common/text/vietnamese';
+import type { Prisma } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
+import type { SkillsQueryDto } from '../admin.dto';
 
 /** Số kỹ năng gần nhất theo embedding gợi ý để gộp. */
 const NEIGHBORS = 8;

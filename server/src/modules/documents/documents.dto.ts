@@ -13,8 +13,8 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import type { PdfEngine } from './services/documents.service.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import type { PdfEngine } from './services/documents.service';
 
 /** Chỉ kiểm khi người dùng ĐÃ chạm vào một trong ba trường — chép điều kiện của mail sang đây là giết "CV tổng quát", xem README. */
 const pastedJob = (dto: CreateCvDto): boolean =>

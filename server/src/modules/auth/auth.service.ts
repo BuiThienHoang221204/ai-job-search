@@ -6,15 +6,15 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
-import { isUniqueViolation } from '../../prisma/prisma-errors.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { GoogleAuthService } from './google-auth.service.js';
-import type { LoginDto, RegisterDto } from './auth.dto.js';
+import { isUniqueViolation } from '@/prisma/prisma-errors';
+import { PrismaService } from '@/prisma/prisma.service';
+import { GoogleAuthService } from './google-auth.service';
+import type { LoginDto, RegisterDto } from './auth.dto';
 import {
   isRefreshPayload,
   type JwtPayload,
   type TokenType,
-} from './jwt-payload.js';
+} from './jwt-payload';
 
 const BCRYPT_ROUNDS = 12;
 

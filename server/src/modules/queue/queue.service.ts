@@ -5,15 +5,15 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import type { PgBoss, SendOptions, WorkOptions } from 'pg-boss';
-import { appRole, runsBackgroundWork } from '../../config/app-role.js';
-import { QUEUE, QUEUE_POLICY } from './queue.constants.js';
-import { singletonKeyFor } from './queue-key.js';
-import { QueueConfigService } from './queue-config.service.js';
-import type { QueueStats, QueueStatsItem, QueueStatus } from './queue.types.js';
+import { appRole, runsBackgroundWork } from '@/config/app-role';
+import { QUEUE, QUEUE_POLICY } from './queue.constants';
+import { singletonKeyFor } from './queue-key';
+import { QueueConfigService } from './queue-config.service';
+import type { QueueStats, QueueStatsItem, QueueStatus } from './queue.types';
 
 /** Một đường import cho 37 file gọi tới: chúng không cần biết module chia file thế nào bên trong. */
-export { QUEUE, QUEUE_POLICY } from './queue.constants.js';
-export type * from './queue.types.js';
+export { QUEUE, QUEUE_POLICY } from './queue.constants';
+export type * from './queue.types';
 
 /** Hàng đợi chạy trên chính Postgres, không cần Redis. */
 @Injectable()

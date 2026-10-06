@@ -1,5 +1,5 @@
-import type { JobRequirement } from '../../../generated/prisma/client.js';
-import type { UpskillGaps } from '../upskill.schema.js';
+import type { JobRequirement } from '@/generated/prisma/client';
+import type { UpskillGaps } from '../upskill.schema';
 
 /** Mục của file skill mà từng lời gọi giữ lại; đổi tiêu đề trong `.md` thì `keepSections` trả về RỖNG. */
 export const GAPS_SECTIONS = ['step 3', 'step 4', 'step 5'];

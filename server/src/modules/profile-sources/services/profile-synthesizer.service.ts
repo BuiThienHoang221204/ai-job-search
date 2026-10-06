@@ -1,19 +1,19 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { ProfileDraft } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { AiService } from '../../ai/services/ai.service.js';
-import type { ModelStreamEvent } from '../../../common/stream-event.js';
-import { parseEvidenceList } from '../utils/evidence.js';
+import type { ProfileDraft } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import type { ModelStreamEvent } from '@/common/stream-event';
+import { parseEvidenceList } from '../utils/evidence';
 import {
   profileProposalSchema,
   type ProfileProposal,
-} from '../profile-proposal.schema.js';
+} from '../profile-proposal.schema';
 import {
   buildSynthesisPrompt,
   SYNTHESIS_SYSTEM,
   SYNTHESIS_TIMEOUT_MS,
-} from '../utils/profile-synthesis.prompt.js';
-import { streamFailureEvent } from '../../ai/utils/failure-view.js';
+} from '../utils/profile-synthesis.prompt';
+import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
 
 @Injectable()
 export class ProfileSynthesizerService {

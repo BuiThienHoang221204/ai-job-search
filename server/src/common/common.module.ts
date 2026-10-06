@@ -5,11 +5,11 @@ import {
   type NestModule,
 } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
-import { PrismaExceptionFilter } from './filters/prisma-exception.filter.js';
-import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
-import { RolesGuard } from './guards/roles.guard.js';
-import { UserThrottlerGuard } from './guards/user-throttler.guard.js';
-import { RequestLogMiddleware } from './middleware/request-log.middleware.js';
+import { PrismaExceptionFilter } from './filters/prisma-exception.filter';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
+import { UserThrottlerGuard } from './guards/user-throttler.guard';
+import { RequestLogMiddleware } from './middleware/request-log.middleware';
 
 /**
  * Nơi đặt những thứ cắt ngang mọi module: filter, middleware, guard,

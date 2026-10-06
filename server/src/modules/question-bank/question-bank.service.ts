@@ -1,18 +1,18 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/services/ai.service.js';
-import { pageArgs, pageOf } from '../../common/pagination.js';
-import { fastModelChain } from '../../common/model-env.js';
-import { estimateTokens } from '../ai/utils/fast-model-scheduler.js';
-import type { ListQuestionsQueryDto } from './question-bank.dto.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '../ai/services/ai.service';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { fastModelChain } from '@/common/model-env';
+import { estimateTokens } from '../ai/utils/fast-model-scheduler';
+import type { ListQuestionsQueryDto } from './question-bank.dto';
 import {
   questionAnswerPrompt,
   questionAnswerSystem,
-} from './question-answer.prompt.js';
+} from './question-answer.prompt';
 import {
   questionAnswerSchema,
   type QuestionAnswerResult,
-} from './question-bank.schema.js';
+} from './question-bank.schema';
 import {
   byCount,
   decorate,
@@ -22,7 +22,7 @@ import {
   questionFilters,
   questionWhere,
   typeLabel,
-} from './question-bank.utils.js';
+} from './question-bank.utils';
 
 /** Ngân hàng câu hỏi tĩnh. Chỉ đọc `READY`; đáp án sinh LƯỜI, 91% câu chưa ai mở. */
 @Injectable()

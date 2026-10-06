@@ -4,18 +4,18 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { CompanyBrief as BriefRecord } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { AiService } from '../../ai/services/ai.service.js';
-import { fastModelChain } from '../../../common/model-env.js';
-import { estimateTokens } from '../../ai/utils/fast-model-scheduler.js';
-import type { CompanyBriefPayload } from '../../queue/queue.service.js';
+import type { CompanyBrief as BriefRecord } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { fastModelChain } from '@/common/model-env';
+import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import type { CompanyBriefPayload } from '@/modules/queue/queue.service';
 import {
   BRIEF_SYSTEM,
   briefQueries,
   buildBriefPrompt,
   type NumberedSource,
-} from '../utils/company-brief.prompt.js';
+} from '../utils/company-brief.prompt';
 import {
   companyBriefSchema,
   CONFIDENCES,
@@ -25,17 +25,17 @@ import {
   type BriefView,
   type CompanyBrief,
   type PreparedBrief,
-} from '../utils/company-brief.js';
-import { companyKeyOf } from '../utils/company-key.js';
-import { ReviewResearchService } from './review-research.service.js';
+} from '../utils/company-brief';
+import { companyKeyOf } from '../utils/company-key';
+import { ReviewResearchService } from './review-research.service';
 import {
   confidenceOf,
   pickReviewSources,
   pickSnippetSources,
   trimToReviewText,
-} from '../utils/review-sources.js';
-import type { ModelStreamEvent } from '../../../common/stream-event.js';
-import { streamFailureEvent } from '../../ai/utils/failure-view.js';
+} from '../utils/review-sources';
+import type { ModelStreamEvent } from '@/common/stream-event';
+import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
 
 const BRIEF_TIMEOUT_MS = 120_000;
 const TTL_DAYS = 60;

@@ -1,24 +1,24 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { ScrapeRun } from '../../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { AiService } from '../../ai/services/ai.service.js';
-import { QUEUE, QueueService } from '../../queue/queue.service.js';
-import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
-import { JobSourceRouter } from './job-source.router.js';
-import { fanOutSummary, planFanOut } from '../utils/fan-out.js';
+import type { ScrapeRun } from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
+import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
+import { JobSourceRouter } from './job-source.router';
+import { fanOutSummary, planFanOut } from '../utils/fan-out';
 import {
   MIN_COMPLETION_TO_SCORE,
   pairKey,
-} from '../../matching/rules/match-write.js';
-import { QueryPlanner } from './query-planner.service.js';
-import { JobWriter } from './job-writer.service.js';
-import { collectCards } from '../utils/collect-cards.js';
-import type { CollectLimits } from '../types.js';
-import { requirementBatches } from '../utils/requirement-batches.js';
-import type { SearchPlan } from '../planning/search-plan.schema.js';
+} from '@/modules/matching/rules/match-write';
+import { QueryPlanner } from './query-planner.service';
+import { JobWriter } from './job-writer.service';
+import { collectCards } from '../utils/collect-cards';
+import type { CollectLimits } from '../types';
+import { requirementBatches } from '../utils/requirement-batches';
+import type { SearchPlan } from '../planning/search-plan.schema';
 
 /** ĐIỀU PHỐI: nối `QueryPlanner` → `collectCards` → `JobWriter` → hàng đợi, và đọc lịch sử `ScrapeRun`. Không tự chạm portal dòng nào. */
 @Injectable()

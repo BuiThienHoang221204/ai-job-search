@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { cappedText } from '../../../common/model-output.js';
+import { cappedText } from '@/common/model-output';
 
 /** `cappedText` chứ không `cappedTextVi`: phần lớn tin IT đăng bằng tiếng Anh, ép tiếng Việt là dịch mất bản gốc. */
 export const jobFromUrlSchema = z.object({

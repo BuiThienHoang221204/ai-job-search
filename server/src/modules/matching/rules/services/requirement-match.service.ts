@@ -1,18 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type {
-  JobRequirement,
-  Prisma,
-} from '../../../../generated/prisma/client.js';
-import { PrismaService } from '../../../../prisma/prisma.service.js';
-import { SkillDictionaryService } from '../../ai/services/skill-dictionary.service.js';
+import type { JobRequirement, Prisma } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { SkillDictionaryService } from '@/modules/matching/ai/services/skill-dictionary.service';
 import {
   MIN_COMPLETION_TO_SCORE,
   pairKey,
   planMatchWrites,
   profileSelect,
   toCandidate,
-} from '../match-write.js';
-import type { Candidate } from '../types.js';
+} from '../match-write';
+import type { Candidate } from '../types';
 
 /** Việc LƯU mới là mấu chốt: tính trong bộ nhớ cho 20 tin của trang đang mở thì không lọc "khớp từ 50%" bằng SQL được. */
 @Injectable()

@@ -1,24 +1,24 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AiModule } from '../ai/ai.module.js';
-import { SandboxModule } from '../sandbox/sandbox.module.js';
-import { SANDBOX, type SandboxRunner } from '../sandbox/sandbox.interface.js';
-import { SkillsModule } from '../skills/skills.module.js';
-import { DocumentComposer } from './services/document-composer.service.js';
-import { DocumentRenderer } from './services/document-renderer.service.js';
-import { DocumentsController } from './documents.controller.js';
-import { DocumentsProcessor } from './documents.processor.js';
-import { DocumentGenerator } from './services/document-generator.service.js';
-import { DocumentsService } from './services/documents.service.js';
-import { JobFromUrlService } from './services/job-from-url.service.js';
-import { HttpLatexCompiler, HttpPdfRenderer } from './pdf/http.js';
-import { SandboxLatexCompiler, SandboxPdfRenderer } from './pdf/sandbox.js';
+import { AiModule } from '../ai/ai.module';
+import { SandboxModule } from '../sandbox/sandbox.module';
+import { SANDBOX, type SandboxRunner } from '../sandbox/sandbox.interface';
+import { SkillsModule } from '../skills/skills.module';
+import { DocumentComposer } from './services/document-composer.service';
+import { DocumentRenderer } from './services/document-renderer.service';
+import { DocumentsController } from './documents.controller';
+import { DocumentsProcessor } from './documents.processor';
+import { DocumentGenerator } from './services/document-generator.service';
+import { DocumentsService } from './services/documents.service';
+import { JobFromUrlService } from './services/job-from-url.service';
+import { HttpLatexCompiler, HttpPdfRenderer } from './pdf/http';
+import { SandboxLatexCompiler, SandboxPdfRenderer } from './pdf/sandbox';
 import {
   LATEX_COMPILER,
   PDF_RENDERER,
   type LatexCompiler,
   type PdfRenderer,
-} from './pdf/seam.js';
+} from './pdf/seam';
 
 /** Chọn cách compile LaTeX theo môi trường. */
 const latexCompilerProvider = {

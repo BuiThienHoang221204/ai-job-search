@@ -1,4 +1,4 @@
-import type { ProviderDescriptor } from './types.js';
+import type { ProviderDescriptor } from './types';
 
 /** Lõi ĐỨNG CUỐI chuỗi: nhận request không cần API key, nhưng 14/14 model free tự khai `mayTrainOnYourPrompts` nên không làm lõi chính được. */
 export const kilo: ProviderDescriptor = {

@@ -1,4 +1,4 @@
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma } from '../generated/prisma/client';
 
 /** Mã lỗi Prisma mà tầng HTTP cần phân biệt. */
 export const PRISMA_ERROR = {

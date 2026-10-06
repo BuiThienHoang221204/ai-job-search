@@ -3,14 +3,14 @@ import type {
   PlannedQuery,
   ProfileCluster,
   QueryProfile,
-} from '../types.js';
-import { resolveSubOccupation } from '../../jobs/taxonomy/resolve.js';
+} from '../types';
+import { resolveSubOccupation } from '@/modules/jobs/taxonomy/resolve';
 import {
   SUB_OCCUPATIONS,
   SUB_OCCUPATION_PARENT,
   type SubOccupation,
-} from '../../jobs/taxonomy/sub-occupations.js';
-import { jobTitleOf } from '../../profile/utils/occupation.js';
+} from '@/modules/jobs/taxonomy/sub-occupations';
+import { jobTitleOf } from '@/modules/profile/utils/occupation';
 
 export const MAX_QUERIES = 5;
 

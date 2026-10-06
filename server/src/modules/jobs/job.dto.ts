@@ -13,7 +13,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 export class CreateJobDto {
   @IsString()
   @MinLength(1)

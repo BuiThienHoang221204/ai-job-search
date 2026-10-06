@@ -5,19 +5,19 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { ApplicationStatus } from '../../generated/prisma/enums.js';
-import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../common/pagination.js';
-import { isUniqueViolation } from '../../prisma/prisma-errors.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { DocumentsService } from '../documents/services/documents.service.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
+import type { ApplicationStatus } from '@/generated/prisma/enums';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { isUniqueViolation } from '@/prisma/prisma-errors';
+import { PrismaService } from '@/prisma/prisma.service';
+import { DocumentsService } from '../documents/services/documents.service';
+import { QUEUE, QueueService } from '../queue/queue.service';
 import {
   checkTransition,
   isFinal,
   timestampsFor,
   type TransitionActor,
-} from './transitions.js';
+} from './transitions';
 
 @Injectable()
 export class ApplicationsService {

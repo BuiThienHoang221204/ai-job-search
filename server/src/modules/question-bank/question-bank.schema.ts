@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import {
-  boundedList,
-  requiredCappedTextVi,
-} from '../../common/model-output.js';
+import { boundedList, requiredCappedTextVi } from '@/common/model-output';
 
 const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 

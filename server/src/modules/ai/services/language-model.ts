@@ -1,10 +1,10 @@
 import type { Logger } from '@nestjs/common';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
-import { formatModelRef } from '../utils/model-ref.js';
-import { extractJsonFromResponse } from '../utils/json-text.js';
-import { extractJsonFromStream } from '../utils/json-stream.js';
-import type { ModelCatalogService } from './model-catalog.service.js';
+import { formatModelRef } from '../utils/model-ref';
+import { extractJsonFromResponse } from '../utils/json-text';
+import { extractJsonFromStream } from '../utils/json-stream';
+import type { ModelCatalogService } from './model-catalog.service';
 
 export type ResolvedLanguageModel = {
   model: LanguageModel;

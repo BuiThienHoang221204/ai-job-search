@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import type { FailureFacetsQueryDto, FailuresQueryDto } from '../admin.dto.js';
-import { buildAiHealth, type AiHealth } from '../utils/ai-health.js';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import type { Prisma } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import type { FailureFacetsQueryDto, FailuresQueryDto } from '../admin.dto';
+import { buildAiHealth, type AiHealth } from '../utils/ai-health';
 import {
   byTokensDesc,
   fillBuckets,
@@ -15,7 +15,7 @@ import {
   withFailed,
   type BucketRow,
   type Granularity,
-} from '../utils/ai-usage.js';
+} from '../utils/ai-usage';
 import {
   buildAttention,
   failureWindow,
@@ -24,10 +24,10 @@ import {
   previousSince,
   rate,
   topFailureKind,
-} from '../utils/overview.js';
-import { QueueService } from '../../queue/queue.service.js';
-import { JobSourceRouter } from '../../scraper/services/job-source.router.js';
-import { visibleResponse } from '../utils/response-redaction.js';
+} from '../utils/overview';
+import { QueueService } from '@/modules/queue/queue.service';
+import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
+import { visibleResponse } from '../utils/response-redaction';
 
 /** Số nhóm lỗi hiện trên trang tổng quan. */
 const ERROR_GROUPS = 8;

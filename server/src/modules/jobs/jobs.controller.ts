@@ -14,13 +14,13 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { Roles } from '../../common/decorators/roles.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { CreateJobDto, ListJobsQueryDto } from './job.dto.js';
-import { JobsService } from './jobs.service.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { CreateJobDto, ListJobsQueryDto } from './job.dto';
+import { JobsService } from './jobs.service';
 
 @ApiTags('Jobs')
 @ApiBearerAuth()

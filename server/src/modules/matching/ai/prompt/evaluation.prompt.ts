@@ -1,4 +1,4 @@
-import type { Job } from '../../../../generated/prisma/client.js';
+import type { Job } from '@/generated/prisma/client';
 
 /** Mục của khung đánh giá được giữ lại; đổi tiêu đề trong `.md` thì `keepSections` trả về RỖNG. */
 export const EVALUATION_SECTIONS = [

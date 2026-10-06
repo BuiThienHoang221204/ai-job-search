@@ -4,28 +4,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma, ProfileDraft } from '../../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
+import type { Prisma, ProfileDraft } from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
 import {
   QUEUE,
   QueueService,
   type ProfileSynthesizePayload,
-} from '../../queue/queue.service.js';
+} from '@/modules/queue/queue.service';
 import {
   STORAGE,
   userKey,
   type Storage,
-} from '../../storage/storage.interface.js';
-import { ProfileService } from '../../profile/profile.service.js';
-import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source.js';
-import { parseEvidenceList, type Evidence } from '../utils/evidence.js';
-import type { ProfileProposal } from '../profile-proposal.schema.js';
-import {
-  pickProposalFields,
-  safeFilename,
-} from '../utils/profile-draft.utils.js';
+} from '@/modules/storage/storage.interface';
+import { ProfileService } from '@/modules/profile/profile.service';
+import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source';
+import { parseEvidenceList, type Evidence } from '../utils/evidence';
+import type { ProfileProposal } from '../profile-proposal.schema';
+import { pickProposalFields, safeFilename } from '../utils/profile-draft.utils';
 
 @Injectable()
 export class ProfileDraftService {

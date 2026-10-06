@@ -13,16 +13,16 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { Roles } from '../../common/decorators/roles.decorator.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { JobSourceRouter } from './services/job-source.router.js';
-import { ScraperService } from './services/scraper.service.js';
-import { ThrottleScrape } from '../../common/throttle.js';
-import { StartScrapeDto } from './scraper.dto.js';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { JobSourceRouter } from './services/job-source.router';
+import { ScraperService } from './services/scraper.service';
+import { ThrottleScrape } from '@/common/throttle';
+import { StartScrapeDto } from './scraper.dto';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
 
 @ApiTags('Scraper')
 @ApiBearerAuth()

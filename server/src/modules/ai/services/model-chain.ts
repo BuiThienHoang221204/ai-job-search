@@ -5,10 +5,10 @@ import {
   isModelRetired,
   isRateLimited,
   isTransientUpstream,
-} from '../utils/failure-kind.js';
-import { formatModelRef, parseModelRef } from '../utils/model-ref.js';
-import { providerIds } from '../providers/index.js';
-import { ModelUnavailableError } from '../utils/failure-kind.js';
+} from '../utils/failure-kind';
+import { formatModelRef, parseModelRef } from '../utils/model-ref';
+import { providerIds } from '../providers/index';
+import { ModelUnavailableError } from '../utils/failure-kind';
 
 export const DEFAULT_CHAIN_BUDGET_MS = 240_000;
 

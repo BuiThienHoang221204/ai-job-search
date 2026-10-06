@@ -1,25 +1,25 @@
 import { Logger } from '@nestjs/common';
-import type { Profile } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { AiService } from '../../ai/services/ai.service.js';
-import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
-import { MIN_COMPLETION_TO_SCORE } from '../../matching/rules/match-write.js';
+import type { Profile } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
+import { MIN_COMPLETION_TO_SCORE } from '@/modules/matching/rules/match-write';
 import {
   clusterProfiles,
   clusterQuery,
   occupationGroupOf,
   planFromProfile,
   taxonomyBaseline,
-} from '../utils/query-plan.js';
+} from '../utils/query-plan';
 import {
   searchPlanPrompt,
   PLAN_TIMEOUT_MS,
   SEARCH_PLAN_SYSTEM,
-} from '../planning/search-plan.prompt.js';
+} from '../planning/search-plan.prompt';
 import {
   searchPlanSchema,
   type SearchPlan,
-} from '../planning/search-plan.schema.js';
+} from '../planning/search-plan.schema';
 
 /** Quét CÁI GÌ: sinh danh sách từ khoá — từ hồ sơ (lượt người dùng) hoặc từ cụm nghề (lượt cron). KHÔNG phải provider Nest, `ScraperService` tự dựng. */
 export class QueryPlanner {

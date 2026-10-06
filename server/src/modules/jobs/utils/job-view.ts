@@ -3,26 +3,26 @@ import type {
   JobRequirement,
   MatchStatus,
   Prisma,
-} from '../../../generated/prisma/client.js';
-import { countTerms } from '../../../common/text/vietnamese.js';
-import { isStaleMatch } from '../../matching/rules/staleness.js';
-import { toRequirements } from '../../matching/ai/utils/requirements.js';
-import { matchRequirements } from '../../matching/rules/requirement-match.js';
+} from '@/generated/prisma/client';
+import { countTerms } from '@/common/text/vietnamese';
+import { isStaleMatch } from '@/modules/matching/rules/staleness';
+import { toRequirements } from '@/modules/matching/ai/utils/requirements';
+import { matchRequirements } from '@/modules/matching/rules/requirement-match';
 import type {
   MatchProfile,
   SkillDictionary,
-} from '../../matching/rules/types.js';
-import { normalizeText } from '../taxonomy/resolve.js';
+} from '@/modules/matching/rules/types';
+import { normalizeText } from '../taxonomy/resolve';
 import {
   nearbyOccupations,
   OCCUPATIONS,
   OTHER_CODE,
   otherSubCodeOf,
   parentOfOtherSubCode,
-} from '../taxonomy/occupations.js';
-import { SUB_OCCUPATIONS } from '../taxonomy/sub-occupations.js';
-import { PROVINCES, REMOTE_CODE } from '../taxonomy/provinces.js';
-import type { JobSort, ListJobsQueryDto } from '../job.dto.js';
+} from '../taxonomy/occupations';
+import { SUB_OCCUPATIONS } from '../taxonomy/sub-occupations';
+import { PROVINCES, REMOTE_CODE } from '../taxonomy/provinces';
+import type { JobSort, ListJobsQueryDto } from '../job.dto';
 
 export const MATCH_STATE_FIELDS = {
   status: true,

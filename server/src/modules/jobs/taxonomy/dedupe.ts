@@ -1,5 +1,5 @@
-import { PROVINCES } from './provinces.js';
-import { normalizeText } from './resolve.js';
+import { PROVINCES } from './provinces';
+import { normalizeText } from './resolve';
 
 /** Cùng một tin trên ba portal có ba `externalId`, nên `@@unique` không thấy — mỗi bản sao tốn một lượt gọi model. */
 

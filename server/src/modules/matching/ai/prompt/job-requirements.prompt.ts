@@ -1,4 +1,4 @@
-import type { Job } from '../../../../generated/prisma/client.js';
+import type { Job } from '@/generated/prisma/client';
 
 /** Dài hơn mức này thì đi đường lẻ. Đo 563 tin: p50 2.556, p95 5.993 — mức này giữ ~95% số tin ở đường gộp. */
 export const BATCH_MAX_DESCRIPTION = 6_000;

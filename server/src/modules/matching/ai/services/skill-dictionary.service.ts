@@ -1,25 +1,25 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../../prisma/prisma.service.js';
-import { AiService } from '../../../ai/services/ai.service.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
 import {
   SEMANTIC_INDEX,
   type SemanticIndex,
-} from '../../../semantic/semantic-index.js';
-import { foldTerm } from '../../../../common/text/vietnamese.js';
-import type { SkillDictionary } from '../../rules/types.js';
+} from '@/modules/semantic/semantic-index';
+import { foldTerm } from '@/common/text/vietnamese';
+import type { SkillDictionary } from '@/modules/matching/rules/types';
 import {
   skillMergeSchema,
   type SkillMerge,
-} from '../schemas/skill-merge.schema.js';
+} from '../schemas/skill-merge.schema';
 import {
   skillMergePrompt,
   BATCH,
   SHORTLIST,
   SYSTEM,
-} from '../prompt/skill-merge.prompt.js';
-import { nearest, type Canonical } from '../utils/nearest.js';
-import { picksFor } from '../utils/merge-picks.js';
+} from '../prompt/skill-merge.prompt';
+import { nearest, type Canonical } from '../utils/nearest';
+import { picksFor } from '../utils/merge-picks';
 
 /** Hạn dùng của bảng tra trong bộ nhớ. */
 const CACHE_MS = 60_000;

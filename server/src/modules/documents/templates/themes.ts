@@ -1,4 +1,4 @@
-import { printBaseCss } from './html.js';
+import { printBaseCss } from './html';
 
 /** Sáu mẫu, khác nhau hoàn toàn bằng CSS. CẢ SÁU MỘT CỘT: đo trên ATS 2026, một cột 100/100, hai cột 85/100. */
 

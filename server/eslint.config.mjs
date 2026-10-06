@@ -47,4 +47,30 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^@/.*\\.js$',
+              message:
+                'Alias @/ KHÔNG được có đuôi .js: hook của nest build không viết lại được, build vẫn xanh nhưng app sập lúc chạy (Cannot find module).',
+            },
+            {
+              regex: '^\\.{1,2}/.*\\.js$',
+              message:
+                'Import tương đối viết KHÔNG đuôi .js (package là CommonJS, Node tự thêm đuôi).',
+            },
+            {
+              regex: '^(\\.\\./){2,}',
+              message: 'Import sâu từ ../../ trở lên: dùng alias @/ (không đuôi .js).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );

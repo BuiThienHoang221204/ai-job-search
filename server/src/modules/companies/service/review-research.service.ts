@@ -1,13 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { pageToText } from '../../../common/web/html-text.js';
-import { fetchPage } from '../../../common/web/http-get.js';
-import { parseSerper } from '../../../common/web/serper.js';
-import {
-  webLimitsFrom,
-  type WebLimits,
-} from '../../../common/web/web-limits.js';
-import type { SearchHit } from '../utils/review-sources.js';
+import { pageToText } from '@/common/web/html-text';
+import { fetchPage } from '@/common/web/http-get';
+import { parseSerper } from '@/common/web/serper';
+import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
+import type { SearchHit } from '../utils/review-sources';
 
 /** Cửa duy nhất ra mạng, tách khỏi `CompanyService` để test không cần mạng. */
 @Injectable()

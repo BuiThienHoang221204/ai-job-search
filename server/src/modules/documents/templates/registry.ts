@@ -1,8 +1,8 @@
-import type { CvContent, Identity } from '../content.types.js';
-import { buildCvHeader, buildCvSections } from './body.js';
-import { resolveLayout, type DocumentLanguage } from './cv-layout.js';
-import { htmlDocument } from './html.js';
-import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes.js';
+import type { CvContent, Identity } from '../content.types';
+import { buildCvHeader, buildCvSections } from './body';
+import { resolveLayout, type DocumentLanguage } from './cv-layout';
+import { htmlDocument } from './html';
+import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes';
 
 /** Chỗ DUY NHẤT biết `templateId` là chuỗi gì — thêm mẫu = thêm một mục trong `themes.ts`, không sửa controller. */
 

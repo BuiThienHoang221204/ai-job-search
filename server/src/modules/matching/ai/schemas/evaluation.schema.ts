@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { boundedList, cappedTextVi } from '../../../../common/model-output.js';
+import { boundedList, cappedTextVi } from '@/common/model-output';
 
 /** `.describe()` đi kèm JSON schema lên API: thiếu nó thì model free chấm thang 0-5 rồi trả 4 — hợp kiểu, sai nghĩa. */
 const score = z

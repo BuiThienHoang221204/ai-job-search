@@ -15,17 +15,17 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { ThrottleAi } from '../../common/throttle.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { ThrottleAi } from '@/common/throttle';
+import type { AuthUser } from '@/common/types/auth-user';
 import {
   AnswerTurnDto,
   ListMockInterviewsDto,
   OpenMockInterviewDto,
-} from './mock-interview.dto.js';
-import { InterviewTurnService } from './service/interview-turn.service.js';
-import { MockInterviewService } from './service/mock-interview.service.js';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
+} from './mock-interview.dto';
+import { InterviewTurnService } from './service/interview-turn.service';
+import { MockInterviewService } from './service/mock-interview.service';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
 
 @ApiTags('Phỏng vấn thử')
 @ApiBearerAuth()

@@ -16,13 +16,13 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { UpskillService } from './upskill.service.js';
-import { streamNdjson } from '../../common/ndjson.js';
-import { ThrottleAi } from '../../common/throttle.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { UpskillService } from './upskill.service';
+import { streamNdjson } from '@/common/ndjson';
+import { ThrottleAi } from '@/common/throttle';
 
 export class GenerateUpskillDto {
   /**

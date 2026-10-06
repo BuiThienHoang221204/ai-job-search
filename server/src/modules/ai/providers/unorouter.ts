@@ -1,4 +1,4 @@
-import type { ProviderDescriptor } from './types.js';
+import type { ProviderDescriptor } from './types';
 
 export const unorouter: ProviderDescriptor = {
   id: 'unorouter',

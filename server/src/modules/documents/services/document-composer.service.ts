@@ -1,11 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Document, Profile } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { AiService } from '../../ai/services/ai.service.js';
-import { fastModelChain } from '../../../common/model-env.js';
-import { estimateTokens } from '../../ai/utils/fast-model-scheduler.js';
-import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
-import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
+import type { Document, Profile } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { fastModelChain } from '@/common/model-env';
+import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
+import { SkillRegistryService } from '@/modules/skills/services/skill-registry.service';
 import {
   applicationEmailSchema,
   coverLetterSchema,
@@ -15,10 +15,10 @@ import {
   type CoverLetterResult,
   type CvContentResult,
   type FormAnswerResult,
-} from '../schemas/document.schema.js';
-import type { OutputLanguage } from '../../../common/model-output.js';
-import type { Identity } from '../content.types.js';
-import type { DocumentParams, LetterTarget } from '../utils/letter-target.js';
+} from '../schemas/document.schema';
+import type { OutputLanguage } from '@/common/model-output';
+import type { Identity } from '../content.types';
+import type { DocumentParams, LetterTarget } from '../utils/letter-target';
 import {
   applicationEmailPrompt,
   coverLetterPrompt,
@@ -29,7 +29,7 @@ import {
   FORM_SECTIONS,
   LETTER_SECTIONS,
   WRITING_SECTIONS,
-} from '../utils/document.prompt.js';
+} from '../utils/document.prompt';
 
 const SKILL_NAME = 'job-application-assistant';
 

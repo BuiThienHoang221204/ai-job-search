@@ -1,19 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import type { ListPositionsQueryDto } from './salary.dto.js';
-import {
-  buildPositionIndex,
-  resolveJobPosition,
-} from './utils/job-position.js';
-import { negotiationRange } from './utils/negotiation.js';
-import { occupationName, orderBands, rankPeers } from './utils/salary-view.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import type { ListPositionsQueryDto } from './salary.dto';
+import { buildPositionIndex, resolveJobPosition } from './utils/job-position';
+import { negotiationRange } from './utils/negotiation';
+import { occupationName, orderBands, rankPeers } from './utils/salary-view';
 import type {
   PositionIndex,
   SalaryGuide,
   SalaryGuideJob,
   SalaryGuideProfile,
   SalaryGuideRequirements,
-} from './salary.types.js';
+} from './salary.types';
 
 /** Số vị trí cùng ngành hiển thị trong bảng xếp hạng. */
 const PEER_LIMIT = 6;

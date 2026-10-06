@@ -1,4 +1,4 @@
-import type { Profile } from '../../../generated/prisma/client.js';
+import type { Profile } from '@/generated/prisma/client';
 
 /** Trường quyết định chất lượng chấm điểm, kèm nhãn tiếng Việt để hiện cho người dùng biết thiếu gì. */
 export const SCORED_FIELDS = [

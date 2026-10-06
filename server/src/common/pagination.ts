@@ -1,7 +1,7 @@
 import {
   DEFAULT_PAGE_SIZE,
   type PaginationQueryDto,
-} from './dto/pagination.dto.js';
+} from './dto/pagination.dto';
 
 /**
  * Hình dạng chung của mọi response danh sách. `total` là tổng thật trên toàn

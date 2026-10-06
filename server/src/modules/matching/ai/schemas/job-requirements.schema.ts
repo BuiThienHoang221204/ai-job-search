@@ -6,7 +6,7 @@ import {
   looseEnum,
   optionalCappedText,
   optionalYears,
-} from '../../../../common/model-output.js';
+} from '@/common/model-output';
 
 export const jobRequirementsSchema = z.object({
   requiredSkills: boundedList(

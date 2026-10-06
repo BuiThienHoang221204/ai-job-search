@@ -10,8 +10,8 @@ import {
 } from '@nestjs/common';
 import { Catch } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { Prisma } from '../../generated/prisma/client.js';
-import { PRISMA_ERROR } from '../../prisma/prisma-errors.js';
+import { Prisma } from '@/generated/prisma/client';
+import { PRISMA_ERROR } from '@/prisma/prisma-errors';
 
 /**
  * Lỗi Prisma lọt ra tới tầng HTTP thì dịch sang đúng mã trạng thái, thay vì

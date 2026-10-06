@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { AiModule } from '../ai/ai.module.js';
-import { ProfileModule } from '../profile/profile.module.js';
-import { StorageModule } from '../storage/storage.module.js';
-import { CvPdfSource } from './cv-pdf.source.js';
-import { ProfileDraftController } from './profile-draft.controller.js';
-import { ProfileDraftProcessor } from './profile-draft.processor.js';
-import { ProfileDraftService } from './services/profile-draft.service.js';
-import { ProfileSynthesizerService } from './services/profile-synthesizer.service.js';
+import { AiModule } from '../ai/ai.module';
+import { ProfileModule } from '../profile/profile.module';
+import { StorageModule } from '../storage/storage.module';
+import { CvPdfSource } from './cv-pdf.source';
+import { ProfileDraftController } from './profile-draft.controller';
+import { ProfileDraftProcessor } from './profile-draft.processor';
+import { ProfileDraftService } from './services/profile-draft.service';
+import { ProfileSynthesizerService } from './services/profile-synthesizer.service';
 
 /** SEAM 3 · đọc hồ sơ từ nguồn ngoài — Agent 1 của đề tài. */
 @Module({

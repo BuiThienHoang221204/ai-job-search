@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service.js';
+import { PrismaService } from '@/prisma/prisma.service';
 import {
   QUEUE,
   QueueService,
@@ -8,12 +8,12 @@ import {
   type ExtractRequirementsPayload,
   type RequirementMatchPayload,
   type SkillCanonicalizePayload,
-} from '../queue/queue.service.js';
-import { AiShortlistService } from './rules/services/ai-shortlist.service.js';
-import { JobRequirementsService } from './ai/services/job-requirements.service.js';
-import { MatchingService } from './ai/services/matching.service.js';
-import { RequirementMatchService } from './rules/services/requirement-match.service.js';
-import { SkillDictionaryService } from './ai/services/skill-dictionary.service.js';
+} from '../queue/queue.service';
+import { AiShortlistService } from './rules/services/ai-shortlist.service';
+import { JobRequirementsService } from './ai/services/job-requirements.service';
+import { MatchingService } from './ai/services/matching.service';
+import { RequirementMatchService } from './rules/services/requirement-match.service';
+import { SkillDictionaryService } from './ai/services/skill-dictionary.service';
 
 /** Số cách viết mới xử lý trong MỘT lượt. Khớp lô hỏi model của service. */
 const BATCH = 20;

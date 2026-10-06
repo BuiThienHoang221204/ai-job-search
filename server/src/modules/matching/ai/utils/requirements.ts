@@ -1,11 +1,8 @@
 import { createHash } from 'node:crypto';
-import type {
-  Job,
-  JobRequirement,
-} from '../../../../generated/prisma/client.js';
-import { yearsOfExperience } from '../../../profile/utils/experience-years.js';
-import type { MatchProfile } from '../../rules/types.js';
-import type { JobRequirements } from '../schemas/job-requirements.schema.js';
+import type { Job, JobRequirement } from '@/generated/prisma/client';
+import { yearsOfExperience } from '@/modules/profile/utils/experience-years';
+import type { MatchProfile } from '@/modules/matching/rules/types';
+import type { JobRequirements } from '../schemas/job-requirements.schema';
 
 /** Băm ĐÚNG những trường `jobPrompt` đưa cho model — thêm trường vào prompt mà quên đây thì tin cũ không bao giờ rút lại. */
 export function sourceHash(job: Job): string {

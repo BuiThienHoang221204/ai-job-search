@@ -3,7 +3,7 @@ import {
   truncateAndNormalise,
   type Embedding,
   type SemanticIndex,
-} from './semantic-index.js';
+} from './semantic-index';
 
 /**
  * Adapter embedding chạy NGAY TRONG tiến trình, không gọi mạng, không cần khoá.

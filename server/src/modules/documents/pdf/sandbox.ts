@@ -3,7 +3,7 @@ import {
   SANDBOX,
   SandboxError,
   type SandboxRunner,
-} from '../../sandbox/sandbox.interface.js';
+} from '@/modules/sandbox/sandbox.interface';
 import {
   countPages,
   firstRenderError,
@@ -14,7 +14,7 @@ import {
   type LatexCompileResult,
   type PdfRenderer,
   type PdfRenderResult,
-} from './seam.js';
+} from './seam';
 
 /** Ảnh TeX Live, **8,92GB**. `DockerSandbox` đặt `--pull never` nên thiếu ảnh báo lỗi rõ thay vì tải giữa request. */
 export const LATEX_IMAGE = process.env.LATEX_IMAGE ?? 'aijob-latex';

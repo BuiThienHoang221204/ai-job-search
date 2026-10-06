@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { MatchingModule } from '../matching/matching.module.js';
-import { SalaryModule } from '../salary/salary.module.js';
-import { JobsController } from './jobs.controller.js';
-import { JobsService } from './jobs.service.js';
-import { TaxonomyBackfillService } from './taxonomy/backfill.service.js';
+import { MatchingModule } from '../matching/matching.module';
+import { SalaryModule } from '../salary/salary.module';
+import { JobsController } from './jobs.controller';
+import { JobsService } from './jobs.service';
+import { TaxonomyBackfillService } from './taxonomy/backfill.service';
 
 @Module({
   imports: [MatchingModule, SalaryModule],

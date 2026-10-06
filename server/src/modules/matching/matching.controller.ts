@@ -16,17 +16,17 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { EvaluateJobDto, ListMatchesQueryDto } from './matching.dto.js';
-import { MatchingService } from './ai/services/matching.service.js';
-import { JobRequirementsService } from './ai/services/job-requirements.service.js';
-import { AiShortlistService } from './rules/services/ai-shortlist.service.js';
-import { Roles } from '../../common/decorators/roles.decorator.js';
-import { streamNdjson } from '../../common/ndjson.js';
-import { ThrottleAi } from '../../common/throttle.js';
-import { withFailureKind } from '../ai/utils/failure-view.js';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { EvaluateJobDto, ListMatchesQueryDto } from './matching.dto';
+import { MatchingService } from './ai/services/matching.service';
+import { JobRequirementsService } from './ai/services/job-requirements.service';
+import { AiShortlistService } from './rules/services/ai-shortlist.service';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { streamNdjson } from '@/common/ndjson';
+import { ThrottleAi } from '@/common/throttle';
+import { withFailureKind } from '../ai/utils/failure-view';
 
 @ApiTags('Matching & Scoring')
 @ApiBearerAuth()

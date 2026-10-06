@@ -1,4 +1,4 @@
-import type { ProviderDescriptor } from './types.js';
+import type { ProviderDescriptor } from './types';
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * 60 * 1000;

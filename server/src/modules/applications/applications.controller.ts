@@ -6,12 +6,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import type { ApplicationStatus } from '../../generated/prisma/enums.js';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { ApplicationsService } from './applications.service.js';
-import { ALL_STATUSES } from './transitions.js';
+import type { ApplicationStatus } from '@/generated/prisma/enums';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { ApplicationsService } from './applications.service';
+import { ALL_STATUSES } from './transitions';
 
 export class CreateApplicationDto {
   @IsString() jobId!: string;

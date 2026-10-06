@@ -4,7 +4,7 @@ import type {
   ShortlistPlan,
   ShortlistRow,
   ShortlistTarget,
-} from './types.js';
+} from './types';
 
 export const AI_TOP_N = 3;
 

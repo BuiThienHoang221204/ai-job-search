@@ -15,13 +15,13 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { Roles } from '../../../common/decorators/roles.decorator.js';
-import { pageFromArray, type Page } from '../../../common/pagination.js';
-import { QueueConfigService } from '../../queue/queue-config.service.js';
-import type { QueueConfigItem } from '../../queue/queue.types.js';
-import { TaxonomyBackfillService } from '../../jobs/taxonomy/backfill.service.js';
-import { ReconcileService } from '../../reconcile/services/reconcile.service.js';
-import { ScrapeCronService } from '../../scraper/services/scrape-cron.service.js';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { pageFromArray, type Page } from '@/common/pagination';
+import { QueueConfigService } from '@/modules/queue/queue-config.service';
+import type { QueueConfigItem } from '@/modules/queue/queue.types';
+import { TaxonomyBackfillService } from '@/modules/jobs/taxonomy/backfill.service';
+import { ReconcileService } from '@/modules/reconcile/services/reconcile.service';
+import { ScrapeCronService } from '@/modules/scraper/services/scrape-cron.service';
 import {
   AiHealthQueryDto,
   AiUsageQueryDto,
@@ -31,8 +31,8 @@ import {
   QueueConfigQueryDto,
   ScrapeRunsQueryDto,
   UpdateQueueConfigDto,
-} from '../admin.dto.js';
-import { AdminService } from '../services/admin.service.js';
+} from '../admin.dto';
+import { AdminService } from '../services/admin.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()

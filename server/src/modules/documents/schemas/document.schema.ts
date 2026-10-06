@@ -4,7 +4,7 @@ import {
   cappedTextVi,
   unwrapStrings,
   type OutputLanguage,
-} from '../../../common/model-output.js';
+} from '@/common/model-output';
 
 const vn = (max: number, hint: string) => cappedTextVi(max, hint);
 

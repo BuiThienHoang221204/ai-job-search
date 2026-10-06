@@ -1,12 +1,12 @@
-import { stripNoise } from '../../jobs/taxonomy/dedupe.js';
-import { normalizeText } from '../../jobs/taxonomy/resolve.js';
-import { SUB_OCCUPATION_POSITIONS } from './sub-occupation-map.js';
+import { stripNoise } from '@/modules/jobs/taxonomy/dedupe';
+import { normalizeText } from '@/modules/jobs/taxonomy/resolve';
+import { SUB_OCCUPATION_POSITIONS } from './sub-occupation-map';
 import type {
   IndexedPosition,
   PositionIndex,
   ReferencePosition,
   ResolvedPosition,
-} from '../salary.types.js';
+} from '../salary.types';
 
 /** Phải khớp 80% số từ của TÊN VỊ TRÍ, không phải của tên tin — tin dài lê thê vẫn khớp đúng, còn tên vị trí ngắn thì khó khớp bừa. */
 export const TITLE_MATCH_THRESHOLD = 0.8;

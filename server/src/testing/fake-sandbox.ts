@@ -4,7 +4,7 @@ import {
   type SandboxResult,
   type SandboxRunner,
   type SandboxSpec,
-} from '../modules/sandbox/sandbox.interface.js';
+} from '../modules/sandbox/sandbox.interface';
 
 /** Bản giả của SEAM 2. */
 export class FakeSandbox implements SandboxRunner {

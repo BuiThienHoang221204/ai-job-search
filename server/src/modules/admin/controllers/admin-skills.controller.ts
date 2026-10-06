@@ -14,14 +14,14 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { Roles } from '../../../common/decorators/roles.decorator.js';
+import { Roles } from '@/common/decorators/roles.decorator';
 import {
   MergeSkillDto,
   MoveAliasDto,
   RenameSkillDto,
   SkillsQueryDto,
-} from '../admin.dto.js';
-import { AdminSkillsService } from '../services/admin-skills.service.js';
+} from '../admin.dto';
+import { AdminSkillsService } from '../services/admin-skills.service';
 
 /** Máy đọc danh bạ qua cache 60 giây mỗi tiến trình, nên sửa ở đây có hiệu lực chậm nhất sau một phút. */
 @ApiTags('Admin')

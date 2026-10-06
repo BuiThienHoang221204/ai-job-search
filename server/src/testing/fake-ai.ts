@@ -5,7 +5,7 @@ import type {
   StreamObjectResult,
   StreamTextOptions,
   StreamTextResult,
-} from '../modules/ai/ai.types.js';
+} from '../modules/ai/ai.types';
 
 /** Kết quả xếp sẵn cho một lần gọi: hoặc object mà model "trả về", hoặc lỗi để thử nhánh thất bại. */
 type Scripted = { object: unknown } | { error: Error };

@@ -1,9 +1,5 @@
 import { z, type ZodType } from 'zod';
-import {
-  formatIssue,
-  truncateError,
-  type SchemaIssue,
-} from './failure-kind.js';
+import { formatIssue, truncateError, type SchemaIssue } from './failure-kind';
 
 /** Bơm JSON Schema vào cuối system prompt, cho lõi KHÔNG ép được bằng `response_format`. `null` = không dựng được schema, người gọi phải log. */
 export function schemaInstruction<T>(

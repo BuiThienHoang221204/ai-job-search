@@ -3,10 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { pageArgs, pageOf } from '../../../common/pagination.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import type { UsersQueryDto } from '../admin.dto.js';
-import { roleChangeBlocker, type Role } from '../utils/role-change.js';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import type { UsersQueryDto } from '../admin.dto';
+import { roleChangeBlocker, type Role } from '../utils/role-change';
 
 const COUNTS = {
   _count: {

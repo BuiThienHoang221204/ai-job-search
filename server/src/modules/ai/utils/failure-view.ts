@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { classifyFailure, type FailureKind } from './failure-kind.js';
+import { classifyFailure, type FailureKind } from './failure-kind';
 
 /** Đổi chuỗi lỗi THÔ thành phân loại, trước khi trả cho người dùng cuối. */
 export function withFailureKind<

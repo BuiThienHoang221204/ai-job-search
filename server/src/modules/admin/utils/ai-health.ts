@@ -1,4 +1,4 @@
-import type { AiFailureKind } from '../../../generated/prisma/enums.js';
+import type { AiFailureKind } from '@/generated/prisma/enums';
 
 export type AiCallRow = {
   purpose: string;

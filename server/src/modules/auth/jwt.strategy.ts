@@ -3,12 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import type { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AUTH_COOKIE } from './auth.cookie.js';
-import { isAccessPayload } from './jwt-payload.js';
+import type { AuthUser } from '@/common/types/auth-user';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AUTH_COOKIE } from './auth.cookie';
+import { isAccessPayload } from './jwt-payload';
 
-export type { JwtPayload } from './jwt-payload.js';
+export type { JwtPayload } from './jwt-payload';
 
 /**
  * Lấy token từ cookie httpOnly. Cần `cookieParser()` đã chạy ở main.ts,

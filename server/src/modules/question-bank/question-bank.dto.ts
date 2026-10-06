@@ -1,6 +1,6 @@
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { OCCUPATIONS } from '../jobs/taxonomy/occupations.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { OCCUPATIONS } from '../jobs/taxonomy/occupations';
 
 const OCCUPATION_CODES = OCCUPATIONS.map((o) => o.code);
 

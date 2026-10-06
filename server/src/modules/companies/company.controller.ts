@@ -15,11 +15,11 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { justDone, streamNdjson } from '../../common/ndjson.js';
-import { ThrottleAi } from '../../common/throttle.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import { RefreshBriefDto } from './company.dto.js';
-import { CompanyService } from './service/company.service.js';
+import { justDone, streamNdjson } from '@/common/ndjson';
+import { ThrottleAi } from '@/common/throttle';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { RefreshBriefDto } from './company.dto';
+import { CompanyService } from './service/company.service';
 
 /** Không kiểm quyền sở hữu: `Job` và `CompanyBrief` là dữ liệu chung. */
 @ApiTags('Companies')

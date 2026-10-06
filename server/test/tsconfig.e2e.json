@@ -10,8 +10,8 @@
   // chế độ đó được thêm vào: cho CJS nạp được ESM. Import tĩnh vẫn ra `require`
   // vì server/package.json không khai `"type": "module"`.
   //
-  // Đi kèm: `moduleResolution: node16` đòi đuôi tường minh trên import tương
-  // đối. Repo này vốn đã viết `.js` ở mọi chỗ nên không phải sửa gì.
+  // `moduleResolution: node16` chỉ đòi đuôi tường minh ở file ESM. File trong
+  // src/ là CommonJS nên import không đuôi (`./x`, `@/x`) vẫn hợp lệ.
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "module": "node16",

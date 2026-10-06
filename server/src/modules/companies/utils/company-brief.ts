@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import type { CompanyBrief as BriefRecord } from '../../../generated/prisma/client.js';
-import type { NumberedSource } from './company-brief.prompt.js';
-import { boundedList, cappedTextVi } from '../../../common/model-output.js';
+import type { CompanyBrief as BriefRecord } from '@/generated/prisma/client';
+import type { NumberedSource } from './company-brief.prompt';
+import { boundedList, cappedTextVi } from '@/common/model-output';
 
 /** `catch` để một nhãn lạ không giết cả bản tóm tắt, chỉ mất nhãn màu. */
 export const companyVerdict = z

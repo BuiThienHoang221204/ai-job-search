@@ -3,7 +3,7 @@ import {
   truncateAndNormalise,
   type Embedding,
   type SemanticIndex,
-} from '../modules/semantic/semantic-index.js';
+} from '../modules/semantic/semantic-index';
 
 export const FAKE_EMBEDDING_MODEL = 'fake-embedder';
 

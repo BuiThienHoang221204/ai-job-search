@@ -1,9 +1,9 @@
-import type { FanOutInput, FanOutResult, ScoreTarget } from '../types.js';
-import { countTerms } from '../../../common/text/vietnamese.js';
+import type { FanOutInput, FanOutResult, ScoreTarget } from '../types';
+import { countTerms } from '@/common/text/vietnamese';
 import {
   MIN_COMPLETION_TO_SCORE,
   pairKey,
-} from '../../matching/rules/match-write.js';
+} from '@/modules/matching/rules/match-write';
 
 /** Số tin mỗi người được AI chấm trong MỘT lần quét. Đây là trần chi phí thật. */
 export const PER_USER_LIMIT = 5;

@@ -1,6 +1,6 @@
-import { findProvider, providerIds } from '../providers/index.js';
-import type { RateLimitSpec } from '../providers/types.js';
-import { formatModelRef, parseModelRef } from './model-ref.js';
+import { findProvider, providerIds } from '../providers/index';
+import type { RateLimitSpec } from '../providers/types';
+import { formatModelRef, parseModelRef } from './model-ref';
 
 /** Giữ lịch sử đủ dài cho trần RỘNG NHẤT đã khai (Gemini RPD = 24 giờ) — ngắn hơn thì `hasRoom` không bao giờ thấy được lượt dùng cũ để tính đúng RPD. */
 const RETENTION_MS = 25 * 60 * 60 * 1000;

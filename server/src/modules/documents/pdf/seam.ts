@@ -1,4 +1,4 @@
-import type { SandboxError } from '../../sandbox/sandbox.interface.js';
+import type { SandboxError } from '@/modules/sandbox/sandbox.interface';
 
 export const LATEX_COMPILER = Symbol('LATEX_COMPILER');
 export const PDF_RENDERER = Symbol('PDF_RENDERER');

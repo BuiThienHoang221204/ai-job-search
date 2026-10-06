@@ -1,4 +1,4 @@
-import type { ApplicationStatus } from '../../generated/prisma/enums.js';
+import type { ApplicationStatus } from '@/generated/prisma/enums';
 
 /** Ai yêu cầu đổi trạng thái. */
 export type TransitionActor = 'user' | 'system';

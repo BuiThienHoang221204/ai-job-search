@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
-import { QueueConfigService } from './queue-config.service.js';
-import { QueueService } from './queue.service.js';
+import { QueueConfigService } from './queue-config.service';
+import { QueueService } from './queue.service';
 
 @Global()
 @Module({

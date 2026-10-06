@@ -10,7 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { IsBoundedJson } from '../../common/validators/bounded-json.js';
+import { IsBoundedJson } from '@/common/validators/bounded-json';
 
 /** Trần cho các trường chữ ngắn (chức danh, địa điểm, quốc tịch...). */
 const SHORT = 200;

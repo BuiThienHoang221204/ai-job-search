@@ -3,8 +3,8 @@ import {
   QUEUE,
   QueueService,
   type ProfileSynthesizePayload,
-} from '../queue/queue.service.js';
-import { ProfileSynthesizerService } from './services/profile-synthesizer.service.js';
+} from '../queue/queue.service';
+import { ProfileSynthesizerService } from './services/profile-synthesizer.service';
 
 @Injectable()
 export class ProfileDraftProcessor implements OnModuleInit {

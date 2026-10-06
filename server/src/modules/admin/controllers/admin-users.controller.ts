@@ -5,11 +5,11 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator.js';
-import { Roles } from '../../../common/decorators/roles.decorator.js';
-import type { AuthUser } from '../../../common/types/auth-user.js';
-import { UpdateUserRoleDto, UsersQueryDto } from '../admin.dto.js';
-import { AdminUsersService } from '../services/admin-users.service.js';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { UpdateUserRoleDto, UsersQueryDto } from '../admin.dto';
+import { AdminUsersService } from '../services/admin-users.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()

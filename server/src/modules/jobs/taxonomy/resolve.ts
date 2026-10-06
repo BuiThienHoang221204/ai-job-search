@@ -1,7 +1,7 @@
-import { dedupeKeyOf } from './dedupe.js';
-import { OCCUPATIONS, OTHER_CODE } from './occupations.js';
-import { PROVINCES, REMOTE_CODE } from './provinces.js';
-import { SUB_OCCUPATIONS } from './sub-occupations.js';
+import { dedupeKeyOf } from './dedupe';
+import { OCCUPATIONS, OTHER_CODE } from './occupations';
+import { PROVINCES, REMOTE_CODE } from './provinces';
+import { SUB_OCCUPATIONS } from './sub-occupations';
 
 /** Dạng chuẩn DUY NHẤT mà ba hàm dưới và cột `searchText` cùng dùng; `đ` phải xử lý riêng vì `NFD` không tách được nó. */
 export function normalizeText(value: string): string {

@@ -1,4 +1,4 @@
-import type { SearchHit } from '../../../common/web/serper.js';
+import type { SearchHit } from '@/common/web/serper';
 
 export type { SearchHit };
 

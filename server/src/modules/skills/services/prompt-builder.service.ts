@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Profile } from '../../../generated/prisma/client.js';
-import { NOT_PROVIDED, renderShared } from '../utils/shared-placeholders.js';
+import type { Profile } from '@/generated/prisma/client';
+import { NOT_PROVIDED, renderShared } from '../utils/shared-placeholders';
 
 /** Thay các token [PLACEHOLDER] trong file skill bằng dữ liệu hồ sơ lấy từ DB. */
 @Injectable()

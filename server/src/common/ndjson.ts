@@ -1,6 +1,6 @@
 import type { Logger } from '@nestjs/common';
 import type { Response } from 'express';
-import type { ModelStreamEvent } from './stream-event.js';
+import type { ModelStreamEvent } from './stream-event';
 
 /** Mọi lượt gọi model nay đi đường KHÔNG stream, nên có tác vụ im lặng tới 254 giây — proxy cắt kết nối, và client không phân biệt được "đang chạy" với "chết". */
 const HEARTBEAT_MS = 10_000;

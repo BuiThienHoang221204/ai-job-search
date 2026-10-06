@@ -1,14 +1,14 @@
-import { REMOTE_CODE } from '../../jobs/taxonomy/provinces.js';
-import { resolveProvince } from '../../jobs/taxonomy/resolve.js';
-import { containsTerm, foldTerm } from '../../../common/text/vietnamese.js';
-import type { JobRequirements } from '../ai/schemas/job-requirements.schema.js';
+import { REMOTE_CODE } from '@/modules/jobs/taxonomy/provinces';
+import { resolveProvince } from '@/modules/jobs/taxonomy/resolve';
+import { containsTerm, foldTerm } from '@/common/text/vietnamese';
+import type { JobRequirements } from '../ai/schemas/job-requirements.schema';
 import type {
   CheckKind,
   MatchProfile,
   RequirementCheck,
   RequirementMatch,
   SkillDictionary,
-} from './types.js';
+} from './types';
 
 /** Kỹ năng phụ đáng ít điểm hơn kỹ năng bắt buộc, nhưng không phải không đáng gì. */
 const NICE_TO_HAVE_WEIGHT = 0.5;

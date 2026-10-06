@@ -1,5 +1,5 @@
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 
 export class EvaluateJobDto {
   @IsString()

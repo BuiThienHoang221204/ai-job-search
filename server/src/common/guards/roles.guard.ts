@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import type { UserRole } from '../../generated/prisma/enums.js';
-import { ROLES_KEY } from '../decorators/roles.decorator.js';
-import type { AuthUser } from '../types/auth-user.js';
+import type { UserRole } from '@/generated/prisma/enums';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import type { AuthUser } from '../types/auth-user';
 
 /** Chặn route theo vai trò. Đi cặp với decorator `@Roles()`. */
 @Injectable()

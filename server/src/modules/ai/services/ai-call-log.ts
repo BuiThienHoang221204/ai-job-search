@@ -1,7 +1,7 @@
 import type { Logger } from '@nestjs/common';
-import type { PrismaService } from '../../../prisma/prisma.service.js';
-import type { FailureKind } from '../utils/failure-kind.js';
-import type { AiCallContext } from '../ai.types.js';
+import type { PrismaService } from '@/prisma/prisma.service';
+import type { FailureKind } from '../utils/failure-kind';
+import type { AiCallContext } from '../ai.types';
 
 export type AiCallEntry = {
   context: AiCallContext;

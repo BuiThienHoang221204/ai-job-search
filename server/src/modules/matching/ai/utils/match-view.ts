@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { Job, Profile } from '../../../../generated/prisma/client.js';
-import { isStaleMatch } from '../../rules/staleness.js';
+import type { Job, Profile } from '@/generated/prisma/client';
+import { isStaleMatch } from '@/modules/matching/rules/staleness';
 
 /** Băm ĐÚNG thứ model nhìn thấy — băm object hồ sơ thì `updatedAt` phá cache còn `tags` đổi lại không nhận ra. */
 export function promptHash(system: string, prompt: string): string {

@@ -1,5 +1,5 @@
-import { OTHER_CODE } from '../../jobs/taxonomy/occupations.js';
-import { resolveOccupation } from '../../jobs/taxonomy/resolve.js';
+import { OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
+import { resolveOccupation } from '@/modules/jobs/taxonomy/resolve';
 
 /** Dấu người dùng hay dùng để ngăn chức danh với phần tự giới thiệu thêm. */
 const SEPARATORS = /[|·•–—]/;

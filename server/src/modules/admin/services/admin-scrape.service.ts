@@ -4,16 +4,16 @@ import type {
   OccupationCoverageQueryDto,
   ScrapeBatchesQueryDto,
   TimeRangeQueryDto,
-} from '../admin.dto.js';
-import { pageFromArray } from '../../../common/pagination.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { JobSourceRouter } from '../../scraper/services/job-source.router.js';
+} from '../admin.dto';
+import { pageFromArray } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
 import {
   groupBatches,
   portalStats,
   type RunLite,
-} from '../utils/scrape-batches.js';
-import { occupationCoverage } from '../utils/occupation-coverage.js';
+} from '../utils/scrape-batches';
+import { occupationCoverage } from '../utils/occupation-coverage';
 
 /** Mặc định `staleDays` khi không truyền — khớp `SCRAPER_MAX_AGE_DAYS`, đủ để chu kỳ phủ ~4 đêm chạy xong. */
 const DEFAULT_STALE_DAYS = 7;

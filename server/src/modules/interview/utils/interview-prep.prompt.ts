@@ -1,4 +1,4 @@
-import type { Job } from '../../../generated/prisma/client.js';
+import type { Job } from '@/generated/prisma/client';
 
 /** Hai mục của file skill được giữ lại, khai ở đây để prompt và test đọc cùng một danh sách. */
 export const PREP_SECTIONS = [

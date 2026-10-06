@@ -3,8 +3,8 @@ import {
   QUEUE,
   QueueService,
   type UpskillReportPayload,
-} from '../queue/queue.service.js';
-import { UpskillService } from './upskill.service.js';
+} from '../queue/queue.service';
+import { UpskillService } from './upskill.service';
 
 @Injectable()
 export class UpskillProcessor implements OnModuleInit {

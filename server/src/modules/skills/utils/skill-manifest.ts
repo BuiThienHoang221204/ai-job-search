@@ -1,7 +1,7 @@
 import type {
   LoadedSkill,
   SkillManifest,
-} from '../services/skill-registry.service.js';
+} from '../services/skill-registry.service';
 
 // Bản công khai của skill: bỏ nội dung prompt, chỉ giữ tên và kích thước từng file tham chiếu để admin biết skill nạp những gì.
 export function toManifest(skill: LoadedSkill): SkillManifest {

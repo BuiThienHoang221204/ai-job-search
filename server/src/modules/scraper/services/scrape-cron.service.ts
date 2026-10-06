@@ -2,10 +2,10 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
-import { appRole, runsBackgroundWork } from '../../../config/app-role.js';
-import { QUEUE, QueueService } from '../../queue/queue.service.js';
-import { JobSourceRouter } from './job-source.router.js';
-import { ScraperService } from './scraper.service.js';
+import { appRole, runsBackgroundWork } from '@/config/app-role';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
+import { JobSourceRouter } from './job-source.router';
+import { ScraperService } from './scraper.service';
 
 const JOB_NAME = 'scrape.nightly';
 

@@ -10,7 +10,7 @@ import {
   type SandboxResult,
   type SandboxRunner,
   type SandboxSpec,
-} from './sandbox.interface.js';
+} from './sandbox.interface';
 
 /** Kiểm tra sẵn sàng phải nhanh vì nó nằm trên đường `/ready` — probe treo còn tệ hơn probe báo hỏng. */
 const AVAILABILITY_TIMEOUT_MS = 5_000;

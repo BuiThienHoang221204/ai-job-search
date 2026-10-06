@@ -1,4 +1,4 @@
-import type { ProviderDescriptor } from './types.js';
+import type { ProviderDescriptor } from './types';
 
 export const omniroute: ProviderDescriptor = {
   id: 'omniroute',

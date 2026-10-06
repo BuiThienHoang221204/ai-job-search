@@ -6,7 +6,7 @@ import {
   streamText,
 } from 'ai';
 import type { ZodType } from 'zod';
-import { PrismaService } from '../../../prisma/prisma.service.js';
+import { PrismaService } from '@/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import {
   classifyFailure,
@@ -15,16 +15,16 @@ import {
   schemaIssues,
   truncateError,
   type SchemaIssue,
-} from '../utils/failure-kind.js';
-import { estimateTokens, markUsed } from '../utils/fast-model-scheduler.js';
-import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt.js';
-import { routeSdkWarnings } from '../utils/sdk-warnings.js';
-import { clipMiddle, emptyStream, streamFrom } from '../utils/stream.js';
-import { AiCallLog } from './ai-call-log.js';
-import { ConcurrencyGate } from '../utils/concurrency-gate.js';
-import { LanguageModelFactory } from './language-model.js';
-import { ModelCatalogService } from './model-catalog.service.js';
-import { DEFAULT_CHAIN_BUDGET_MS, ModelChain } from './model-chain.js';
+} from '../utils/failure-kind';
+import { estimateTokens, markUsed } from '../utils/fast-model-scheduler';
+import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt';
+import { routeSdkWarnings } from '../utils/sdk-warnings';
+import { clipMiddle, emptyStream, streamFrom } from '../utils/stream';
+import { AiCallLog } from './ai-call-log';
+import { ConcurrencyGate } from '../utils/concurrency-gate';
+import { LanguageModelFactory } from './language-model';
+import { ModelCatalogService } from './model-catalog.service';
+import { DEFAULT_CHAIN_BUDGET_MS, ModelChain } from './model-chain';
 import type {
   Ai,
   GenerateObjectOptions,
@@ -32,7 +32,7 @@ import type {
   StreamObjectResult,
   StreamTextOptions,
   StreamTextResult,
-} from '../ai.types.js';
+} from '../ai.types';
 
 /** Gateway free không trả 429 khi quá tải, nó chỉ chậm dần — đã đo một lượt kéo 517 giây. Thiếu hạn này thì worker bị ôm chỗ gần 9 phút. */
 const DEFAULT_TIMEOUT_MS = 90_000;

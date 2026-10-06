@@ -19,11 +19,11 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { streamNdjson } from '../../common/ndjson.js';
-import { ThrottleAi } from '../../common/throttle.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { streamNdjson } from '@/common/ndjson';
+import { ThrottleAi } from '@/common/throttle';
+import type { AuthUser } from '@/common/types/auth-user';
+import { QUEUE, QueueService } from '../queue/queue.service';
 import {
   CreateApplicationEmailDto,
   CreateCoverLetterDto,
@@ -36,12 +36,12 @@ import {
   PreviewQueryDto,
   SetTemplateDto,
   UpdateCvDto,
-} from './documents.dto.js';
-import { DocumentGenerator } from './services/document-generator.service.js';
-import { DocumentsService } from './services/documents.service.js';
-import { JobFromUrlService } from './services/job-from-url.service.js';
-import { CV_TEMPLATES } from './templates/registry.js';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
+} from './documents.dto';
+import { DocumentGenerator } from './services/document-generator.service';
+import { DocumentsService } from './services/documents.service';
+import { JobFromUrlService } from './services/job-from-url.service';
+import { CV_TEMPLATES } from './templates/registry';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
 
 @ApiTags('Documents')
 @ApiBearerAuth()

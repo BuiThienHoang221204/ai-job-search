@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import type { Profile } from '../../generated/prisma/client.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { QUEUE, QueueService } from '../queue/queue.service.js';
-import type { UpdateProfileDto } from './profile.dto.js';
-import { completionPercent } from './utils/completion.js';
-import { profileOccupation } from './utils/occupation.js';
+import type { Profile } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import type { UpdateProfileDto } from './profile.dto';
+import { completionPercent } from './utils/completion';
+import { profileOccupation } from './utils/occupation';
 
 @Injectable()
 export class ProfileService {

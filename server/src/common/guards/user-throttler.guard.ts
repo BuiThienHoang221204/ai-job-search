@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import type { AuthUser } from '../types/auth-user.js';
+import type { AuthUser } from '../types/auth-user';
 
 type TrackedRequest = { user?: AuthUser; ip?: string };
 

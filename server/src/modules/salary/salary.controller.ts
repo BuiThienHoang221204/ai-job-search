@@ -1,9 +1,9 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { ListPositionsQueryDto } from './salary.dto.js';
-import { SalaryService } from './salary.service.js';
+import { Public } from '@/common/decorators/public.decorator';
+import { ListPositionsQueryDto } from './salary.dto';
+import { SalaryService } from './salary.service';
 
 /** Ba route `@Public()` vì không đọc dữ liệu người dùng nào và trang này cần Google vào được — nên PHẢI có hạn mức riêng, thiếu nó là mở cửa quét sạch bảng lương. */
 @ApiTags('Salary')

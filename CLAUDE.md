@@ -62,6 +62,8 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 **Hàm phụ mà NHIỀU module dùng thì lên `src/common/`**, không để một module import xuyên sang module khác. Đang có: `common/pagination.ts`, `common/model-output.ts`, `common/duration.ts`, `common/text/`, `common/web/`. Ngược lại, thứ chỉ một module dùng thì **đừng** đẩy lên `common/` — `common/` là hạ tầng, không phải kho từ vựng nghiệp vụ (đó là lý do `jobs/taxonomy/*` ở nguyên chỗ cũ dù 5 module đọc nó).
 
+**Import trong `src/` viết KHÔNG đuôi `.js`**: xa dùng alias `@/common/fingerprint`, gần dùng `./x` hoặc `../x`. Package là CommonJS nên Node tự thêm đuôi; chuyển sang ESM thì phải thêm lại. Với alias thì đuôi còn là lỗi thật: `tsc` không viết lại alias — hook `tsconfig-paths` của `nest build`/`nest start` mới viết lại, và hook đó dò `<đường dẫn>.ts`, nên `@/x.js` bị bỏ qua trong im lặng: build xanh, typecheck xanh, unit test xanh (jest tự map), app sập lúc khởi động với `Cannot find module`. `eslint.config.mjs` chặn đuôi `.js` lẫn `../../`. Test thì vẫn dùng `src/...js` (jest map). Kiểm chắc nhất sau khi build: `grep -r 'require("@/' dist` phải rỗng.
+
 ## Các seam và bản giả
 
 | Seam | Dùng cho | Bản giả trong test |

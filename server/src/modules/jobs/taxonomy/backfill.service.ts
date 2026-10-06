@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { derivedFields } from './resolve.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { derivedFields } from './resolve';
 
 /** Số tin xử lý mỗi lượt. Đủ nhỏ để không giữ cả bảng trong bộ nhớ. */
 const BATCH_SIZE = 500;

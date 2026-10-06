@@ -1,4 +1,4 @@
-import type { PortalJobCard, PortalJobDetail } from '../types.js';
+import type { PortalJobCard, PortalJobDetail } from '../types';
 
 /** Bóc mảng kết quả ra khỏi bao bì, dù CLI gói kiểu nào. */
 export function unwrapList(payload: unknown): unknown[] {

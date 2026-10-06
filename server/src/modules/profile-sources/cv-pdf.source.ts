@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import type { Evidence, ProfileSource } from './utils/evidence.js';
-import { extractPdfText, PdfExtractError } from './utils/pdf-text.js';
+import type { Evidence, ProfileSource } from './utils/evidence';
+import { extractPdfText, PdfExtractError } from './utils/pdf-text';
 
 /** Đầu vào của nguồn CV PDF. */
 export type CvPdfInput = {

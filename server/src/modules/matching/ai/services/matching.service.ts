@@ -1,39 +1,35 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type {
-  Job,
-  JobMatch,
-  Profile,
-} from '../../../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../../../common/dto/pagination.dto.js';
-import { STALE_RUNNING_MS } from '../../../../common/duration.js';
-import { pageArgs, pageOf } from '../../../../common/pagination.js';
-import { isUniqueViolation } from '../../../../prisma/prisma-errors.js';
-import { PrismaService } from '../../../../prisma/prisma.service.js';
-import { jobCardSelect } from '../../../jobs/job-card.select.js';
-import { AiService } from '../../../ai/services/ai.service.js';
-import type { ModelStreamEvent } from '../../../../common/stream-event.js';
-import { PromptBuilderService } from '../../../skills/services/prompt-builder.service.js';
-import { SkillRegistryService } from '../../../skills/services/skill-registry.service.js';
+import type { Job, JobMatch, Profile } from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { STALE_RUNNING_MS } from '@/common/duration';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { isUniqueViolation } from '@/prisma/prisma-errors';
+import { PrismaService } from '@/prisma/prisma.service';
+import { jobCardSelect } from '@/modules/jobs/job-card.select';
+import { AiService } from '@/modules/ai/services/ai.service';
+import type { ModelStreamEvent } from '@/common/stream-event';
+import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
+import { SkillRegistryService } from '@/modules/skills/services/skill-registry.service';
 import {
   computeOverall,
   evaluationSchema,
   verdictFor,
   type Evaluation,
-} from '../schemas/evaluation.schema.js';
+} from '../schemas/evaluation.schema';
 import {
   LIST_FIELDS,
   promptHash,
   withSavedFlag,
   withStaleFlag,
   type EvaluationInputs,
-} from '../utils/match-view.js';
+} from '../utils/match-view';
 import {
   evaluationPrompt,
   EVALUATION_SECTIONS,
-} from '../prompt/evaluation.prompt.js';
-import { streamFailureEvent } from '../../../ai/utils/failure-view.js';
-import { fastModelChain } from '../../../../common/model-env.js';
-import { estimateTokens } from '../../../ai/utils/fast-model-scheduler.js';
+} from '../prompt/evaluation.prompt';
+import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { fastModelChain } from '@/common/model-env';
+import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';

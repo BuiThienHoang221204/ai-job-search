@@ -1,4 +1,4 @@
-import type { UserRole } from '../../generated/prisma/enums.js';
+import type { UserRole } from '@/generated/prisma/enums';
 
 /** Người dùng đã xác thực, gắn vào `request.user` cho toàn bộ vòng đời request. */
 export type AuthUser = {

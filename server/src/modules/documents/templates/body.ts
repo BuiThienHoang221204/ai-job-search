@@ -1,4 +1,4 @@
-import type { CvContent, Identity } from '../content.types.js';
+import type { CvContent, Identity } from '../content.types';
 import {
   DEFAULT_LAYOUT,
   SECTION_TITLES,
@@ -6,8 +6,8 @@ import {
   type CvLayout,
   type DocumentLanguage,
   type SectionKey,
-} from './cv-layout.js';
-import { escapeHtml, joinParts } from './html.js';
+} from './cv-layout';
+import { escapeHtml, joinParts } from './html';
 
 /** Markup DÙNG CHUNG cho mọi mẫu (mẫu chỉ khác CSS), nhờ vậy đổi mẫu không đổi thứ tự chữ ATS đọc. */
 

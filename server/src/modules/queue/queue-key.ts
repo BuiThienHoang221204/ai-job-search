@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { QUEUE } from './queue.constants.js';
+import { QUEUE } from './queue.constants';
 
 /** Đọc một trường chuỗi bắt buộc từ payload. */
 function requireField(queue: string, data: object, field: string): string {

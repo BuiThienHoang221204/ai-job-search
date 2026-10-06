@@ -1,4 +1,4 @@
-import type { ProviderDescriptor } from './types.js';
+import type { ProviderDescriptor } from './types';
 
 /** Khác OpenCode đúng MỘT điểm đáng giá: `/api/v1/models` khai `supported_parameters`, nên biết trước model nào giữ được structured output mà không phải đốt hạn mức để thử. */
 export const openrouter: ProviderDescriptor = {

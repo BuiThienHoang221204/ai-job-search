@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { PromptBuilderService } from './services/prompt-builder.service.js';
-import { SkillRegistryService } from './services/skill-registry.service.js';
-import { SkillsController } from './skills.controller.js';
+import { PromptBuilderService } from './services/prompt-builder.service';
+import { SkillRegistryService } from './services/skill-registry.service';
+import { SkillsController } from './skills.controller';
 
 @Module({
   controllers: [SkillsController],

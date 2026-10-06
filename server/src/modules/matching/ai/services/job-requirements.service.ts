@@ -1,17 +1,14 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type {
-  Job,
-  JobRequirement,
-} from '../../../../generated/prisma/client.js';
-import { PrismaService } from '../../../../prisma/prisma.service.js';
-import { AiService } from '../../../ai/services/ai.service.js';
-import { classifyFailure } from '../../../ai/utils/failure-kind.js';
+import type { Job, JobRequirement } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { classifyFailure } from '@/modules/ai/utils/failure-kind';
 import {
   jobRequirementsBatchSchema,
   jobRequirementsSchema,
   type JobRequirements,
   type JobRequirementsBatch,
-} from '../schemas/job-requirements.schema.js';
+} from '../schemas/job-requirements.schema';
 import {
   batchPrompt,
   jobPrompt,
@@ -19,12 +16,8 @@ import {
   BATCH_SYSTEM,
   BATCH_TIMEOUT_MS,
   SYSTEM,
-} from '../prompt/job-requirements.prompt.js';
-import {
-  hasSkills,
-  NO_SKILLS_ERROR,
-  sourceHash,
-} from '../utils/requirements.js';
+} from '../prompt/job-requirements.prompt';
+import { hasSkills, NO_SKILLS_ERROR, sourceHash } from '../utils/requirements';
 
 @Injectable()
 export class JobRequirementsService {

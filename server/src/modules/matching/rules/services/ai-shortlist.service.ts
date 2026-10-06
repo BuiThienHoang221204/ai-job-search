@@ -1,19 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../../prisma/prisma.service.js';
-import { QUEUE, QueueService } from '../../../queue/queue.service.js';
-import { MIN_COMPLETION_TO_SCORE } from '../match-write.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
+import { MIN_COMPLETION_TO_SCORE } from '../match-write';
 import {
   AI_TOP_N,
   COOLDOWN_HOURS,
   MAX_SHORTLIST_PER_RUN,
   planShortlist,
-} from '../ai-shortlist.js';
-import type { ShortlistResult, ShortlistRow } from '../types.js';
+} from '../ai-shortlist';
+import type { ShortlistResult, ShortlistRow } from '../types';
 import {
   nearbyOccupationPairs,
   OTHER_CODE,
-} from '../../../jobs/taxonomy/occupations.js';
+} from '@/modules/jobs/taxonomy/occupations';
 
 const HOUR_MS = 60 * 60 * 1000;
 

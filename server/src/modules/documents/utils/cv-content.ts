@@ -1,10 +1,7 @@
-import type {
-  Document,
-  DocumentKind,
-} from '../../../generated/prisma/client.js';
-import type { CvContent } from '../content.types.js';
-import type { CvContentResult } from '../schemas/document.schema.js';
-import type { DocumentLanguage } from '../templates/cv-layout.js';
+import type { Document, DocumentKind } from '@/generated/prisma/client';
+import type { CvContent } from '../content.types';
+import type { CvContentResult } from '../schemas/document.schema';
+import type { DocumentLanguage } from '../templates/cv-layout';
 
 /** Loại tài liệu có bản LaTeX để in ra — khai một chỗ, vì trước đó nó là hai `storageKey: null` cách nhau 160 dòng. */
 const PRINTABLE: readonly DocumentKind[] = ['CV', 'COVER_LETTER'];

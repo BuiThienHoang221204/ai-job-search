@@ -4,32 +4,32 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { Profile, UpskillReport } from '../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../common/pagination.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { AiService } from '../ai/services/ai.service.js';
+import type { Profile, UpskillReport } from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { AiService } from '../ai/services/ai.service';
 import {
   withFailureKind,
   withFailureKinds,
   streamFailureEvent,
-} from '../ai/utils/failure-view.js';
-import { PromptBuilderService } from '../skills/services/prompt-builder.service.js';
-import { SkillRegistryService } from '../skills/services/skill-registry.service.js';
-import type { ModelStreamEvent } from '../../common/stream-event.js';
+} from '../ai/utils/failure-view';
+import { PromptBuilderService } from '../skills/services/prompt-builder.service';
+import { SkillRegistryService } from '../skills/services/skill-registry.service';
+import type { ModelStreamEvent } from '@/common/stream-event';
 import {
   upskillGapsSchema,
   upskillPlanSchema,
   type UpskillGaps,
   type UpskillPlan,
-} from './upskill.schema.js';
+} from './upskill.schema';
 import {
   gapsPrompt,
   planPrompt,
   GAPS_SECTIONS,
   PLAN_SECTIONS,
   type ScoredJob,
-} from './utils/upskill.prompt.js';
+} from './utils/upskill.prompt';
 
 const SKILL_NAME = 'upskill';
 

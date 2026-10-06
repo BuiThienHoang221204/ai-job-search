@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { cappedText, requiredCappedText } from '../../common/model-output.js';
+import { cappedText, requiredCappedText } from '@/common/model-output';
 
 /** DANH TÍNH của một mục: thiếu là cả mục vô nghĩa, từ chối mới đúng. */
 const line = (max: number, hint: string) => requiredCappedText(max, hint);

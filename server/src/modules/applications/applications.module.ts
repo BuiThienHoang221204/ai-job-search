@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { DocumentsModule } from '../documents/documents.module.js';
-import { ApplicationsController } from './applications.controller.js';
-import { ApplicationsService } from './applications.service.js';
+import { DocumentsModule } from '../documents/documents.module';
+import { ApplicationsController } from './applications.controller';
+import { ApplicationsService } from './applications.service';
 
 @Module({
   imports: [DocumentsModule],

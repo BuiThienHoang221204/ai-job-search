@@ -1,22 +1,19 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { pageToText } from '../../../common/web/html-text.js';
-import { fetchPage } from '../../../common/web/http-get.js';
-import {
-  webLimitsFrom,
-  type WebLimits,
-} from '../../../common/web/web-limits.js';
-import { fastModelChain } from '../../../common/model-env.js';
-import { estimateTokens } from '../../ai/utils/fast-model-scheduler.js';
-import { AiService } from '../../ai/services/ai.service.js';
+import { pageToText } from '@/common/web/html-text';
+import { fetchPage } from '@/common/web/http-get';
+import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
+import { fastModelChain } from '@/common/model-env';
+import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { AiService } from '@/modules/ai/services/ai.service';
 import {
   jobFromUrlPrompt,
   JOB_FROM_URL_SYSTEM,
-} from '../utils/job-from-url.prompt.js';
+} from '../utils/job-from-url.prompt';
 import {
   jobFromUrlSchema,
   type JobFromUrl,
-} from '../schemas/job-source.schema.js';
+} from '../schemas/job-source.schema';
 
 /** Dưới mốc này thì trang không có nội dung thật, chỉ có khung. */
 const THIN_PAGE = 800;

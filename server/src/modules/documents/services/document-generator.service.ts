@@ -1,12 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { Document, Prisma } from '../../../generated/prisma/client.js';
-import type { ModelStreamEvent } from '../../../common/stream-event.js';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import type { Identity } from '../content.types.js';
-import { letterTarget, type DocumentParams } from '../utils/letter-target.js';
-import { DocumentComposer } from './document-composer.service.js';
-import { DocumentRenderer } from './document-renderer.service.js';
-import { streamFailureEvent } from '../../ai/utils/failure-view.js';
+import type { Document, Prisma } from '@/generated/prisma/client';
+import type { ModelStreamEvent } from '@/common/stream-event';
+import { PrismaService } from '@/prisma/prisma.service';
+import type { Identity } from '../content.types';
+import { letterTarget, type DocumentParams } from '../utils/letter-target';
+import { DocumentComposer } from './document-composer.service';
+import { DocumentRenderer } from './document-renderer.service';
+import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
 
 /** Máy trạng thái PENDING → RUNNING → DONE/FAILED, và là nhánh DUY NHẤT của module gọi model. */
 @Injectable()

@@ -1,16 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '../../generated/prisma/client.js';
-import type { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { pageArgs, pageOf } from '../../common/pagination.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { toMatchProfile } from '../matching/ai/utils/requirements.js';
-import { SkillDictionaryService } from '../matching/ai/services/skill-dictionary.service.js';
-import { SalaryService } from '../salary/salary.service.js';
-import { yearsOfExperience } from '../profile/utils/experience-years.js';
-import type { MatchProfile } from '../matching/rules/types.js';
-import { derivedFields } from './taxonomy/resolve.js';
-import { jobCardSelect } from './job-card.select.js';
+import type { Prisma } from '@/generated/prisma/client';
+import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { pageArgs, pageOf } from '@/common/pagination';
+import { PrismaService } from '@/prisma/prisma.service';
+import { toMatchProfile } from '../matching/ai/utils/requirements';
+import { SkillDictionaryService } from '../matching/ai/services/skill-dictionary.service';
+import { SalaryService } from '../salary/salary.service';
+import { yearsOfExperience } from '../profile/utils/experience-years';
+import type { MatchProfile } from '../matching/rules/types';
+import { derivedFields } from './taxonomy/resolve';
+import { jobCardSelect } from './job-card.select';
 import {
   filterTree,
   listOrderFor,
@@ -23,8 +23,8 @@ import {
   withMatchState,
   withSavedFlag,
   withSystemMatch,
-} from './utils/job-view.js';
-import type { CreateJobDto, ListJobsQueryDto } from './job.dto.js';
+} from './utils/job-view';
+import type { CreateJobDto, ListJobsQueryDto } from './job.dto';
 
 @Injectable()
 export class JobsService {

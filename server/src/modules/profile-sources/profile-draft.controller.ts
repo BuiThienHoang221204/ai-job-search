@@ -30,16 +30,16 @@ import {
   IsArray,
   IsString,
 } from 'class-validator';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { streamNdjson } from '../../common/ndjson.js';
-import { ThrottleAi } from '../../common/throttle.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view.js';
-import { cvPdfErrorMessage } from './cv-pdf.source.js';
-import { MAX_PDF_BYTES } from './utils/pdf-text.js';
-import { ProfileDraftService } from './services/profile-draft.service.js';
-import { ProfileSynthesizerService } from './services/profile-synthesizer.service.js';
+import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { streamNdjson } from '@/common/ndjson';
+import { ThrottleAi } from '@/common/throttle';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
+import { cvPdfErrorMessage } from './cv-pdf.source';
+import { MAX_PDF_BYTES } from './utils/pdf-text';
+import { ProfileDraftService } from './services/profile-draft.service';
+import { ProfileSynthesizerService } from './services/profile-synthesizer.service';
 
 export class ApplyDraftDto {
   @IsArray()

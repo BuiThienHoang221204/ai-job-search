@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PortalCliService } from './portal-cli.service.js';
+import { PortalCliService } from './portal-cli.service';
 import type {
   JobSource,
   PortalEntry,
   PortalJobCard,
   PortalJobDetail,
   SearchArgs,
-} from '../types.js';
+} from '../types';
 
 /** Lấy tin Ở ĐÂU: chọn adapter theo khoá portal. Đây là toàn bộ nội dung của SEAM 5 nhìn từ phía người gọi. */
 @Injectable()

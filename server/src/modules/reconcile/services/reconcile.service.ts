@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service.js';
-import { STUCK_AFTER_MS } from '../../../common/duration.js';
-import { QUEUE, QueueService } from '../../queue/queue.service.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { STUCK_AFTER_MS } from '@/common/duration';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 
 /** Trần số việc xếp lại trong MỘT lượt, tính riêng cho từng loại. */
 const MAX_PER_KIND = 100;

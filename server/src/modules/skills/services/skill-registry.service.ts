@@ -10,7 +10,7 @@ import type { Dirent } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import matter from 'gray-matter';
-import { toManifest } from '../utils/skill-manifest.js';
+import { toManifest } from '../utils/skill-manifest';
 
 export type SkillManifest = {
   name: string;

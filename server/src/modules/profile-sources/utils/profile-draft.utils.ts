@@ -1,4 +1,4 @@
-import type { ProfileProposal } from '../profile-proposal.schema.js';
+import type { ProfileProposal } from '../profile-proposal.schema';
 
 /** Danh sách TRẮNG: `fields` đến từ HTTP nên danh sách đen sẽ cho lọt trường mới. */
 const APPLICABLE_FIELDS = [

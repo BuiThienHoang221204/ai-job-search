@@ -1,10 +1,7 @@
-import type {
-  JobRequirement,
-  Prisma,
-} from '../../../generated/prisma/client.js';
-import { toMatchProfile, toRequirements } from '../ai/utils/requirements.js';
-import { matchRequirements } from './requirement-match.js';
-import type { Candidate, SkillDictionary } from './types.js';
+import type { JobRequirement, Prisma } from '@/generated/prisma/client';
+import { toMatchProfile, toRequirements } from '../ai/utils/requirements';
+import { matchRequirements } from './requirement-match';
+import type { Candidate, SkillDictionary } from './types';
 
 /** Hồ sơ tối thiểu cần có để việc chấm điểm còn có nghĩa — cùng câu hỏi với `profileSelect`/`toCandidate` dưới đây. */
 export const MIN_COMPLETION_TO_SCORE = 30;

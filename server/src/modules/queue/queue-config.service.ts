@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import type { QueueConfig } from '../../generated/prisma/client.js';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { concurrencyForQueue, allQueueConfigs } from './queue.defaults.js';
-import type { QueueConfigItem } from './queue.types.js';
+import type { QueueConfig } from '@/generated/prisma/client';
+import { PrismaService } from '@/prisma/prisma.service';
+import { concurrencyForQueue, allQueueConfigs } from './queue.defaults';
+import type { QueueConfigItem } from './queue.types';
 
 const toItem = (row: QueueConfig): QueueConfigItem => ({
   queueName: row.queueName,

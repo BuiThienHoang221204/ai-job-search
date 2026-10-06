@@ -5,25 +5,25 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Document } from '../../../generated/prisma/client.js';
+import type { Document } from '@/generated/prisma/client';
 import {
   STORAGE,
   userKey,
   type Storage,
-} from '../../storage/storage.interface.js';
-import type { Identity } from '../content.types.js';
-import type { CoverLetterResult } from '../schemas/document.schema.js';
-import { renderCoverLetter, renderCv, slugify } from '../templates/latex.js';
-import type { LetterTarget } from '../utils/letter-target.js';
+} from '@/modules/storage/storage.interface';
+import type { Identity } from '../content.types';
+import type { CoverLetterResult } from '../schemas/document.schema';
+import { renderCoverLetter, renderCv, slugify } from '../templates/latex';
+import type { LetterTarget } from '../utils/letter-target';
 import {
   EXPECTED_MAX_PAGES,
   LATEX_COMPILER,
   PDF_RENDERER,
   type LatexCompiler,
   type PdfRenderer,
-} from '../pdf/seam.js';
-import { renderCvHtml } from '../templates/registry.js';
-import { cvContent, renderLanguage } from '../utils/cv-content.js';
+} from '../pdf/seam';
+import { renderCvHtml } from '../templates/registry';
+import { cvContent, renderLanguage } from '../utils/cv-content';
 
 /** Nội dung đã soạn → `.tex` trong Storage → PDF. KHÔNG gọi model, chạy lại bao nhiêu lần cũng miễn phí. */
 @Injectable()

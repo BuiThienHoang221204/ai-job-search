@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service.js';
-import { ApplicationsService } from '../applications/applications.service.js';
-import { missingFields } from '../profile/utils/completion.js';
-import { jobCardSelect } from '../jobs/job-card.select.js';
+import { PrismaService } from '@/prisma/prisma.service';
+import { ApplicationsService } from '../applications/applications.service';
+import { missingFields } from '../profile/utils/completion';
+import { jobCardSelect } from '../jobs/job-card.select';
 import {
   buildSuggestions,
   recurringGaps,
   type SuggestionInput,
-} from './dashboard.utils.js';
+} from './dashboard.utils';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;

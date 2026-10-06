@@ -6,13 +6,13 @@ import type { Dirent } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { normalizeCards, normalizeDetail } from '../utils/normalize.js';
+import { normalizeCards, normalizeDetail } from '../utils/normalize';
 import type {
   PortalEntry,
   PortalJobCard,
   PortalJobDetail,
   SearchArgs,
-} from '../types.js';
+} from '../types';
 
 const run = promisify(execFile);
 

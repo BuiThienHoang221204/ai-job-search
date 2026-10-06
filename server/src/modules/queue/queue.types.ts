@@ -1,4 +1,4 @@
-import type { QueueService } from './queue.service.js';
+import type { QueueService } from './queue.service';
 
 export type ExtractRequirementsPayload = {
   jobIds: string[];

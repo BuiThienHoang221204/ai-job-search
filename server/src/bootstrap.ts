@@ -1,5 +1,5 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
-import { vietnameseValidationError } from './common/validation-message.js';
+import { vietnameseValidationError } from './common/validation-message';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';

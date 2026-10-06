@@ -1,7 +1,7 @@
 import { Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../../common/decorators/roles.decorator.js';
-import { SkillRegistryService } from './services/skill-registry.service.js';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { SkillRegistryService } from './services/skill-registry.service';
 
 /**
  * Công cụ vận hành, không phải dữ liệu người dùng: danh sách skill để lộ tên và

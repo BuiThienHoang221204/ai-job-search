@@ -1,12 +1,8 @@
-import { formatModelRef } from './model-ref.js';
-import { ModelUnavailableError } from './failure-kind.js';
-import type { ModelRef } from './model-ref.js';
-import type { ProviderDescriptor } from '../providers/index.js';
-import type {
-  CatalogModel,
-  CatalogProvider,
-  ModelListing,
-} from '../ai.types.js';
+import { formatModelRef } from './model-ref';
+import { ModelUnavailableError } from './failure-kind';
+import type { ModelRef } from './model-ref';
+import type { ProviderDescriptor } from '../providers/index';
+import type { CatalogModel, CatalogProvider, ModelListing } from '../ai.types';
 
 /** Adapter dự án THẬT SỰ cài. OpenRouter khai SDK riêng trong catalog nhưng API của nó là OpenAI-compatible nên chạy bằng adapter chung. */
 const SUPPORTED_NPMS = new Set([

@@ -6,13 +6,13 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { QueueService, type QueueStats } from '../queue/queue.service.js';
-import { HealthService } from './health.service.js';
+import { Public } from '@/common/decorators/public.decorator';
+import { QueueService, type QueueStats } from '../queue/queue.service';
+import { HealthService } from './health.service';
 import {
   toPublicReadiness,
   type PublicReadiness,
-} from './utils/public-readiness.js';
+} from './utils/public-readiness';
 
 /** Hai probe cho orchestrator, và chúng trả lời HAI câu hỏi khác nhau. */
 @ApiTags('System Health')

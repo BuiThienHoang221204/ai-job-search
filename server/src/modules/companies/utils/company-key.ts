@@ -1,5 +1,5 @@
-import { ANONYMOUS_COMPANIES } from '../../jobs/taxonomy/dedupe.js';
-import { normalizeText } from '../../jobs/taxonomy/resolve.js';
+import { ANONYMOUS_COMPANIES } from '@/modules/jobs/taxonomy/dedupe';
+import { normalizeText } from '@/modules/jobs/taxonomy/resolve';
 
 /** Loại hình pháp nhân, bỏ khi dựng khoá. KHÔNG có `co` đứng một mình: "Cơ khí Hà Nội" sẽ vỡ. */
 const LEGAL_FORMS = [

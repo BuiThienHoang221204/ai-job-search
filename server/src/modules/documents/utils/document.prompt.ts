@@ -1,8 +1,5 @@
-import {
-  LANGUAGE_RULE,
-  type OutputLanguage,
-} from '../../../common/model-output.js';
-import type { LetterTarget } from './letter-target.js';
+import { LANGUAGE_RULE, type OutputLanguage } from '@/common/model-output';
+import type { LetterTarget } from './letter-target';
 
 /** Timeout cho việc soạn CV và thư xin việc — đo được 39–84s, xem CLAUDE.md mục "Đo trước khi đoán". */
 export const DOCUMENT_TIMEOUT_MS = 180_000;

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { cvEditSchema, type CvEditResult } from '../schemas/document.schema.js';
+import { cvEditSchema, type CvEditResult } from '../schemas/document.schema';
 
 /** Đổi lỗi zod thành 400 — để `parse` ném thẳng thì Nest trả 500, giao diện không có gì cho người dùng sửa. */
 export const parseCvEdit = (raw: unknown): CvEditResult => {

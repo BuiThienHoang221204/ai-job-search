@@ -5,9 +5,9 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { Roles } from '../../../common/decorators/roles.decorator.js';
-import { AdminJobsQueryDto, JobSourcesQueryDto } from '../admin.dto.js';
-import { AdminJobsService } from '../services/admin-jobs.service.js';
+import { Roles } from '@/common/decorators/roles.decorator';
+import { AdminJobsQueryDto, JobSourcesQueryDto } from '../admin.dto';
+import { AdminJobsService } from '../services/admin-jobs.service';
 
 @ApiTags('Admin')
 @ApiBearerAuth()

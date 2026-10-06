@@ -9,18 +9,18 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AuthService, type AuthResult } from './auth.service.js';
+import { AuthService, type AuthResult } from './auth.service';
 import {
   REFRESH_COOKIE,
   clearAuthCookies,
   setAccessCookie,
   setRefreshCookie,
-} from './auth.cookie.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { GoogleLoginDto, LoginDto, RegisterDto } from './auth.dto.js';
-import type { AuthUser } from '../../common/types/auth-user.js';
-import { ThrottleAuth } from '../../common/throttle.js';
+} from './auth.cookie';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { Public } from '@/common/decorators/public.decorator';
+import { GoogleLoginDto, LoginDto, RegisterDto } from './auth.dto';
+import type { AuthUser } from '@/common/types/auth-user';
+import { ThrottleAuth } from '@/common/throttle';
 
 /** Đăng ký và đăng nhập vừa ĐẶT COOKIE vừa trả token trong body. */
 @ApiTags('Authentication')

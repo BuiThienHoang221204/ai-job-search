@@ -3,8 +3,8 @@ import {
   QUEUE,
   QueueService,
   type GenerateDocumentPayload,
-} from '../queue/queue.service.js';
-import { DocumentGenerator } from './services/document-generator.service.js';
+} from '../queue/queue.service';
+import { DocumentGenerator } from './services/document-generator.service';
 
 @Injectable()
 export class DocumentsProcessor implements OnModuleInit {

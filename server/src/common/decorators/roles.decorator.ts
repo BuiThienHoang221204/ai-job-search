@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import type { UserRole } from '../../generated/prisma/enums.js';
+import type { UserRole } from '@/generated/prisma/enums';
 
 /**
  * Khoá metadata mà `@Roles()` ghi vào và `RolesGuard` đọc ra. Hai bên phải

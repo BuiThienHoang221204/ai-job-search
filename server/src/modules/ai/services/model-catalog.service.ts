@@ -1,23 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { parseModelRef, formatModelRef } from '../utils/model-ref.js';
-import { ModelUnavailableError } from '../utils/failure-kind.js';
+import { parseModelRef, formatModelRef } from '../utils/model-ref';
+import { ModelUnavailableError } from '../utils/failure-kind';
 import {
   selectModel,
   streamsJsonFor,
   toListing,
   usableAdapter,
-} from '../utils/catalog.js';
+} from '../utils/catalog';
 import {
   findProvider,
   providerIds,
   type ProviderDescriptor,
-} from '../providers/index.js';
-import type {
-  CatalogProvider,
-  ModelListing,
-  ResolvedModel,
-} from '../ai.types.js';
+} from '../providers/index';
+import type { CatalogProvider, ModelListing, ResolvedModel } from '../ai.types';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 

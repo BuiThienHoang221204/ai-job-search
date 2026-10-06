@@ -1,13 +1,9 @@
-import type {
-  CoverLetterContent,
-  CvContent,
-  Identity,
-} from '../content.types.js';
+import type { CoverLetterContent, CvContent, Identity } from '../content.types';
 import {
   SECTION_TITLES,
   TOOLS_LABEL,
   type DocumentLanguage,
-} from './cv-layout.js';
+} from './cv-layout';
 
 /** Escape văn bản trước khi nhúng vào LaTeX. */
 export const escapeLatex = (input: string): string =>
@@ -35,11 +31,7 @@ export const slugify = (input: string): string =>
 // Các type nội dung đã chuyển sang `content.types.ts` để module HTML dùng chung mà
 // không phải import từ module LaTeX. Xuất lại ở đây để chỗ nào đang import từ
 // `latex.js` vẫn chạy nguyên.
-export type {
-  CoverLetterContent,
-  CvContent,
-  Identity,
-} from '../content.types.js';
+export type { CoverLetterContent, CvContent, Identity } from '../content.types';
 
 const item = (text: string) => `  \\item ${escapeLatex(text)}`;
 

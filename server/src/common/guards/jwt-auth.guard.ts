@@ -1,7 +1,7 @@
 import { Injectable, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 /**
  * Guard xác thực mặc định của toàn ứng dụng - `CommonModule` đăng ký nó qua

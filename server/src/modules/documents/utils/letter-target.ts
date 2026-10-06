@@ -1,4 +1,4 @@
-import type { Job } from '../../../generated/prisma/client.js';
+import type { Job } from '@/generated/prisma/client';
 
 /** Từ vựng chung của cụm documents. Hàm thuần: không Prisma, không Nest. */
 

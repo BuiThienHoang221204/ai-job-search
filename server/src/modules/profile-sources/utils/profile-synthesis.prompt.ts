@@ -1,4 +1,4 @@
-import type { Evidence } from './evidence.js';
+import type { Evidence } from './evidence';
 
 /** Timeout cho lượt tổng hợp hồ sơ. */
 export const SYNTHESIS_TIMEOUT_MS = 180_000;

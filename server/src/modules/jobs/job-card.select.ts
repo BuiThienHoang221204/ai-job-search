@@ -1,4 +1,4 @@
-import type { Prisma } from '../../generated/prisma/client.js';
+import type { Prisma } from '@/generated/prisma/client';
 
 /** Khai tường minh vì `include: { job: true }` kéo cả `description` — đo 2026-08-22: 42,7% phản hồi cho thứ không màn nào vẽ. */
 export const JOB_CARD_FIELDS = {

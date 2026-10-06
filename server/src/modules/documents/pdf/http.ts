@@ -9,7 +9,7 @@ import {
   type PdfFailure,
   type PdfRenderer,
   type PdfRenderResult,
-} from './seam.js';
+} from './seam';
 
 /** Đo trên dịch vụ thường trú: lượt đầu 3,6 giây, ổn định 2,6–3,1 giây — nhanh hơn `docker run` (5,1s). */
 const LATEX_TIMEOUT_MS = 70_000;

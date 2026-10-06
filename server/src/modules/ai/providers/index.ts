@@ -1,11 +1,11 @@
-import { gemini } from './gemini.js';
-import { groq } from './groq.js';
-import { kilo } from './kilo.js';
-import { opencode } from './opencode.js';
-import { omniroute } from './omniroute.js';
-import { openrouter } from './openrouter.js';
-import { unorouter } from './unorouter.js';
-import type { ProviderDescriptor } from './types.js';
+import { gemini } from './gemini';
+import { groq } from './groq';
+import { kilo } from './kilo';
+import { opencode } from './opencode';
+import { omniroute } from './omniroute';
+import { openrouter } from './openrouter';
+import { unorouter } from './unorouter';
+import type { ProviderDescriptor } from './types';
 
 /** Thêm lõi mới = thêm một file rồi thêm một dòng ở đây. Không class nào phải viết, không gì phải đăng ký với Nest. */
 export const PROVIDERS: readonly ProviderDescriptor[] = [
@@ -28,4 +28,4 @@ export function findProvider(id: string): ProviderDescriptor | undefined {
   return PROVIDERS.find((provider) => provider.id === id);
 }
 
-export type { ProviderDescriptor } from './types.js';
+export type { ProviderDescriptor } from './types';

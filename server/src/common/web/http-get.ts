@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { isIP } from 'node:net';
 import { promisify } from 'node:util';
-import { resolvePublicUrl } from './public-url.js';
+import { resolvePublicUrl } from './public-url';
 
 const run = promisify(execFile);
 

@@ -3,8 +3,8 @@ import {
   QUEUE,
   QueueService,
   type InterviewPrepPayload,
-} from '../queue/queue.service.js';
-import { InterviewService } from './interview.service.js';
+} from '../queue/queue.service';
+import { InterviewService } from './interview.service';
 
 @Injectable()
 export class InterviewProcessor implements OnModuleInit {
