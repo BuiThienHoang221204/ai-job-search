@@ -6,6 +6,7 @@ import { appRole, runsBackgroundWork } from '@/config/app-role';
 import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import { JobSourceRouter } from './job-source.router';
 import { ScraperService } from './scraper.service';
+import { messageOf } from '@/common/error-message';
 
 const JOB_NAME = 'scrape.nightly';
 
@@ -75,9 +76,7 @@ export class ScrapeCronService implements OnModuleInit {
           this.logger.log(`Đã xếp hàng quét ${portal} (run ${run.id})`);
         } catch (error) {
           this.logger.error(
-            `Không xếp được hàng quét ${portal}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            `Không xếp được hàng quét ${portal}: ${messageOf(error)}`,
           );
         }
       }

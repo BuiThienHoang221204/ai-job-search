@@ -20,6 +20,7 @@ import {
 } from '../prompt/skill-merge.prompt';
 import { nearest, type Canonical } from '../utils/nearest';
 import { picksFor } from '../utils/merge-picks';
+import { messageOf } from '@/common/error-message';
 
 /** Hạn dùng của bảng tra trong bộ nhớ. */
 const CACHE_MS = 60_000;
@@ -198,7 +199,7 @@ export class SkillDictionaryService {
       }
       return { ok: true, picks };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.warn(`Model không phân loại được lô này: ${message}`);
       return { ok: false, picks: new Map() };
     }

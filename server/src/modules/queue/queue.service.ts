@@ -10,6 +10,7 @@ import { QUEUE, QUEUE_POLICY } from './queue.constants';
 import { singletonKeyFor } from './queue-key';
 import { QueueConfigService } from './queue-config.service';
 import type { QueueStats, QueueStatsItem, QueueStatus } from './queue.types';
+import { messageOf } from '@/common/error-message';
 
 /** Một đường import cho 37 file gọi tới: chúng không cần biết module chia file thế nào bên trong. */
 export { QUEUE, QUEUE_POLICY } from './queue.constants';
@@ -69,8 +70,7 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
           });
         }, 30_000);
       } catch (error) {
-        this.startupError =
-          error instanceof Error ? error.message : String(error);
+        this.startupError = messageOf(error);
         throw error;
       }
     })();

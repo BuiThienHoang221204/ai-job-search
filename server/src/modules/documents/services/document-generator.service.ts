@@ -7,6 +7,7 @@ import { letterTarget, type DocumentParams } from '../utils/letter-target';
 import { DocumentComposer } from './document-composer.service';
 import { DocumentRenderer } from './document-renderer.service';
 import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { messageOf } from '@/common/error-message';
 
 /** Máy trạng thái PENDING → RUNNING → DONE/FAILED, và là nhánh DUY NHẤT của module gọi model. */
 @Injectable()
@@ -86,7 +87,7 @@ export class DocumentGenerator {
     error: unknown,
     label: string,
   ): Promise<{ document: Document; message: string }> {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     this.logger.error(`${label} thất bại (${documentId}): ${message}`);
     const document = await this.prisma.document.update({
       where: { id: documentId },

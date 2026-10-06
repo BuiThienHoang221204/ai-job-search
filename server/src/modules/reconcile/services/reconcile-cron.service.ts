@@ -4,6 +4,7 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { appRole, runsBackgroundWork } from '@/config/app-role';
 import { ReconcileService } from './reconcile.service';
+import { messageOf } from '@/common/error-message';
 
 const JOB_NAME = 'reconcile.stuck-work';
 
@@ -59,11 +60,7 @@ export class ReconcileCronService implements OnModuleInit {
     try {
       await this.reconcile.run();
     } catch (error) {
-      this.logger.error(
-        `Lượt nhặt việc rơi thất bại: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      this.logger.error(`Lượt nhặt việc rơi thất bại: ${messageOf(error)}`);
     } finally {
       this.running = false;
     }

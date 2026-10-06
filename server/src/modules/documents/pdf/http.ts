@@ -10,6 +10,7 @@ import {
   type PdfRenderer,
   type PdfRenderResult,
 } from './seam';
+import { messageOf } from '@/common/error-message';
 
 /** Đo trên dịch vụ thường trú: lượt đầu 3,6 giây, ổn định 2,6–3,1 giây — nhanh hơn `docker run` (5,1s). */
 const LATEX_TIMEOUT_MS = 70_000;
@@ -71,7 +72,7 @@ async function postToService(call: ServiceCall): Promise<ServiceResult> {
       signal: AbortSignal.timeout(call.timeoutMs),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     call.logger.error(`Không gọi được dịch vụ ${call.label}: ${message}`);
     return { ok: false, reason: PDF_UNAVAILABLE, log: message };
   }

@@ -30,6 +30,7 @@ import {
   PLAN_SECTIONS,
   type ScoredJob,
 } from './utils/upskill.prompt';
+import { messageOf } from '@/common/error-message';
 
 const SKILL_NAME = 'upskill';
 
@@ -191,7 +192,7 @@ export class UpskillService {
         }),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.error(
         `Tạo báo cáo upskill (stream) thất bại (${reportId}): ${message}`,
       );
@@ -277,7 +278,7 @@ export class UpskillService {
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.error(
         `Tạo báo cáo upskill thất bại (${reportId}): ${message}`,
       );

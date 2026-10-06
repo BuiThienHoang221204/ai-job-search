@@ -7,6 +7,7 @@ import {
   type PdfRenderer,
 } from '../documents/pdf/seam';
 import { QueueService } from '../queue/queue.service';
+import { messageOf } from '@/common/error-message';
 
 /** Hạn cho từng phép kiểm tra. */
 const CHECK_TIMEOUT_MS = 2_000;
@@ -47,7 +48,7 @@ const withTimeout = async (
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: messageOf(error),
     };
   } finally {
     if (timer) clearTimeout(timer);

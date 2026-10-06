@@ -1,4 +1,5 @@
 import { PDFParse } from 'pdf-parse';
+import { messageOf } from '@/common/error-message';
 
 /** Kích thước file lớn nhất nhận vào. */
 export const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -42,7 +43,7 @@ export class PdfExtractError extends Error {
 /** Ưu tiên TÊN LỚP của pdfjs; chỉ dò nội dung khi lỗi bị bọc lại và mất `name`. */
 function classifyPdfError(error: unknown): PdfErrorKind {
   const name = (error as { name?: string })?.name ?? '';
-  const message = error instanceof Error ? error.message : String(error);
+  const message = messageOf(error);
 
   if (name === 'PasswordException') return 'ENCRYPTED';
   if (name === 'InvalidPDFException') return 'INVALID';
@@ -76,10 +77,7 @@ export async function extractPdfText(data: Buffer): Promise<PdfTextResult> {
         pagesRead > 0 && text.length / pagesRead >= MIN_CHARS_PER_PAGE,
     };
   } catch (error) {
-    throw new PdfExtractError(
-      classifyPdfError(error),
-      error instanceof Error ? error.message : String(error),
-    );
+    throw new PdfExtractError(classifyPdfError(error), messageOf(error));
   } finally {
     await parser.destroy();
   }

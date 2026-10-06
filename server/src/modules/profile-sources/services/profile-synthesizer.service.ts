@@ -14,6 +14,7 @@ import {
   SYNTHESIS_TIMEOUT_MS,
 } from '../utils/profile-synthesis.prompt';
 import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { messageOf } from '@/common/error-message';
 
 @Injectable()
 export class ProfileSynthesizerService {
@@ -73,7 +74,7 @@ export class ProfileSynthesizerService {
         }),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.error(`Đọc hồ sơ (stream) thất bại (${draftId}): ${message}`);
       await this.prisma.profileDraft.update({
         where: { id: draftId },
@@ -124,7 +125,7 @@ export class ProfileSynthesizerService {
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.error(`Đọc hồ sơ thất bại (${draftId}): ${message}`);
       return this.prisma.profileDraft.update({
         where: { id: draftId },

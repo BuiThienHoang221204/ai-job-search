@@ -11,6 +11,7 @@ import {
   type SandboxRunner,
   type SandboxSpec,
 } from './sandbox.interface';
+import { messageOf } from '@/common/error-message';
 
 /** Kiểm tra sẵn sàng phải nhanh vì nó nằm trên đường `/ready` — probe treo còn tệ hơn probe báo hỏng. */
 const AVAILABILITY_TIMEOUT_MS = 5_000;
@@ -25,9 +26,6 @@ type Spawned = {
   stderr: string;
   timedOut: boolean;
 };
-
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 /** Phân loại theo DẤU HIỆU của tiến trình con: `docker` báo lỗi qua stderr và mã thoát chứ không qua lớp lỗi. */
 function classify(error: unknown): SandboxErrorKind {

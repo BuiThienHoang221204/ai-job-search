@@ -1,6 +1,7 @@
 import type { Logger } from '@nestjs/common';
 import type { Response } from 'express';
 import type { ModelStreamEvent } from './stream-event';
+import { messageOf } from './error-message';
 
 /** Mọi lượt gọi model nay đi đường KHÔNG stream, nên có tác vụ im lặng tới 254 giây — proxy cắt kết nối, và client không phân biệt được "đang chạy" với "chết". */
 const HEARTBEAT_MS = 10_000;
@@ -64,7 +65,7 @@ export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
     finished = true;
   } catch (error) {
     finished = true;
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     logger.error(`Stream ${label} hỏng: ${message}`);
     response.destroy();
     return;

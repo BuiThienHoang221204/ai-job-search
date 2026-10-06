@@ -30,6 +30,7 @@ import {
 import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
 import { fastModelChain } from '@/common/model-env';
 import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { messageOf } from '@/common/error-message';
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
@@ -108,7 +109,7 @@ export class MatchingService {
     error: unknown,
     label: string,
   ): Promise<{ match: JobMatch; message: string }> {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     this.logger.error(
       `${label} thất bại (user=${userId} job=${jobId}): ${message}`,
     );

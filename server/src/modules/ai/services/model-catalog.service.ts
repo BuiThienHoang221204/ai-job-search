@@ -14,6 +14,7 @@ import {
   type ProviderDescriptor,
 } from '../providers/index';
 import type { CatalogProvider, ModelListing, ResolvedModel } from '../ai.types';
+import { messageOf } from '@/common/error-message';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -98,9 +99,9 @@ export class ModelCatalogService {
     } catch (error) {
       if (!descriptor.staticModels?.length) {
         throw new ModelUnavailableError(
-          `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${messageOf(
+            error,
+          )}`,
         );
       }
     }

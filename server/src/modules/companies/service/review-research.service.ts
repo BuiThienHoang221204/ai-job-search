@@ -5,6 +5,7 @@ import { fetchPage } from '@/common/web/http-get';
 import { parseSerper } from '@/common/web/serper';
 import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
 import type { SearchHit } from '../utils/review-sources';
+import { messageOf } from '@/common/error-message';
 
 /** Cửa duy nhất ra mạng, tách khỏi `CompanyService` để test không cần mạng. */
 @Injectable()
@@ -46,9 +47,7 @@ export class ReviewResearchService {
 
       return parseSerper(await response.json());
     } catch (error) {
-      this.logger.warn(
-        `Tìm kiếm hỏng (${query}): ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`Tìm kiếm hỏng (${query}): ${messageOf(error)}`);
       return [];
     }
   }
@@ -65,9 +64,7 @@ export class ReviewResearchService {
       const text = pageToText(page.body);
       return text.length < 400 ? null : text;
     } catch (error) {
-      this.logger.warn(
-        `Không đọc được ${url}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`Không đọc được ${url}: ${messageOf(error)}`);
       return null;
     }
   }

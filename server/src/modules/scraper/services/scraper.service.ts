@@ -19,6 +19,7 @@ import { collectCards } from '../utils/collect-cards';
 import type { CollectLimits } from '../types';
 import { requirementBatches } from '../utils/requirement-batches';
 import type { SearchPlan } from '../planning/search-plan.schema';
+import { messageOf } from '@/common/error-message';
 
 /** ĐIỀU PHỐI: nối `QueryPlanner` → `collectCards` → `JobWriter` → hàng đợi, và đọc lịch sử `ScrapeRun`. Không tự chạm portal dòng nào. */
 @Injectable()
@@ -168,7 +169,7 @@ export class ScraperService {
         },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.error(`Quét thất bại (${runId}): ${message}`);
       return this.prisma.scrapeRun.update({
         where: { id: runId },

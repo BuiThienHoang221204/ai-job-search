@@ -14,6 +14,7 @@ import {
   type RunLite,
 } from '../utils/scrape-batches';
 import { occupationCoverage } from '../utils/occupation-coverage';
+import { daysAgo } from '@/common/duration';
 
 /** Mặc định `staleDays` khi không truyền — khớp `SCRAPER_MAX_AGE_DAYS`, đủ để chu kỳ phủ ~4 đêm chạy xong. */
 const DEFAULT_STALE_DAYS = 7;
@@ -57,7 +58,7 @@ export class AdminScrapeService {
   /** Số tin theo ngành ghép với mốc quét gần nhất — biến màn hình "Chọn ngành nghề" mà admin tự chụp ảnh thành một phép đo tự động. */
   async occupationCoverage(query: OccupationCoverageQueryDto) {
     const staleDays = query.staleDays ?? DEFAULT_STALE_DAYS;
-    const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
+    const cutoff = daysAgo(staleDays);
 
     const [jobRows, crawlRows] = await Promise.all([
       this.prisma.job.groupBy({

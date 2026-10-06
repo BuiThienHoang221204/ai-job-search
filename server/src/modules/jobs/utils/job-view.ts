@@ -23,6 +23,7 @@ import {
 import { SUB_OCCUPATIONS } from '../taxonomy/sub-occupations';
 import { PROVINCES, REMOTE_CODE } from '../taxonomy/provinces';
 import type { JobSort, ListJobsQueryDto } from '../job.dto';
+import { daysAgo } from '@/common/duration';
 
 export const MATCH_STATE_FIELDS = {
   status: true,
@@ -185,9 +186,7 @@ export function whereFrom(
   profileOccupation: string | null = null,
 ): Prisma.JobWhereInput {
   const needle = query.q ? normalizeText(query.q) : '';
-  const since = query.postedWithin
-    ? new Date(Date.now() - query.postedWithin * 24 * 60 * 60 * 1000)
-    : null;
+  const since = query.postedWithin ? daysAgo(query.postedWithin) : null;
   const gate = occupationGate(query, profileOccupation);
   const facet = occupationFacetWhere(query);
   const and = [gate, facet].filter(

@@ -1,5 +1,6 @@
 import { foldTerm } from '@/common/text/vietnamese';
 import type { PortalJobCard, PortalJobDetail } from '../types';
+import { MINUTE_MS, HOUR_MS, DAY_MS } from '@/common/duration';
 
 /** Bóc mảng kết quả ra khỏi bao bì, dù CLI gói kiểu nào. */
 export function unwrapList(payload: unknown): unknown[] {
@@ -89,12 +90,12 @@ export function normalizeDetail(payload: unknown): PortalJobDetail | null {
 
 /** Bốn portal nói ngày đăng theo bốn kiểu, và không kiểu nào là timestamp. */
 const UNIT_MS: Record<string, number> = {
-  minute: 60_000,
-  hour: 3_600_000,
-  day: 86_400_000,
-  week: 604_800_000,
-  month: 2_592_000_000, // 30 ngày; đủ dùng cho một nhãn "x tháng trước"
-  year: 31_536_000_000,
+  minute: MINUTE_MS,
+  hour: HOUR_MS,
+  day: DAY_MS,
+  week: 7 * DAY_MS,
+  month: 30 * DAY_MS, // đủ dùng cho một nhãn "x tháng trước"
+  year: 365 * DAY_MS,
 };
 
 /** Nhận cả tiếng Anh lẫn tiếng Việt: portal đổi ngôn ngữ theo `Accept-Language` mà backend không điều khiển được. */

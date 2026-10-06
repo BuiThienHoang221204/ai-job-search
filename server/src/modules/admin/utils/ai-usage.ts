@@ -1,3 +1,4 @@
+import { HOUR_MS } from '@/common/duration';
 /** Một nhóm đã cộng dồn từ `ai_calls`; token để null khi provider không báo. */
 export interface UsageGroup {
   calls: number;
@@ -62,7 +63,6 @@ export interface BucketRow {
   outputTokens: number;
 }
 
-const HOUR_MS = 60 * 60 * 1000;
 const VN_OFFSET_MS = 7 * HOUR_MS;
 
 /** Cửa sổ 1 ngày chia theo giờ, dài hơn chia theo ngày: một cột duy nhất không nói được gì. */

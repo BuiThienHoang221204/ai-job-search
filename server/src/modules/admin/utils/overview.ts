@@ -1,3 +1,4 @@
+import { HOUR_MS } from '@/common/duration';
 /** Ngưỡng của khối "Cần xử lý"; đổi ở đây là đổi cho cả giao diện. */
 export const OVERVIEW_THRESHOLDS = {
   /** Tỷ lệ thành công AI dưới mức này là sự cố. */
@@ -107,7 +108,7 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
   }
 
   const now = input.now ?? new Date();
-  const staleMs = t.scrapeStaleHours * 60 * 60 * 1000;
+  const staleMs = t.scrapeStaleHours * HOUR_MS;
   if (
     !input.lastScrapeAt ||
     now.getTime() - input.lastScrapeAt.getTime() > staleMs

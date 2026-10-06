@@ -14,6 +14,7 @@ import {
   jobFromUrlSchema,
   type JobFromUrl,
 } from '../schemas/job-source.schema';
+import { messageOf } from '@/common/error-message';
 
 /** Dưới mốc này thì trang không có nội dung thật, chỉ có khung. */
 const THIN_PAGE = 800;
@@ -67,7 +68,7 @@ export class JobFromUrlService {
         maxBytes: this.web.fetchMaxBytes,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.warn(`Không tải được ${url}: ${message}`);
       throw new BadRequestException(`${message} ${PASTE_INSTEAD}`);
     }

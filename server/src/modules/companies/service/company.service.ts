@@ -36,6 +36,8 @@ import {
 } from '../utils/review-sources';
 import type { ModelStreamEvent } from '@/common/stream-event';
 import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { messageOf } from '@/common/error-message';
+import { DAY_MS } from '@/common/duration';
 
 const BRIEF_TIMEOUT_MS = 120_000;
 const TTL_DAYS = 60;
@@ -139,7 +141,7 @@ export class CompanyService {
         result: await this.save(prepared, await object, modelId),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.error(`Tìm hiểu (stream) "${company}" hỏng: ${message}`);
       yield streamFailureEvent(error);
     }
@@ -231,7 +233,7 @@ export class CompanyService {
   ): Promise<BriefRecord> {
     const { nameKey, company, sources, unreachable } = prepared;
     const checked = resolveSources(brief, sources, unreachable);
-    const expiresAt = new Date(Date.now() + TTL_DAYS * 86_400_000);
+    const expiresAt = new Date(Date.now() + TTL_DAYS * DAY_MS);
 
     const data = {
       name: company,

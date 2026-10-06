@@ -2,6 +2,7 @@ import type { Logger } from '@nestjs/common';
 import type { PrismaService } from '@/prisma/prisma.service';
 import type { FailureKind } from '../utils/failure-kind';
 import type { AiCallContext } from '../ai.types';
+import { messageOf } from '@/common/error-message';
 
 export type AiCallEntry = {
   context: AiCallContext;
@@ -46,9 +47,7 @@ export class AiCallLog {
         },
       });
     } catch (error) {
-      this.logger.warn(
-        `Không ghi được nhật ký AiCall: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.warn(`Không ghi được nhật ký AiCall: ${messageOf(error)}`);
     }
   }
 }

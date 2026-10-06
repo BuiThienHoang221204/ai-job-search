@@ -1,11 +1,11 @@
 import type { Prisma } from '@/generated/prisma/client';
 import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { DAY_MS } from '@/common/duration';
 
 export const ASK_USER_TOOL = 'ask_user';
 
 const TEXT_LIMIT = 500;
 const MAX_DESCRIPTION_CHARS = 2000;
-export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const STATUS_LABEL: Record<string, string> = {
   VIEWED: 'Đã xem tin, chưa nộp',
@@ -100,9 +100,7 @@ export const quietDays = (
   appliedAt: Date | null,
   updatedAt: Date,
 ): number | null =>
-  appliedAt
-    ? Math.floor((Date.now() - updatedAt.getTime()) / MS_PER_DAY)
-    : null;
+  appliedAt ? Math.floor((Date.now() - updatedAt.getTime()) / DAY_MS) : null;
 
 const bullets = (items: string[]): string[] => items.map((item) => `- ${item}`);
 

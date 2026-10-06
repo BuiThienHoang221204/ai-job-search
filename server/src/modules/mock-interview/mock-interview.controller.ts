@@ -26,6 +26,7 @@ import {
 import { InterviewTurnService } from './service/interview-turn.service';
 import { MockInterviewService } from './service/mock-interview.service';
 import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
+import { messageOf } from '@/common/error-message';
 
 @ApiTags('Phỏng vấn thử')
 @ApiBearerAuth()
@@ -77,7 +78,7 @@ export class MockInterviewController {
       }
     } catch (error) {
       this.logger.error(
-        `Mở buổi phỏng vấn hỏng${runId ? ` ${runId}` : ''}: ${error instanceof Error ? error.message : String(error)}`,
+        `Mở buổi phỏng vấn hỏng${runId ? ` ${runId}` : ''}: ${messageOf(error)}`,
       );
       if (!response.headersSent) throw error;
       response.destroy();
@@ -108,9 +109,7 @@ export class MockInterviewController {
         response.write(piece);
       }
     } catch (error) {
-      this.logger.error(
-        `Lượt phỏng vấn ${id} hỏng: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.error(`Lượt phỏng vấn ${id} hỏng: ${messageOf(error)}`);
       response.destroy();
       return;
     }

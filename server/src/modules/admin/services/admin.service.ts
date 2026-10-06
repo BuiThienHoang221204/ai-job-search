@@ -28,6 +28,7 @@ import {
 import { QueueService } from '@/modules/queue/queue.service';
 import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
 import { visibleResponse } from '../utils/response-redaction';
+import { daysAgo } from '@/common/duration';
 
 /** Số nhóm lỗi hiện trên trang tổng quan. */
 const ERROR_GROUPS = 8;
@@ -55,7 +56,7 @@ export class AdminService {
   ) {}
 
   async aiHealth(days: number): Promise<AiHealth & { windowDays: number }> {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const since = daysAgo(days);
 
     const rows = await this.prisma.aiCall.findMany({
       where: { createdAt: { gte: since } },

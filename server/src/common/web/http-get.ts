@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { isIP } from 'node:net';
 import { promisify } from 'node:util';
 import { resolvePublicUrl } from './public-url';
+import { messageOf } from '../error-message';
 
 const run = promisify(execFile);
 
@@ -124,9 +125,7 @@ async function curlOnce(
         'Máy chủ không có lệnh `curl` nên không tải được trang web nào.',
       );
     }
-    throw new HttpGetError(
-      `Không tải được trang: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new HttpGetError(`Không tải được trang: ${messageOf(error)}`);
   }
 }
 

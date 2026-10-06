@@ -6,6 +6,7 @@ import type {
   QueryCursor,
 } from '../types';
 import { withinDays } from './normalize';
+import { messageOf } from '@/common/error-message';
 
 /** Số tin xin cho MỘT request, không phải trần cả lượt — trần đó là `limits.maxJobsPerPortal`, gom qua nhiều trang. */
 const PAGE_SIZE = 25;
@@ -116,7 +117,7 @@ async function advance(
       cursor.error = error;
       cursor.done = true;
       deps.log(
-        `${portal} "${cursor.query.query}" trang ${page} lỗi: ${error instanceof Error ? error.message : String(error)}`,
+        `${portal} "${cursor.query.query}" trang ${page} lỗi: ${messageOf(error)}`,
       );
       return 0;
     }

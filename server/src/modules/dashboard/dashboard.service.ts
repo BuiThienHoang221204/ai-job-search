@@ -9,9 +9,7 @@ import {
   roundedScore,
   type SuggestionInput,
 } from './dashboard.utils';
-
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+import { DAY_MS, daysAgo } from '@/common/duration';
 
 /** Đường ĐỌC của màn hình Tổng quan. */
 @Injectable()
@@ -28,7 +26,7 @@ export class DashboardService {
   } as const;
 
   async overview(userId: string) {
-    const since = new Date(Date.now() - SEVEN_DAYS_MS);
+    const since = daysAgo(7);
     const eligible = { userId, ...DashboardService.ELIGIBLE };
 
     const [
@@ -106,7 +104,7 @@ export class DashboardService {
             company: best.job.company,
             score: best.overallScore ?? 0,
             daysOld: Math.floor(
-              (Date.now() - best.job.scrapedAt.getTime()) / ONE_DAY_MS,
+              (Date.now() - best.job.scrapedAt.getTime()) / DAY_MS,
             ),
           }
         : null,

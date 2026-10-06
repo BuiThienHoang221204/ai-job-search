@@ -14,8 +14,7 @@ import {
   nearbyOccupationPairs,
   OTHER_CODE,
 } from '@/modules/jobs/taxonomy/occupations';
-
-const HOUR_MS = 60 * 60 * 1000;
+import { HOUR_MS } from '@/common/duration';
 
 @Injectable()
 export class AiShortlistService {

@@ -13,9 +13,11 @@ import {
   parsePostedAt,
 } from '../utils/normalize';
 import type { PortalJobCard, SaveOutcome, SaveResult } from '../types';
+import { messageOf } from '@/common/error-message';
+import { DAY_MS } from '@/common/duration';
 
 /** Chỉ gộp trùng trong 30 ngày: tin cũ đã hết hạn không được nuốt mất tin cùng tên đăng lại mùa sau. */
-const DEDUPE_WINDOW_MS = 30 * 86_400_000;
+const DEDUPE_WINDOW_MS = 30 * DAY_MS;
 
 /** LƯU tin: tách tin mới, lấy mô tả đầy đủ, tính trường dẫn xuất, nhận ra bản sao giữa portal. KHÔNG phải provider Nest, `ScraperService` tự dựng. */
 export class JobWriter {
@@ -59,11 +61,7 @@ export class JobWriter {
         else savedJobIds.push(result.jobId);
       } catch (error) {
         skipped += 1;
-        this.logger.warn(
-          `Bỏ qua ${card.slug}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+        this.logger.warn(`Bỏ qua ${card.slug}: ${messageOf(error)}`);
       }
     }
 
@@ -165,7 +163,7 @@ export class JobWriter {
       const detail = await this.portals.detail(portal, slug);
       return detail.description;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.warn(`Không lấy được mô tả đầy đủ của ${slug}: ${message}`);
       return null;
     }
@@ -205,11 +203,7 @@ export class JobWriter {
         });
         updated += 1;
       } catch (error) {
-        this.logger.warn(
-          `Không làm mới được ${card.id}: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+        this.logger.warn(`Không làm mới được ${card.id}: ${messageOf(error)}`);
       }
     }
 

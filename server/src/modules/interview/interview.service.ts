@@ -28,6 +28,7 @@ import {
   buildPrepPrompt,
   PREP_SECTIONS,
 } from './utils/interview-prep.prompt';
+import { messageOf } from '@/common/error-message';
 
 const SKILL_NAME = 'job-application-assistant';
 
@@ -161,7 +162,7 @@ export class InterviewService {
     error: unknown,
     label: string,
   ): Promise<{ prep: InterviewPrep; message: string }> {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     this.logger.error(`${label} thất bại (job=${jobId}): ${message}`);
     const prep = await this.prisma.interviewPrep.update({
       where: { userId_jobId: { userId, jobId } },

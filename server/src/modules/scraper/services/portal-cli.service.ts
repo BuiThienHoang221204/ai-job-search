@@ -13,6 +13,7 @@ import type {
   PortalJobDetail,
   SearchArgs,
 } from '../types';
+import { messageOf } from '@/common/error-message';
 
 const run = promisify(execFile);
 
@@ -222,7 +223,7 @@ export class PortalCliService implements OnModuleInit {
       );
       return JSON.parse(stdout) as T;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       const stderr = (error as { stderr?: string }).stderr ?? '';
       const parsed = stderr.trim().startsWith('{')
         ? (JSON.parse(stderr.trim()) as { error?: string; code?: string })

@@ -1,4 +1,5 @@
 import type { CookieOptions, Response } from 'express';
+import { DAY_MS } from '@/common/duration';
 
 export const AUTH_COOKIE = 'aijob_token';
 export const REFRESH_COOKIE = 'aijob_refresh';
@@ -9,7 +10,7 @@ const REFRESH_PATH = '/api/auth/refresh';
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 /** Phải khớp JWT_REFRESH_EXPIRES_IN=7d - cookie sống lâu hơn token thì người dùng thấy "đang đăng nhập" nhưng nhận 401 ở mọi thao tác. */
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * DAY_MS;
 
 const options = (): CookieOptions => ({
   httpOnly: true, // JS trong trang không đọc được, nên một lỗi XSS không lấy được token.

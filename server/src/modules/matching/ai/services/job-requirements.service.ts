@@ -18,6 +18,7 @@ import {
   SYSTEM,
 } from '../prompt/job-requirements.prompt';
 import { hasSkills, NO_SKILLS_ERROR, sourceHash } from '../utils/requirements';
+import { messageOf } from '@/common/error-message';
 
 @Injectable()
 export class JobRequirementsService {
@@ -64,7 +65,7 @@ export class JobRequirementsService {
   }
 
   private markFailed(jobId: string, error: unknown): Promise<JobRequirement> {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageOf(error);
     this.logger.error(`Rút trích yêu cầu thất bại (${jobId}): ${message}`);
     return this.prisma.jobRequirement.update({
       where: { jobId },
@@ -177,7 +178,7 @@ export class JobRequirementsService {
       }
       return results;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       const kind = classifyFailure(error);
       // TIMEOUT: gateway đang nghẽn, rút lẻ chỉ dồn thêm request vào chỗ đang tắc. SCHEMA (từ 2026-10-05, ModelChain tự đổi model khi gặp cả hai): lượt LÔ đã tự thử nhiều model rồi mới hỏng, rút lẻ lại 5 tin - mỗi tin CŨNG tự thử nhiều model - nhân thời gian một lô lên gấp nhiều lần so với trước.
       if (kind === 'TIMEOUT' || kind === 'SCHEMA') {

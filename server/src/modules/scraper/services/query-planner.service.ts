@@ -20,6 +20,7 @@ import {
   searchPlanSchema,
   type SearchPlan,
 } from '../planning/search-plan.schema';
+import { messageOf } from '@/common/error-message';
 
 /** Quét CÁI GÌ: sinh danh sách từ khoá — từ hồ sơ (lượt người dùng) hoặc từ cụm nghề (lượt cron). KHÔNG phải provider Nest, `ScraperService` tự dựng. */
 export class QueryPlanner {
@@ -74,7 +75,7 @@ export class QueryPlanner {
       this.logger.log(`Truy vấn do ${refined.modelId} tinh chỉnh`);
       return refined;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = messageOf(error);
       this.logger.warn(
         `Tinh chỉnh truy vấn thất bại (${message}); dùng bản tất định`,
       );

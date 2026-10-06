@@ -1,3 +1,4 @@
+import { messageOf } from '@/common/error-message';
 export type FailureKind = 'SCHEMA' | 'TIMEOUT' | 'UPSTREAM' | 'OTHER';
 
 /** Các lớp lỗi của AI SDK đều đặt `name` thành chuỗi ổn định có tiền tố "AI_". */
@@ -22,8 +23,8 @@ const unwrap = (error: unknown): unknown => {
   return error;
 };
 
-/** Rút thông báo lỗi từ một giá trị chưa biết kiểu. */
-const messageOf = (error: unknown): string => {
+/** Rút thông báo DỄ DÃI hơn `messageOf`: nhận cả chuỗi và object có trường `message` (lỗi từ fetch/SDK). */
+const looseMessageOf = (error: unknown): string => {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   if (typeof error === 'object' && error !== null && 'message' in error) {
@@ -37,7 +38,7 @@ const messageOf = (error: unknown): string => {
 export function classifyFailure(input: unknown): FailureKind {
   const error = unwrap(input);
   const name = (error as { name?: string })?.name ?? '';
-  const message = messageOf(error);
+  const message = looseMessageOf(error);
 
   if (name === AI_ERROR_NAMES.noObjectGenerated) return 'SCHEMA';
   if (/did not match schema|no object generated/i.test(message))
@@ -68,7 +69,7 @@ export function classifyFailure(input: unknown): FailureKind {
 
 /** Gateway từ chối HẲN model này, không phải riêng lượt gọi này. Model bị rút khuyến mãi VẪN nằm trong `GET /models`, nên chỉ lúc gọi thật mới nhận 401 — không nhận ra thì chuỗi dự phòng đứng lại ở mắt xích đã chết. */
 export function isModelRetired(input: unknown): boolean {
-  const message = messageOf(unwrap(input));
+  const message = looseMessageOf(unwrap(input));
   return /free promotion has ended|no longer available|subscrib(e|ing) to/i.test(
     message,
   );
@@ -77,7 +78,7 @@ export function isModelRetired(input: unknown): boolean {
 /** Gateway từ chối vì HẾT HẠN MỨC, chứ không phải vì lỗi. */
 export function isRateLimited(input: unknown): boolean {
   const error = unwrap(input);
-  const message = messageOf(error);
+  const message = looseMessageOf(error);
   const status = (error as { statusCode?: unknown; status?: unknown })
     ?.statusCode;
 
@@ -95,7 +96,7 @@ export function isAccessDenied(input: unknown): boolean {
   if (typeof status === 'number') return false;
 
   return /\[(401|403)\]|free tier can only be used|is not supported|insufficient_quota|permission_error|unauthorized|forbidden/i.test(
-    messageOf(error),
+    looseMessageOf(error),
   );
 }
 
@@ -109,20 +110,20 @@ export function isTransientUpstream(input: unknown): boolean {
   if (typeof status === 'number') return status >= 500;
 
   return /internal server error|bad gateway|service unavailable|overloaded/i.test(
-    messageOf(error),
+    looseMessageOf(error),
   );
 }
 
 /** Gateway có chấp nhận `response_format` kèm JSON schema hay không. */
 export function isResponseFormatUnsupported(input: unknown): boolean {
   return /response_format[^.]{0,40}(unavailable|not supported|unsupported)|unsupported.{0,20}response_format/i.test(
-    messageOf(unwrap(input)),
+    looseMessageOf(unwrap(input)),
   );
 }
 
 /** Cắt bớt thông báo trước khi ghi xuống DB. */
 export function truncateError(error: unknown, max = 800): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = messageOf(error);
   return message.length > max ? `${message.slice(0, max)}...` : message;
 }
 
