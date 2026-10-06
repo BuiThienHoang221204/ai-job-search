@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Document, Profile } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
+import type { StreamObjectOptions } from '@/modules/ai/ai.types';
 import { fastModelChain } from '@/common/model-env';
 import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
 import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
@@ -118,24 +119,26 @@ export class DocumentComposer {
     ];
   }
 
-  private cvPrompt(
+  private cvCall(
     document: Document,
     profile: Profile | null,
     target: LetterTarget | null,
-  ): { system: string; prompt: string; language: OutputLanguage } {
+  ): StreamObjectOptions<CvContentResult> {
     const language = documentLanguage(document);
-
-    const { system, prompt } = cvPrompt(
-      {
-        framework: this.section('05-cv-templates.md', CV_SECTIONS, profile),
-        writingRules: this.writingRules(profile),
-        profileSummary: this.prompts.profileSummary(profile),
-      },
-      target,
-      language,
-    );
-
-    return { system, prompt, language };
+    return {
+      schema: cvSchema(language),
+      context: { purpose: 'document.cv', userId: document.userId },
+      ...cvPrompt(
+        {
+          framework: this.section('05-cv-templates.md', CV_SECTIONS, profile),
+          writingRules: this.writingRules(profile),
+          profileSummary: this.prompts.profileSummary(profile),
+        },
+        target,
+        language,
+      ),
+      timeoutMs: DOCUMENT_TIMEOUT_MS,
+    };
   }
 
   private async cv(
@@ -143,20 +146,9 @@ export class DocumentComposer {
     profile: Profile | null,
     target: LetterTarget | null,
   ): Promise<ComposeResult> {
-    const { system, prompt, language } = this.cvPrompt(
-      document,
-      profile,
-      target,
+    const { object, modelId } = await this.ai.generateObject(
+      this.cvCall(document, profile, target),
     );
-
-    const { object, modelId } = await this.ai.generateObject<CvContentResult>({
-      schema: cvSchema(language),
-      context: { purpose: 'document.cv', userId: document.userId },
-      system,
-      prompt,
-      timeoutMs: DOCUMENT_TIMEOUT_MS,
-    });
-
     return { content: object, modelId };
   }
 
@@ -165,33 +157,21 @@ export class DocumentComposer {
     profile: Profile | null,
     target: LetterTarget | null,
   ) {
-    const { system, prompt, language } = this.cvPrompt(
-      document,
-      profile,
-      target,
-    );
-
-    return this.ai.streamObject<CvContentResult>({
-      schema: cvSchema(language),
-      context: { purpose: 'document.cv', userId: document.userId },
-      system,
-      prompt,
-      timeoutMs: DOCUMENT_TIMEOUT_MS,
-    });
+    return this.ai.streamObject(this.cvCall(document, profile, target));
   }
 
-  private async coverLetterPrompt(
+  private async coverLetterCall(
     document: Document,
     profile: Profile | null,
     target: LetterTarget | null,
-  ): Promise<{ system: string; prompt: string }> {
+  ): Promise<StreamObjectOptions<CoverLetterResult>> {
     if (!target) {
       throw new NotFoundException(
         'Thư xin việc bắt buộc phải gắn với một công việc',
       );
     }
 
-    return coverLetterPrompt(
+    const { system, prompt } = coverLetterPrompt(
       {
         framework: this.section(
           '06-cover-letter-templates.md',
@@ -204,6 +184,15 @@ export class DocumentComposer {
       },
       target,
     );
+
+    return {
+      schema: coverLetterSchema,
+      context: { purpose: 'document.coverLetter', userId: document.userId },
+      system,
+      prompt,
+      timeoutMs: DOCUMENT_TIMEOUT_MS,
+      ...fastModelChain(estimateTokens(system, prompt)),
+    };
   }
 
   private async coverLetter(
@@ -211,23 +200,9 @@ export class DocumentComposer {
     profile: Profile | null,
     target: LetterTarget | null,
   ): Promise<ComposeResult> {
-    const { system, prompt } = await this.coverLetterPrompt(
-      document,
-      profile,
-      target,
+    const { object, modelId } = await this.ai.generateObject(
+      await this.coverLetterCall(document, profile, target),
     );
-
-    const { object, modelId } = await this.ai.generateObject<CoverLetterResult>(
-      {
-        schema: coverLetterSchema,
-        context: { purpose: 'document.coverLetter', userId: document.userId },
-        system,
-        prompt,
-        timeoutMs: DOCUMENT_TIMEOUT_MS,
-        ...fastModelChain(estimateTokens(system, prompt)),
-      },
-    );
-
     return { content: object, modelId };
   }
 
@@ -236,20 +211,9 @@ export class DocumentComposer {
     profile: Profile | null,
     target: LetterTarget | null,
   ) {
-    const { system, prompt } = await this.coverLetterPrompt(
-      document,
-      profile,
-      target,
+    return this.ai.streamObject(
+      await this.coverLetterCall(document, profile, target),
     );
-
-    return this.ai.streamObject<CoverLetterResult>({
-      schema: coverLetterSchema,
-      context: { purpose: 'document.coverLetter', userId: document.userId },
-      system,
-      prompt,
-      timeoutMs: DOCUMENT_TIMEOUT_MS,
-      ...fastModelChain(estimateTokens(system, prompt)),
-    });
   }
 
   /** Khác thư xin việc: có tiêu đề mail, ngắn hơn một nửa, và chữ ký do CODE ghép chứ không hỏi model. */

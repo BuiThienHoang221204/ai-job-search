@@ -29,8 +29,20 @@ import {
   PREP_SECTIONS,
 } from './utils/interview-prep.prompt';
 import { messageOf } from '@/common/error-message';
+import type { StreamObjectOptions } from '../ai/ai.types';
 
 const SKILL_NAME = 'job-application-assistant';
+
+const prepCall = (
+  userId: string,
+  system: string,
+  prompt: string,
+): StreamObjectOptions<InterviewPrepResult> => ({
+  schema: interviewPrepSchema,
+  context: { purpose: 'interview.prep', userId },
+  system,
+  prompt,
+});
 
 @Injectable()
 export class InterviewService {
@@ -181,13 +193,9 @@ export class InterviewService {
     const { system, prompt, hash } = ready;
 
     try {
-      const { object, modelId } =
-        await this.ai.generateObject<InterviewPrepResult>({
-          schema: interviewPrepSchema,
-          context: { purpose: 'interview.prep', userId: userId },
-          system,
-          prompt,
-        });
+      const { object, modelId } = await this.ai.generateObject(
+        prepCall(userId, system, prompt),
+      );
 
       return await this.persist(userId, jobId, object, modelId, hash);
     } catch (error) {
@@ -233,13 +241,9 @@ export class InterviewService {
     const { system, prompt, hash } = ready;
 
     try {
-      const { partials, object, modelId } =
-        await this.ai.streamObject<InterviewPrepResult>({
-          schema: interviewPrepSchema,
-          context: { purpose: 'interview.prep', userId },
-          system,
-          prompt,
-        });
+      const { partials, object, modelId } = await this.ai.streamObject(
+        prepCall(userId, system, prompt),
+      );
 
       for await (const partial of partials) {
         yield { type: 'partial', data: partial };

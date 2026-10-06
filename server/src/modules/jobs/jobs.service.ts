@@ -8,7 +8,6 @@ import { toMatchProfile } from '../matching/ai/utils/requirements';
 import { SkillDictionaryService } from '../matching/ai/services/skill-dictionary.service';
 import { SalaryService } from '../salary/salary.service';
 import { yearsOfExperience } from '../profile/utils/experience-years';
-import type { MatchProfile } from '../matching/rules/types';
 import { derivedFields } from './taxonomy/resolve';
 import { jobCardSelect } from './job-card.select';
 import {
@@ -66,26 +65,15 @@ export class JobsService {
       update: data,
     });
   }
-  private async profileMetaOf(userId: string) {
+  /** MỘT lần đọc hồ sơ cho mọi thứ trang việc làm cần: cổng ngành, đối chiếu kỹ năng, bảng lương. */
+  private profileOf(userId: string) {
     return this.prisma.profile.findUnique({
       where: { userId },
       select: {
+        occupationCode: true,
         updatedAt: true,
         currentSalary: true,
         expectedSalary: true,
-        experiences: true,
-      },
-    });
-  }
-  private readonly relations = (userId: string) => ({
-    saves: { where: { userId }, select: { id: true } },
-    matches: { where: { userId }, select: MATCH_DETAIL_FIELDS },
-    requirements: true,
-  });
-  private async matchProfileOf(userId: string): Promise<MatchProfile | null> {
-    const profile = await this.prisma.profile.findUnique({
-      where: { userId },
-      select: {
         headline: true,
         primarySkills: true,
         secondarySkills: true,
@@ -96,15 +84,12 @@ export class JobsService {
         experiences: true,
       },
     });
-    return profile ? toMatchProfile(profile) : null;
   }
-  private async occupationOf(userId: string): Promise<string | null> {
-    const profile = await this.prisma.profile.findUnique({
-      where: { userId },
-      select: { occupationCode: true },
-    });
-    return profile?.occupationCode ?? null;
-  }
+  private readonly relations = (userId: string) => ({
+    saves: { where: { userId }, select: { id: true } },
+    matches: { where: { userId }, select: MATCH_DETAIL_FIELDS },
+    requirements: true,
+  });
   private readonly cardSelect = (userId: string) =>
     ({
       ...jobCardSelect(userId),
@@ -114,15 +99,16 @@ export class JobsService {
 
   /** `sort=match` đọc bảng KHÁC (`jobRequirementMatch`) vì thứ hạng đã tính sẵn ở đó, không sắp được trên `Job`. */
   async list(query: ListJobsQueryDto, userId: string) {
-    const occupation = query.scored ? await this.occupationOf(userId) : null;
+    const stored = await this.profileOf(userId);
+    const occupation = query.scored ? (stored?.occupationCode ?? null) : null;
     const jobWhere = whereFrom(query, userId, this.minPercent, occupation);
     const sort = listOrderFor(query);
+    const profile = stored ? toMatchProfile(stored) : null;
 
-    const [rows, total, profile, dictionary] = await Promise.all([
+    const [rows, total, dictionary] = await Promise.all([
       ...(sort === 'match'
         ? this.byMatchScore(jobWhere, query, userId)
         : this.byJobColumn(jobWhere, query, userId, sort)),
-      this.matchProfileOf(userId),
       this.dictionary.lookup(),
     ]);
 
@@ -203,16 +189,16 @@ export class JobsService {
   }
 
   async get(id: string, userId: string) {
-    const [job, skills, dictionary, profileMeta] = await Promise.all([
+    const [job, dictionary, profileMeta] = await Promise.all([
       this.prisma.job.findUnique({
         where: { id },
         include: this.relations(userId),
       }),
-      this.matchProfileOf(userId),
       this.dictionary.lookup(),
-      this.profileMetaOf(userId),
+      this.profileOf(userId),
     ]);
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
+    const skills = profileMeta ? toMatchProfile(profileMeta) : null;
 
     const scored = withSystemMatch(
       withMatchDetail(withSavedFlag(job), profileMeta?.updatedAt ?? null),

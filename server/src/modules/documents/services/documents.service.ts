@@ -49,18 +49,35 @@ export class DocumentsService {
       );
     }
 
+    return this.writeSource(document, document.content);
+  }
+
+  /** Vẽ lại file nguồn từ `content` rồi ghi `storageKey` — KHÔNG gọi model. Sửa `content` mà quên bước này thì `.tex` và PDF LaTeX còn chữ cũ. */
+  private async writeSource(
+    document: Document,
+    content: unknown,
+  ): Promise<Document> {
     const { target, identity } = await this.generator.context(document);
     const storageKey = await this.renderer.render(
       document,
       target,
-      document.content,
+      content,
       identity,
     );
-
     return this.prisma.document.update({
-      where: { id: documentId },
+      where: { id: document.id },
       data: { storageKey },
     });
+  }
+
+  private async requireJob(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true, title: true, company: true },
+    });
+    if (!job)
+      throw new NotFoundException(`Không tìm thấy tin tuyển dụng: ${jobId}`);
+    return job;
   }
 
   /** HAI nguồn: tin đã lưu, hoặc JD dán tay — JD dán tay không được ghi thành `Job`, xem README. */
@@ -74,15 +91,7 @@ export class DocumentsService {
     },
   ): Promise<Document> {
     if (input.jobId) {
-      const job = await this.prisma.job.findUnique({
-        where: { id: input.jobId },
-        select: { id: true, title: true, company: true },
-      });
-      if (!job) {
-        throw new NotFoundException(
-          `Không tìm thấy tin tuyển dụng: ${input.jobId}`,
-        );
-      }
+      const job = await this.requireJob(input.jobId);
       return this.create(
         userId,
         'APPLICATION_EMAIL',
@@ -114,15 +123,7 @@ export class DocumentsService {
     },
   ): Promise<Document> {
     if (input.jobId) {
-      const job = await this.prisma.job.findUnique({
-        where: { id: input.jobId },
-        select: { id: true },
-      });
-      if (!job) {
-        throw new NotFoundException(
-          `Không tìm thấy tin tuyển dụng: ${input.jobId}`,
-        );
-      }
+      const job = await this.requireJob(input.jobId);
       return this.create(userId, 'CV', '', job.id, undefined, input.language);
     }
 
@@ -280,20 +281,7 @@ export class DocumentsService {
       },
     });
 
-    // Sửa chữ xong mà không render lại thì file `.tex` đã lưu thành cũ, trong khi
-    // nút "Xem mã .tex" và đường PDF LaTeX vẫn đọc đúng file đó.
-    const { target, identity } = await this.generator.context(updated);
-    const storageKey = await this.renderer.render(
-      updated,
-      target,
-      content,
-      identity,
-    );
-
-    return this.prisma.document.update({
-      where: { id },
-      data: { storageKey },
-    });
+    return this.writeSource(updated, content);
   }
 
   /** HTML để nhúng vào khung xem trước; `override` cho xem thử mẫu khác mà không ghi database. */

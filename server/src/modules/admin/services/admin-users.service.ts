@@ -82,15 +82,10 @@ export class AdminUsersService {
     });
     if (!user) throw new NotFoundException(`Không tìm thấy người dùng: ${id}`);
 
-    const [tokens, lastCall, recentCalls] = await Promise.all([
+    const [tokens, recentCalls] = await Promise.all([
       this.prisma.aiCall.aggregate({
         where: { userId: id },
         _sum: { inputTokens: true, outputTokens: true },
-      }),
-      this.prisma.aiCall.findFirst({
-        where: { userId: id },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
       }),
       this.prisma.aiCall.findMany({
         where: { userId: id },
@@ -115,7 +110,7 @@ export class AdminUsersService {
       usage: {
         inputTokens: tokens._sum.inputTokens ?? 0,
         outputTokens: tokens._sum.outputTokens ?? 0,
-        lastCallAt: lastCall?.createdAt ?? null,
+        lastCallAt: recentCalls[0]?.createdAt ?? null,
       },
       recentCalls,
     };
