@@ -12,6 +12,35 @@ export type SkillGap = { skill: string; jobCount: number };
 export const roundedScore = (value: number | null | undefined) =>
   value == null ? null : Math.round(value);
 
+/** Trung bình làm tròn, bỏ qua lượt chưa có điểm. */
+export function average(values: Array<number | null>): number | null {
+  const numbers = values.filter((value): value is number => value !== null);
+  if (!numbers.length) return null;
+  return Math.round(
+    numbers.reduce((sum, value) => sum + value, 0) / numbers.length,
+  );
+}
+
+type ScoreRow = {
+  overallScore: number | null;
+  technicalScore: number | null;
+  experienceScore: number | null;
+  behavioralScore: number | null;
+  careerScore: number | null;
+};
+
+/** "Điểm phù hợp hôm nay" trên giao diện: trung bình từng trục của mấy lần chấm gần nhất. */
+export function todayScore(recent: ScoreRow[]) {
+  return {
+    overall: average(recent.map((match) => match.overallScore)),
+    skills: average(recent.map((match) => match.technicalScore)),
+    experience: average(recent.map((match) => match.experienceScore)),
+    behavioral: average(recent.map((match) => match.behavioralScore)),
+    career: average(recent.map((match) => match.careerScore)),
+    sampleSize: recent.length,
+  };
+}
+
 /** Đếm từ khóa xuất hiện trong các tin đã chấm điểm mà hồ sơ KHÔNG có. */
 export function recurringGaps(
   scored: Array<{ job: { tags: string[] } }>,

@@ -15,6 +15,7 @@ import {
 } from '../utils/scrape-batches';
 import { occupationCoverage } from '../utils/occupation-coverage';
 import { daysAgo } from '@/common/duration';
+import { dateRange, registeredOnly } from '../utils/filters';
 
 /** Mặc định `staleDays` khi không truyền — khớp `SCRAPER_MAX_AGE_DAYS`, đủ để chu kỳ phủ ~4 đêm chạy xong. */
 const DEFAULT_STALE_DAYS = 7;
@@ -43,10 +44,9 @@ export class AdminScrapeService {
 
   /** Lịch sử theo lượt đêm, mỗi lượt gồm kết quả của từng portal. */
   async batches(query: ScrapeBatchesQueryDto) {
-    // Portal đã gỡ khỏi registry không còn cột trên giao diện; giữ lượt của chúng thì bộ lọc "hỏng" bắt nhầm.
-    const registered = new Set(this.sources.listPortals());
-    const runs = (await this.recentRuns(query)).filter((run) =>
-      registered.has(run.portal),
+    const runs = registeredOnly(
+      await this.recentRuns(query),
+      this.sources.listPortals(),
     );
     const batches = groupBatches(runs);
     const items = query.failedOnly
@@ -91,12 +91,7 @@ export class AdminScrapeService {
 
   private async recentRuns(range: TimeRangeQueryDto): Promise<RunLite[]> {
     const rows = await this.prisma.scrapeRun.findMany({
-      where: {
-        createdAt: {
-          ...(range.from ? { gte: new Date(range.from) } : {}),
-          ...(range.to ? { lt: new Date(range.to) } : {}),
-        },
-      },
+      where: { createdAt: dateRange(range) },
       orderBy: { createdAt: 'desc' },
       take: MAX_RUNS,
       select: {

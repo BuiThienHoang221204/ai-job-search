@@ -56,13 +56,7 @@ export class ProfileDraftService {
     });
 
     if (!stream) {
-      await this.queue.send<ProfileSynthesizePayload>(
-        QUEUE.PROFILE_SYNTHESIZE,
-        {
-          userId,
-          draftId: draft.id,
-        },
-      );
+      await this.enqueue(userId, draft.id);
     }
 
     return { draftId: draft.id, evidence };
@@ -112,7 +106,11 @@ export class ProfileDraftService {
       where: { id: draftId },
       data: { status: 'PENDING', error: null },
     });
-    await this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
+    await this.enqueue(userId, draftId);
+  }
+
+  private enqueue(userId: string, draftId: string) {
+    return this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
       userId,
       draftId,
     });
@@ -139,10 +137,7 @@ export class ProfileDraftService {
       data: { status: 'PENDING', error: null },
     });
 
-    await this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
-      userId,
-      draftId,
-    });
+    await this.enqueue(userId, draftId);
 
     return reset;
   }

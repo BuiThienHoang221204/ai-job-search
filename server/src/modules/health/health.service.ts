@@ -55,6 +55,19 @@ const withTimeout = async (
   }
 };
 
+/** Kiểm một bộ in PDF có trả lời không; `available()` trả `false` cũng là hỏng, kèm câu báo riêng. */
+const probe = (
+  target: { available(): Promise<boolean> },
+  label: string,
+  message: string,
+) =>
+  withTimeout(
+    target.available().then((ok) => {
+      if (!ok) throw new Error(message);
+    }),
+    label,
+  );
+
 @Injectable()
 export class HealthService {
   constructor(
@@ -66,33 +79,18 @@ export class HealthService {
 
   /** Các phụ thuộc đã sẵn sàng nhận việc hay chưa. */
   async readiness(): Promise<ReadinessReport> {
-    const database = await withTimeout(
-      this.prisma.$queryRawUnsafe('SELECT 1'),
-      'database',
-    );
-
     const status = this.queue.status();
     const queue: CheckResult = status.ready
       ? { ok: true }
       : { ok: false, error: status.error ?? 'hàng đợi chưa khởi tạo xong' };
 
-    const latex = await withTimeout(
-      this.latex.available().then((ok) => {
-        if (!ok) throw new Error('môi trường tạo PDF không phản hồi');
-      }),
-      'latex',
-    );
+    const [database, latex, pdf] = await Promise.all([
+      withTimeout(this.prisma.$queryRawUnsafe('SELECT 1'), 'database'),
+      probe(this.latex, 'latex', 'môi trường tạo PDF không phản hồi'),
+      probe(this.pdf, 'pdf', 'môi trường in PDF không phản hồi'),
+    ]);
 
-    const pdf = await withTimeout(
-      this.pdf.available().then((ok) => {
-        if (!ok) throw new Error('môi trường in PDF không phản hồi');
-      }),
-      'pdf',
-    );
-
-    // `latex` và `pdf` cố ý KHÔNG tính vào `ready`, cùng một lý do: mất PDF thì
-    // người dùng vẫn chấm điểm, xem việc, soạn CV và ứng tuyển được, nên đừng để
-    // orchestrator khởi động lại cả app vì một tính năng phụ.
+    // `latex` và `pdf` cố ý KHÔNG tính vào `ready`: mất PDF thì người dùng vẫn dùng được mọi thứ khác, đừng để orchestrator khởi động lại cả app.
     return {
       ready: database.ok && queue.ok,
       checks: { database, queue, latex, pdf },

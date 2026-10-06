@@ -178,6 +178,7 @@ export class JobWriter {
 
     for (const card of cards) {
       const postedAt = parsePostedAt(card.postedAt);
+      const provinceCode = resolveProvince(card.location ?? null);
       const data = {
         ...(card.companyLogo ? { companyLogo: card.companyLogo } : {}),
         ...(postedAt ? { postedAt } : {}),
@@ -185,11 +186,11 @@ export class JobWriter {
         ...(card.location
           ? {
               location: card.location,
-              provinceCode: resolveProvince(card.location),
+              provinceCode,
               dedupeKey: dedupeKeyOf(
                 card.title,
                 card.company ?? 'Không rõ',
-                resolveProvince(card.location),
+                provinceCode,
               ),
             }
           : {}),

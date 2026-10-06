@@ -17,7 +17,12 @@ import {
   BATCH_TIMEOUT_MS,
   SYSTEM,
 } from '../prompt/job-requirements.prompt';
-import { hasSkills, NO_SKILLS_ERROR, sourceHash } from '../utils/requirements';
+import {
+  hasSkills,
+  isUpToDate,
+  NO_SKILLS_ERROR,
+  sourceHash,
+} from '../utils/requirements';
 import { messageOf } from '@/common/error-message';
 
 @Injectable()
@@ -82,7 +87,7 @@ export class JobRequirementsService {
     if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
 
     const hash = sourceHash(job);
-    if (!force && existing?.status === 'DONE' && existing.sourceHash === hash) {
+    if (!force && isUpToDate(existing, hash)) {
       return existing;
     }
 
@@ -128,11 +133,7 @@ export class JobRequirementsService {
     for (const job of jobs) {
       const hash = sourceHash(job);
       const previous = byJobId.get(job.id);
-      if (
-        !force &&
-        previous?.status === 'DONE' &&
-        previous.sourceHash === hash
-      ) {
+      if (!force && isUpToDate(previous, hash)) {
         results.push(previous);
         continue;
       }

@@ -7,6 +7,7 @@ import {
   buildSuggestions,
   recurringGaps,
   roundedScore,
+  todayScore,
   type SuggestionInput,
 } from './dashboard.utils';
 import { DAY_MS, daysAgo } from '@/common/duration';
@@ -81,14 +82,6 @@ export class DashboardService {
       this.prisma.jobMatch.count({ where: { userId, status: 'DONE' } }),
     ]);
 
-    const average = (values: Array<number | null>): number | null => {
-      const numbers = values.filter((value): value is number => value !== null);
-      if (!numbers.length) return null;
-      return Math.round(
-        numbers.reduce((sum, value) => sum + value, 0) / numbers.length,
-      );
-    };
-
     const best = topMatches[0];
     const suggestionInput: SuggestionInput = {
       profileCompletion: profile?.completion ?? 0,
@@ -122,15 +115,7 @@ export class DashboardService {
       })),
       suggestions: buildSuggestions(suggestionInput),
       applications,
-      /** "Điểm phù hợp hôm nay" trên giao diện: trung bình 5 lần chấm gần nhất. */
-      todayScore: {
-        overall: average(recentFive.map((match) => match.overallScore)),
-        skills: average(recentFive.map((match) => match.technicalScore)),
-        experience: average(recentFive.map((match) => match.experienceScore)),
-        behavioral: average(recentFive.map((match) => match.behavioralScore)),
-        career: average(recentFive.map((match) => match.careerScore)),
-        sampleSize: recentFive.length,
-      },
+      todayScore: todayScore(recentFive),
     };
   }
 }

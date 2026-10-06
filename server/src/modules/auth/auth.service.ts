@@ -102,11 +102,11 @@ export class AuthService {
   async refresh(token: string | undefined): Promise<AuthResult> {
     if (!token) throw new UnauthorizedException('Thiếu refresh token');
 
-    let payload: unknown;
+    let payload: unknown = null;
     try {
       payload = this.jwt.verify(token);
     } catch {
-      throw new UnauthorizedException('Refresh token không hợp lệ');
+      // Chữ ký sai hoặc hết hạn: để `payload = null` rơi xuống cùng một câu báo bên dưới.
     }
     if (!isRefreshPayload(payload)) {
       throw new UnauthorizedException('Refresh token không hợp lệ');

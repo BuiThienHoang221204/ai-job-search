@@ -4,7 +4,7 @@ import type {
   MatchStatus,
   Prisma,
 } from '@/generated/prisma/client';
-import { countTerms } from '@/common/text/vietnamese';
+import { countTerms, normalizeText } from '@/common/text/vietnamese';
 import { isStaleMatch } from '@/modules/matching/rules/staleness';
 import { toRequirements } from '@/modules/matching/ai/utils/requirements';
 import { matchRequirements } from '@/modules/matching/rules/requirement-match';
@@ -12,7 +12,6 @@ import type {
   MatchProfile,
   SkillDictionary,
 } from '@/modules/matching/rules/types';
-import { normalizeText } from '@/common/text/vietnamese';
 import {
   nearbyOccupations,
   OCCUPATIONS,

@@ -130,18 +130,3 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     a.severity === b.severity ? 0 : a.severity === 'danger' ? -1 : 1,
   );
 }
-
-/** Điều kiện "lời gọi hỏng trong khoảng [from, to)" dùng chung cho nhật ký lỗi và bộ lọc của nó. */
-export function failureWindow(range: { from?: string; to?: string }) {
-  return {
-    ok: false,
-    ...(range.from || range.to
-      ? {
-          createdAt: {
-            ...(range.from ? { gte: new Date(range.from) } : {}),
-            ...(range.to ? { lt: new Date(range.to) } : {}),
-          },
-        }
-      : {}),
-  };
-}

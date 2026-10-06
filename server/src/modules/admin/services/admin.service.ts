@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { pageArgs, pageOf } from '@/common/pagination';
-import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { FailureFacetsQueryDto, FailuresQueryDto } from '../admin.dto';
 import { buildAiHealth, type AiHealth } from '../utils/ai-health';
@@ -18,13 +17,13 @@ import {
 } from '../utils/ai-usage';
 import {
   buildAttention,
-  failureWindow,
   comparableRate,
   OVERVIEW_THRESHOLDS,
   previousSince,
   rate,
   topFailureKind,
 } from '../utils/overview';
+import { failureWindow, failuresWhere, registeredOnly } from '../utils/filters';
 import { QueueService } from '@/modules/queue/queue.service';
 import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
 import { visibleResponse } from '../utils/response-redaction';
@@ -74,33 +73,9 @@ export class AdminService {
     return { ...buildAiHealth(rows), windowDays: days };
   }
 
-  /**
-   * Các lần hỏng gần nhất, kèm thông báo thật. Bảng tổng hợp cho biết CÓ vấn
-   * đề; danh sách này cho biết vấn đề là gì.
-   */
+  /** Các lần hỏng gần nhất kèm thông báo thật: bảng tổng hợp cho biết CÓ vấn đề, danh sách này cho biết vấn đề là gì. */
   async recentFailures(query: FailuresQueryDto) {
-    const where: Prisma.AiCallWhereInput = {
-      ...failureWindow(query),
-      // Giao diện hiện `failureKind = null` là OTHER, nên lọc OTHER cũng phải lấy cả null.
-      ...(query.failureKind === 'OTHER'
-        ? { OR: [{ failureKind: 'OTHER' }, { failureKind: null }] }
-        : query.failureKind
-          ? { failureKind: query.failureKind }
-          : {}),
-      ...(query.purpose ? { purpose: query.purpose } : {}),
-      ...(query.model
-        ? {
-            AND: [
-              {
-                OR: [
-                  { modelId: { contains: query.model, mode: 'insensitive' } },
-                  { provider: { contains: query.model, mode: 'insensitive' } },
-                ],
-              },
-            ],
-          }
-        : {}),
-    };
+    const where = failuresWhere(query);
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.aiCall.findMany({
@@ -359,9 +334,7 @@ export class AdminService {
 
     const successRate = rate(ok, calls);
     const previousSuccessRate = comparableRate(prevOk, prevCalls);
-    // Portal đã gỡ khỏi registry vẫn còn lượt hỏng cũ; báo về chúng là báo động giả vĩnh viễn.
-    const registered = new Set(this.sources.listPortals());
-    const portals = runs.filter((run) => registered.has(run.portal));
+    const portals = registeredOnly(runs, this.sources.listPortals());
     const lastScrapeAt = portals.reduce<Date | null>(
       (latest, run) =>
         !latest || run.createdAt > latest ? run.createdAt : latest,

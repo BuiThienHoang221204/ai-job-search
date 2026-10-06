@@ -77,45 +77,21 @@ export class ScraperService {
     });
 
     try {
-      const userId = run.userId;
-      const occupations =
-        this.portals.describePortals().find((p) => p.key === run.portal)
-          ?.occupations ?? null;
-
-      let system: { plan: SearchPlan; clusterCodes: string[] } | null = null;
-      let plan: SearchPlan;
-      let modelId: string | null = null;
-
-      if (userId) {
-        const profile = await this.prisma.profile.findUnique({
-          where: { userId },
+      const planned = await this.planFor(run);
+      if ('skip' in planned) {
+        return await this.prisma.scrapeRun.update({
+          where: { id: runId },
+          data: {
+            status: 'DONE',
+            jobsFound: 0,
+            jobsNew: 0,
+            jobsQueued: 0,
+            error: planned.skip,
+            finishedAt: new Date(),
+          },
         });
-
-        if (
-          occupations &&
-          profile?.occupationCode &&
-          !occupations.includes(profile.occupationCode)
-        ) {
-          return await this.prisma.scrapeRun.update({
-            where: { id: runId },
-            data: {
-              status: 'DONE',
-              jobsFound: 0,
-              jobsNew: 0,
-              jobsQueued: 0,
-              error: `${run.portal} chỉ phục vụ ngành ${occupations.join(', ')}; hồ sơ thuộc ngành khác nên không có tin nào phù hợp.`,
-              finishedAt: new Date(),
-            },
-          });
-        }
-
-        const forUser = await this.planner.forUser(profile, userId);
-        plan = forUser.plan;
-        modelId = forUser.modelId;
-      } else {
-        system = await this.planner.forSystem(run.portal, occupations);
-        plan = system.plan;
       }
+      const { plan, modelId, clusterCodes } = planned;
 
       if (!plan.queries.length) {
         throw new Error(
@@ -151,9 +127,9 @@ export class ScraperService {
         ? await this.fanOut(run.userId, saved.savedJobIds)
         : 0;
 
-      if (system) {
+      if (clusterCodes) {
         const crawled = askedIndices
-          .map((index) => system.clusterCodes[index])
+          .map((index) => clusterCodes[index])
           .filter((code): code is string => code !== undefined);
         await this.planner.markCrawled(run.portal, crawled);
       }
@@ -176,6 +152,45 @@ export class ScraperService {
         data: { status: 'FAILED', error: message, finishedAt: new Date() },
       });
     }
+  }
+
+  /** Lượt NGƯỜI DÙNG lập kế hoạch từ hồ sơ (bị chặn sớm nếu portal không phục vụ ngành của họ); lượt HỆ THỐNG xoay vòng cụm nghề và trả `clusterCodes` để đóng dấu đã quét. */
+  private async planFor(run: ScrapeRun): Promise<
+    | { skip: string }
+    | {
+        plan: SearchPlan;
+        modelId: string | null;
+        clusterCodes: string[] | null;
+      }
+  > {
+    const occupations =
+      this.portals.describePortals().find((p) => p.key === run.portal)
+        ?.occupations ?? null;
+
+    if (!run.userId) {
+      const system = await this.planner.forSystem(run.portal, occupations);
+      return {
+        plan: system.plan,
+        modelId: null,
+        clusterCodes: system.clusterCodes,
+      };
+    }
+
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId: run.userId },
+    });
+    if (
+      occupations &&
+      profile?.occupationCode &&
+      !occupations.includes(profile.occupationCode)
+    ) {
+      return {
+        skip: `${run.portal} chỉ phục vụ ngành ${occupations.join(', ')}; hồ sơ thuộc ngành khác nên không có tin nào phù hợp.`,
+      };
+    }
+
+    const { plan, modelId } = await this.planner.forUser(profile, run.userId);
+    return { plan, modelId, clusterCodes: null };
   }
 
   /** MỘT lượt rút cho mỗi tin, dùng chung cho mọi hồ sơ — đây là thứ giữ chi phí ở mức O(số tin). */

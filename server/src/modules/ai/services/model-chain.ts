@@ -5,10 +5,10 @@ import {
   isModelRetired,
   isRateLimited,
   isTransientUpstream,
+  ModelUnavailableError,
 } from '../utils/failure-kind';
 import { formatModelRef, parseModelRef } from '../utils/model-ref';
 import { providerIds } from '../providers/index';
-import { ModelUnavailableError } from '../utils/failure-kind';
 
 export const DEFAULT_CHAIN_BUDGET_MS = 240_000;
 
@@ -19,6 +19,19 @@ export type ModelChainOptions = {
   budgetMs?: number;
   logger: Logger;
 };
+
+/** Lý do bỏ qua mắt xích, hoặc `null` nếu lỗi thuộc về TÁC VỤ và phải ném ngay. Thứ tự kiểm giữ nguyên vì nó quyết định câu log. */
+function skipReason(error: unknown): string | null {
+  if (error instanceof ModelUnavailableError) return error.message;
+  if (isModelRetired(error)) return 'gateway đã rút model này';
+  if (isRateLimited(error)) return 'hết hạn mức';
+  if (isAccessDenied(error)) return 'lõi từ chối khoá hoặc model này';
+  if (isTransientUpstream(error)) return 'lõi trả 5xx';
+  const kind = classifyFailure(error);
+  if (kind === 'TIMEOUT') return 'mắt xích chậm, vượt timeout';
+  if (kind === 'SCHEMA') return 'model trả sai định dạng';
+  return null;
+}
 
 /** Phần CHÍNH SÁCH, tách khỏi `AiService`: nó không biết SDK, prisma hay schema, chỉ trả lời "lỗi này là mắt xích hỏng hay tác vụ hỏng". */
 export class ModelChain {
@@ -77,40 +90,10 @@ export class ModelChain {
       try {
         return await attempt(modelId);
       } catch (error) {
-        const unavailable = error instanceof ModelUnavailableError;
-        const retired = isModelRetired(error);
-        const limited = isRateLimited(error);
-        const denied = isAccessDenied(error);
-        const sick = isTransientUpstream(error);
-        const kind = classifyFailure(error);
-        const timedOut = kind === 'TIMEOUT';
-        const badSchema = kind === 'SCHEMA';
-        if (
-          !unavailable &&
-          !limited &&
-          !retired &&
-          !denied &&
-          !sick &&
-          !timedOut &&
-          !badSchema
-        ) {
-          throw error;
-        }
+        const reason = skipReason(error);
+        if (reason === null) throw error;
 
         lastSkipped = error;
-        const reason = unavailable
-          ? error.message
-          : retired
-            ? 'gateway đã rút model này'
-            : limited
-              ? 'hết hạn mức'
-              : denied
-                ? 'lõi từ chối khoá hoặc model này'
-                : sick
-                  ? 'lõi trả 5xx'
-                  : timedOut
-                    ? 'mắt xích chậm, vượt timeout'
-                    : 'model trả sai định dạng';
         const next = chain[index + 1];
         this.options.logger.warn(
           next

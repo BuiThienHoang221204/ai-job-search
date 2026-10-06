@@ -4,6 +4,14 @@ import { yearsOfExperience } from '@/modules/profile/utils/experience-years';
 import type { MatchProfile } from '@/modules/matching/rules/types';
 import type { JobRequirements } from '../schemas/job-requirements.schema';
 
+/** Bản rút đã có, xong, và cùng nguồn — không cần gọi model lại. */
+export function isUpToDate(
+  record: { status: string; sourceHash: string | null } | null | undefined,
+  hash: string,
+): record is NonNullable<typeof record> {
+  return record?.status === 'DONE' && record.sourceHash === hash;
+}
+
 /** Băm ĐÚNG những trường `jobPrompt` đưa cho model — thêm trường vào prompt mà quên đây thì tin cũ không bao giờ rút lại. */
 export function sourceHash(job: Job): string {
   return fingerprint([

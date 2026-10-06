@@ -127,14 +127,8 @@ export class HttpLatexCompiler implements LatexCompiler {
     const header = response.headers.get('x-latex-warnings-b64');
     if (!header) return [];
 
-    let decoded: string;
-    try {
-      decoded = Buffer.from(header, 'base64').toString('utf8');
-    } catch {
-      this.logger.warn('Header cảnh báo LaTeX không giải mã được base64');
-      return [];
-    }
-
+    // `Buffer.from(_, 'base64')` không bao giờ ném: ký tự lạ bị bỏ qua.
+    const decoded = Buffer.from(header, 'base64').toString('utf8');
     return missingGlyphs(decoded.split(WARNING_SEPARATOR).join('\n'));
   }
 }

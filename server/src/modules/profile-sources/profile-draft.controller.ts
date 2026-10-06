@@ -24,12 +24,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import {
-  ArrayMaxSize,
-  ArrayNotEmpty,
-  IsArray,
-  IsString,
-} from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
@@ -40,14 +34,7 @@ import { cvPdfErrorMessage } from './cv-pdf.source';
 import { MAX_PDF_BYTES } from './utils/pdf-text';
 import { ProfileDraftService } from './services/profile-draft.service';
 import { ProfileSynthesizerService } from './services/profile-synthesizer.service';
-
-export class ApplyDraftDto {
-  @IsArray()
-  @ArrayNotEmpty()
-  @ArrayMaxSize(30)
-  @IsString({ each: true })
-  fields!: string[];
-}
+import { ApplyDraftDto } from './profile-draft.dto';
 
 @ApiTags('Profile Drafts (CV Upload)')
 @ApiBearerAuth()

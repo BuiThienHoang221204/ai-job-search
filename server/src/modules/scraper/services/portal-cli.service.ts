@@ -56,8 +56,8 @@ export function evaluateCandidate(input: {
   if (!input.hasSkillFile) return { skip: 'không có SKILL.md' };
   if (!input.hasCli) return { skip: 'không có cli/src/cli.ts' };
 
-  const raw = input.frontmatter.enabled;
-  const enabled = raw === undefined || raw === null ? true : raw !== false;
+  // Chỉ `enabled: false` mới tắt; vắng mặt hay giá trị khác đều là bật.
+  const enabled = input.frontmatter.enabled !== false;
 
   return {
     entry: {

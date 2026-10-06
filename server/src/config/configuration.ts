@@ -7,12 +7,16 @@ import { resolve } from 'node:path';
  */
 const fromServerRoot = (relative: string) => resolve(process.cwd(), relative);
 
+/** Số nguyên từ biến môi trường; vắng mặt thì dùng `fallback` (chuỗi rỗng vẫn ra NaN như `parseInt` gốc). */
+const int = (name: string, fallback: number) =>
+  parseInt(process.env[name] ?? String(fallback), 10);
+
 const configuration = () => ({
-  port: parseInt(process.env.PORT ?? '4000', 10),
+  port: int('PORT', 4_000),
   nodeEnv: process.env.NODE_ENV ?? 'development',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
   // Số proxy tin được phía trước (Caddy = 1); 0 = không tin X-Forwarded-For, tránh client tự khai IP để né rate limit.
-  trustProxyHops: parseInt(process.env.TRUST_PROXY ?? '0', 10) || 0,
+  trustProxyHops: int('TRUST_PROXY', 0) || 0,
 
   auth: {
     jwtSecret: process.env.JWT_SECRET ?? '',
@@ -40,7 +44,7 @@ const configuration = () => ({
      * mắt xích nhận một `AbortSignal.timeout` mới, nên n mắt xích chậm cộng lại
      * thành n lần hạn một lời gọi - phải nhỏ hơn `server.setTimeout` 5 phút.
      */
-    chainBudgetMs: parseInt(process.env.AI_CHAIN_BUDGET_MS ?? '240000', 10),
+    chainBudgetMs: int('AI_CHAIN_BUDGET_MS', 240_000),
 
     /**
      * Các mắt xích thử tiếp khi mắt xích đang dùng không chạy được. Viết
@@ -121,8 +125,8 @@ const configuration = () => ({
    * rỗng và tool `web_search` chưa từng chạy mà không có lỗi nào.
    */
   web: {
-    fetchMaxBytes: parseInt(process.env.AGENT_FETCH_MAX_BYTES ?? '2000000', 10),
-    fetchTimeoutMs: parseInt(process.env.AGENT_FETCH_TIMEOUT_MS ?? '20000', 10),
+    fetchMaxBytes: int('AGENT_FETCH_MAX_BYTES', 2_000_000),
+    fetchTimeoutMs: int('AGENT_FETCH_TIMEOUT_MS', 20_000),
     /**
      * Serper. Không có key thì tool `web_search` KHÔNG được đăng ký - agent
      * thấy nó vắng mặt và tự xoay xở, thay vì gọi rồi nhận lỗi ở mọi bước.
@@ -130,33 +134,30 @@ const configuration = () => ({
     search: {
       apiKey: process.env.SERPER_API_KEY ?? '',
       url: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
-      maxResults: parseInt(process.env.SERPER_MAX_RESULTS ?? '5', 10),
+      maxResults: int('SERPER_MAX_RESULTS', 5),
     },
   },
 
   scraper: {
-    timeoutMs: parseInt(process.env.SCRAPER_TIMEOUT_MS ?? '60000', 10),
+    timeoutMs: int('SCRAPER_TIMEOUT_MS', 60_000),
 
     portalsDir: fromServerRoot(process.env.PORTALS_DIR ?? '../.agents/skills'),
 
-    portalDelayMs: parseInt(process.env.SCRAPER_PORTAL_DELAY_MS ?? '3000', 10),
+    portalDelayMs: int('SCRAPER_PORTAL_DELAY_MS', 3_000),
 
     defaultLocation: process.env.SCRAPER_DEFAULT_LOCATION ?? 'Vietnam',
 
     /** Trần số tin lấy về cho MỘT portal trong một lần quét. */
-    maxJobsPerPortal: parseInt(
-      process.env.SCRAPER_MAX_JOBS_PER_PORTAL ?? '50',
-      10,
-    ),
+    maxJobsPerPortal: int('SCRAPER_MAX_JOBS_PER_PORTAL', 50),
 
     /** Chỉ lấy tin đăng trong bao nhiêu ngày gần nhất. */
-    maxAgeDays: parseInt(process.env.SCRAPER_MAX_AGE_DAYS ?? '7', 10),
+    maxAgeDays: int('SCRAPER_MAX_AGE_DAYS', 7),
 
     /**
      * Trần số trang duyệt cho MỘT truy vấn. LinkedIn trả 10 tin một trang, nên
      * không phân trang thì một truy vấn không bao giờ đạt trần `maxJobsPerPortal`.
      */
-    maxPages: parseInt(process.env.SCRAPER_MAX_PAGES ?? '5', 10),
+    maxPages: int('SCRAPER_MAX_PAGES', 5),
 
     /** Tin không đọc được ngày đăng: mặc định GIỮ, bật cờ này thì loại. */
     requirePostedAt: process.env.SCRAPER_REQUIRE_POSTED_AT === 'true',
@@ -170,10 +171,7 @@ const configuration = () => ({
      * danh mục: 20 nghề mỗi đêm thì mọi nghề có người dùng được quét sau
      * khoảng bốn đêm, theo thứ tự cũ-trước của `OccupationCrawl`.
      */
-    systemQueryLimit: parseInt(
-      process.env.SCRAPER_SYSTEM_QUERY_LIMIT ?? '30',
-      10,
-    ),
+    systemQueryLimit: int('SCRAPER_SYSTEM_QUERY_LIMIT', 30),
 
     /**
      * Có tự chấm điểm mọi tin mới với mọi hồ sơ sau mỗi lượt quét không.
@@ -195,15 +193,15 @@ const configuration = () => ({
      * Tính trên yêu cầu NĂNG LỰC, bắt buộc tính 1 và ưu tiên tính 0,5. Đo trên
      * 322 tin ngày 2026-08-24: mốc 50 cho 0-13 tin mỗi hồ sơ, mốc 30 cho 1-70.
      */
-    minPercent: parseInt(process.env.MATCH_MIN_PERCENT ?? '50', 10),
+    minPercent: int('MATCH_MIN_PERCENT', 50),
 
     /** Bỏ trống = dùng model mặc định. Đo 2026-09-24 bằng `probe-skill-merge`: model mặc định đúng 8/8 ba lượt liền, nên không cần ghim riêng nữa. */
     dictionaryModelId: process.env.SKILL_DICTIONARY_MODEL_ID || undefined,
 
     aiAuto: process.env.MATCH_AI_AUTO === 'true',
-    aiTopN: parseInt(process.env.MATCH_AI_TOP_N ?? '3', 10),
-    aiMaxPerRun: parseInt(process.env.MATCH_AI_MAX_PER_RUN ?? '300', 10),
-    aiCooldownHours: parseInt(process.env.MATCH_AI_COOLDOWN_HOURS ?? '6', 10),
+    aiTopN: int('MATCH_AI_TOP_N', 3),
+    aiMaxPerRun: int('MATCH_AI_MAX_PER_RUN', 300),
+    aiCooldownHours: int('MATCH_AI_COOLDOWN_HOURS', 6),
   },
 
   cron: {
@@ -217,8 +215,8 @@ const configuration = () => ({
 
   throttle: {
     /** Trần chung cho mọi route, tính theo IP trong một phút. */
-    ttlMs: parseInt(process.env.THROTTLE_TTL_MS ?? '60000', 10),
-    limit: parseInt(process.env.THROTTLE_LIMIT ?? '120', 10),
+    ttlMs: int('THROTTLE_TTL_MS', 60_000),
+    limit: int('THROTTLE_LIMIT', 120),
 
     /** Tắt hoàn toàn rate limiting. CHỈ dùng cho test tích hợp. */
     disabled: process.env.THROTTLE_DISABLED === 'true',

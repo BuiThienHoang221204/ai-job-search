@@ -4,6 +4,7 @@ import { pageArgs, pageOf } from '@/common/pagination';
 import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { AdminJobsQueryDto } from '../admin.dto';
+import { dateRange } from '../utils/filters';
 
 const JOB_COUNTS = {
   _count: { select: { matches: true, duplicates: true, applications: true } },
@@ -30,14 +31,7 @@ export class AdminJobsService {
             ],
           }
         : {}),
-      ...(query.from || query.to
-        ? {
-            scrapedAt: {
-              ...(query.from ? { gte: new Date(query.from) } : {}),
-              ...(query.to ? { lt: new Date(query.to) } : {}),
-            },
-          }
-        : {}),
+      scrapedAt: dateRange(query),
     };
 
     const [items, total] = await this.prisma.$transaction([

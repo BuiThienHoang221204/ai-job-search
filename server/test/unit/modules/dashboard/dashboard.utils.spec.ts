@@ -3,6 +3,7 @@ import {
   normaliseSkill,
   recurringGaps,
   roundedScore,
+  todayScore,
   type SuggestionInput,
 } from 'src/modules/dashboard/dashboard.utils.js';
 
@@ -276,5 +277,25 @@ describe('trường hợp biên', () => {
       }),
     );
     expect(new Set(cards.map((card) => card.id)).size).toBe(cards.length);
+  });
+});
+
+describe('todayScore', () => {
+  test('trung bình từng trục, bỏ qua lượt chưa có điểm', () => {
+    const row = (overall: number | null) => ({
+      overallScore: overall,
+      technicalScore: 80,
+      experienceScore: null,
+      behavioralScore: 0,
+      careerScore: 61,
+    });
+    expect(todayScore([row(70), row(null), row(75)])).toEqual({
+      overall: 73,
+      skills: 80,
+      experience: null,
+      behavioral: 0,
+      career: 61,
+      sampleSize: 3,
+    });
   });
 });
