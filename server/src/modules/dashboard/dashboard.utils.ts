@@ -8,6 +8,10 @@ export function normaliseSkill(value: string): string {
 
 export type SkillGap = { skill: string; jobCount: number };
 
+/** `null` chỉ khi CHƯA CÓ dữ liệu — điểm trung bình đúng bằng 0 vẫn là một con số. */
+export const roundedScore = (value: number | null | undefined) =>
+  value == null ? null : Math.round(value);
+
 /** Đếm từ khóa xuất hiện trong các tin đã chấm điểm mà hồ sơ KHÔNG có. */
 export function recurringGaps(
   scored: Array<{ job: { tags: string[] } }>,

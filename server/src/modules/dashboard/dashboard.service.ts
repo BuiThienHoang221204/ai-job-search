@@ -6,6 +6,7 @@ import { jobCardSelect } from '../jobs/job-card.select';
 import {
   buildSuggestions,
   recurringGaps,
+  roundedScore,
   type SuggestionInput,
 } from './dashboard.utils';
 
@@ -116,9 +117,7 @@ export class DashboardService {
       profileCompletion: profile?.completion ?? 0,
       occupationCode: profile?.occupationCode ?? null,
       matchingJobs: { total: matchCount, newThisWeek },
-      averageMatchScore: aggregate._avg.overallScore
-        ? Math.round(aggregate._avg.overallScore)
-        : null,
+      averageMatchScore: roundedScore(aggregate._avg.overallScore),
       topMatches: topMatches.map(({ job: { saves, ...job }, ...match }) => ({
         ...match,
         job: { ...job, saved: saves.length > 0 },

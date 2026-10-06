@@ -2,8 +2,25 @@ import {
   buildSuggestions,
   normaliseSkill,
   recurringGaps,
+  roundedScore,
   type SuggestionInput,
 } from 'src/modules/dashboard/dashboard.utils.js';
+
+/// Hỏng thật trước khi sửa: phép kiểm truthy biến điểm trung bình 0 thành null ("chưa có dữ liệu").
+describe('roundedScore', () => {
+  test('0 vẫn là một điểm số, không phải chưa có dữ liệu', () => {
+    expect(roundedScore(0)).toBe(0);
+  });
+
+  test('chưa có dữ liệu thì null', () => {
+    expect(roundedScore(null)).toBeNull();
+    expect(roundedScore(undefined)).toBeNull();
+  });
+
+  test('làm tròn số lẻ', () => {
+    expect(roundedScore(72.6)).toBe(73);
+  });
+});
 
 const job = (...tags: string[]) => ({ job: { tags } });
 

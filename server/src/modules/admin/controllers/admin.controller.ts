@@ -33,6 +33,7 @@ import {
   UpdateQueueConfigDto,
 } from '../admin.dto';
 import { AdminService } from '../services/admin.service';
+import { reconcileNote } from '../utils/reconcile-note';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -151,13 +152,7 @@ export class AdminController {
   @HttpCode(202)
   async reconcileNow() {
     const result = await this.reconcile.run();
-    return {
-      ...result,
-      note:
-        result.documents || result.matches
-          ? 'Đã xếp lại vào hàng đợi. Worker sẽ xử lý ở nền.'
-          : 'Không tìm thấy việc nào bị rơi.',
-    };
+    return { ...result, note: reconcileNote(result) };
   }
 
   // ── Queue Config ──────────────────────────────────────────────

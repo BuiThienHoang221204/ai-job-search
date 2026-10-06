@@ -40,11 +40,7 @@ export class AuthService {
     private readonly google: GoogleAuthService,
   ) {}
 
-  /**
-   * Chống email trùng bằng ràng buộc unique của DB, không bằng một lần đọc
-   * trước đó. Ngoài việc đóng khe race (hai request cùng email đồng thời đều
-   * đọc thấy "chưa có" rồi cùng ghi), cách này còn bịt một kênh phụ về thời
-   */
+  /** Chặn email trùng bằng unique của DB, KHÔNG đọc trước: vừa đóng khe race, vừa để cả hai nhánh cùng trả SAU khi băm mật khẩu — trả sớm thì đo thời gian là đoán được email nào đã đăng ký. */
   async register(dto: RegisterDto): Promise<AuthResult> {
     const user = await this.prisma.user
       .create({
