@@ -14,9 +14,6 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    // "src/*": chỉ test dùng (jest map). "@/*": mã trong src/ dùng, viết KHÔNG đuôi
-    // .js - hook tsconfig-paths của nest build mới viết lại alias, gặp "@/x.js" thì
-    // bỏ qua trong im lặng và app sập lúc chạy. eslint.config.mjs chặn trường hợp đó.
     "paths": {
       "src/*": ["src/*"],
       "@/*": ["src/*"]
@@ -29,12 +26,5 @@
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true
   },
-  // Khai báo tường minh thay vì để TypeScript tự quét cả thư mục. Bộ file của
-  // chương trình phải giống hệt nhau dù ai dựng nó - CLI hay project service
-  // của typescript-eslint trong IDE. Đặc biệt src/generated/** phải nằm trong
-  // đây: thiếu nó thì PrismaClient không phân giải được và mọi lời gọi
-  // this.prisma.<model> bị báo là thao tác trên type lỗi.
-  // Không ảnh hưởng output build: nest build dùng tsconfig.build.json, và
-  // "include" của file con ghi đè file cha.
   "include": ["src/**/*", "test/**/*"]
 }
