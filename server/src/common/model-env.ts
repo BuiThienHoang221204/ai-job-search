@@ -9,7 +9,7 @@ export function modelIdsFrom(raw: string | undefined): string[] | undefined {
   return ids.length ? ids : undefined;
 }
 
-/** Chọn TRƯỚC mắt xích bắt đầu cho 4 điểm gọi AI_FAST_* theo model nào còn chỗ NGAY BÂY GIỜ (xem `fast-model-scheduler.ts`); `fallbackModelIds` giữ nguyên danh sách gốc vì `ModelChain.links()` đã tự dedupe. */
+/** Chọn TRƯỚC mắt xích bắt đầu cho các điểm gọi AI_FAST_* theo model nào còn chỗ NGAY BÂY GIỜ (xem `fast-model-scheduler.ts`); `fallbackModelIds` giữ nguyên danh sách gốc vì `ModelChain.links()` đã tự dedupe. */
 export function fastModelChain(estimatedTokens: number): {
   modelId?: string;
   fallbackModelIds?: string[];

@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Document, Profile } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { AiService } from '../../ai/services/ai.service.js';
+import { fastModelChain } from '../../../common/model-env.js';
+import { estimateTokens } from '../../ai/utils/fast-model-scheduler.js';
 import { PromptBuilderService } from '../../skills/services/prompt-builder.service.js';
 import { SkillRegistryService } from '../../skills/services/skill-registry.service.js';
 import {
@@ -222,6 +224,7 @@ export class DocumentComposer {
         system,
         prompt,
         timeoutMs: DOCUMENT_TIMEOUT_MS,
+        ...fastModelChain(estimateTokens(system, prompt)),
       },
     );
 
@@ -245,6 +248,7 @@ export class DocumentComposer {
       system,
       prompt,
       timeoutMs: DOCUMENT_TIMEOUT_MS,
+      ...fastModelChain(estimateTokens(system, prompt)),
     });
   }
 
