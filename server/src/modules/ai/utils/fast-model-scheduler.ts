@@ -1,9 +1,10 @@
+import { HOUR_MS } from '@/common/duration';
 import { findProvider, providerIds } from '../providers/index';
 import type { RateLimitSpec } from '../providers/types';
 import { formatModelRef, parseModelRef } from './model-ref';
 
 /** Giữ lịch sử đủ dài cho trần RỘNG NHẤT đã khai (Gemini RPD = 24 giờ) — ngắn hơn thì `hasRoom` không bao giờ thấy được lượt dùng cũ để tính đúng RPD. */
-const RETENTION_MS = 25 * 60 * 60 * 1000;
+const RETENTION_MS = 25 * HOUR_MS;
 
 /** Ước lượng thô ~4 ký tự/token — CHỦ ĐÍCH không chính xác, vì sai thì vẫn còn lưới 429/TPM-exceeded của `ModelChain` đỡ. Không phải điểm cần đúng tuyệt đối. */
 export function estimateTokens(system: string, prompt: string): number {

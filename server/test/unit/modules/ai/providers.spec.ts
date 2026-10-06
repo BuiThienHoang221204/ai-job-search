@@ -4,6 +4,7 @@ import {
   findProvider,
   providerIds,
 } from 'src/modules/ai/providers/index.js';
+import { gemini } from 'src/modules/ai/providers/gemini.js';
 import { groq } from 'src/modules/ai/providers/groq.js';
 import { kilo } from 'src/modules/ai/providers/kilo.js';
 import { opencode } from 'src/modules/ai/providers/opencode.js';
@@ -177,6 +178,31 @@ describe('Lõi unorouter — rateLimitFor', () => {
     expect(unorouter.rateLimitFor?.('bất-kỳ-model-nào:free')).toEqual([
       { kind: 'count', windowMs: 60_000, limit: 1 },
     ]);
+  });
+});
+
+describe('Lõi gemini — rateLimitFor', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const rpmRpd = (rpm: number, rpd: number) => [
+    { kind: 'count', windowMs: 60_000, limit: rpm },
+    { kind: 'count', windowMs: DAY, limit: rpd },
+  ];
+
+  test.each([
+    ['models/gemini-3.5-flash-lite', 15, 500],
+    ['models/gemini-3.1-flash-lite', 15, 500],
+    ['models/gemini-3.6-flash', 5, 20],
+    ['models/gemini-robotics-er-2-preview', 5, 20],
+    ['models/gemini-2.5-flash', 5, 20],
+    ['models/gemini-2.5-flash-lite', 10, 20],
+    ['models/gemma-4-31b-it', 30, 14_400],
+  ])('%s: RPM %d + RPD %d', (modelId, rpm, rpd) => {
+    expect(gemini.rateLimitFor?.(modelId)).toEqual(rpmRpd(rpm, rpd));
+  });
+
+  test('id thiếu tiền tố `models/` hoặc model lạ trả undefined', () => {
+    expect(gemini.rateLimitFor?.('gemini-2.5-flash')).toBeUndefined();
+    expect(gemini.rateLimitFor?.('models/chua-tung-thay')).toBeUndefined();
   });
 });
 

@@ -43,6 +43,19 @@ const LOG_TEXT_LIMIT = 4000;
 /** Thấp hơn trần log vì cột này nằm trong database và chứa dữ liệu cá nhân — xem docblock của trường trong `schema.prisma`. */
 const DB_TEXT_LIMIT = 2000;
 
+/** Các cột lỗi của `ai_calls`, chung cho đường stream và không-stream. */
+function failureFields(error: unknown, issues: SchemaIssue[]) {
+  const empty = NoObjectGeneratedError.isInstance(error) ? error : undefined;
+  return {
+    failureKind: classifyFailure(error),
+    errorMessage: errorMessageOf(error, issues),
+    finishReason: empty?.finishReason,
+    responseText: empty?.text
+      ? clipMiddle(empty.text, DB_TEXT_LIMIT)
+      : undefined,
+  };
+}
+
 /** Mọi lời gọi model của cả hệ thống đi qua đây. Ba cộng tác viên bên dưới là seam NỘI BỘ, không module nào ngoài file này được dựng chúng. */
 @Injectable()
 export class AiService implements Ai {
@@ -166,19 +179,42 @@ export class AiService implements Ai {
     return options.system;
   }
 
+  /** Mở đầu chung của cả ba đường gọi model: dựng model, ghi lượt dùng cho `fast-model-scheduler`, rồi xin chỗ ở cổng song song. */
+  private async open(
+    modelId: string | undefined,
+    structuredOutputs: boolean,
+    jsonStream: boolean,
+    estimatedTokens: number,
+  ) {
+    const created = await this.models.create(
+      modelId,
+      structuredOutputs,
+      jsonStream,
+    );
+    markUsed(`${created.provider}/${created.id}`, estimatedTokens);
+    const release = await this.gate.acquire(created.provider);
+    return { ...created, release, startedAt: Date.now() };
+  }
+
   /** MỘT lượt gọi trên MỘT model, đã chốt chế độ ép định dạng. Ghi `ai_calls` cho cả nhánh xong lẫn nhánh hỏng. */
   private async attempt<T>(
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<{ object: T; modelId: string }> {
-    const { model, id, provider, ref, defaultMaxOutputTokens } =
-      await this.models.create(options.modelId, structuredOutputs);
-    markUsed(
-      `${provider}/${id}`,
+    const {
+      model,
+      id,
+      provider,
+      ref,
+      defaultMaxOutputTokens,
+      release,
+      startedAt,
+    } = await this.open(
+      options.modelId,
+      structuredOutputs,
+      false,
       estimateTokens(options.system, options.prompt),
     );
-    const release = await this.gate.acquire(provider);
-    const startedAt = Date.now();
 
     try {
       const result = await generateObject({
@@ -193,8 +229,7 @@ export class AiService implements Ai {
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),
-      });
-      release();
+      }).finally(release);
 
       const durationMs = Date.now() - startedAt;
       this.logger.log(`generateObject ${ref} xong sau ${durationMs}ms`);
@@ -212,7 +247,6 @@ export class AiService implements Ai {
 
       return { object: result.object, modelId: id };
     } catch (error) {
-      release();
       const durationMs = Date.now() - startedAt;
       const issues = schemaIssues(error);
       const empty = NoObjectGeneratedError.isInstance(error)
@@ -225,15 +259,10 @@ export class AiService implements Ai {
         modelId: id,
         ok: false,
         durationMs,
-        failureKind: classifyFailure(error),
-        errorMessage: errorMessageOf(error, issues),
+        ...failureFields(error, issues),
         inputTokens: empty?.usage?.inputTokens,
         cachedTokens: empty?.usage?.inputTokenDetails?.cacheReadTokens,
         outputTokens: empty?.usage?.outputTokens,
-        finishReason: empty?.finishReason,
-        responseText: empty?.text
-          ? clipMiddle(empty.text, DB_TEXT_LIMIT)
-          : undefined,
       });
 
       if (empty) this.logSchemaFailure(ref, durationMs, empty, issues);
@@ -334,14 +363,20 @@ export class AiService implements Ai {
     options: StreamObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<StreamObjectResult<T>> {
-    const { model, id, provider, ref, defaultMaxOutputTokens } =
-      await this.models.create(options.modelId, structuredOutputs, true);
-    markUsed(
-      `${provider}/${id}`,
+    const {
+      model,
+      id,
+      provider,
+      ref,
+      defaultMaxOutputTokens,
+      release,
+      startedAt,
+    } = await this.open(
+      options.modelId,
+      structuredOutputs,
+      true,
       estimateTokens(options.system, options.prompt),
     );
-    const release = await this.gate.acquire(provider);
-    const startedAt = Date.now();
 
     const result = streamObject({
       model,
@@ -368,15 +403,10 @@ export class AiService implements Ai {
           modelId: id,
           ok: !error,
           durationMs: Date.now() - startedAt,
-          failureKind: error ? classifyFailure(error) : undefined,
-          errorMessage: error ? errorMessageOf(error, issues) : undefined,
+          ...(error ? failureFields(error, issues) : {}),
           inputTokens: usage?.inputTokens,
           outputTokens: usage?.outputTokens,
           cachedTokens: usage?.inputTokenDetails?.cacheReadTokens,
-          finishReason: empty?.finishReason,
-          responseText: empty?.text
-            ? clipMiddle(empty.text, DB_TEXT_LIMIT)
-            : undefined,
         });
         this.logger.log(
           `streamObject ${ref} xong sau ${Date.now() - startedAt}ms`,
@@ -410,19 +440,15 @@ export class AiService implements Ai {
   async streamText(
     options: StreamTextOptions,
   ): Promise<{ modelId: string; result: StreamTextResult }> {
-    const { model, id, provider } = await this.models.create(
+    const { model, id, provider, release, startedAt } = await this.open(
       options.modelId,
       false,
-    );
-    markUsed(
-      `${provider}/${id}`,
+      false,
       estimateTokens(
         options.system,
         options.prompt ?? JSON.stringify(options.messages ?? []),
       ),
     );
-    const release = await this.gate.acquire(provider);
-    const startedAt = Date.now();
 
     // Ghi ở đây chứ không để người gọi tự ghi: đây là chỗ DUY NHẤT biết provider và số token thật.
     const record = (ok: boolean, extra: Record<string, unknown>) => {
