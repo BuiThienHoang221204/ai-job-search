@@ -58,12 +58,6 @@ export const boundedList = (item: z.ZodType<string, string>, max: number) =>
       .transform((items) => items.filter((s) => s.length > 0).slice(0, max)),
   );
 
-export const boundedObjectList = <T>(
-  item: z.ZodType<T, unknown>,
-  max: number,
-  keep: (value: T) => boolean,
-) => z.array(item).transform((items) => items.filter(keep).slice(0, max));
-
 export const looseEnum = <const T extends readonly [string, ...string[]]>(
   values: T,
   fallback: T[number],
