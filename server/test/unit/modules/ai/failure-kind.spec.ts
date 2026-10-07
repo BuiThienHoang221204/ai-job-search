@@ -3,6 +3,7 @@ import {
   isAccessDenied,
   isModelRetired,
   isRateLimited,
+  isTooLargeForModel,
   isTransientUpstream,
   schemaIssues,
   truncateError,
@@ -438,5 +439,40 @@ describe('schemaIssues', () => {
     expect(schemaIssues(aiError('AI_NoObjectGeneratedError'))).toEqual([]);
     expect(schemaIssues(new Error('lỗi thường'))).toEqual([]);
     expect(schemaIssues(undefined)).toEqual([]);
+  });
+});
+
+describe('isTooLargeForModel', () => {
+  const GROQ_413 =
+    'Request too large for model `openai/gpt-oss-120b` in organization `org_x` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 9873, please reduce your message size and try again.';
+
+  test('nguyên văn lượt 413 của Groq ngày 2026-10-07 khi tìm hiểu công ty', () => {
+    const error = Object.assign(new Error(GROQ_413), {
+      name: 'AI_APICallError',
+      statusCode: 413,
+    });
+    expect(isTooLargeForModel(error)).toBe(true);
+  });
+
+  test('nhận ra qua chữ khi lỗi không mang mã trạng thái', () => {
+    expect(isTooLargeForModel(new Error(GROQ_413))).toBe(true);
+  });
+
+  test('nhận dạng qua RetryError đã bóc', () => {
+    const wrapper = Object.assign(new Error('Failed after 3 attempts'), {
+      name: 'AI_RetryError',
+      lastError: Object.assign(new Error(GROQ_413), { statusCode: 413 }),
+    });
+    expect(isTooLargeForModel(wrapper)).toBe(true);
+  });
+
+  test('KHÔNG nhầm lỗi khác thành prompt quá cỡ', () => {
+    expect(isTooLargeForModel(new Error('did not match schema'))).toBe(false);
+    expect(
+      isTooLargeForModel(
+        Object.assign(new Error('too busy'), { statusCode: 429 }),
+      ),
+    ).toBe(false);
+    expect(isTooLargeForModel(undefined)).toBe(false);
   });
 });

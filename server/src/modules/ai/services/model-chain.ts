@@ -4,6 +4,7 @@ import {
   isAccessDenied,
   isModelRetired,
   isRateLimited,
+  isTooLargeForModel,
   isTransientUpstream,
   ModelUnavailableError,
 } from '../utils/failure-kind';
@@ -24,6 +25,7 @@ function skipReason(error: unknown): string | null {
   if (error instanceof ModelUnavailableError) return error.message;
   if (isModelRetired(error)) return 'gateway đã rút model này';
   if (isRateLimited(error)) return 'hết hạn mức';
+  if (isTooLargeForModel(error)) return 'prompt vượt trần token của model';
   if (isAccessDenied(error)) return 'lõi từ chối khoá hoặc model này';
   if (isTransientUpstream(error)) return 'lõi trả 5xx';
   const kind = classifyFailure(error);

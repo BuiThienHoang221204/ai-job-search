@@ -64,7 +64,7 @@ const target: LetterTarget = {
   description: 'Lập trình TypeScript',
 };
 
-describe('DocumentComposer — coverLetter và streamCoverLetter sử dụng fastModelChain', () => {
+describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời form dùng fastModelChain', () => {
   const ORIGINAL_MODEL = process.env.AI_FAST_MODEL_ID;
   const ORIGINAL_FALLBACKS = process.env.AI_FAST_FALLBACK_IDS;
 
@@ -155,6 +155,52 @@ describe('DocumentComposer — coverLetter và streamCoverLetter sử dụng fas
     expect(options.modelId).toBe('groq/openai/gpt-oss-120b');
     expect(options.fallbackModelIds).toEqual(['unorouter/m1:free']);
   });
+
+  test.each([
+    [
+      'APPLICATION_EMAIL',
+      'document.applicationEmail',
+      { subject: 'Ứng tuyển', paragraphs: ['Đoạn 1'] },
+    ],
+    [
+      'FORM_ANSWER',
+      'document.formAnswer',
+      { answers: [{ text: 'Câu trả lời' }] },
+    ],
+  ])(
+    '%s cũng đi chuỗi model nhanh AI_FAST_*',
+    async (kind, purpose, object) => {
+      process.env.AI_FAST_MODEL_ID = 'groq/openai/gpt-oss-120b';
+      process.env.AI_FAST_FALLBACK_IDS = 'gemini/models/gemini-3.5-flash-lite';
+
+      const generateObject = jest.fn<
+        Promise<{ object: Record<string, unknown>; modelId: string }>,
+        [GenerateObjectOptionsMock]
+      >(() => Promise.resolve({ object, modelId: 'groq/openai/gpt-oss-120b' }));
+
+      const composer = new DocumentComposer(
+        mockPrisma,
+        { generateObject } as unknown as AiService,
+        mockSkills,
+        mockPrompts,
+      );
+
+      await composer.compose({
+        document: { ...doc, kind } as unknown as Document,
+        profile: null,
+        target,
+        params: {},
+        identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
+      });
+
+      const options = generateObject.mock.calls[0][0];
+      expect(options.context.purpose).toBe(purpose);
+      expect(options.modelId).toBe('groq/openai/gpt-oss-120b');
+      expect(options.fallbackModelIds).toEqual([
+        'gemini/models/gemini-3.5-flash-lite',
+      ]);
+    },
+  );
 
   test('không cấu hình AI_FAST_* thì modelId và fallbackModelIds là undefined (dùng chuỗi mặc định)', async () => {
     delete process.env.AI_FAST_MODEL_ID;

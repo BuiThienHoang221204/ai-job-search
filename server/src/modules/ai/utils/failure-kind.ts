@@ -85,6 +85,17 @@ export function isRateLimited(input: unknown): boolean {
   );
 }
 
+/** Prompt vượt trần token của RIÊNG model này (Groq trả 413 khi vượt TPM), model khác trần lớn hơn vẫn nhận được. */
+export function isTooLargeForModel(input: unknown): boolean {
+  const error = unwrap(input);
+  const status = (error as { statusCode?: unknown })?.statusCode;
+
+  if (status === 413) return true;
+  return /request too large|reduce your message size/i.test(
+    looseMessageOf(error),
+  );
+}
+
 export function isAccessDenied(input: unknown): boolean {
   const error = unwrap(input);
   const status = (error as { statusCode?: unknown })?.statusCode;

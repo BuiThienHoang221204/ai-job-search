@@ -146,12 +146,14 @@ export class CompanyService {
     const prepared = await this.prepare(company);
     if (prepared.sources.length === 0) return this.saveEmpty(prepared);
 
+    const briefPrompt = buildBriefPrompt(company, prepared.sources);
     const { object, modelId } = await this.ai.generateObject<CompanyBrief>({
       schema: companyBriefSchema,
       context: { purpose: 'company.brief' },
       system: BRIEF_SYSTEM,
-      prompt: buildBriefPrompt(company, prepared.sources),
+      prompt: briefPrompt,
       timeoutMs: BRIEF_TIMEOUT_MS,
+      ...fastModelChain(estimateTokens(BRIEF_SYSTEM, briefPrompt)),
     });
 
     return this.save(prepared, object, modelId);

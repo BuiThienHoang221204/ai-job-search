@@ -98,6 +98,28 @@ describe('CompanyService.build', () => {
     expect(saved[0].verdict).toBe('MIXED');
   });
 
+  test('đi chuỗi model nhanh AI_FAST_*: hàng đợi này chỉ nhận lượt do người dùng bấm hoặc rời trang giữa stream', async () => {
+    const original = process.env.AI_FAST_MODEL_ID;
+    process.env.AI_FAST_MODEL_ID = 'gemini/models/nhanh';
+    try {
+      const { prisma } = fakePrisma();
+      const url = 'https://itviec.com/companies/fpt-software/review';
+      const { research } = fakeResearch([hit(url)], { [url]: LONG });
+      const ai = new FakeAi().willReturn(brief());
+
+      await new CompanyService(
+        prisma,
+        ai as unknown as AiService,
+        research,
+      ).build('FPT Software');
+
+      expect(ai.calls[0].modelId).toBe('gemini/models/nhanh');
+    } finally {
+      if (original === undefined) delete process.env.AI_FAST_MODEL_ID;
+      else process.env.AI_FAST_MODEL_ID = original;
+    }
+  });
+
   test('nguồn được đánh số trong prompt và model dẫn nguồn bằng số đó', async () => {
     const { prisma, saved } = fakePrisma();
     const url = 'https://reviewcongty.com/fpt';

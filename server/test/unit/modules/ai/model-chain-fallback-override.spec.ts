@@ -60,6 +60,32 @@ describe('ModelChain — chuỗi dự phòng riêng cho một lượt gọi', ()
     ]);
   });
 
+  test('Groq trả 413 vì prompt vượt TPM thì đi tiếp mắt xích sau, không ném luôn', async () => {
+    const tooLarge = Object.assign(
+      new Error(
+        'Request too large for model `openai/gpt-oss-120b`: Limit 8000, Requested 9873',
+      ),
+      { name: 'AI_APICallError', statusCode: 413 },
+    );
+    const attempt = jest
+      .fn<Promise<string>, [string | undefined]>()
+      .mockRejectedValueOnce(tooLarge)
+      .mockResolvedValueOnce('xong bằng model trần token lớn hơn');
+
+    const result = await chainOf(['opencode/cham']).run(
+      'groq/openai/gpt-oss-120b',
+      attempt,
+      undefined,
+      ['gemini/models/gemini-3.5-flash-lite'],
+    );
+
+    expect(result).toBe('xong bằng model trần token lớn hơn');
+    expect(attempt.mock.calls.map((call) => call[0])).toEqual([
+      'groq/openai/gpt-oss-120b',
+      'gemini/models/gemini-3.5-flash-lite',
+    ]);
+  });
+
   test('trùng mắt xích đầu thì bỏ, giống hành vi của MODEL_FALLBACK_IDS', () => {
     const chain = chainOf([]);
     expect(chain.links('groq/a', ['groq/a', 'groq/b'])).toEqual([

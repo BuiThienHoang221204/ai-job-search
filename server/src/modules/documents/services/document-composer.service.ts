@@ -247,6 +247,7 @@ export class DocumentComposer {
         system,
         prompt,
         timeoutMs: DOCUMENT_TIMEOUT_MS,
+        ...fastModelChain(estimateTokens(system, prompt)),
       });
 
     return {
@@ -291,6 +292,7 @@ export class DocumentComposer {
       context: { purpose: 'document.formAnswer', userId: document.userId },
       system,
       prompt,
+      ...fastModelChain(estimateTokens(system, prompt)),
     });
 
     const answers = object.answers.map((answer) => ({
