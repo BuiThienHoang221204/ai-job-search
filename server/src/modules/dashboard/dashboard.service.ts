@@ -34,6 +34,7 @@ export class DashboardService {
       newThisWeek,
       aggregate,
       topMatches,
+      best,
       recentFive,
       ineligibleCount,
       scoredJobs,
@@ -51,9 +52,21 @@ export class DashboardService {
       }),
       this.prisma.jobMatch.findMany({
         where: eligible,
-        orderBy: { overallScore: 'desc' },
+        orderBy: [
+          { evaluatedAt: { sort: 'desc', nulls: 'last' } },
+          { id: 'desc' },
+        ],
         take: 4,
         include: { job: { select: jobCardSelect(userId) } },
+      }),
+      this.prisma.jobMatch.findFirst({
+        where: eligible,
+        orderBy: { overallScore: 'desc' },
+        select: {
+          jobId: true,
+          overallScore: true,
+          job: { select: { company: true, scrapedAt: true } },
+        },
       }),
       this.prisma.jobMatch.findMany({
         where: eligible,
@@ -79,7 +92,6 @@ export class DashboardService {
       this.prisma.jobMatch.count({ where: { userId, status: 'DONE' } }),
     ]);
 
-    const best = topMatches[0];
     const suggestionInput: SuggestionInput = {
       profileCompletion: profile?.completion ?? 0,
       missingProfileFields: missingFields(profile),
