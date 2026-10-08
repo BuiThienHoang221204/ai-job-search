@@ -52,7 +52,7 @@ export class DashboardService {
       this.prisma.jobMatch.findMany({
         where: eligible,
         orderBy: { overallScore: 'desc' },
-        take: 3,
+        take: 4,
         include: { job: { select: jobCardSelect(userId) } },
       }),
       this.prisma.jobMatch.findMany({

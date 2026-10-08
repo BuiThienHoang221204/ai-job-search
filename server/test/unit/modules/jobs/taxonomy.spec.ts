@@ -1,5 +1,4 @@
 import {
-  nearbyOccupations,
   OCCUPATIONS,
   OTHER_CODE,
 } from 'src/modules/jobs/taxonomy/occupations.js';
@@ -165,21 +164,5 @@ describe('tính toàn vẹn của hai danh mục', () => {
         expect(keyword).toBe(normalizeText(keyword));
       }
     }
-  });
-});
-
-describe('nearbyOccupations', () => {
-  test('gồm chính nó và OTHER', () => {
-    expect(nearbyOccupations('FINANCE').sort()).toEqual(['FINANCE', 'OTHER']);
-  });
-
-  test('IT và DATA_AI liền kề theo cả hai chiều', () => {
-    expect(nearbyOccupations('IT')).toContain('DATA_AI');
-    expect(nearbyOccupations('DATA_AI')).toContain('IT');
-  });
-
-  test('IT KHÔNG gần EDUCATION hay SALES', () => {
-    expect(nearbyOccupations('IT')).not.toContain('EDUCATION');
-    expect(nearbyOccupations('IT')).not.toContain('SALES');
   });
 });

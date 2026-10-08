@@ -10,10 +10,7 @@ import {
   planShortlist,
 } from '../ai-shortlist';
 import type { ShortlistResult, ShortlistRow } from '../types';
-import {
-  nearbyOccupationPairs,
-  OTHER_CODE,
-} from '@/modules/jobs/taxonomy/occupations';
+import { OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
 import { HOUR_MS } from '@/common/duration';
 
 @Injectable()
@@ -52,7 +49,6 @@ export class AiShortlistService {
 
   private topRows(userId: string | undefined): Promise<ShortlistRow[]> {
     const cooldownBefore = new Date(Date.now() - this.cooldownHours * HOUR_MS);
-    const pairs = nearbyOccupationPairs();
 
     return this.prisma.$queryRawUnsafe<ShortlistRow[]>(
       `select t."userId", t."jobId", t.rank
@@ -80,13 +76,9 @@ export class AiShortlistService {
            and (
              p."occupationCode" is null
              or p."occupationCode" = $5
-             or j."occupationCode" is null
-             or exists (
-               select 1 from unnest($6::text[], $7::text[]) as near(po, jo)
-               where near.po = p."occupationCode" and near.jo = j."occupationCode"
-             )
+             or j."occupationCode" = p."occupationCode"
            )
-           ${userId ? 'and r."userId" = $8' : ''}
+           ${userId ? 'and r."userId" = $6' : ''}
        ) t
        where t.rn <= $4
        order by t."userId", t.rn`,
@@ -96,8 +88,6 @@ export class AiShortlistService {
         cooldownBefore,
         this.topN,
         OTHER_CODE,
-        pairs.profile,
-        pairs.job,
         ...(userId ? [userId] : []),
       ],
     );

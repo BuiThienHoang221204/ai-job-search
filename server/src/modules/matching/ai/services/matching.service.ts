@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Job, JobMatch, Profile } from '@/generated/prisma/client';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import type { ListMatchesQueryDto } from '@/modules/matching/matching.dto';
 import { STALE_RUNNING_MS } from '@/common/duration';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { isUniqueViolation } from '@/prisma/prisma-errors';
@@ -18,6 +18,7 @@ import {
 } from '../schemas/evaluation.schema';
 import {
   LIST_FIELDS,
+  matchListOrder,
   promptHash,
   withSavedFlag,
   withStaleFlag,
@@ -255,13 +256,13 @@ export class MatchingService {
     return profile?.updatedAt ?? null;
   }
 
-  async listMatches(userId: string, query: PaginationQueryDto = {}) {
+  async listMatches(userId: string, query: ListMatchesQueryDto = {}) {
     const where = { userId, status: 'DONE' as const };
 
     const [items, total, updatedAt] = await Promise.all([
       this.prisma.jobMatch.findMany({
         where,
-        orderBy: { overallScore: 'desc' },
+        orderBy: matchListOrder(query.sort),
         ...pageArgs(query),
         select: {
           ...LIST_FIELDS,

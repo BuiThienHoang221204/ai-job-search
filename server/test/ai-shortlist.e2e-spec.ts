@@ -77,14 +77,14 @@ describe('AiShortlistService · cổng ngành', () => {
       data: { occupationCode, completion: 100 },
     });
 
-  test('hồ sơ IT không được phát suất cho tin EDUCATION', async () => {
+  test('hồ sơ IT chỉ được phát suất cho tin đúng nhóm IT', async () => {
     await setProfile('IT');
     const it = await seedJob('it', 'IT');
-    const data = await seedJob('data', 'DATA_AI');
-    const other = await seedJob('other', 'OTHER');
+    await seedJob('data', 'DATA_AI');
+    await seedJob('other', 'OTHER');
     await seedJob('teacher', 'EDUCATION');
 
-    expect(await dispatchedJobIds()).toEqual([it, data, other].sort());
+    expect(await dispatchedJobIds()).toEqual([it]);
   });
 
   test('hồ sơ chưa rõ ngành thì không chặn gì', async () => {
@@ -95,10 +95,10 @@ describe('AiShortlistService · cổng ngành', () => {
     expect(await dispatchedJobIds()).toEqual([it, teacher].sort());
   });
 
-  test('tin chưa có mã ngành thì không có căn cứ để loại', async () => {
+  test('tin chưa có mã ngành thì không được phát suất cho hồ sơ đã chọn ngành', async () => {
     await setProfile('IT');
-    const unknown = await seedJob('unknown', null);
+    await seedJob('unknown', null);
 
-    expect(await dispatchedJobIds()).toEqual([unknown]);
+    expect(await dispatchedJobIds()).toEqual([]);
   });
 });

@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { Prisma } from '@/generated/prisma/client';
 import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { pageArgs, pageOf } from '@/common/pagination';
@@ -23,19 +22,16 @@ import {
   withSavedFlag,
   withSystemMatch,
 } from './utils/job-view';
+import { needsOccupation, profileFit } from './utils/occupation-gate';
 import type { CreateJobDto, ListJobsQueryDto } from './job.dto';
 
 @Injectable()
 export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
     private readonly dictionary: SkillDictionaryService,
     private readonly salary: SalaryService,
   ) {}
-  private get minPercent(): number {
-    return this.config.get<number>('matching.minPercent') ?? 50;
-  }
   async upsert(dto: CreateJobDto) {
     const data = {
       title: dto.title,
@@ -71,6 +67,7 @@ export class JobsService {
       where: { userId },
       select: {
         occupationCode: true,
+        experienceLevel: true,
         updatedAt: true,
         currentSalary: true,
         expectedSalary: true,
@@ -99,8 +96,11 @@ export class JobsService {
 
   async list(query: ListJobsQueryDto, userId: string) {
     const stored = await this.profileOf(userId);
-    const occupation = query.scored ? (stored?.occupationCode ?? null) : null;
-    const jobWhere = whereFrom(query, userId, this.minPercent, occupation);
+    const fit = profileFit(stored);
+    if (query.scored && needsOccupation(fit)) {
+      return { ...pageOf([], 0, query), needsOccupation: true };
+    }
+    const jobWhere = whereFrom(query, userId, fit);
     const sort = listOrderFor(query);
     const profile = stored ? toMatchProfile(stored) : null;
 
@@ -169,16 +169,19 @@ export class JobsService {
     const [byProvince, byOccupation, bySubOccupation] = await Promise.all([
       this.prisma.job.groupBy({
         by: ['provinceCode'],
+        where: { duplicateOfId: null },
         orderBy: { provinceCode: 'asc' },
         _count: true,
       }),
       this.prisma.job.groupBy({
         by: ['occupationCode'],
+        where: { duplicateOfId: null },
         orderBy: { occupationCode: 'asc' },
         _count: true,
       }),
       this.prisma.job.groupBy({
         by: ['subOccupationCode'],
+        where: { duplicateOfId: null },
         orderBy: { subOccupationCode: 'asc' },
         _count: true,
       }),

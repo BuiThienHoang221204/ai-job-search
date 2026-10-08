@@ -13,13 +13,13 @@ import type {
   SkillDictionary,
 } from '@/modules/matching/rules/types';
 import {
-  nearbyOccupations,
   OCCUPATIONS,
-  OTHER_CODE,
   otherSubCodeOf,
   parentOfOtherSubCode,
 } from '../taxonomy/occupations';
 import { SUB_OCCUPATIONS } from '../taxonomy/sub-occupations';
+import type { ProfileFit } from '../jobs.types';
+import { occupationGate } from './occupation-gate';
 import { PROVINCES, REMOTE_CODE } from '../taxonomy/provinces';
 import type { JobSort, ListJobsQueryDto } from '../job.dto';
 import { daysAgo } from '@/common/duration';
@@ -128,21 +128,6 @@ export function withSystemMatch<
   };
 }
 
-export function occupationGate(
-  query: ListJobsQueryDto,
-  profileOccupation: string | null,
-): Prisma.JobWhereInput | null {
-  if (!query.scored) return null;
-  if (!profileOccupation || profileOccupation === OTHER_CODE) return null;
-
-  return {
-    OR: [
-      { occupationCode: { in: nearbyOccupations(profileOccupation) } },
-      { occupationCode: null },
-    ],
-  };
-}
-
 function occupationFacetWhere(
   query: ListJobsQueryDto,
 ): Prisma.JobWhereInput | null {
@@ -171,12 +156,11 @@ function occupationFacetWhere(
 export function whereFrom(
   query: ListJobsQueryDto,
   userId: string,
-  minPercent: number,
-  profileOccupation: string | null = null,
+  fit: ProfileFit | null = null,
 ): Prisma.JobWhereInput {
   const needle = query.q ? normalizeText(query.q) : '';
   const since = query.postedWithin ? daysAgo(query.postedWithin) : null;
-  const gate = occupationGate(query, profileOccupation);
+  const gate = occupationGate(query, fit);
   const facet = occupationFacetWhere(query);
   const and = [gate, facet].filter(
     (clause): clause is Prisma.JobWhereInput => clause !== null,
@@ -190,9 +174,6 @@ export function whereFrom(
     ...(query.workMode?.length ? { workMode: { in: query.workMode } } : {}),
     ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
     ...(since ? { postedAt: { gte: since } } : {}),
-    ...(query.scored
-      ? { skillMatches: { some: { userId, percent: { gte: minPercent } } } }
-      : {}),
     ...(query.saved ? { saves: { some: { userId } } } : {}),
     ...(query.applied ? { applications: { some: { userId } } } : {}),
   };

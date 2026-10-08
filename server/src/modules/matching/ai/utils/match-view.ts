@@ -1,5 +1,6 @@
-import type { Job, Profile } from '@/generated/prisma/client';
+import type { Job, Prisma, Profile } from '@/generated/prisma/client';
 import { fingerprint } from '@/common/fingerprint';
+import type { MatchSort } from '@/modules/matching/matching.dto';
 import { isStaleMatch } from '@/modules/matching/rules/staleness';
 
 export function promptHash(system: string, prompt: string): string {
@@ -18,6 +19,20 @@ export function withStaleFlag<T extends { evaluatedAt: Date | null }>(
   profileUpdatedAt: Date | null,
 ) {
   return { ...match, stale: isStaleMatch(match.evaluatedAt, profileUpdatedAt) };
+}
+
+/** Thứ tự danh sách "Đã chấm bằng AI": mặc định lượt chấm mới nhất trước; theo điểm thì hoà điểm xếp lượt chấm mới hơn lên trước. */
+export function matchListOrder(
+  sort: MatchSort = 'newest',
+): Prisma.JobMatchOrderByWithRelationInput[] {
+  const newest: Prisma.JobMatchOrderByWithRelationInput[] = [
+    { evaluatedAt: { sort: 'desc', nulls: 'last' } },
+    { updatedAt: 'desc' },
+    { id: 'desc' },
+  ];
+  if (sort === 'newest') return newest;
+  const direction = sort === 'score_asc' ? 'asc' : 'desc';
+  return [{ overallScore: { sort: direction, nulls: 'last' } }, ...newest];
 }
 
 export const LIST_FIELDS = {

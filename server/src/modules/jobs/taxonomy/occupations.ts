@@ -388,29 +388,3 @@ export function parentOfOtherSubCode(code: string): string | null {
     ? parent
     : null;
 }
-
-const ADJACENT_OCCUPATIONS: ReadonlyArray<readonly [string, string]> = [
-  ['IT', 'DATA_AI'],
-];
-
-/** Nhóm coi là cùng ngành với hồ sơ: chính nó, nhóm liền kề, và `OTHER`. */
-export function nearbyOccupations(code: string): string[] {
-  const near = new Set([code, OTHER_CODE]);
-  for (const [left, right] of ADJACENT_OCCUPATIONS) {
-    if (left === code) near.add(right);
-    if (right === code) near.add(left);
-  }
-  return [...near];
-}
-
-export function nearbyOccupationPairs(): { profile: string[]; job: string[] } {
-  const profile: string[] = [];
-  const job: string[] = [];
-  for (const { code } of OCCUPATIONS) {
-    for (const near of nearbyOccupations(code)) {
-      profile.push(code);
-      job.push(near);
-    }
-  }
-  return { profile, job };
-}
