@@ -1,8 +1,12 @@
 import {
+  activityStreak,
   buildSuggestions,
+  marketSummary,
   normaliseSkill,
   recurringGaps,
   roundedScore,
+  weekDays,
+  weeklyProgress,
   todayScore,
   type SuggestionInput,
 } from 'src/modules/dashboard/dashboard.utils.js';
@@ -23,7 +27,7 @@ describe('roundedScore', () => {
   });
 });
 
-const job = (...tags: string[]) => ({ job: { tags } });
+const job = (...skills: string[]) => skills;
 
 describe('normaliseSkill', () => {
   test.each([
@@ -54,31 +58,32 @@ describe('normaliseSkill', () => {
 
 describe('recurringGaps', () => {
   test('KHÔNG báo kỹ năng mà hồ sơ đã có dù viết khác dạng', () => {
-    // Lỗi thật đã gặp khi chạy thử: hệ thống khuyên một lập trình viên React
-    // đi "Học React", vì hồ sơ ghi "ReactJS" còn tag của tin ghi "React".
     const gaps = recurringGaps([job('React'), job('React')], ['ReactJS']);
     expect(gaps).toEqual([]);
   });
 
   test('đếm theo số TIN, không theo số lần xuất hiện', () => {
-    // Một tag lặp lại trong cùng một tin không làm nó thành nhu cầu thị trường.
-    const gaps = recurringGaps([job('GraphQL', 'GraphQL', 'GraphQL')], []);
-    expect(gaps[0]).toEqual({ skill: 'GraphQL', jobCount: 1 });
+    const gaps = recurringGaps(
+      [job('GraphQL', 'GraphQL', 'GraphQL'), job('GraphQL')],
+      [],
+    );
+    expect(gaps[0]).toEqual({ skill: 'GraphQL', jobCount: 2 });
+  });
+
+  test('bỏ kỹ năng chỉ một tin yêu cầu', () => {
+    const gaps = recurringGaps([job('GraphQL', 'Kafka'), job('GraphQL')], []);
+    expect(gaps.map((gap) => gap.skill)).toEqual(['GraphQL']);
   });
 
   test('sắp theo số tin giảm dần', () => {
     const gaps = recurringGaps(
-      [job('GraphQL', 'Kafka'), job('GraphQL'), job('GraphQL')],
+      [job('GraphQL', 'Kafka'), job('GraphQL', 'Kafka'), job('GraphQL')],
       [],
     );
-    expect(gaps[0].skill).toBe('GraphQL');
-    expect(gaps[0].jobCount).toBe(3);
-    expect(gaps[1].skill).toBe('Kafka');
-  });
-
-  test('giữ nguyên cách viết của tin tuyển dụng khi hiện ra', () => {
-    // Người dùng đọc "GraphQL", không phải "graphql".
-    expect(recurringGaps([job('GraphQL')], [])[0].skill).toBe('GraphQL');
+    expect(gaps).toEqual([
+      { skill: 'GraphQL', jobCount: 3 },
+      { skill: 'Kafka', jobCount: 2 },
+    ]);
   });
 
   test('gộp các cách viết khác nhau của cùng một công nghệ', () => {
@@ -86,29 +91,27 @@ describe('recurringGaps', () => {
       [job('NodeJS'), job('Node.js'), job('node')],
       [],
     );
-    expect(gaps).toHaveLength(1);
-    expect(gaps[0].jobCount).toBe(3);
+    expect(gaps).toEqual([{ skill: 'NodeJS', jobCount: 3 }]);
   });
 
   test('bỏ qua cả kỹ năng chính lẫn kỹ năng phụ', () => {
     const gaps = recurringGaps(
-      [job('React', 'NodeJS', 'Kafka')],
+      [job('React', 'NodeJS', 'Kafka'), job('React', 'NodeJS', 'Kafka')],
       ['React', 'NodeJS'],
     );
     expect(gaps.map((gap) => gap.skill)).toEqual(['Kafka']);
   });
 
   test('giới hạn số kết quả trả về', () => {
-    const tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-    expect(recurringGaps([job(...tags)], [], 3)).toHaveLength(3);
+    const skills = ['a', 'b', 'c', 'd', 'e'];
+    expect(recurringGaps([job(...skills), job(...skills)], [], 3)).toHaveLength(
+      3,
+    );
   });
 
-  test('không có tin nào thì trả mảng rỗng', () => {
+  test('không có tin nào hoặc kỹ năng rỗng thì trả mảng rỗng', () => {
     expect(recurringGaps([], ['React'])).toEqual([]);
-  });
-
-  test('bỏ qua tag rỗng', () => {
-    expect(recurringGaps([job('', '  ')], [])).toEqual([]);
+    expect(recurringGaps([job('', '  '), job('', '  ')], [])).toEqual([]);
   });
 });
 
@@ -167,7 +170,7 @@ describe('thẻ kỹ năng còn thiếu', () => {
     );
     const card = cards.find((item) => item.type === 'skill');
     expect(card!.title).toBe('Học GraphQL');
-    expect(card!.description).toContain('3/24');
+    expect(card!.description).toContain('3 tin trong ngành');
   });
 
   test('KHÔNG hiện khi chỉ một tin yêu cầu', () => {
@@ -297,5 +300,98 @@ describe('todayScore', () => {
       career: 61,
       sampleSize: 3,
     });
+  });
+});
+
+describe('marketSummary', () => {
+  test('xếp giảm dần, đổi mã thành tên, bỏ tin chưa phân loại', () => {
+    const result = marketSummary(
+      [
+        { provinceCode: 'HN', _count: 48 },
+        { provinceCode: null, _count: 60 },
+        { provinceCode: 'HCM', _count: 49 },
+      ],
+      [
+        { subOccupationCode: 'IT_DEVOPS', _count: 14 },
+        { subOccupationCode: 'IT_FULLSTACK', _count: 19 },
+        { subOccupationCode: null, _count: 30 },
+      ],
+      'IT',
+    );
+
+    expect(result.provinces.map((row) => [row.code, row.count])).toEqual([
+      ['HCM', 49],
+      ['HN', 48],
+    ]);
+    expect(result.provinces[1].name).toBe('Hà Nội');
+    expect(result.subs.map((row) => row.code)).toEqual([
+      'IT_FULLSTACK',
+      'IT_DEVOPS',
+    ]);
+  });
+
+  test('chỉ giữ tối đa 5 mục và bỏ nghề không thuộc ngành', () => {
+    const provinces = ['HN', 'HCM', 'DN', 'HP', 'CT', 'BN'].map(
+      (code, index) => ({
+        provinceCode: code,
+        _count: 10 - index,
+      }),
+    );
+    const result = marketSummary(
+      provinces,
+      [{ subOccupationCode: 'FIN_ACCOUNTING', _count: 9 }],
+      'IT',
+    );
+
+    expect(result.provinces).toHaveLength(5);
+    expect(result.subs).toEqual([]);
+  });
+});
+
+describe('tiến độ tuần (giờ Việt Nam)', () => {
+  const at = (iso: string) => new Date(iso);
+  const now = at('2026-10-08T05:00:00Z');
+
+  test('tuần bắt đầu từ thứ Hai', () => {
+    expect(weekDays(now)).toEqual([
+      '2026-10-05',
+      '2026-10-06',
+      '2026-10-07',
+      '2026-10-08',
+      '2026-10-09',
+      '2026-10-10',
+      '2026-10-11',
+    ]);
+  });
+
+  test('chỉ đếm việc rơi vào tuần này', () => {
+    const progress = weeklyProgress(
+      {
+        documents: [at('2026-10-06T03:00:00Z'), at('2026-10-02T03:00:00Z')],
+        applied: [at('2026-10-08T01:00:00Z')],
+        interviews: [],
+      },
+      now,
+    );
+    expect(progress.documents).toEqual({ done: 1, goal: 2 });
+    expect(progress.applied).toEqual({ done: 1, goal: 2 });
+    expect(progress.interviews).toEqual({ done: 0, goal: 1 });
+  });
+
+  test('chuỗi ngày liên tiếp, hôm nay chưa làm thì tính từ hôm qua', () => {
+    const streak = activityStreak(
+      [
+        at('2026-10-05T02:00:00Z'),
+        at('2026-10-06T02:00:00Z'),
+        at('2026-10-07T02:00:00Z'),
+      ],
+      now,
+    );
+    expect(streak.days).toBe(3);
+    expect(streak.week).toEqual([true, true, true, false, false, false, false]);
+  });
+
+  test('đứt chuỗi thì đếm lại', () => {
+    expect(activityStreak([at('2026-10-05T02:00:00Z')], now).days).toBe(0);
   });
 });
