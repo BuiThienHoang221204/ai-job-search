@@ -79,4 +79,20 @@ describe('ProfileService.save — ba việc đi liền lần ghi', () => {
     expect(updates[0]).toHaveProperty('occupationCode');
     expect(send).toHaveBeenCalledTimes(1);
   });
+
+  it('KHÔNG suy lại ngành khi lần lưu không đụng chức danh hay kỹ năng chính', async () => {
+    const { service, updates } = build();
+
+    await service.save('u1', { expectedSalary: 30_000_000 });
+
+    expect(updates[0]).not.toHaveProperty('occupationCode', 'FINANCE');
+  });
+
+  it('giữ ngành người dùng tự chọn dù chức danh suy ra ngành khác', async () => {
+    const { service, updates } = build();
+
+    await service.save('u1', { occupationCode: 'MARKETING' });
+
+    expect(updates[0].occupationCode).toBe('MARKETING');
+  });
 });

@@ -110,6 +110,17 @@ describe('POST /api/profile/quick-start', () => {
     expect(body.occupationCode).toBe('IT');
   });
 
+  test('chọn nhanh một ngành khác với chức danh thì GIỮ lựa chọn, kể cả sau khi lưu trường khác', async () => {
+    await updateProfile({ headline: 'Kế toán tổng hợp' }).expect(200);
+
+    await quickStart({ occupationCode: 'IT' }).expect(200);
+    await updateProfile({ expectedSalary: 30000000 }).expect(200);
+
+    const response = await getProfile().expect(200);
+    const body = response.body as { occupationCode: string };
+    expect(body.occupationCode).toBe('IT');
+  });
+
   // Chỉ /profile/quick-start được phép ghi occupationCode - route hồ sơ thường thì không.
   test('PUT /profile gửi kèm occupationCode bị từ chối (whitelist)', async () => {
     await updateProfile({ occupationCode: 'IT' }).expect(400);

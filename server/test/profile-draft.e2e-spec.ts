@@ -163,7 +163,7 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     expect(profile?.headline ?? null).toBeNull();
   });
 
-  test('chỉ những trường được tích mới ghi vào hồ sơ', async () => {
+  test('chỉ ghi đúng những giá trị người dùng đã duyệt gửi lên', async () => {
     harness.ai.willReturn(proposal);
     const draftId = await uploadAndGetId(harness, user);
     await harness.queue.drain();
@@ -171,22 +171,23 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     await request(harness.server)
       .put(`/api/profile-drafts/${draftId}/apply`)
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ fields: ['primarySkills', 'headline'] })
+      .send({
+        primarySkills: ['Node.js', 'TypeScript', 'NestJS'],
+        headline: 'Senior Backend Engineer',
+      })
       .expect(200);
 
     const profile = await harness.prisma.profile.findUnique({
       where: { userId: user.id },
     });
+    const draft = await harness.prisma.profileDraft.findUnique({
+      where: { id: draftId },
+    });
 
-    expect(profile?.primarySkills).toEqual([
-      'TypeScript',
-      'NestJS',
-      'PostgreSQL',
-    ]);
-    expect(profile?.headline).toBe('Kỹ sư Backend 5 năm kinh nghiệm');
-    // KHÔNG được tích nên KHÔNG được ghi, dù đề xuất có giá trị cho nó.
+    expect(profile?.primarySkills).toEqual(['Node.js', 'TypeScript', 'NestJS']);
+    expect(profile?.headline).toBe('Senior Backend Engineer');
     expect(profile?.summary ?? null).toBeNull();
-    expect(profile?.secondarySkills ?? []).toEqual([]);
+    expect(draft?.appliedAt).not.toBeNull();
   });
 
   test('áp dụng CV vào hồ sơ TRỐNG thì tính lại completion', async () => {
@@ -200,17 +201,15 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
       .put(`/api/profile-drafts/${draftId}/apply`)
       .set('Authorization', `Bearer ${user.token}`)
       .send({
-        fields: [
-          'headline',
-          'location',
-          'country',
-          'summary',
-          'primarySkills',
-          'secondarySkills',
-          'directExperienceDomains',
-          'experiences',
-          'educations',
-        ],
+        headline: proposal.headline,
+        location: proposal.location,
+        country: proposal.country,
+        summary: proposal.summary,
+        primarySkills: proposal.primarySkills,
+        secondarySkills: proposal.secondarySkills,
+        directExperienceDomains: proposal.directExperienceDomains,
+        experiences: proposal.experiences,
+        educations: proposal.educations,
       })
       .expect(200);
 
@@ -238,9 +237,12 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
       .put(`/api/profile-drafts/${draftId}/apply`)
       .set('Authorization', `Bearer ${user.token}`)
       .send({
-        fields: ['citizenship', 'workPermit', 'careerGoals', 'primarySkills'],
+        citizenship: 'Hoa Kỳ',
+        workPermit: 'Đã có',
+        careerGoals: ['CTO'],
+        primarySkills: ['NestJS'],
       })
-      .expect(200);
+      .expect(400);
 
     const profile = await harness.prisma.profile.findUnique({
       where: { userId: user.id },
@@ -248,8 +250,7 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     expect(profile?.citizenship ?? null).toBeNull();
     expect(profile?.workPermit ?? null).toBeNull();
     expect(profile?.careerGoals ?? []).toEqual([]);
-    // Trường hợp lệ trong cùng request vẫn phải được ghi.
-    expect(profile?.primarySkills).toContain('NestJS');
+    expect(profile?.primarySkills ?? []).toEqual([]);
   });
 
   test('PDF scan bị từ chối NGAY tại request, kèm lý do đọc được', async () => {
@@ -318,13 +319,13 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     const response = await request(harness.server)
       .put(`/api/profile-drafts/${draftId}/apply`)
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ fields: ['primarySkills'] })
+      .send({ primarySkills: ['NestJS'] })
       .expect(400);
 
     expect((response.body as { message: string }).message).toMatch(/PENDING/);
   });
 
-  test('mảng fields rỗng bị từ chối chứ không lặng lẽ đánh dấu đã áp dụng', async () => {
+  test('gửi rỗng bị từ chối chứ không lặng lẽ đánh dấu đã áp dụng', async () => {
     harness.ai.willReturn(proposal);
     const draftId = await uploadAndGetId(harness, user);
     await harness.queue.drain();
@@ -332,7 +333,7 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     await request(harness.server)
       .put(`/api/profile-drafts/${draftId}/apply`)
       .set('Authorization', `Bearer ${user.token}`)
-      .send({ fields: [] })
+      .send({})
       .expect(400);
 
     const draft = await harness.prisma.profileDraft.findUnique({
@@ -355,7 +356,7 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     await request(harness.server)
       .put(`/api/profile-drafts/${draftId}/apply`)
       .set('Authorization', `Bearer ${other.token}`)
-      .send({ fields: ['primarySkills'] })
+      .send({ primarySkills: ['NestJS'] })
       .expect(404);
   });
 

@@ -4,7 +4,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import type { UpdateProfileDto } from './profile.dto';
 import { completionPercent } from './utils/completion';
-import { profileOccupation } from './utils/occupation';
+import { occupationAfterSave } from './utils/occupation';
 
 @Injectable()
 export class ProfileService {
@@ -37,7 +37,7 @@ export class ProfileService {
       where: { userId },
       data: {
         completion: completionPercent(saved),
-        occupationCode: profileOccupation(saved, saved.occupationCode),
+        occupationCode: occupationAfterSave(saved, data),
       },
     });
 

@@ -21,6 +21,17 @@ export type OccupationSource = {
   primarySkills: string[];
 };
 
+/** Ngành sau một lần lưu: người dùng tự chọn thì giữ; chỉ suy lại khi chức danh hoặc kỹ năng chính vừa đổi. */
+export function occupationAfterSave(
+  saved: OccupationSource & { occupationCode: string | null },
+  data: Record<string, unknown>,
+): string | null {
+  const has = (key: string) => data[key] !== undefined;
+  if (has('occupationCode')) return saved.occupationCode;
+  if (!has('headline') && !has('primarySkills')) return saved.occupationCode;
+  return profileOccupation(saved, saved.occupationCode);
+}
+
 export function profileOccupation(
   profile: OccupationSource,
   fallback: string | null = null,

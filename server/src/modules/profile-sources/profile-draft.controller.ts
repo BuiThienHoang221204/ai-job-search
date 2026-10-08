@@ -181,8 +181,7 @@ export class ProfileDraftController {
   }
 
   @ApiOperation({
-    summary:
-      'Áp dụng các trường thông tin đã trích xuất từ CV vào hồ sơ chính thức',
+    summary: 'Lưu vào hồ sơ các giá trị người dùng đã duyệt từ bản đọc CV',
   })
   @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Put(':id/apply')
@@ -191,6 +190,6 @@ export class ProfileDraftController {
     @Param('id') id: string,
     @Body() dto: ApplyDraftDto,
   ) {
-    return this.drafts.apply(user.id, id, dto.fields);
+    return this.drafts.apply(user.id, id, dto);
   }
 }

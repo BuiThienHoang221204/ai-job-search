@@ -21,8 +21,8 @@ import {
 import { ProfileService } from '@/modules/profile/profile.service';
 import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source';
 import { parseEvidenceList, type Evidence } from '../utils/evidence';
-import type { ProfileProposal } from '../profile-proposal.schema';
-import { pickProposalFields, safeFilename } from '../utils/profile-draft.utils';
+import type { ApplyDraftDto } from '../profile-draft.dto';
+import { safeFilename } from '../utils/profile-draft.utils';
 
 @Injectable()
 export class ProfileDraftService {
@@ -164,7 +164,7 @@ export class ProfileDraftService {
   async apply(
     userId: string,
     draftId: string,
-    fields: string[],
+    values: ApplyDraftDto,
   ): Promise<ProfileDraft> {
     const draft = await this.get(userId, draftId);
 
@@ -173,12 +173,9 @@ export class ProfileDraftService {
         `Bản nháp đang ở trạng thái ${draft.status}, chưa có đề xuất để áp dụng.`,
       );
     }
-    if (!draft.proposal) {
-      throw new BadRequestException('Bản nháp không có đề xuất nào.');
-    }
-
-    const proposal = draft.proposal as unknown as ProfileProposal;
-    const data = pickProposalFields(proposal, fields);
+    const data = Object.fromEntries(
+      Object.entries(values).filter(([, value]) => value !== undefined),
+    );
 
     if (Object.keys(data).length === 0) {
       throw new BadRequestException(

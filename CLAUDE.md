@@ -81,7 +81,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 ## Đọc CV (Agent 1) — ba điều dễ làm sai
 
-**1. Không có gì được ghi vào bảng `Profile` cho tới khi người dùng bấm áp dụng.** Model ghi vào `ProfileDraft.proposal`; `apply()` mới chép sang `Profile`, và chỉ chép đúng những trường người dùng tích. Danh sách được phép chép là **danh sách trắng** (`APPLICABLE_FIELDS`) chứ không phải danh sách đen — `fields` đến từ HTTP request, nên danh sách đen sẽ tự động cho qua mọi trường mới thêm sau này.
+**1. Không có gì được ghi vào bảng `Profile` cho tới khi người dùng bấm Lưu.** Model ghi vào `ProfileDraft.proposal`; giao diện dựng hồ sơ xem trước (gộp kỹ năng vào cái đang có, thêm mục mới, người dùng sửa/bỏ chỗ AI đọc sai — `lib/profile-draft-content.ts` phía FE) rồi gửi **giá trị cuối cùng** lên `PUT /profile-drafts/:id/apply`. Từ 2026-10-09 route này nhận giá trị chứ không nhận danh sách tên trường như trước, vì chỉ chép nguyên đề xuất thì không gộp được và không giữ được phần người dùng sửa. Trường nhận được là **danh sách trắng** (`ApplyDraftDto` = `PickType(UpdateProfileDto, APPLICABLE_FIELDS)`) chứ không phải danh sách đen: gửi `citizenship`/`careerGoals`… nhận 400 nhờ `forbidNonWhitelisted`, và trường mới thêm vào hồ sơ sau này không tự lọt qua.
 
 **2. Có những trường model bị CẤM đề xuất**, và lý do là: `careerGoals`/`energizingTasks`/`drainingTasks`/`targetSectors`/`dealBreakers` là **sở thích** (CV không nói việc gì làm bạn kiệt sức, mà chúng chiếm 30% điểm phù hợp); `citizenship`/`workPermit` là **tình trạng pháp lý** (đoán sai làm sai Eligibility Gate — bộ lọc CỨNG); `lackingSkills` suy ra từ việc đối chiếu với tin tuyển dụng, không đọc từ CV.
 
