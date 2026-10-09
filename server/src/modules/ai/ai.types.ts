@@ -78,6 +78,7 @@ export type ResolvedModel = {
   apiKey: string;
   headers: Record<string, string>;
   explicitStreamFlag: boolean;
+  dropJsonMode: boolean;
   honorsResponseFormat: boolean;
   streamsJson: boolean;
   defaultMaxOutputTokens?: number;

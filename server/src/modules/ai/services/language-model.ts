@@ -4,6 +4,7 @@ import type { LanguageModel } from 'ai';
 import { formatModelRef } from '../utils/model-ref';
 import { extractJsonFromResponse } from '../utils/json-text';
 import { extractJsonFromStream } from '../utils/json-stream';
+import { rewriteRequestBody } from '../utils/request-body';
 import type { ModelCatalogService } from './model-catalog.service';
 
 export type ResolvedLanguageModel = {
@@ -59,18 +60,10 @@ export class LanguageModelFactory {
       if (userAgent) {
         headers.set('User-Agent', userAgent);
       }
-      let body = init?.body;
-      if (resolved.explicitStreamFlag && typeof body === 'string') {
-        try {
-          const parsed = JSON.parse(body) as Record<string, unknown>;
-          if (!('stream' in parsed)) {
-            parsed.stream = false;
-            body = JSON.stringify(parsed);
-          }
-        } catch {
-          body = init?.body;
-        }
-      }
+      const body =
+        typeof init?.body === 'string'
+          ? rewriteRequestBody(init.body, resolved)
+          : init?.body;
       const response = await originalFetch(input, { ...init, headers, body });
       const unwrapped = await extractJsonFromResponse(response);
       return jsonStream ? extractJsonFromStream(unwrapped) : unwrapped;

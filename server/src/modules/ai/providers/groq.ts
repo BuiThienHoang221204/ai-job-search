@@ -23,5 +23,6 @@ export const groq: ProviderDescriptor = {
   apiKeyEnv: 'GROQ_API_KEY',
   baseURLEnv: 'GROQ_BASE_URL',
   honorsResponseFormat: false,
+  dropJsonMode: true,
   rateLimitFor: (modelId) => LIMITS.get(modelId),
 };

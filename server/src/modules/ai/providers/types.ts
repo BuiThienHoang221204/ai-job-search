@@ -8,6 +8,7 @@ export type ProviderDescriptor = {
   honorsResponseFormat?: boolean;
   extraHeaders?: Record<string, string>;
   explicitStreamFlag?: boolean;
+  dropJsonMode?: boolean;
   declaresStructuredOutput?: (entry: Record<string, unknown>) => boolean;
   knownNoStructuredOutput?: readonly string[];
   streamsJson?: readonly string[] | 'all';

@@ -216,6 +216,7 @@ export class ModelCatalogService {
       apiKey,
       headers,
       explicitStreamFlag: descriptor.explicitStreamFlag === true,
+      dropJsonMode: descriptor.dropJsonMode === true,
       honorsResponseFormat: descriptor.honorsResponseFormat !== false,
       streamsJson: streamsJsonFor(descriptor, selected.id),
       defaultMaxOutputTokens: descriptor.defaultMaxOutputTokens,
