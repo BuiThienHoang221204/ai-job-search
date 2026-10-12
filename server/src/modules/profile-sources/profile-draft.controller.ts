@@ -24,12 +24,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
+import { withFailureKind } from '../ai/utils/failure-view';
 import { cvPdfErrorMessage } from './cv-pdf.source';
 import { MAX_PDF_BYTES } from './utils/pdf-text';
 import { ProfileDraftService } from './services/profile-draft.service';
@@ -110,16 +109,6 @@ export class ProfileDraftController {
   @Get('latest')
   async latest(@CurrentUser() user: AuthUser) {
     return withFailureKind(await this.drafts.latest(user.id));
-  }
-
-  @ApiOperation({ summary: 'Lấy lịch sử các lượt tải lên CV và trích xuất' })
-  @Get('history')
-  async history(
-    @CurrentUser() user: AuthUser,
-    @Query() query: PaginationQueryDto,
-  ) {
-    const page = await this.drafts.history(user.id, query);
-    return { ...page, items: withFailureKinds(page.items) };
   }
 
   @ApiOperation({ summary: 'Tải xuống hoặc xem file CV PDF gốc đã nộp' })

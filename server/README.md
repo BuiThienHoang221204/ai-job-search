@@ -68,7 +68,6 @@ giữ phần giao diện chung.
 | `POST /api/upskill/generate` | `upskill/SKILL.md` (Step 3-6) |
 | `POST /api/documents/cv` | `05-cv-templates.md` + `03-writing-style.md` |
 | `POST /api/documents/cover-letter` | `06-cover-letter-templates.md` + `03-writing-style.md` |
-| `POST /api/documents/form-answer` | `08-application-forms.md` |
 | `POST /api/scrape` | CLI trong `.agents/skills/*/cli/` (không dùng `job-scraper/SKILL.md`) |
 | `POST /api/profile-drafts/cv` | không nạp skill nào — xem mục "Đọc CV" bên dưới |
 
@@ -817,7 +816,7 @@ Ba biến `OMNIROUTE_JWT_SECRET`, `OMNIROUTE_KEY_SECRET`, `OMNIROUTE_PASSWORD` *
 
 Ghim tag `3.8.49`, **đừng `:latest`** — repo đó push mỗi ngày.
 
-### Kết quả chảy dần: năm đường stream, và điều kiện để thêm đường thứ sáu
+### Kết quả chảy dần: bốn đường stream, và điều kiện để thêm đường thứ năm
 
 | Route | Tác vụ | Chờ trước | Tới nội dung đầu |
 |---|---|---|---|
@@ -825,13 +824,12 @@ Ghim tag `3.8.49`, **đừng `:latest`** — repo đó push mỗi ngày.
 | `POST /documents/:id/generate-stream` | sinh CV | 11,7s | **3,3s** |
 | `POST /profile-drafts/:id/synthesize-stream` | đọc CV | 21s | — |
 | `POST /companies/brief/by-job/:jobId/stream` | tìm hiểu công ty | 10,1s | — |
-| `POST /interview/prep-stream/:jobId` | soạn câu hỏi | 42s | — |
 
 Tất cả trả **NDJSON**, mỗi dòng một `ModelStreamEvent` (`src/common/stream-event.ts`): `partial` / `done` / `error`. Bên giao diện có đúng MỘT bộ đọc dùng chung — `lib/model-stream.ts`.
 
 **Điều kiện để một tác vụ đáng có đường stream: phải có NGƯỜI ĐANG CHỜ.** Đã suýt làm sai một lần: `interview.prep` chậm nhất (42s) nên bị xếp đầu bảng, nhưng khi đó nó được xếp việc từ `applications.service` **lúc người dùng chuyển đơn sang trạng thái Phỏng vấn** — chạy nền, không ai nhìn. `job.requirements` và `skill.canonicalize` chạy trong cron nên KHÔNG có và không nên có.
 
-**`POST /interview/prep-stream/:jobId` hiện KHÔNG có ai gọi** (kiểm 2026-09-22): `applications.service` nay chỉ ĐỌC `interviewPrep` chứ không xếp việc nữa, và giao diện dùng `prep` (hàng đợi) với `prep-sync` (đồng bộ). Route vẫn giữ vì nó dùng chung `prepare()` với đường đồng bộ nên gần như không tốn gì; nhưng nó chưa từng chạy thật qua giao diện, đừng coi 42s trong bảng trên là số đo còn hạn.
+**`POST /interview/prep-stream/:jobId` đã gỡ ngày 2026-10-11** cùng `InterviewService.streamGenerate`: từ 2026-09-22 không ai gọi nó — `applications.service` chỉ ĐỌC `interviewPrep`, giao diện dùng `prep` (hàng đợi). Số đo cũ là 42 giây trước nội dung đầu. Muốn dựng lại thì đọc lại commit đó và áp đúng điều kiện ngay dưới: phải có người đang chờ.
 
 **Ba cái bẫy đã sập khi triển khai:**
 

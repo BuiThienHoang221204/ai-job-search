@@ -89,19 +89,6 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Đăng xuất trên mọi thiết bị' })
-  @Post('logout-all')
-  @HttpCode(200)
-  async logoutAll(
-    @CurrentUser() user: AuthUser,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    await this.auth.revokeAllSessions(user.id);
-    clearAuthCookies(response);
-    return { ok: true };
-  }
-
-  @ApiBearerAuth()
   @ApiOperation({ summary: 'Lấy thông tin tài khoản hiện tại' })
   @Get('me')
   me(@CurrentUser() user: AuthUser) {

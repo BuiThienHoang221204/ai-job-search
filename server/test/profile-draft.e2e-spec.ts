@@ -163,6 +163,36 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     expect(profile?.headline ?? null).toBeNull();
   });
 
+  test('các route trả bản nháp KHÔNG kèm toàn văn CV (evidence)', async () => {
+    harness.ai.willReturn(proposal);
+    const draftId = await uploadAndGetId(harness, user);
+    await harness.queue.drain();
+    const auth = { Authorization: `Bearer ${user.token}` };
+
+    const byId = await request(harness.server)
+      .get(`/api/profile-drafts/${draftId}`)
+      .set(auth)
+      .expect(200);
+    const latest = await request(harness.server)
+      .get('/api/profile-drafts/latest')
+      .set(auth)
+      .expect(200);
+    const applied = await request(harness.server)
+      .put(`/api/profile-drafts/${draftId}/apply`)
+      .set(auth)
+      .send({ headline: 'Backend Engineer' })
+      .expect(200);
+
+    for (const body of [byId.body, latest.body, applied.body]) {
+      expect(body).not.toHaveProperty('evidence');
+      expect(body).toHaveProperty('proposal');
+    }
+    const stored = await harness.prisma.profileDraft.findUnique({
+      where: { id: draftId },
+    });
+    expect(stored?.evidence).not.toBeNull();
+  });
+
   test('chỉ ghi đúng những giá trị người dùng đã duyệt gửi lên', async () => {
     harness.ai.willReturn(proposal);
     const draftId = await uploadAndGetId(harness, user);

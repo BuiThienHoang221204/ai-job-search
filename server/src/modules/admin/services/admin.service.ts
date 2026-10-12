@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { FailureFacetsQueryDto, FailuresQueryDto } from '../admin.dto';
@@ -385,17 +384,5 @@ export class AdminService {
       where "createdAt" >= ${since}
       group by 1
       order by 1`;
-  }
-
-  async scrapeRuns(query: PaginationQueryDto) {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.scrapeRun.findMany({
-        orderBy: { createdAt: 'desc' },
-        ...pageArgs(query),
-        include: { user: { select: { id: true, email: true } } },
-      }),
-      this.prisma.scrapeRun.count(),
-    ]);
-    return pageOf(items, total, query);
   }
 }

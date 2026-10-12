@@ -16,12 +16,18 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { DocumentGenerator } from './document-generator.service';
 import { DocumentRenderer } from './document-renderer.service';
 import { emailTitle } from '../utils/letter-target';
-import { isPrintable } from '../utils/cv-content';
 import { parseCvEdit, requirePastedJob } from '../utils/document-input';
 import { resolveLayout } from '../templates/cv-layout';
 import { isTemplateId, resolveTemplateOptions } from '../templates/registry';
 
 export type PdfEngine = 'latex' | 'html';
+
+const JOB_SUMMARY = {
+  id: true,
+  title: true,
+  company: true,
+  companyLogo: true,
+} as const;
 
 @Injectable()
 export class DocumentsService {
@@ -30,24 +36,6 @@ export class DocumentsService {
     private readonly generator: DocumentGenerator,
     private readonly renderer: DocumentRenderer,
   ) {}
-
-  async rerender(userId: string, documentId: string): Promise<Document> {
-    const document = await this.get(userId, documentId);
-
-    if (document.status !== 'DONE' || !document.content) {
-      throw new UnprocessableEntityException(
-        `Tài liệu đang ở trạng thái ${document.status} và chưa có nội dung để render lại.`,
-      );
-    }
-
-    if (!isPrintable(document.kind)) {
-      throw new UnprocessableEntityException(
-        `Tài liệu loại ${document.kind} không có bản LaTeX để render lại.`,
-      );
-    }
-
-    return this.writeSource(document, document.content);
-  }
 
   /** Vẽ lại file nguồn từ `content` rồi ghi `storageKey` — quên bước này thì PDF LaTeX còn chữ cũ. */
   private async writeSource(
@@ -176,6 +164,7 @@ export class DocumentsService {
         ...pageArgs(query),
         select: {
           id: true,
+          jobId: true,
           kind: true,
           status: true,
           title: true,
@@ -186,7 +175,7 @@ export class DocumentsService {
           createdAt: true,
           generatedAt: true,
           error: true,
-          job: { select: { id: true, title: true, company: true } },
+          job: { select: JOB_SUMMARY },
         },
       }),
       this.prisma.document.count({ where }),
@@ -198,7 +187,7 @@ export class DocumentsService {
   async get(userId: string, id: string) {
     const document = await this.prisma.document.findFirst({
       where: { id, userId },
-      include: { job: { select: { id: true, title: true, company: true } } },
+      include: { job: { select: JOB_SUMMARY } },
     });
     if (!document)
       throw new NotFoundException(`Không tìm thấy tài liệu: ${id}`);

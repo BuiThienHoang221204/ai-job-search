@@ -29,7 +29,6 @@ import {
   FailuresQueryDto,
   OverviewQueryDto,
   QueueConfigQueryDto,
-  ScrapeRunsQueryDto,
   UpdateQueueConfigDto,
 } from '../admin.dto';
 import { AdminService } from '../services/admin.service';
@@ -92,12 +91,6 @@ export class AdminController {
   @Get('ai-usage')
   aiUsage(@Query() query: AiUsageQueryDto) {
     return this.admin.aiUsage(query.days ?? 7);
-  }
-
-  @ApiOperation({ summary: 'Lịch sử quét của toàn hệ thống' })
-  @Get('scrape/runs')
-  scrapeRuns(@Query() query: ScrapeRunsQueryDto) {
-    return this.admin.scrapeRuns(query);
   }
 
   @ApiOperation({

@@ -65,7 +65,6 @@ describe('API dữ liệu của màn quản trị', () => {
     ['get', '/admin/skills'],
     ['get', '/admin/skills/summary'],
     ['get', '/admin/ai-usage'],
-    ['get', '/admin/scrape/runs'],
     ['get', '/admin/overview'],
     ['get', '/admin/scrape/portals'],
     ['get', '/admin/scrape/batches'],
@@ -565,22 +564,5 @@ describe('API dữ liệu của màn quản trị', () => {
       severity: 'danger',
     });
     expect(body.series).toHaveLength(24);
-  });
-
-  test('lịch sử quét toàn hệ thống gồm cả lượt của tài khoản khác', async () => {
-    await harness.prisma.scrapeRun.createMany({
-      data: [
-        { portal: 'itviec', userId: null },
-        { portal: 'topcv', userId: user.id },
-      ],
-    });
-    const response = await as(admin).get('/admin/scrape/runs').expect(200);
-    const page = json<{
-      total: number;
-      items: Array<{ user: { email: string } | null }>;
-    }>(response);
-    expect(page.total).toBe(2);
-    const owners = page.items.map((row) => row.user?.email ?? null);
-    expect(owners.sort()).toEqual([null, 'user@test.local'].sort());
   });
 });

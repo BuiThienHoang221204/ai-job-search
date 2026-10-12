@@ -163,6 +163,45 @@ describe('Kho mẫu CV', () => {
     expect(item).not.toHaveProperty('content');
   });
 
+  test('danh sách tài liệu trả jobId và logo công ty của tin để vẽ thẻ', async () => {
+    const job = await harness.prisma.job.create({
+      data: {
+        source: 'topcv',
+        url: 'https://x/logo',
+        title: 'Kế toán tổng hợp',
+        company: 'Đại Phát',
+        companyLogo: 'https://cdn.example/dai-phat.png',
+        description: 'd',
+      },
+    });
+    await harness.prisma.document.create({
+      data: {
+        userId: user.id,
+        jobId: job.id,
+        kind: 'COVER_LETTER',
+        title: 'Thư xin việc',
+        status: 'DONE',
+        content: {},
+      },
+    });
+
+    const response = await request(harness.server)
+      .get('/api/documents')
+      .query({ kind: 'COVER_LETTER' })
+      .set(auth())
+      .expect(200);
+    const [item] = (response.body as { items: Record<string, unknown>[] })
+      .items;
+
+    expect(item.jobId).toBe(job.id);
+    expect(item.job).toEqual({
+      id: job.id,
+      title: 'Kế toán tổng hợp',
+      company: 'Đại Phát',
+      companyLogo: 'https://cdn.example/dai-phat.png',
+    });
+  });
+
   test('mẫu đã lưu được dùng cho lượt xem trước sau đó', async () => {
     const document = await seedDoneCv();
 

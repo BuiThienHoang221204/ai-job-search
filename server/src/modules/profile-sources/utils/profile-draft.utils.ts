@@ -1,3 +1,5 @@
+import type { ProfileDraft } from '@/generated/prisma/client';
+
 export const APPLICABLE_FIELDS = [
   'headline',
   'location',
@@ -22,3 +24,7 @@ export function safeFilename(filename: string): string {
     .slice(0, 120);
   return cleaned.length > 0 ? cleaned : 'cv.pdf';
 }
+
+export const WITHOUT_EVIDENCE = { evidence: true } as const;
+
+export type DraftView = Omit<ProfileDraft, 'evidence'>;

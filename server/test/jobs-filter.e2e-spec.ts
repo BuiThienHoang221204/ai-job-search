@@ -450,6 +450,47 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       });
     });
 
+    test('lượt chấm hỏng trả failureKind, KHÔNG trả lỗi thô', async () => {
+      const { id } = await detailOf();
+      await harness.prisma.jobMatch.create({
+        data: {
+          userId: user.id,
+          jobId: id,
+          status: 'FAILED',
+          error: 'The operation was aborted due to timeout',
+        },
+      });
+
+      const { match } = (await detailOf()).body as {
+        match: Record<string, unknown>;
+      };
+      expect(match.failureKind).toBe('TIMEOUT');
+      expect(match).not.toHaveProperty('error');
+    });
+
+    test('danh sách KHÔNG kèm từng dòng đối chiếu (checks), trang chi tiết thì có', async () => {
+      const { id } = await detailOf();
+      await harness.prisma.profile.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, primarySkills: ['NestJS'] },
+        update: { primarySkills: ['NestJS'] },
+      });
+      await harness.prisma.jobRequirement.create({
+        data: { jobId: id, status: 'DONE', requiredSkills: ['NestJS', 'Go'] },
+      });
+
+      const [item] = (await pageOf({ limit: 1 })).items as unknown as {
+        systemMatch: Record<string, unknown>;
+      }[];
+      expect(item.systemMatch).toMatchObject({ kind: 'REQUIREMENTS' });
+      expect(item.systemMatch).not.toHaveProperty('checks');
+
+      const { systemMatch } = (await detailOf()).body as {
+        systemMatch: { checks: unknown[] };
+      };
+      expect(systemMatch.checks.length).toBeGreaterThan(0);
+    });
+
     test('trả nơi ở trong hồ sơ để giao diện khỏi tải cả hồ sơ', async () => {
       expect((await detailOf()).body.profileLocation).toBeNull();
 

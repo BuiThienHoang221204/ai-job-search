@@ -5,7 +5,6 @@ import {
   Logger,
   Param,
   Post,
-  Query,
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -15,7 +14,6 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { QUEUE, QueueService } from '../queue/queue.service';
@@ -39,12 +37,6 @@ export class UpskillController {
   @Get()
   latest(@CurrentUser() user: AuthUser) {
     return this.upskill.latest(user.id);
-  }
-
-  @ApiOperation({ summary: 'Lấy lịch sử các báo cáo upskill đã tạo' })
-  @Get('history')
-  history(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
-    return this.upskill.history(user.id, query);
   }
 
   @ApiOperation({ summary: 'Lấy chi tiết một báo cáo upskill theo ID' })

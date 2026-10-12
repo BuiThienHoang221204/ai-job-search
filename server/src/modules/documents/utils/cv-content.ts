@@ -1,12 +1,7 @@
-import type { Document, DocumentKind } from '@/generated/prisma/client';
+import type { Document } from '@/generated/prisma/client';
 import type { CvContent } from '../content.types';
 import type { CvContentResult } from '../schemas/document.schema';
 import type { DocumentLanguage } from '../templates/cv-layout';
-
-const PRINTABLE: readonly DocumentKind[] = ['CV', 'COVER_LETTER'];
-
-export const isPrintable = (kind: DocumentKind): boolean =>
-  PRINTABLE.includes(kind);
 
 export const renderLanguage = (document: Document): DocumentLanguage =>
   document.language === 'EN' ? 'en' : 'vi';

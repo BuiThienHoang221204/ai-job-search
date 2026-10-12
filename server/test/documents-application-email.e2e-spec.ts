@@ -227,20 +227,4 @@ describe('Mail ứng tuyển từ JD dán tay', () => {
       .set(auth(other.token))
       .expect(404);
   });
-
-  test('mail không có bản LaTeX nên render lại bị từ chối rõ ràng', async () => {
-    harness.ai.willReturn(EMAIL_CONTENT);
-    const created = await pasteValidJd().expect(201);
-    const { documentId } = created.body as { documentId: string };
-    await harness.queue.drain();
-
-    const response = await request(harness.server)
-      .put(`/api/documents/${documentId}/rerender`)
-      .set(auth(user.token))
-      .expect(422);
-
-    expect((response.body as { message: string }).message).toMatch(
-      /không có bản LaTeX/i,
-    );
-  });
 });

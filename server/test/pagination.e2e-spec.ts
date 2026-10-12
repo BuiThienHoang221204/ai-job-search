@@ -74,17 +74,6 @@ describe('Phân trang trên các API danh sách', () => {
           })),
         }),
     },
-    {
-      path: '/api/upskill/history',
-      seed: (userId: string, count: number) =>
-        harness.prisma.upskillReport.createMany({
-          data: Array.from({ length: count }, () => ({
-            userId,
-            mode: 'AGGREGATE' as const,
-            status: 'DONE' as const,
-          })),
-        }),
-    },
   ];
 
   describe.each(ENDPOINTS)('$path', ({ path, seed }) => {

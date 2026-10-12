@@ -125,13 +125,6 @@ export class AuthService {
     return this.sign(user, user.tokenVersion);
   }
 
-  async revokeAllSessions(userId: string): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { tokenVersion: { increment: 1 } },
-    });
-  }
-
   private sign(user: SignedUser, tokenVersion: number): AuthResult {
     return {
       accessToken: this.token(user, tokenVersion, 'access'),

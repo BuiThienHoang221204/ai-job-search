@@ -145,8 +145,6 @@ export class AiUsageQueryDto {
   days?: number;
 }
 
-export class ScrapeRunsQueryDto extends PaginationQueryDto {}
-
 export class QueueConfigQueryDto extends PaginationQueryDto {}
 
 export class JobSourcesQueryDto extends PaginationQueryDto {}

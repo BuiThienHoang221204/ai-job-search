@@ -6,6 +6,7 @@ import type {
 } from '@/generated/prisma/client';
 import { countTerms, normalizeText } from '@/common/text/vietnamese';
 import { isStaleMatch } from '@/modules/matching/rules/staleness';
+import { withFailureKind } from '@/modules/ai/utils/failure-view';
 import { toRequirements } from '@/modules/matching/ai/utils/requirements';
 import { matchRequirements } from '@/modules/matching/rules/requirement-match';
 import type {
@@ -47,6 +48,7 @@ export const MATCH_DETAIL_FIELDS = {
   gaps: true,
   recommendation: true,
   evaluatedAt: true,
+  error: true,
 } satisfies Prisma.JobMatchSelect;
 
 export function withSavedFlag<T extends { saves: unknown[] }>(job: T) {
@@ -73,7 +75,7 @@ export function withMatchState<
 }
 
 export function withMatchDetail<
-  T extends { matches: { evaluatedAt: Date | null }[] },
+  T extends { matches: { evaluatedAt: Date | null; error?: string | null }[] },
 >(job: T, profileUpdatedAt: Date | null) {
   const { matches, ...rest } = job;
   const match = matches[0];
@@ -82,10 +84,19 @@ export function withMatchDetail<
   return {
     ...rest,
     match: {
-      ...match,
+      ...withFailureKind(match),
       stale: isStaleMatch(match.evaluatedAt, profileUpdatedAt),
     },
   };
+}
+
+export function withoutChecks<
+  T extends { systemMatch: { checks: unknown[] } | null },
+>(job: T) {
+  if (!job.systemMatch) return job;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { checks, ...systemMatch } = job.systemMatch;
+  return { ...job, systemMatch };
 }
 
 /** Chưa rút được yêu cầu thì rơi về đếm từ khoá, kèm `kind` để giao diện không hiện như điểm thật. */

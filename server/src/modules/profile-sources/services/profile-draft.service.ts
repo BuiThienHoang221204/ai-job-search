@@ -4,9 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma, ProfileDraft } from '@/generated/prisma/client';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
-import { pageArgs, pageOf } from '@/common/pagination';
+import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   QUEUE,
@@ -22,7 +20,11 @@ import { ProfileService } from '@/modules/profile/profile.service';
 import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source';
 import { parseEvidenceList, type Evidence } from '../utils/evidence';
 import type { ApplyDraftDto } from '../profile-draft.dto';
-import { safeFilename } from '../utils/profile-draft.utils';
+import {
+  safeFilename,
+  WITHOUT_EVIDENCE,
+  type DraftView,
+} from '../utils/profile-draft.utils';
 
 @Injectable()
 export class ProfileDraftService {
@@ -75,18 +77,20 @@ export class ProfileDraftService {
     };
   }
 
-  async latest(userId: string): Promise<ProfileDraft> {
+  async latest(userId: string): Promise<DraftView> {
     const draft = await this.prisma.profileDraft.findFirst({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      omit: WITHOUT_EVIDENCE,
     });
     if (!draft) throw new NotFoundException('Chưa có lượt đọc CV nào');
     return draft;
   }
 
-  async get(userId: string, id: string): Promise<ProfileDraft> {
+  async get(userId: string, id: string): Promise<DraftView> {
     const draft = await this.prisma.profileDraft.findFirst({
       where: { id, userId },
+      omit: WITHOUT_EVIDENCE,
     });
     if (!draft) throw new NotFoundException(`Không tìm thấy bản nháp: ${id}`);
     return draft;
@@ -112,8 +116,12 @@ export class ProfileDraftService {
     });
   }
 
-  async retry(userId: string, draftId: string): Promise<ProfileDraft> {
-    const draft = await this.get(userId, draftId);
+  async retry(userId: string, draftId: string): Promise<DraftView> {
+    const draft = await this.prisma.profileDraft.findFirst({
+      where: { id: draftId, userId },
+    });
+    if (!draft)
+      throw new NotFoundException(`Không tìm thấy bản nháp: ${draftId}`);
 
     if (draft.status !== 'FAILED') {
       throw new BadRequestException(
@@ -130,6 +138,7 @@ export class ProfileDraftService {
     const reset = await this.prisma.profileDraft.update({
       where: { id: draftId },
       data: { status: 'PENDING', error: null },
+      omit: WITHOUT_EVIDENCE,
     });
 
     await this.enqueue(userId, draftId);
@@ -137,35 +146,11 @@ export class ProfileDraftService {
     return reset;
   }
 
-  async history(userId: string, query: PaginationQueryDto) {
-    const where = { userId };
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.profileDraft.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        ...pageArgs(query),
-        select: {
-          id: true,
-          status: true,
-          filename: true,
-          createdAt: true,
-          generatedAt: true,
-          appliedAt: true,
-          error: true,
-        },
-      }),
-      this.prisma.profileDraft.count({ where }),
-    ]);
-
-    return pageOf(items, total, query);
-  }
-
   async apply(
     userId: string,
     draftId: string,
     values: ApplyDraftDto,
-  ): Promise<ProfileDraft> {
+  ): Promise<DraftView> {
     const draft = await this.get(userId, draftId);
 
     if (draft.status !== 'DONE') {
@@ -188,6 +173,7 @@ export class ProfileDraftService {
     return this.prisma.profileDraft.update({
       where: { id: draftId },
       data: { appliedAt: new Date() },
+      omit: WITHOUT_EVIDENCE,
     });
   }
 }

@@ -5,15 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Profile, UpskillReport } from '@/generated/prisma/client';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
-import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '../ai/services/ai.service';
-import {
-  withFailureKind,
-  withFailureKinds,
-  streamFailureEvent,
-} from '../ai/utils/failure-view';
+import { withFailureKind, streamFailureEvent } from '../ai/utils/failure-view';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service';
 import { SkillRegistryService } from '../skills/services/skill-registry.service';
 import type { ModelStreamEvent } from '@/common/stream-event';
@@ -289,31 +283,6 @@ export class UpskillService {
     });
     if (!report) throw new NotFoundException('Chưa có báo cáo upskill nào');
     return withFailureKind(report);
-  }
-
-  async history(userId: string, query: PaginationQueryDto) {
-    const where = { userId };
-
-    const [reports, total] = await this.prisma.$transaction([
-      this.prisma.upskillReport.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        ...pageArgs(query),
-        select: {
-          id: true,
-          mode: true,
-          status: true,
-          jobsAnalysed: true,
-          summary: true,
-          createdAt: true,
-          generatedAt: true,
-          error: true,
-        },
-      }),
-      this.prisma.upskillReport.count({ where }),
-    ]);
-
-    return pageOf(withFailureKinds(reports), total, query);
   }
 
   async get(userId: string, id: string) {

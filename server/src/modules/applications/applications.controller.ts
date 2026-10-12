@@ -37,22 +37,10 @@ export class ApplicationsController {
     return this.applications.jobOptions(user.id, query.status);
   }
 
-  @ApiOperation({ summary: 'Lấy thông tin chi tiết một đơn ứng tuyển theo ID' })
-  @ApiParam({ name: 'id', description: 'ID của đơn ứng tuyển' })
-  @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.applications.get(user.id, id);
-  }
-
   @ApiOperation({ summary: 'Tạo đơn ứng tuyển mới cho một công việc' })
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
-    return this.applications.create(
-      user.id,
-      dto.jobId,
-      dto.skipDocuments,
-      dto.cvDocumentId,
-    );
+    return this.applications.create(user.id, dto.jobId, dto.skipDocuments);
   }
 
   @ApiOperation({ summary: 'Cập nhật trạng thái đơn ứng tuyển' })

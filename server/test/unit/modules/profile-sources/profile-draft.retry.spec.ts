@@ -96,6 +96,7 @@ describe('ProfileDraftService.retry', () => {
     expect(update).toHaveBeenCalledWith({
       where: { id: 'draft-1' },
       data: { status: 'PENDING', error: null },
+      omit: { evidence: true },
     });
     expect(send).toHaveBeenCalledWith(QUEUE.PROFILE_SYNTHESIZE, {
       userId: 'user-1',

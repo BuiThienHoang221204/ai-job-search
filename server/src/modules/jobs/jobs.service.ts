@@ -1,13 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@/generated/prisma/client';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { toMatchProfile } from '../matching/ai/utils/requirements';
 import { SkillDictionaryService } from '../matching/ai/services/skill-dictionary.service';
 import { SalaryService } from '../salary/salary.service';
 import { yearsOfExperience } from '../profile/utils/experience-years';
-import { derivedFields } from './taxonomy/resolve';
 import { jobCardSelect } from './job-card.select';
 import {
   filterTree,
@@ -22,9 +20,10 @@ import {
   withMatchState,
   withSavedFlag,
   withSystemMatch,
+  withoutChecks,
 } from './utils/job-view';
 import { needsOccupation, profileFit } from './utils/occupation-gate';
-import type { CreateJobDto, ListJobsQueryDto } from './job.dto';
+import type { ListJobsQueryDto } from './job.dto';
 
 @Injectable()
 export class JobsService {
@@ -33,35 +32,7 @@ export class JobsService {
     private readonly dictionary: SkillDictionaryService,
     private readonly salary: SalaryService,
   ) {}
-  async upsert(dto: CreateJobDto) {
-    const data = {
-      title: dto.title,
-      company: dto.company,
-      description: dto.description,
-      url: dto.url ?? '',
-      source: dto.source ?? 'manual',
-      externalId: dto.externalId ?? null,
-      companyLogo: dto.companyLogo ?? null,
-      location: dto.location ?? null,
-      workMode: dto.workMode ?? null,
-      salaryRaw: dto.salaryRaw ?? null,
-      salaryMin: dto.salaryMin ?? null,
-      salaryMax: dto.salaryMax ?? null,
-      currency: dto.currency ?? null,
-      tags: dto.tags ?? [],
-      ...derivedFields(dto.title, dto.company, dto.location, dto.tags ?? []),
-    };
 
-    if (!data.externalId) return this.prisma.job.create({ data });
-
-    return this.prisma.job.upsert({
-      where: {
-        source_externalId: { source: data.source, externalId: data.externalId },
-      },
-      create: data,
-      update: data,
-    });
-  }
   /** MỘT lần đọc hồ sơ cho mọi thứ trang việc làm cần: cổng ngành, đối chiếu kỹ năng, bảng lương. */
   private profileOf(userId: string) {
     return this.prisma.profile.findUnique({
@@ -115,10 +86,12 @@ export class JobsService {
 
     return pageOf(
       rows.map((job) =>
-        withSystemMatch(
-          withMatchState(withSavedFlag(job)),
-          profile,
-          dictionary,
+        withoutChecks(
+          withSystemMatch(
+            withMatchState(withSavedFlag(job)),
+            profile,
+            dictionary,
+          ),
         ),
       ),
       total,
@@ -252,29 +225,5 @@ export class JobsService {
   async unsave(userId: string, jobId: string) {
     await this.prisma.savedJob.deleteMany({ where: { userId, jobId } });
     return { saved: false };
-  }
-
-  async listSaved(userId: string, query: PaginationQueryDto) {
-    const where = { userId };
-
-    const [saves, total] = await this.prisma.$transaction([
-      this.prisma.savedJob.findMany({
-        where,
-        orderBy: { savedAt: 'desc' },
-        ...pageArgs(query),
-        include: { job: true },
-      }),
-      this.prisma.savedJob.count({ where }),
-    ]);
-
-    return pageOf(
-      saves.map((save) => ({
-        ...save.job,
-        saved: true,
-        savedAt: save.savedAt,
-      })),
-      total,
-      query,
-    );
   }
 }

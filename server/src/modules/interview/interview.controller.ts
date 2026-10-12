@@ -6,7 +6,6 @@ import {
   Param,
   Post,
   Query,
-  Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import {
@@ -20,7 +19,6 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { PrepDto } from './interview.dto';
 import { InterviewService } from './interview.service';
-import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 
 @ApiTags('Interview Preparation')
@@ -55,26 +53,6 @@ export class InterviewController {
   @Post('prep')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
     return this.interview.enqueue(user.id, dto.jobId, dto.force ?? false);
-  }
-
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Soạn câu hỏi và đẩy về từng phần ngay khi AI viết ra (NDJSON)',
-  })
-  @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
-  @Post('prep-stream/:jobId')
-  async prepStream(
-    @CurrentUser() user: AuthUser,
-    @Param('jobId') jobId: string,
-    @Query('force') force: string | undefined,
-    @Res() response: Response,
-  ): Promise<void> {
-    await streamNdjson({
-      response,
-      logger: this.logger,
-      label: `soạn câu hỏi ${jobId}`,
-      events: this.interview.streamGenerate(user.id, jobId, force === 'true'),
-    });
   }
 
   @ThrottleAi()

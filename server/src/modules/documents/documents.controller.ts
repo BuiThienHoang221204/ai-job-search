@@ -26,14 +26,13 @@ import type { AuthUser } from '@/common/types/auth-user';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import {
   CreateApplicationEmailDto,
+  PreviewQueryDto,
   CreateCoverLetterDto,
   CreateCvDto,
-  CreateFormAnswerDto,
   JobFromUrlDto,
   ListDocumentsDto,
   PdfQueryDto,
   PreviewBodyDto,
-  PreviewQueryDto,
   SetTemplateDto,
   UpdateCvDto,
 } from './documents.dto';
@@ -226,36 +225,10 @@ export class DocumentsController {
     return this.handOff(user.id, document.id);
   }
 
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Tạo tài liệu Trả lời câu hỏi ứng tuyển mới bằng AI',
-  })
-  @Post('form-answer')
-  async formAnswer(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: CreateFormAnswerDto,
-  ) {
-    const document = await this.documents.create(
-      user.id,
-      'FORM_ANSWER',
-      dto.question.slice(0, 120),
-      dto.jobId,
-      { question: dto.question, characterLimit: dto.characterLimit },
-    );
-    return this.handOff(user.id, document.id);
-  }
-
   private async handOff(userId: string, documentId: string, stream?: boolean) {
     if (stream) return { queued: false, documentId };
     await this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId });
     return { queued: true, documentId };
-  }
-
-  @ApiOperation({ summary: 'Render lại mã LaTeX của tài liệu' })
-  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
-  @Put(':id/rerender')
-  async rerender(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return withFailureKind(await this.documents.rerender(user.id, id));
   }
 
   @ThrottleAi()

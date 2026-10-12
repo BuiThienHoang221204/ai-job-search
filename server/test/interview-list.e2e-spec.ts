@@ -81,7 +81,11 @@ describe('GET /interview · danh sách chỉ trả bản tóm tắt', () => {
     expect(response.body).toMatchObject({
       talkingPoints: ['Kể về dự án thanh toán'],
       questionsToAsk: ['Đội có bao nhiêu người?'],
+      job: { title: 'Backend Developer', company: 'Công ty Thử Nghiệm' },
     });
+    expect((response.body as { job: object }).job).not.toHaveProperty(
+      'description',
+    );
   });
 
   test('không thấy bộ câu hỏi của người khác', async () => {

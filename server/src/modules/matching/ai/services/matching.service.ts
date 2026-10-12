@@ -6,8 +6,10 @@ import { pageArgs, pageOf } from '@/common/pagination';
 import { isUniqueViolation } from '@/prisma/prisma-errors';
 import { PrismaService } from '@/prisma/prisma.service';
 import { jobCardSelect } from '@/modules/jobs/job-card.select';
+import { MATCH_DETAIL_FIELDS } from '@/modules/jobs/utils/job-view';
 import { AiService } from '@/modules/ai/services/ai.service';
 import type { ModelStreamEvent } from '@/common/stream-event';
+import type { FailureKind } from '@/modules/ai/utils/failure-kind';
 import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
 import { SkillRegistryService } from '@/modules/skills/services/skill-registry.service';
 import {
@@ -28,13 +30,21 @@ import {
   evaluationPrompt,
   EVALUATION_SECTIONS,
 } from '../prompt/evaluation.prompt';
-import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import {
+  streamFailureEvent,
+  withFailureKind,
+} from '@/modules/ai/utils/failure-view';
 import { fastModelChain } from '@/common/model-env';
 import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
 import { messageOf } from '@/common/error-message';
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
+
+type MatchView = Omit<JobMatch, 'error'> & {
+  failureKind: FailureKind | null;
+  stale: boolean;
+};
 
 @Injectable()
 export class MatchingService {
@@ -148,10 +158,10 @@ export class MatchingService {
     userId: string,
     jobId: string,
     force = false,
-  ): AsyncGenerator<ModelStreamEvent<JobMatch>> {
+  ): AsyncGenerator<ModelStreamEvent<MatchView>> {
     const ready = await this.prepare(userId, jobId, force);
     if (ready.cached) {
-      yield { type: 'done', result: ready.cached };
+      yield { type: 'done', result: await this.view(userId, ready.cached) };
       return;
     }
     const { system, prompt, hash } = ready.inputs;
@@ -173,7 +183,10 @@ export class MatchingService {
       const final = await object;
       yield {
         type: 'done',
-        result: await this.persist(userId, jobId, final, modelId, hash),
+        result: await this.view(
+          userId,
+          await this.persist(userId, jobId, final, modelId, hash),
+        ),
       };
     } catch (error) {
       await this.fail(userId, jobId, error, 'Chấm điểm (stream)');
@@ -248,6 +261,13 @@ export class MatchingService {
     }
   }
 
+  private async view(userId: string, match: JobMatch): Promise<MatchView> {
+    return withStaleFlag(
+      withFailureKind(match),
+      await this.profileUpdatedAt(userId),
+    );
+  }
+
   private async profileUpdatedAt(userId: string): Promise<Date | null> {
     const profile = await this.prisma.profile.findUnique({
       where: { userId },
@@ -284,16 +304,12 @@ export class MatchingService {
     const [match, updatedAt] = await Promise.all([
       this.prisma.jobMatch.findUnique({
         where: { userId_jobId: { userId, jobId } },
-        include: {
-          job: {
-            include: { saves: { where: { userId }, select: { id: true } } },
-          },
-        },
+        select: MATCH_DETAIL_FIELDS,
       }),
       this.profileUpdatedAt(userId),
     ]);
     if (!match) throw new NotFoundException('Chưa chấm điểm công việc này');
-    return withStaleFlag(withSavedFlag(match), updatedAt);
+    return withStaleFlag(match, updatedAt);
   }
 
   async findDoneScore(userId: string, jobId: string) {

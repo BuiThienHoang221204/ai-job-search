@@ -8,10 +8,6 @@ export class CreateApplicationDto {
 
   @IsOptional()
   skipDocuments?: boolean;
-
-  @IsOptional()
-  @IsString()
-  cvDocumentId?: string;
 }
 
 export class ListApplicationsDto extends PaginationQueryDto {

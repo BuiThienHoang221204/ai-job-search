@@ -89,6 +89,24 @@ describe('Vòng đời đơn ứng tuyển', () => {
       ).not.toBeNull();
     });
 
+    test('response chỉ kèm phần tin để vẽ dòng, KHÔNG kèm mô tả hay nhật ký', async () => {
+      const id = await seedApplication('VIEWED');
+
+      const response = await patchStatus(id, 'APPLIED').expect(200);
+      const body = response.body as { job: Record<string, unknown> };
+
+      expect(Object.keys(body.job).sort()).toEqual([
+        'company',
+        'companyLogo',
+        'id',
+        'location',
+        'salaryRaw',
+        'title',
+        'url',
+      ]);
+      expect(body).not.toHaveProperty('events');
+    });
+
     test('mỗi lần đổi đều ghi một sự kiện vào nhật ký', async () => {
       const id = await seedApplication('APPLIED');
 

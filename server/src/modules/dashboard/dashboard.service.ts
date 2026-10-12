@@ -199,7 +199,13 @@ export class DashboardService {
         },
         orderBy: { overallScore: 'desc' },
         take: 4,
-        include: { job: { select: jobCardSelect(userId) } },
+        select: {
+          jobId: true,
+          status: true,
+          overallScore: true,
+          strengths: true,
+          job: { select: jobCardSelect(userId) },
+        },
       }),
       this.prisma.jobMatch.findMany({
         where: eligible,

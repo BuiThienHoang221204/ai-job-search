@@ -1,3 +1,4 @@
+import request from 'supertest';
 import type { Evaluation } from 'src/modules/matching/ai/schemas/evaluation.schema.js';
 import { MatchingService } from 'src/modules/matching/ai/services/matching.service.js';
 import {
@@ -114,6 +115,60 @@ describe('Chấm điểm: cache và giành quyền', () => {
     // Điểm tổng do server tính, không lấy từ model.
     expect(match.overallScore).toBe(77);
     expect(match.verdict).toBe('STRONG');
+  });
+
+  const lastEvent = async (force = false) => {
+    let last: unknown;
+    for await (const event of matching.streamEvaluate(user.id, jobId, force))
+      last = event;
+    return last as { type: string; result: Record<string, unknown> };
+  };
+
+  test('chấm qua stream trả cùng hình dạng với GET: failureKind và stale, không lỗi thô', async () => {
+    harness.ai.willReturn(evaluation());
+
+    const done = await lastEvent();
+
+    expect(done.type).toBe('done');
+    expect(done.result).toMatchObject({
+      status: 'DONE',
+      failureKind: null,
+      stale: false,
+    });
+    expect(done.result).not.toHaveProperty('error');
+  });
+
+  test('bản cache trả qua stream cũng mang cờ stale', async () => {
+    harness.ai.willReturn(evaluation());
+    await matching.evaluate(user.id, jobId);
+
+    const done = await lastEvent();
+
+    expect(harness.ai.calls).toHaveLength(1);
+    expect(done.result).toMatchObject({ failureKind: null, stale: false });
+    expect(done.result).not.toHaveProperty('error');
+  });
+
+  test('GET /matches/:jobId trả đúng các trường của trang chi tiết, KHÔNG kèm nguyên tin', async () => {
+    harness.ai.willReturn(evaluation());
+    await matching.evaluate(user.id, jobId);
+
+    const response = await request(harness.server)
+      .get(`/api/matches/${jobId}`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .expect(200);
+    const body = response.body as Record<string, unknown>;
+
+    expect(body).toMatchObject({
+      jobId,
+      status: 'DONE',
+      overallScore: 77,
+      failureKind: null,
+      stale: false,
+    });
+    expect(body).not.toHaveProperty('job');
+    expect(body).not.toHaveProperty('error');
+    expect(body).not.toHaveProperty('promptHash');
   });
 
   /// Đây là cơ chế giữ chi phí AI ở mức tối thiểu: mở dashboard bao nhiêu lần

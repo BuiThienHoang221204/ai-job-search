@@ -1,16 +1,11 @@
-import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
-  IsInt,
   IsObject,
   IsOptional,
   IsString,
   Length,
   Matches,
-  Max,
-  Min,
-  MinLength,
   ValidateIf,
 } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
@@ -105,21 +100,6 @@ export class CreateApplicationEmailDto {
   @IsString({ message: 'Thiếu tên vị trí ứng tuyển' })
   @Length(1, 300, { message: 'Tên vị trí phải từ 1 tới 300 ký tự' })
   title?: string;
-}
-
-export class CreateFormAnswerDto {
-  @IsString()
-  @MinLength(5, { message: 'Câu hỏi quá ngắn' })
-  question!: string;
-
-  @IsOptional() @IsString() jobId?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(20)
-  @Max(5000)
-  characterLimit?: number;
 }
 
 export class JobFromUrlDto {

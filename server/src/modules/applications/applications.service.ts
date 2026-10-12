@@ -19,6 +19,16 @@ import {
   type TransitionActor,
 } from './transitions';
 
+const APPLICATION_JOB = {
+  id: true,
+  title: true,
+  company: true,
+  companyLogo: true,
+  location: true,
+  salaryRaw: true,
+  url: true,
+} as const;
+
 @Injectable()
 export class ApplicationsService {
   private readonly logger = new Logger(ApplicationsService.name);
@@ -29,12 +39,7 @@ export class ApplicationsService {
     private readonly queue: QueueService,
   ) {}
 
-  async create(
-    userId: string,
-    jobId: string,
-    skipDocuments = false,
-    cvDocumentId?: string,
-  ) {
+  async create(userId: string, jobId: string, skipDocuments = false) {
     const match = await this.prisma.jobMatch.findUnique({
       where: { userId_jobId: { userId, jobId } },
       include: { job: true },
@@ -69,15 +74,13 @@ export class ApplicationsService {
           events: {
             create: {
               toStatus: initialStatus,
-              note: cvDocumentId
-                ? `Đã chọn CV: ${cvDocumentId}`
-                : match
-                  ? `Tạo đơn từ kết quả chấm điểm ${match.overallScore ?? 0}/100 (${match.verdict ?? 'chưa có kết luận'})`
-                  : 'Đã xem tin tuyển dụng',
+              note: match
+                ? `Tạo đơn từ kết quả chấm điểm ${match.overallScore ?? 0}/100 (${match.verdict ?? 'chưa có kết luận'})`
+                : 'Đã xem tin tuyển dụng',
             },
           },
         },
-        include: { job: true },
+        include: { job: { select: APPLICATION_JOB } },
       })
       .catch((error: unknown) => {
         if (isUniqueViolation(error)) {
@@ -150,19 +153,7 @@ export class ApplicationsService {
         where,
         orderBy: { updatedAt: 'desc' },
         ...pageArgs(query),
-        include: {
-          job: {
-            select: {
-              id: true,
-              title: true,
-              company: true,
-              companyLogo: true,
-              location: true,
-              salaryRaw: true,
-              url: true,
-            },
-          },
-        },
+        include: { job: { select: APPLICATION_JOB } },
       }),
       this.prisma.application.count({ where }),
     ]);
@@ -257,7 +248,7 @@ export class ApplicationsService {
           create: { fromStatus: application.status, toStatus: to, note },
         },
       },
-      include: { job: true, events: { orderBy: { createdAt: 'asc' } } },
+      include: { job: { select: APPLICATION_JOB } },
     });
 
     return updated;

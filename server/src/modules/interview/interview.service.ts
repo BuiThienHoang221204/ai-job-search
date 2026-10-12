@@ -11,12 +11,7 @@ import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import { AiService } from '../ai/services/ai.service';
-import type { ModelStreamEvent } from '@/common/stream-event';
-import {
-  withFailureKind,
-  withFailureKinds,
-  streamFailureEvent,
-} from '../ai/utils/failure-view';
+import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service';
 import { SkillRegistryService } from '../skills/services/skill-registry.service';
 import {
@@ -227,42 +222,14 @@ export class InterviewService {
     });
   }
 
-  async *streamGenerate(
-    userId: string,
-    jobId: string,
-    force = false,
-  ): AsyncGenerator<ModelStreamEvent<InterviewPrep>> {
-    const ready = await this.prepare(userId, jobId, force);
-    if (ready.cached) {
-      yield { type: 'done', result: ready.cached };
-      return;
-    }
-    const { system, prompt, hash } = ready;
-
-    try {
-      const { partials, object, modelId } = await this.ai.streamObject(
-        prepCall(userId, system, prompt),
-      );
-
-      for await (const partial of partials) {
-        yield { type: 'partial', data: partial };
-      }
-
-      const final = await object;
-      yield {
-        type: 'done',
-        result: await this.persist(userId, jobId, final, modelId, hash),
-      };
-    } catch (error) {
-      await this.fail(userId, jobId, error, 'Soạn câu hỏi (stream)');
-      yield streamFailureEvent(error);
-    }
-  }
-
   async get(userId: string, jobId: string) {
     const prep = await this.prisma.interviewPrep.findUnique({
       where: { userId_jobId: { userId, jobId } },
-      include: { job: true },
+      include: {
+        job: {
+          select: { id: true, title: true, company: true, companyLogo: true },
+        },
+      },
     });
     if (!prep)
       throw new NotFoundException('Chưa soạn câu hỏi cho công việc này');

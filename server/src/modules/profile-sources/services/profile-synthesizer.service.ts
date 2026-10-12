@@ -5,6 +5,7 @@ import { AiService } from '@/modules/ai/services/ai.service';
 import type { StreamObjectOptions } from '@/modules/ai/ai.types';
 import type { ModelStreamEvent } from '@/common/stream-event';
 import { parseEvidenceList } from '../utils/evidence';
+import { WITHOUT_EVIDENCE, type DraftView } from '../utils/profile-draft.utils';
 import {
   profileProposalSchema,
   type ProfileProposal,
@@ -28,7 +29,7 @@ export class ProfileSynthesizerService {
 
   async *streamSynthesize(
     draftId: string,
-  ): AsyncGenerator<ModelStreamEvent<ProfileDraft>> {
+  ): AsyncGenerator<ModelStreamEvent<DraftView>> {
     const draft = await this.start(draftId);
 
     try {
@@ -49,7 +50,7 @@ export class ProfileSynthesizerService {
   }
 
   /** Tổng hợp bản nháp: đọc bằng chứng đã lưu, gọi model MỘT LẦN, ghi đề xuất. */
-  async synthesize(draftId: string): Promise<ProfileDraft> {
+  async synthesize(draftId: string): Promise<DraftView> {
     const draft = await this.start(draftId);
 
     try {
@@ -98,9 +99,10 @@ export class ProfileSynthesizerService {
     draftId: string,
     proposal: ProfileProposal,
     modelId: string,
-  ): Promise<ProfileDraft> {
+  ): Promise<DraftView> {
     return this.prisma.profileDraft.update({
       where: { id: draftId },
+      omit: WITHOUT_EVIDENCE,
       data: {
         status: 'DONE',
         proposal,
@@ -115,12 +117,13 @@ export class ProfileSynthesizerService {
     draftId: string,
     error: unknown,
     label: string,
-  ): Promise<ProfileDraft> {
+  ): Promise<DraftView> {
     const message = messageOf(error);
     this.logger.error(`${label} thất bại (${draftId}): ${message}`);
     return this.prisma.profileDraft.update({
       where: { id: draftId },
       data: { status: 'FAILED', error: message },
+      omit: WITHOUT_EVIDENCE,
     });
   }
 }

@@ -14,22 +14,16 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
-import { Roles } from '@/common/decorators/roles.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { QUEUE, QueueService } from '../queue/queue.service';
-import { CreateJobDto, ListJobsQueryDto } from './job.dto';
+import { ListJobsQueryDto } from './job.dto';
 import { JobsService } from './jobs.service';
 
 @ApiTags('Jobs')
 @ApiBearerAuth()
 @Controller('jobs')
 export class JobsController {
-  constructor(
-    private readonly jobs: JobsService,
-    private readonly queue: QueueService,
-  ) {}
+  constructor(private readonly jobs: JobsService) {}
 
   @ApiOperation({
     summary: 'Lấy danh sách các tin tuyển dụng có phân trang và bộ lọc',
@@ -45,14 +39,6 @@ export class JobsController {
   @Get('filters')
   filters() {
     return this.jobs.filters();
-  }
-
-  @ApiOperation({
-    summary: 'Lấy danh sách các tin tuyển dụng đã lưu của người dùng',
-  })
-  @Get('saved')
-  listSaved(@CurrentUser() user: AuthUser, @Query() query: PaginationQueryDto) {
-    return this.jobs.listSaved(user.id, query);
   }
 
   @ApiOperation({
@@ -78,19 +64,5 @@ export class JobsController {
   @HttpCode(200)
   unsave(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.jobs.unsave(user.id, id);
-  }
-
-  @ApiOperation({
-    summary: 'Tạo/nạp tin tuyển dụng mới và bắt đầu chấm điểm (Admin)',
-  })
-  @Roles('ADMIN')
-  @Post()
-  async create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {
-    const job = await this.jobs.upsert(dto);
-    await this.queue.send(QUEUE.EVALUATE_MATCH, {
-      userId: user.id,
-      jobId: job.id,
-    });
-    return { job, queued: true };
   }
 }

@@ -76,10 +76,14 @@ export class FakeAi implements Ai {
     throw new Error('FakeAi.streamText chưa được mock cho test này');
   }
 
-  streamObject<T>(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _options: StreamObjectOptions<T>,
+  async streamObject<T>(
+    options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
-    throw new Error('FakeAi.streamObject chưa được mock cho test này');
+    const { object, modelId } = await this.generateObject(options);
+    return {
+      modelId,
+      partials: (async function* () {})(),
+      object: Promise.resolve(object),
+    };
   }
 }

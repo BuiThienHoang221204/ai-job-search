@@ -185,19 +185,5 @@ describe('Refresh token và thu hồi phiên', () => {
       await logout().expect(200);
       await refresh(user.refreshCookie).expect(200);
     });
-
-    test('logout-all giết phiên trên MỌI thiết bị', async () => {
-      await request(harness.server)
-        .post('/api/auth/logout-all')
-        .set('Authorization', `Bearer ${user.token}`)
-        .expect(200);
-
-      await refresh(user.refreshCookie).expect(401);
-      await me(user.token).expect(401);
-    });
-
-    test('logout-all đòi đăng nhập', async () => {
-      await request(harness.server).post('/api/auth/logout-all').expect(401);
-    });
   });
 });

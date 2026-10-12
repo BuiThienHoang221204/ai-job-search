@@ -92,4 +92,38 @@ describe('GET /dashboard/skill-gaps', () => {
     expect((await gapsOf(user)).map((gap) => gap.skill)).toEqual(['GraphQL']);
     expect(await gapsOf(other)).toEqual([]);
   });
+
+  test('việc đang chờ chỉ trả các trường thẻ tin cần, KHÔNG kèm ghi chú chấm điểm', async () => {
+    await seedItJobs([['GraphQL']]);
+    const job = await harness.prisma.job.findFirstOrThrow();
+    await harness.prisma.jobMatch.create({
+      data: {
+        userId: user.id,
+        jobId: job.id,
+        status: 'DONE',
+        eligibility: 'PASS',
+        overallScore: 80,
+        strengths: ['Node.js'],
+        technicalNote: 'ghi chú dài',
+        promptHash: 'hash',
+      },
+    });
+
+    const overview = await request(harness.server)
+      .get('/api/dashboard')
+      .set({ Authorization: `Bearer ${user.token}` })
+      .expect(200);
+    const [match] = (
+      overview.body as { pendingMatches: Record<string, unknown>[] }
+    ).pendingMatches;
+
+    expect(Object.keys(match).sort()).toEqual([
+      'job',
+      'jobId',
+      'overallScore',
+      'status',
+      'strengths',
+    ]);
+    expect(match.job).toMatchObject({ id: job.id, saved: false });
+  });
 });
