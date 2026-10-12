@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
@@ -11,6 +11,7 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @ApiOperation({ summary: 'Lấy thông tin tổng quan dashboard cho người dùng' })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   @Get()
   overview(@CurrentUser() user: AuthUser) {
     return this.dashboard.overview(user.id);
@@ -19,6 +20,7 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Kỹ năng tin cùng ngành hay yêu cầu mà hồ sơ chưa có',
   })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   @Get('skill-gaps')
   skillGaps(@CurrentUser() user: AuthUser) {
     return this.dashboard.skillGaps(user.id);
