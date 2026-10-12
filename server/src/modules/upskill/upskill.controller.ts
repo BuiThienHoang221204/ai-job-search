@@ -15,18 +15,14 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { QUEUE, QueueService } from '../queue/queue.service';
+import { GenerateUpskillDto } from './upskill.dto';
 import { UpskillService } from './upskill.service';
 import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
-
-export class GenerateUpskillDto {
-  @IsOptional() @IsString() jobId?: string;
-}
 
 @ApiTags('Upskill Reports')
 @ApiBearerAuth()

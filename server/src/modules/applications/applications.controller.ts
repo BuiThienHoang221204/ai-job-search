@@ -5,40 +5,15 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import type { ApplicationStatus } from '@/generated/prisma/enums';
-import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
+import {
+  ApplicationJobsDto,
+  CreateApplicationDto,
+  ListApplicationsDto,
+  UpdateStatusDto,
+} from './applications.dto';
 import { ApplicationsService } from './applications.service';
-import { ALL_STATUSES } from './transitions';
-
-export class CreateApplicationDto {
-  @IsString() jobId!: string;
-
-  @IsOptional()
-  skipDocuments?: boolean;
-
-  @IsOptional()
-  @IsString()
-  cvDocumentId?: string;
-}
-
-export class ListApplicationsDto extends PaginationQueryDto {
-  @IsOptional()
-  @IsIn(ALL_STATUSES)
-  status?: ApplicationStatus;
-}
-
-export class UpdateStatusDto {
-  @IsIn(ALL_STATUSES)
-  status!: ApplicationStatus;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  note?: string;
-}
 
 @ApiTags('Applications')
 @ApiBearerAuth()
@@ -52,6 +27,14 @@ export class ApplicationsController {
   @Get()
   list(@CurrentUser() user: AuthUser, @Query() query: ListApplicationsDto) {
     return this.applications.list(user.id, query, query.status);
+  }
+
+  @ApiOperation({
+    summary: 'Tin của mọi đơn (chỉ tên tin và công ty) để đổ vào ô chọn',
+  })
+  @Get('jobs')
+  jobs(@CurrentUser() user: AuthUser, @Query() query: ApplicationJobsDto) {
+    return this.applications.jobOptions(user.id, query.status);
   }
 
   @ApiOperation({ summary: 'Lấy thông tin chi tiết một đơn ứng tuyển theo ID' })

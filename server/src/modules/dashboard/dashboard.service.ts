@@ -138,6 +138,35 @@ export class DashboardService {
     return rows.map((row) => row.requiredSkills);
   }
 
+  /** Kỹ năng tin cùng ngành hay đòi mà hồ sơ chưa có; hồ sơ chưa rõ ngành thì rỗng. */
+  private async skillGapsOf(
+    profile: {
+      occupationCode: string | null;
+      primarySkills: string[];
+      secondarySkills: string[];
+    } | null,
+  ) {
+    const occupationCode = profile?.occupationCode;
+    if (!occupationCode || occupationCode === OTHER_CODE) return [];
+    return recurringGaps(
+      await this.requiredSkillsIn(occupationCode),
+      [...profile.primarySkills, ...profile.secondarySkills],
+      6,
+    );
+  }
+
+  async skillGaps(userId: string) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: {
+        occupationCode: true,
+        primarySkills: true,
+        secondarySkills: true,
+      },
+    });
+    return this.skillGapsOf(profile);
+  }
+
   async overview(userId: string) {
     const since = daysAgo(7);
     const eligible = { userId, ...DashboardService.ELIGIBLE };
@@ -195,16 +224,7 @@ export class DashboardService {
     const best = pendingMatches[0];
     const occupationCode = profile?.occupationCode ?? null;
     const hasOccupation = !!occupationCode && occupationCode !== OTHER_CODE;
-    const skillGaps = hasOccupation
-      ? recurringGaps(
-          await this.requiredSkillsIn(occupationCode),
-          [
-            ...(profile?.primarySkills ?? []),
-            ...(profile?.secondarySkills ?? []),
-          ],
-          6,
-        )
-      : [];
+    const skillGaps = await this.skillGapsOf(profile);
 
     const suggestionInput: SuggestionInput = {
       profileCompletion: profile?.completion ?? 0,

@@ -277,7 +277,13 @@ export class InterviewService {
         where,
         orderBy: { updatedAt: 'desc' },
         ...pageArgs(query),
-        include: {
+        select: {
+          id: true,
+          jobId: true,
+          status: true,
+          error: true,
+          generatedAt: true,
+          updatedAt: true,
           job: {
             select: {
               id: true,

@@ -15,4 +15,12 @@ export class DashboardController {
   overview(@CurrentUser() user: AuthUser) {
     return this.dashboard.overview(user.id);
   }
+
+  @ApiOperation({
+    summary: 'Kỹ năng tin cùng ngành hay yêu cầu mà hồ sơ chưa có',
+  })
+  @Get('skill-gaps')
+  skillGaps(@CurrentUser() user: AuthUser) {
+    return this.dashboard.skillGaps(user.id);
+  }
 }

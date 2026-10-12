@@ -18,6 +18,7 @@ import {
   orderFor,
   whereFrom,
   withMatchDetail,
+  withApplication,
   withMatchState,
   withSavedFlag,
   withSystemMatch,
@@ -85,6 +86,7 @@ export class JobsService {
   private readonly relations = (userId: string) => ({
     saves: { where: { userId }, select: { id: true } },
     matches: { where: { userId }, select: MATCH_DETAIL_FIELDS },
+    applications: { where: { userId }, select: { id: true, status: true } },
     requirements: true,
   });
   private readonly cardSelect = (userId: string) =>
@@ -203,7 +205,10 @@ export class JobsService {
     const skills = profileMeta ? toMatchProfile(profileMeta) : null;
 
     const scored = withSystemMatch(
-      withMatchDetail(withSavedFlag(job), profileMeta?.updatedAt ?? null),
+      withMatchDetail(
+        withApplication(withSavedFlag(job)),
+        profileMeta?.updatedAt ?? null,
+      ),
       skills,
       dictionary,
     );
@@ -223,7 +228,11 @@ export class JobsService {
         : null,
     );
 
-    return { ...scored, salaryGuide };
+    return {
+      ...scored,
+      salaryGuide,
+      profileLocation: profileMeta?.location ?? null,
+    };
   }
 
   async save(userId: string, jobId: string) {

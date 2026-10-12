@@ -139,6 +139,30 @@ describe('Kho mẫu CV', () => {
     expect(after.generatedAt?.toISOString()).toBe('2026-08-01T00:00:00.000Z');
   });
 
+  test('danh sách CV trả mẫu và ngôn ngữ để vẽ thẻ, KHÔNG trả nội dung', async () => {
+    const document = await seedDoneCv();
+    await request(harness.server)
+      .put(`/api/documents/${document.id}/template`)
+      .set(auth())
+      .send({ templateId: 'modern', accent: '#0f766e' })
+      .expect(200);
+
+    const response = await request(harness.server)
+      .get('/api/documents')
+      .query({ kind: 'CV' })
+      .set(auth())
+      .expect(200);
+    const [item] = (response.body as { items: Record<string, unknown>[] })
+      .items;
+
+    expect(item).toMatchObject({
+      templateId: 'modern',
+      templateOptions: { accent: '#0f766e' },
+      language: 'VI',
+    });
+    expect(item).not.toHaveProperty('content');
+  });
+
   test('mẫu đã lưu được dùng cho lượt xem trước sau đó', async () => {
     const document = await seedDoneCv();
 

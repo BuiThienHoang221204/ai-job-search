@@ -125,6 +125,19 @@ export class ApplicationsService {
     ]);
   }
 
+  async jobOptions(userId: string, status?: ApplicationStatus) {
+    const rows = await this.prisma.application.findMany({
+      where: { userId, ...(status ? { status } : {}) },
+      orderBy: { updatedAt: 'desc' },
+      select: { jobId: true, job: { select: { title: true, company: true } } },
+    });
+    return rows.map(({ jobId, job }) => ({
+      jobId,
+      title: job.title,
+      company: job.company,
+    }));
+  }
+
   async list(
     userId: string,
     query: PaginationQueryDto,

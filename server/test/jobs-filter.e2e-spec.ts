@@ -421,6 +421,47 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       expect(page.items.map((item) => item.id)).not.toContain(all.items[2].id);
     });
   });
+  describe('GET /jobs/:id', () => {
+    beforeEach(() => seedJobs(1));
+
+    const detailOf = async () => {
+      const [job] = (await pageOf({ limit: 1 })).items;
+      const response = await request(harness.server)
+        .get(`/api/jobs/${job.id}`)
+        .set(auth())
+        .expect(200);
+      return { id: job.id, body: response.body as Record<string, unknown> };
+    };
+
+    test('trả đơn của chính người dùng, không trả đơn của người khác', async () => {
+      const { id } = await detailOf();
+      const other = await harness.signUp();
+      await harness.prisma.application.create({
+        data: { userId: other.id, jobId: id, status: 'APPLIED' },
+      });
+      expect((await detailOf()).body.application).toBeNull();
+
+      const mine = await harness.prisma.application.create({
+        data: { userId: user.id, jobId: id, status: 'APPLIED' },
+      });
+      expect((await detailOf()).body.application).toEqual({
+        id: mine.id,
+        status: 'APPLIED',
+      });
+    });
+
+    test('trả nơi ở trong hồ sơ để giao diện khỏi tải cả hồ sơ', async () => {
+      expect((await detailOf()).body.profileLocation).toBeNull();
+
+      await harness.prisma.profile.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, location: 'Hà Nội' },
+        update: { location: 'Hà Nội' },
+      });
+      expect((await detailOf()).body.profileLocation).toBe('Hà Nội');
+    });
+  });
+
   test('danh sách KHÔNG trả về description', async () => {
     await seedJobs(1);
     const response = await get({ limit: 1 }).expect(200);

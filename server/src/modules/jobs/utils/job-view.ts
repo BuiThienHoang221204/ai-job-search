@@ -36,15 +36,27 @@ export const MATCH_DETAIL_FIELDS = {
   eligibility: true,
   eligibilityNote: true,
   technicalScore: true,
+  technicalNote: true,
   experienceScore: true,
+  experienceNote: true,
+  behavioralScore: true,
+  behavioralNote: true,
+  careerScore: true,
+  careerNote: true,
   strengths: true,
   gaps: true,
+  recommendation: true,
   evaluatedAt: true,
 } satisfies Prisma.JobMatchSelect;
 
 export function withSavedFlag<T extends { saves: unknown[] }>(job: T) {
   const { saves, ...rest } = job;
   return { ...rest, saved: saves.length > 0 };
+}
+
+export function withApplication<T extends { applications: unknown[] }>(job: T) {
+  const { applications, ...rest } = job;
+  return { ...rest, application: applications[0] ?? null };
 }
 
 export function withMatchState<

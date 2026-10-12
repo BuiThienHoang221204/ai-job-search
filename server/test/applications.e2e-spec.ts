@@ -154,6 +154,44 @@ describe('Vòng đời đơn ứng tuyển', () => {
     });
   });
 
+  describe('GET /applications/jobs', () => {
+    const jobsOf = async (
+      query: Record<string, string>,
+      token = user.token,
+    ) => {
+      const response = await request(harness.server)
+        .get('/api/applications/jobs')
+        .query(query)
+        .set(auth(token))
+        .expect(200);
+      return response.body as unknown[];
+    };
+
+    test('chỉ trả tên tin và công ty của đơn đúng trạng thái', async () => {
+      await seedApplication('APPLIED');
+
+      expect(await jobsOf({ status: 'APPLIED' })).toEqual([
+        { jobId, title: 'Backend Developer', company: 'Công ty Thử Nghiệm' },
+      ]);
+      expect(await jobsOf({ status: 'VIEWED' })).toEqual([]);
+    });
+
+    test('không thấy đơn của người khác', async () => {
+      const other = await harness.signUp();
+      await seedApplication('APPLIED', other);
+
+      expect(await jobsOf({ status: 'APPLIED' })).toEqual([]);
+    });
+
+    test('trạng thái lạ nhận 400', async () => {
+      await request(harness.server)
+        .get('/api/applications/jobs')
+        .query({ status: 'HIRED' })
+        .set(auth(user.token))
+        .expect(400);
+    });
+  });
+
   describe('kiểm tra đầu vào', () => {
     test('trạng thái không có trong enum bị từ chối', async () => {
       const id = await seedApplication('APPLIED');
