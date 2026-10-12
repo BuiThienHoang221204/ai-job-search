@@ -110,8 +110,8 @@ export class JobFromUrlDto {
 
 export class ListDocumentsDto extends PaginationQueryDto {
   @IsOptional()
-  @IsIn(['CV', 'COVER_LETTER', 'APPLICATION_EMAIL', 'FORM_ANSWER'])
-  kind?: 'CV' | 'COVER_LETTER' | 'APPLICATION_EMAIL' | 'FORM_ANSWER';
+  @IsIn(['CV', 'COVER_LETTER', 'APPLICATION_EMAIL'])
+  kind?: 'CV' | 'COVER_LETTER' | 'APPLICATION_EMAIL';
 
   @IsOptional() @IsString() jobId?: string;
 }

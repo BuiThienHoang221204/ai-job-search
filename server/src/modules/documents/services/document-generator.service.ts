@@ -144,14 +144,12 @@ export class DocumentGenerator {
     const document = await this.claim(userId, documentId);
 
     try {
-      const { profile, target, params, identity } =
-        await this.context(document);
+      const { profile, target, identity } = await this.context(document);
 
       const { content, modelId } = await this.composer.compose({
         document,
         profile,
         target,
-        params,
         identity,
       });
 

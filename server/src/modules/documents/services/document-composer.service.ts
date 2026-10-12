@@ -11,23 +11,19 @@ import {
   applicationEmailSchema,
   coverLetterSchema,
   cvSchema,
-  formAnswerSchema,
   type ApplicationEmailResult,
   type CoverLetterResult,
   type CvContentResult,
-  type FormAnswerResult,
 } from '../schemas/document.schema';
 import type { OutputLanguage } from '@/common/model-output';
 import type { Identity } from '../content.types';
-import type { DocumentParams, LetterTarget } from '../utils/letter-target';
+import type { LetterTarget } from '../utils/letter-target';
 import {
   applicationEmailPrompt,
   coverLetterPrompt,
   cvPrompt,
   DOCUMENT_TIMEOUT_MS,
-  formAnswerPrompt,
   CV_SECTIONS,
-  FORM_SECTIONS,
   LETTER_SECTIONS,
   WRITING_SECTIONS,
 } from '../utils/document.prompt';
@@ -41,7 +37,6 @@ export interface ComposeInput {
   document: Document;
   profile: Profile | null;
   target: LetterTarget | null;
-  params: DocumentParams;
   identity: Identity;
 }
 
@@ -60,7 +55,7 @@ export class DocumentComposer {
   ) {}
 
   compose(input: ComposeInput): Promise<ComposeResult> {
-    const { document, profile, target, params, identity } = input;
+    const { document, profile, target, identity } = input;
 
     switch (document.kind) {
       case 'CV':
@@ -69,14 +64,8 @@ export class DocumentComposer {
         return this.coverLetter(document, profile, target);
       case 'APPLICATION_EMAIL':
         return this.applicationEmail(document, profile, target, identity);
-      case 'FORM_ANSWER':
-        return this.formAnswer(
-          document,
-          profile,
-          target,
-          params.question ?? 'Hãy giới thiệu về bản thân.',
-          params.characterLimit,
-        );
+      default:
+        throw new Error(`Không còn hỗ trợ sinh tài liệu loại ${document.kind}`);
     }
   }
 
@@ -261,54 +250,6 @@ export class DocumentComposer {
           phone: identity.phone,
           title: identity.title,
         },
-      },
-      modelId,
-    };
-  }
-
-  private async formAnswer(
-    document: Document,
-    profile: Profile | null,
-    target: LetterTarget | null,
-    question: string,
-    characterLimit?: number,
-  ): Promise<ComposeResult> {
-    const { system, prompt } = formAnswerPrompt(
-      {
-        framework: this.section(
-          '08-application-forms.md',
-          FORM_SECTIONS,
-          profile,
-        ),
-        profileSummary: this.prompts.profileSummary(profile),
-      },
-      target,
-      question,
-      characterLimit,
-    );
-
-    const { object, modelId } = await this.ai.generateObject<FormAnswerResult>({
-      schema: formAnswerSchema,
-      context: { purpose: 'document.formAnswer', userId: document.userId },
-      system,
-      prompt,
-      ...fastModelChain(estimateTokens(system, prompt)),
-    });
-
-    const answers = object.answers.map((answer) => ({
-      ...answer,
-      characterCount: [...answer.text].length,
-      overLimit: characterLimit
-        ? [...answer.text].length > characterLimit
-        : false,
-    }));
-
-    return {
-      content: {
-        ...object,
-        answers,
-        question,
-        characterLimit: characterLimit ?? null,
       },
       modelId,
     };

@@ -17,7 +17,6 @@ export const DOCUMENT_LABEL: Record<string, string> = {
   CV: 'CV',
   COVER_LETTER: 'Thư xin việc',
   APPLICATION_EMAIL: 'Mail ứng tuyển',
-  FORM_ANSWER: 'Bảng trả lời câu hỏi',
 };
 
 type ToolResult = { tool?: string; output?: Record<string, unknown> };

@@ -13,12 +13,6 @@ export const WRITING_SECTIONS = [
   'tone',
   'bullet point style',
 ];
-export const FORM_SECTIONS = [
-  'the rule that governs everything here',
-  'field type: self-introduction paragraph',
-  'field type: structured project entries',
-  'field type: hard character limits',
-];
 
 export function groundingRules(language: OutputLanguage = 'vi'): string[] {
   return [
@@ -133,38 +127,6 @@ export function applicationEmailPrompt(
     '',
     '=== VỊ TRÍ ỨNG TUYỂN ===',
     ...targetBlock(target),
-  ].join('\n');
-
-  return { system, prompt };
-}
-
-export function formAnswerPrompt(
-  sources: Pick<Sources, 'framework' | 'profileSummary'>,
-  target: LetterTarget | null,
-  question: string,
-  characterLimit?: number,
-): { system: string; prompt: string } {
-  const system = [
-    'Bạn soạn câu trả lời cho ô văn bản tự do trong form ứng tuyển trực tuyến.',
-    '',
-    ...groundingRules(),
-    '- Ô form không phải chỗ để đưa ra thông tin mới. Đây là chỗ CHỌN LỌC từ những gì đã có và sắp xếp lại cho đúng câu hỏi.',
-    characterLimit
-      ? `- Giới hạn cứng: ${characterLimit} ký tự. Mọi phương án phải nằm trong giới hạn này.`
-      : '- Không có giới hạn ký tự cụ thể, ưu tiên 100-200 từ.',
-    '',
-    '--- HƯỚNG DẪN ---',
-    sources.framework,
-  ].join('\n');
-
-  const prompt = [
-    '=== HỒ SƠ ỨNG VIÊN ===',
-    sources.profileSummary,
-    '',
-    target ? ['=== VỊ TRÍ ===', ...targetBlock(target)].join('\n') : '',
-    '',
-    '=== CÂU HỎI TRONG FORM ===',
-    question,
   ].join('\n');
 
   return { system, prompt };

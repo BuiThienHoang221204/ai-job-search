@@ -8,8 +8,6 @@ export interface LetterTarget {
 }
 
 export interface DocumentParams {
-  question?: string;
-  characterLimit?: number;
   jobDescription?: string;
   company?: string;
   title?: string;

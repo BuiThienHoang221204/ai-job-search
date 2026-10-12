@@ -227,38 +227,6 @@ export const applicationEmailSchema = z.object({
   signOff: vn(60, 'Lời chào kết, ví dụ "Trân trọng,". Kết thúc bằng dấu phẩy.'),
 });
 
-export const formAnswerSchema = z.object({
-  answers: z
-    .array(
-      z.object({
-        variant: vn(
-          80,
-          'Nhãn của phương án, ví dụ "Bản đầy đủ", "Bản rút gọn".',
-        ),
-        text: z
-          .string()
-          .min(1)
-          .max(2500)
-          .describe('Nội dung để dán vào ô form. Tiếng Việt có dấu.'),
-        characterCount: z
-          .number()
-          .int()
-          .min(1)
-          .describe(
-            'Số ký tự của text. Hệ thống sẽ đếm lại và ghi đè nếu lệch.',
-          ),
-      }),
-    )
-    .min(2)
-    .transform((items) => items.slice(0, 5))
-    .describe(
-      'Nhiều phương án ở các độ dài khác nhau để người dùng chọn theo giới hạn của portal.',
-    ),
-  recommended: vn(200, 'Nên dùng phương án nào và vì sao.'),
-  cutFirst: vn(300, 'Nếu bị vượt giới hạn ký tự thì nên cắt câu nào trước.'),
-});
-
 export type CvContentResult = z.infer<ReturnType<typeof cvSchema>>;
 export type CoverLetterResult = z.infer<typeof coverLetterSchema>;
 export type ApplicationEmailResult = z.infer<typeof applicationEmailSchema>;
-export type FormAnswerResult = z.infer<typeof formAnswerSchema>;

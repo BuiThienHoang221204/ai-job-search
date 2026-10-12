@@ -107,7 +107,6 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       document: doc,
       profile: null,
       target,
-      params: {},
       identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
     });
 
@@ -162,11 +161,6 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       'document.applicationEmail',
       { subject: 'Ứng tuyển', paragraphs: ['Đoạn 1'] },
     ],
-    [
-      'FORM_ANSWER',
-      'document.formAnswer',
-      { answers: [{ text: 'Câu trả lời' }] },
-    ],
   ])(
     '%s cũng đi chuỗi model nhanh AI_FAST_*',
     async (kind, purpose, object) => {
@@ -189,7 +183,6 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
         document: { ...doc, kind } as unknown as Document,
         profile: null,
         target,
-        params: {},
         identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
       });
 
@@ -201,6 +194,30 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       ]);
     },
   );
+
+  test('loại FORM_ANSWER cũ không còn sinh được và không gọi model', () => {
+    const generateObject = jest.fn<
+      Promise<{ object: Record<string, unknown>; modelId: string }>,
+      [GenerateObjectOptionsMock]
+    >();
+
+    const composer = new DocumentComposer(
+      mockPrisma,
+      { generateObject } as unknown as AiService,
+      mockSkills,
+      mockPrompts,
+    );
+
+    expect(() =>
+      composer.compose({
+        document: { ...doc, kind: 'FORM_ANSWER' } as unknown as Document,
+        profile: null,
+        target,
+        identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
+      }),
+    ).toThrow('FORM_ANSWER');
+    expect(generateObject).not.toHaveBeenCalled();
+  });
 
   test('không cấu hình AI_FAST_* thì modelId và fallbackModelIds là undefined (dùng chuỗi mặc định)', async () => {
     delete process.env.AI_FAST_MODEL_ID;
@@ -227,7 +244,6 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       document: doc,
       profile: null,
       target,
-      params: {},
       identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
     });
 
