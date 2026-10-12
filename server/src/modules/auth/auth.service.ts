@@ -75,17 +75,31 @@ export class AuthService {
 
   async loginWithGoogle(idToken: string): Promise<AuthResult> {
     const profile = await this.google.verify(idToken);
+    const email = profile.email.trim().toLowerCase();
 
     let user = await this.prisma.user.findUnique({
       where: { googleId: profile.googleId },
     });
 
     if (!user) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email },
+        select: { googleId: true },
+      });
+      if (existing?.googleId) {
+        throw new ConflictException(
+          'Email này đã liên kết với một tài khoản Google khác',
+        );
+      }
       user = await this.prisma.user.upsert({
-        where: { email: profile.email },
-        update: { googleId: profile.googleId },
+        where: { email },
+        update: {
+          googleId: profile.googleId,
+          passwordHash: null,
+          tokenVersion: { increment: 1 },
+        },
         create: {
-          email: profile.email,
+          email,
           name: profile.name,
           googleId: profile.googleId,
           profile: { create: {} },

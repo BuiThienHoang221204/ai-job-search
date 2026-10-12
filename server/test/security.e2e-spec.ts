@@ -46,6 +46,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       '/api/matches',
       '/api/applications',
       '/api/skills',
+      '/api/queue/stats',
     ])('%s trả 401', async (path) => {
       await get(path).expect(401);
     });
@@ -64,6 +65,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       ['POST', '/api/skills/reload'],
       ['POST', '/api/scrape/portals/reload'],
       ['POST', '/api/admin/reconcile/run-now'],
+      ['GET', '/api/queue/stats'],
     ])('%s %s trả 403', async (method, path) => {
       const user = await harness.signUp();
       const call = method === 'GET' ? get(path, user) : post(path, user);
@@ -91,6 +93,13 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       await harness.promoteToAdmin(admin.id);
 
       await get('/api/skills', admin).expect(200);
+    });
+
+    test('đọc được /api/queue/stats', async () => {
+      const admin = await harness.signUp();
+      await harness.promoteToAdmin(admin.id);
+
+      await get('/api/queue/stats', admin).expect(200);
     });
 
     /// Vai trò được đọc tươi từ DB mỗi request, không lấy từ claim trong token.
@@ -207,6 +216,46 @@ describe('Phân quyền và cách ly dữ liệu', () => {
           password: 'MatKhau12345',
         })
         .expect(409);
+    });
+  });
+
+  describe('token trong phản hồi', () => {
+    /// Refresh token chỉ được nằm trong cookie httpOnly: trả thêm trong body thì một lỗi XSS
+    /// đọc được nó và giữ phiên vô thời hạn, tức là httpOnly mất tác dụng.
+    test.each(['register', 'login'])(
+      '%s KHÔNG trả refreshToken trong body',
+      async (route) => {
+        const user = await harness.signUp();
+        const body =
+          route === 'register'
+            ? {
+                email: `moi-${user.email}`,
+                name: 'Mới',
+                password: 'MatKhau12345',
+              }
+            : { email: user.email, password: user.password };
+
+        const response = await request(harness.server)
+          .post(`/api/auth/${route}`)
+          .send(body);
+
+        expect(response.status).toBeLessThan(300);
+        expect(response.body).not.toHaveProperty('refreshToken');
+        expect(response.body).toHaveProperty('accessToken');
+      },
+    );
+  });
+
+  describe('giới hạn độ dài khi đăng ký', () => {
+    /// bcrypt chỉ dùng 72 byte đầu: mật khẩu dài hơn sẽ trùng nhau ở phần bị cắt.
+    test.each([
+      ['mật khẩu 73 ký tự', { password: 'a'.repeat(73), name: 'Tên' }],
+      ['tên 201 ký tự', { password: 'MatKhau12345', name: 'x'.repeat(201) }],
+    ])('%s trả 400', async (_label, fields) => {
+      await request(harness.server)
+        .post('/api/auth/register')
+        .send({ email: 'dai-qua@test.local', ...fields })
+        .expect(400);
     });
   });
 });

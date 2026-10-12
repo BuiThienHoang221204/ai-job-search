@@ -67,7 +67,7 @@ describe('POST /api/auth/google', () => {
     ).toBe(1);
   });
 
-  test('email trùng tài khoản mật khẩu có sẵn thì tự liên kết, không tạo tài khoản mới', async () => {
+  test('email trùng tài khoản mật khẩu có sẵn thì liên kết vào đúng tài khoản đó, không tạo tài khoản mới', async () => {
     const existing = await harness.signUp('da-co-mat-khau@test.local');
 
     harness.google.willReturn('tok-link', {
@@ -84,13 +84,122 @@ describe('POST /api/auth/google', () => {
       where: { id: existing.id },
     });
     expect(user?.googleId).toBe('google-sub-3');
-    // Liên kết KHÔNG được xoá mật khẩu cũ - người dùng vẫn đăng nhập được bằng mật khẩu như trước.
-    expect(user?.passwordHash).not.toBeNull();
+    expect(await harness.prisma.user.count()).toBe(1);
+  });
+
+  // Pre-account takeover: kẻ tấn công đăng ký trước bằng email nạn nhân (đăng ký không xác thực email),
+  // nạn nhân sau đó đăng nhập Google. Google chứng minh nạn nhân sở hữu email, nên mật khẩu và mọi
+  // phiên mở TRƯỚC lúc liên kết đều thuộc về người lạ và phải mất hiệu lực.
+  describe('liên kết Google tước quyền của người đăng ký trước bằng mật khẩu', () => {
+    const takeOver = async () => {
+      const attacker = await harness.signUp('nan-nhan@test.local');
+      harness.google.willReturn('tok-victim', {
+        googleId: 'google-sub-victim',
+        email: attacker.email,
+        name: 'Nạn Nhân',
+      });
+      await google('tok-victim').expect(200);
+      return attacker;
+    };
+
+    test('mật khẩu kẻ tấn công đặt không còn đăng nhập được', async () => {
+      const attacker = await takeOver();
+
+      const user = await harness.prisma.user.findUnique({
+        where: { id: attacker.id },
+      });
+      expect(user?.passwordHash).toBeNull();
+
+      await request(harness.server)
+        .post('/api/auth/login')
+        .send({ email: attacker.email, password: attacker.password })
+        .expect(401);
+    });
+
+    test('access token kẻ tấn công đang giữ bị từ chối', async () => {
+      const attacker = await takeOver();
+
+      await request(harness.server)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${attacker.token}`)
+        .expect(401);
+    });
+
+    test('refresh token kẻ tấn công đang giữ không gia hạn được phiên', async () => {
+      const attacker = await takeOver();
+
+      await request(harness.server)
+        .post('/api/auth/refresh')
+        .set('Cookie', attacker.refreshCookie)
+        .expect(401);
+    });
+
+    test('nạn nhân đăng nhập Google lại vẫn vào đúng tài khoản', async () => {
+      const attacker = await takeOver();
+
+      const again = await google('tok-victim').expect(200);
+      expect((again.body as { user: { id: string } }).user.id).toBe(
+        attacker.id,
+      );
+    });
+  });
+
+  test('email chỉ khác hoa/thường vẫn là MỘT tài khoản ở cả đăng ký, đăng nhập và Google', async () => {
+    const registered = await request(harness.server)
+      .post('/api/auth/register')
+      .send({
+        email: '  Hoa.Thuong@Test.Local ',
+        password: 'MatKhau123!',
+        name: 'Hoa Thường',
+      })
+      .expect(201);
+    const id = (registered.body as { user: { id: string } }).user.id;
+
+    await request(harness.server)
+      .post('/api/auth/register')
+      .send({
+        email: 'hoa.thuong@test.local',
+        password: 'MatKhau456!',
+        name: 'Trùng',
+      })
+      .expect(409);
 
     await request(harness.server)
       .post('/api/auth/login')
-      .send({ email: existing.email, password: existing.password })
+      .send({ email: 'HOA.THUONG@test.local', password: 'MatKhau123!' })
       .expect(200);
+
+    harness.google.willReturn('tok-case', {
+      googleId: 'google-sub-case',
+      email: 'Hoa.Thuong@test.local',
+      name: 'Hoa Thường',
+    });
+    const linked = await google('tok-case').expect(200);
+    expect((linked.body as { user: { id: string } }).user.id).toBe(id);
+  });
+
+  // Email Workspace có thể được cấp lại cho người mới: Google mới (sub khác, cùng email, đã xác minh)
+  // không được giành tài khoản đã gắn với Google cũ.
+  test('tài khoản đã gắn Google khác thì KHÔNG bị liên kết đè, trả 409', async () => {
+    harness.google.willReturn('tok-cu', {
+      googleId: 'google-sub-cu',
+      email: 'workspace@test.local',
+      name: 'Chủ Cũ',
+    });
+    const first = await google('tok-cu').expect(200);
+    const ownerId = (first.body as { user: { id: string } }).user.id;
+
+    harness.google.willReturn('tok-moi-cung-email', {
+      googleId: 'google-sub-moi',
+      email: 'workspace@test.local',
+      name: 'Người Mới',
+    });
+    await google('tok-moi-cung-email').expect(409);
+
+    const owner = await harness.prisma.user.findUnique({
+      where: { id: ownerId },
+    });
+    expect(owner?.googleId).toBe('google-sub-cu');
   });
 
   test('đặt đủ hai cookie giống đăng nhập thường', async () => {

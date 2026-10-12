@@ -146,7 +146,6 @@ export async function createTestApp(
     // còn lại của hàm không phải làm việc với any.
     const body = response.body as {
       accessToken: string;
-      refreshToken: string;
       user: { id: string };
     };
 
@@ -186,7 +185,10 @@ export async function createTestApp(
       // Bỏ phần thuộc tính (Path, HttpOnly...); header Cookie chỉ nhận cặp
       // tên=giá trị.
       cookie: authCookie.split(';')[0],
-      refreshToken: body.refreshToken,
+      // Refresh token KHÔNG còn trong body (chỉ nằm trong cookie httpOnly) — lấy giá trị từ cookie.
+      refreshToken: refreshCookie
+        .split(';')[0]
+        .slice(REFRESH_COOKIE.length + 1),
       refreshCookie: refreshCookie.split(';')[0],
     };
   };

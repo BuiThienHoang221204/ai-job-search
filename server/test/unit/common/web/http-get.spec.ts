@@ -1,4 +1,4 @@
-import { pinArgs, splitTrailer } from 'src/common/web/http-get.js';
+import { curlArgs, pinArgs, splitTrailer } from 'src/common/web/http-get.js';
 
 /**
  * Hai hàm thuần này giữ hai thứ dễ vỡ âm thầm: ranh giới giữa thân trang và
@@ -65,5 +65,29 @@ describe('pinArgs', () => {
 
   it('không ghim khi host vốn đã là IP', () => {
     expect(pinArgs(new URL('https://1.2.3.4/a'), '1.2.3.4')).toEqual([]);
+  });
+});
+
+describe('curlArgs', () => {
+  // Không có --globoff thì curl tự nhân `{a,b}`/`[1-9]` thành nhiều host/request mà `--resolve` không ghim — lách được bộ chặn SSRF.
+  it('tắt glob của curl và chỉ cho http/https', () => {
+    const args = curlArgs(
+      new URL('https://x.test/[1-9]?{a,b}'),
+      '1.2.3.4',
+      10_000,
+    );
+
+    expect(args).toContain('--globoff');
+    expect(args[args.indexOf('--proto') + 1]).toBe('=http,https');
+  });
+
+  it('URL là tham số cuối, sau mọi cờ, và vẫn ghim DNS', () => {
+    const url = new URL('https://x.test/a');
+    const args = curlArgs(url, '1.2.3.4', 10_000);
+
+    expect(args.at(-1)).toBe(url.toString());
+    expect(args).toEqual(
+      expect.arrayContaining(['--resolve', 'x.test:443:1.2.3.4']),
+    );
   });
 });

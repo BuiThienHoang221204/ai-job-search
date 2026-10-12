@@ -4,9 +4,10 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '@/common/decorators/public.decorator';
+import { Roles } from '@/common/decorators/roles.decorator';
 import { QueueService, type QueueStats } from '../queue/queue.service';
 import { HealthService } from './health.service';
 import {
@@ -53,7 +54,8 @@ export class HealthController {
     return body;
   }
 
-  @Public()
+  @Roles('ADMIN')
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'Thống kê hàng đợi - Số job đang chờ, đang chạy, và concurrency mỗi queue',

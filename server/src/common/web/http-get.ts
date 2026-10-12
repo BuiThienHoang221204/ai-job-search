@@ -49,14 +49,17 @@ export function pinArgs(url: URL, address: string): string[] {
   return ['--resolve', `${url.hostname}:${port}:${target}`];
 }
 
-async function curlOnce(
+/** Tham số curl cho MỘT chặng: không glob URL, chỉ http/https, ghim DNS — bỏ một cờ là bộ chặn SSRF có lỗ. */
+export function curlArgs(
   url: URL,
   address: string,
   timeoutMs: number,
-  maxBytes: number,
-): Promise<{ body: string; status: number; next: string }> {
+): string[] {
   const args = [
     '-sS',
+    '--globoff',
+    '--proto',
+    '=http,https',
     '--max-time',
     String(Math.ceil(timeoutMs / 1000)),
     '-w',
@@ -67,6 +70,16 @@ async function curlOnce(
     args.push('-H', `${name}: ${value}`);
   }
   args.push(url.toString());
+  return args;
+}
+
+async function curlOnce(
+  url: URL,
+  address: string,
+  timeoutMs: number,
+  maxBytes: number,
+): Promise<{ body: string; status: number; next: string }> {
+  const args = curlArgs(url, address, timeoutMs);
 
   try {
     const { stdout } = await run('curl', args, {

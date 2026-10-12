@@ -132,6 +132,12 @@
     ]
   },
   "pnpm": {
+    "overrides": {
+      "multer": "^2.4.0",
+      "proxy-addr": "^2.0.8",
+      "qs": "^6.16.0",
+      "undici@7": "^7.30.0"
+    },
     "onlyBuiltDependencies": [
       "@prisma/engines",
       "prisma",

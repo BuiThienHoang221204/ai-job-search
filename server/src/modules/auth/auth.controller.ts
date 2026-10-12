@@ -96,8 +96,8 @@ export class AuthController {
   }
 }
 
-const issue = (response: Response, result: AuthResult): AuthResult => {
+const issue = (response: Response, result: AuthResult) => {
   setAccessCookie(response, result.accessToken);
   setRefreshCookie(response, result.refreshToken);
-  return result;
+  return { accessToken: result.accessToken, user: result.user };
 };
