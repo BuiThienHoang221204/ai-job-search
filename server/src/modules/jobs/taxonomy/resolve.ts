@@ -32,7 +32,7 @@ export function resolveProvince(location: string | null): string | null {
   return null;
 }
 
-/** Tiêu đề xét TRƯỚC thẻ (portal gắn "IT" cho tin kế toán ở công ty phần mềm); trả `OTHER` chứ không `null`. */
+/** Tiêu đề xét TRƯỚC thẻ (portal gắn "IT" cho tin kế toán ở công ty phần mềm); `fallbackKeywords` chỉ xét khi mọi `keywords` trượt; trả `OTHER` chứ không `null`. */
 export function resolveOccupation(title: string, tags: string[]): string {
   const fromTitle = matchOccupation(padded(normalizeText(title)));
   if (fromTitle) return fromTitle;
@@ -43,8 +43,13 @@ export function resolveOccupation(title: string, tags: string[]): string {
 
 const PREFIX_MIN_LENGTH = 4;
 
+const FALLBACKS = OCCUPATIONS.map((occupation) => ({
+  code: occupation.code,
+  keywords: occupation.fallbackKeywords ?? [],
+}));
+
 function matchOccupation(haystack: string): string | null {
-  return firstMatch(haystack, OCCUPATIONS);
+  return firstMatch(haystack, OCCUPATIONS) ?? firstMatch(haystack, FALLBACKS);
 }
 
 function firstMatch(

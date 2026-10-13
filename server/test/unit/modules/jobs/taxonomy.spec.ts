@@ -102,6 +102,39 @@ describe('resolveOccupation', () => {
     expect(resolveOccupation('Chuyên viên cao cấp', [tag])).toBe('IT');
   });
 
+  test.each([
+    ['Senior Business Analyst', 'IT'],
+    ['Flutter Dev, 18-27M', 'IT'],
+    ['Security Operations Center Analyst', 'IT'],
+    ['Chuyên viên Công nghệ Thông tin', 'IT'],
+    ['Data Lake Manager', 'DATA_AI'],
+    ['ACCOUNTING TEAM LEADER', 'FINANCE'],
+    ['Nhân Viên An Toàn Lao Động HSE', 'MANUFACTURING'],
+    ['Giám sát QC - Kiểm Soát Chất Lượng Hải Sản', 'MANUFACTURING'],
+    ['Nhân Viên Giám Sát MEP', 'CONSTRUCTION'],
+    ['Bếp trưởng', 'HOSPITALITY'],
+    ['Brand Manager', 'MARKETING'],
+    ['Nhân Viên Telesale', 'SALES'],
+    ['[Aeon Đà Nẵng] Trưởng Quầy Thực Phẩm Tươi Sống', 'RETAIL'],
+  ])('tiêu đề từng rơi vào OTHER: %s -> %s', (title, code) => {
+    expect(resolveOccupation(title, [])).toBe(code);
+  });
+
+  /// Từ khoá dự phòng là chữ chung chung hay đi kèm như một bổ ngữ; nó chỉ được thắng khi không nhóm nào khớp từ khoá chính.
+  test.each([
+    ['Senior Full Stack Engineer (AI)', 'IT'],
+    ['Nhân viên Kinh doanh Dự án CNTT', 'SALES'],
+    ['Giảng Viên Công Nghệ Thông Tin', 'EDUCATION'],
+    ['Nhân viên quản lý chất lượng Xây dựng', 'CONSTRUCTION'],
+    ['Store Manager - Cửa hàng trưởng brand Crocs', 'RETAIL'],
+    ['Ocean Freight Operator', 'LOGISTICS'],
+  ])(
+    'từ khoá dự phòng không giành tin của nhóm khác: %s -> %s',
+    (title, code) => {
+      expect(resolveOccupation(title, [])).toBe(code);
+    },
+  );
+
   test('không khớp gì thì về OTHER, không phải null', () => {
     expect(resolveOccupation('Chuyên viên cao cấp', [])).toBe(OTHER_CODE);
   });
@@ -143,7 +176,10 @@ describe('tính toàn vẹn của hai danh mục', () => {
     const seen = new Map<string, string>();
 
     for (const occupation of OCCUPATIONS) {
-      for (const keyword of occupation.keywords) {
+      for (const keyword of [
+        ...occupation.keywords,
+        ...(occupation.fallbackKeywords ?? []),
+      ]) {
         expect(seen.get(keyword) ?? occupation.code).toBe(occupation.code);
         seen.set(keyword, occupation.code);
       }
@@ -160,7 +196,10 @@ describe('tính toàn vẹn của hai danh mục', () => {
 
   test('mọi từ khoá ngành đều đã ở dạng chuẩn hoá', () => {
     for (const occupation of OCCUPATIONS) {
-      for (const keyword of occupation.keywords) {
+      for (const keyword of [
+        ...occupation.keywords,
+        ...(occupation.fallbackKeywords ?? []),
+      ]) {
         expect(keyword).toBe(normalizeText(keyword));
       }
     }
