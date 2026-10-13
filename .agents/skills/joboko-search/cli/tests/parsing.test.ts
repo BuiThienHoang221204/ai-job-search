@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  categoriesFromPosting,
   describePosting,
   industryFor,
   industryUrl,
@@ -216,5 +217,17 @@ describe("tin hết hạn", () => {
 
   test("tin còn hạn không bị nhận nhầm là hết hạn", () => {
     expect(isExpiredPage(detailHtml)).toBe(false)
+  })
+})
+
+describe("categoriesFromPosting", () => {
+  test("nhãn ngành giữ nguyên dấu phẩy nằm TRONG ngoặc", () => {
+    const categories = categoriesFromPosting(parseJobPosting(detailHtml))
+    expect(categories).toContain("Vật liệu (Công nghiệp, Xây dựng..)")
+    expect(categories[0]).toBe("Quản lý điều hành")
+  })
+
+  test("không có JSON-LD thì trả mảng rỗng", () => {
+    expect(categoriesFromPosting(null)).toEqual([])
   })
 })

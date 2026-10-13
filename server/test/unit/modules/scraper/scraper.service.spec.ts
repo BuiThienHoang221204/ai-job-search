@@ -45,6 +45,7 @@ const card = (
   salary: null,
   postedAt: '2 ngày trước',
   tags: [],
+  categories: [],
   url: 'https://vi.du/' + id,
   description: 'Mô tả đủ dài để không bị bỏ qua. '.repeat(5),
   ...over,
@@ -55,6 +56,7 @@ function fakePortals(
   pages: Record<number, PortalJobCard[]>,
   detailDescription: (slug: string) => string = () => 'x'.repeat(200),
   entries: PortalEntry[] = [],
+  detailCategories: string[] = [],
 ) {
   const calls: SearchArgs[] = [];
   const detailSlugs: string[] = [];
@@ -69,6 +71,7 @@ function fakePortals(
       detailSlugs.push(slug);
       return Promise.resolve({
         ...card(slug),
+        categories: detailCategories,
         description: detailDescription(slug),
       });
     },
@@ -91,6 +94,8 @@ type UpsertArgs = {
     externalId: string;
     duplicateOfId: string | null;
     description: string;
+    categories: string[];
+    occupationCode: string;
   };
 };
 
@@ -337,6 +342,81 @@ describe('ScraperService.run - mô tả bị portal cắt', () => {
     await runScrape(service);
 
     expect(prisma.job.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe('ScraperService.run - nhãn ngành của portal', () => {
+  test('nhãn trên thẻ tin được lưu và quyết định ngành thay cho tiêu đề', async () => {
+    const { router } = fakePortals({
+      1: [card('a', { title: 'Chuyên viên', categories: ['Thiết Kế Đồ Họa'] })],
+    });
+    const prisma = fakePrisma();
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    const create = prisma.job.upsert.mock.calls[0][0].create;
+    expect(create.categories).toEqual(['Thiết Kế Đồ Họa']);
+    expect(create.occupationCode).toBe('DESIGN');
+  });
+
+  test('thẻ không có nhãn thì lấy nhãn từ trang chi tiết đã mở để đọc mô tả', async () => {
+    const { router, detailSlugs } = fakePortals(
+      { 1: [card('a', { title: 'Chuyên viên', description: null })] },
+      () => 'Bản đầy đủ lấy từ trang chi tiết. '.repeat(10),
+      [],
+      ['Sản xuất / Vận hành sản xuất'],
+    );
+    const prisma = fakePrisma();
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(detailSlugs).toEqual(['tin/a']);
+    const create = prisma.job.upsert.mock.calls[0][0].create;
+    expect(create.categories).toEqual(['Sản xuất / Vận hành sản xuất']);
+    expect(create.occupationCode).toBe('MANUFACTURING');
+  });
+
+  test('tin đã biết được gắn nhãn và xếp lại ngành khi lượt quét gặp lại', async () => {
+    const { router } = fakePortals({
+      1: [card('a', { title: 'Chuyên viên', categories: ['Thiết Kế Đồ Họa'] })],
+    });
+    const prisma = fakePrisma();
+    prisma.job.findMany.mockResolvedValue([{ externalId: 'a' }]);
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(prisma.job.upsert).not.toHaveBeenCalled();
+    const [[args]] = prisma.job.update.mock.calls as [
+      [{ data: { categories?: string[]; occupationCode?: string } }],
+    ];
+    expect(args.data.categories).toEqual(['Thiết Kế Đồ Họa']);
+    expect(args.data.occupationCode).toBe('DESIGN');
+  });
+
+  test('tin đã biết mà thẻ không mang nhãn thì KHÔNG xoá nhãn đang có', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = fakePrisma();
+    prisma.job.findMany.mockResolvedValue([{ externalId: 'a' }]);
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    for (const [args] of prisma.job.update.mock.calls as [{ data: object }][]) {
+      expect(args.data).not.toHaveProperty('categories');
+      expect(args.data).not.toHaveProperty('occupationCode');
+    }
+  });
+
+  test('KHÔNG mở trang chi tiết chỉ để lấy nhãn', async () => {
+    const { router, detailSlugs } = fakePortals({ 1: [card('a')] });
+    const service = buildService(fakePrisma(), router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(detailSlugs).toEqual([]);
   });
 });
 

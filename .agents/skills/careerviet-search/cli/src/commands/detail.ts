@@ -1,4 +1,5 @@
 import {
+  categoriesFromPosting,
   BASE_URL,
   htmlFetch,
   locationFromPosting,
@@ -42,6 +43,7 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
     // Trang chi tiết có ngày ĐĂNG thật, khác mốc "Cập nhật" trên thẻ tìm kiếm.
     postedAt: posting?.datePosted ?? null,
     tags: skillsFromPosting(posting),
+    categories: categoriesFromPosting(posting),
     url,
     description: parseJobDescription(html),
   }

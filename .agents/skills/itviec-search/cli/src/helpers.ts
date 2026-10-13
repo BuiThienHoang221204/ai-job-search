@@ -74,6 +74,8 @@ export interface JobCard {
 
 export interface JobDetail extends JobCard {
   description: string | null
+  /** Nghề trong "Job Expertise" do nhà tuyển dụng chọn, giữ nguyên văn; backend đổi sang mã ngành. */
+  categories: string[]
 }
 
 const stripTags = (html: string): string =>
@@ -225,6 +227,14 @@ export function parseJobDescription(html: string): string | null {
 
   if (!sections.length) return null
   return sections.join("\n\n")
+}
+
+/** "Job Expertise" của trang chi tiết - nghề do nhà tuyển dụng chọn. Bỏ qua "Job Domain": đó là lĩnh vực của CÔNG TY, không phải nghề của tin. */
+export function parseJobExpertise(html: string): string[] {
+  const block = html.match(/Job Expertise:<\/div>([\s\S]*?)<\/div>/)?.[1] ?? ""
+  return [...block.matchAll(/<a[^>]*\stitle="([^"]+)"/g)]
+    .map((match) => decodeEntities(match[1]!).trim())
+    .filter(Boolean)
 }
 
 /** Bóc địa điểm từ trang chi tiết (khác cấu trúc với thẻ tìm kiếm). */

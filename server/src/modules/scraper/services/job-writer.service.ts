@@ -4,7 +4,9 @@ import { dedupeKeyOf } from '@/modules/jobs/taxonomy/dedupe';
 
 import {
   derivedFields,
+  resolveOccupation,
   resolveProvince,
+  resolveSubOccupation,
 } from '@/modules/jobs/taxonomy/resolve';
 import { JobSourceRouter } from './job-source.router';
 import {
@@ -12,7 +14,12 @@ import {
   looksTruncated,
   parsePostedAt,
 } from '../utils/normalize';
-import type { PortalJobCard, SaveOutcome, SaveResult } from '../types';
+import type {
+  PortalJobCard,
+  PortalJobDetail,
+  SaveOutcome,
+  SaveResult,
+} from '../types';
 import { messageOf } from '@/common/error-message';
 import { DAY_MS } from '@/common/duration';
 
@@ -82,9 +89,11 @@ export class JobWriter {
     card: PortalJobCard,
   ): Promise<SaveResult> {
     let description = card.description ?? null;
+    let categories = card.categories;
     if (!description || looksTruncated(description)) {
-      const full = await this.detailDescription(portal, card.slug);
-      description = full ?? description;
+      const detail = await this.fetchDetail(portal, card.slug);
+      description = detail?.description ?? description;
+      if (!categories.length) categories = detail?.categories ?? [];
     }
 
     if (!description || description.length < MIN_DESCRIPTION_LENGTH) {
@@ -99,6 +108,7 @@ export class JobWriter {
       company,
       card.location,
       card.tags,
+      categories,
     );
     const duplicateOfId = await this.findOriginal(derived.dedupeKey);
 
@@ -116,12 +126,14 @@ export class JobWriter {
         workMode: card.workMode,
         salaryRaw: card.salary,
         tags: card.tags,
+        categories,
         description,
         postedAt,
         ...derived,
       },
       update: {
         description,
+        ...(categories.length ? { categories } : {}),
         salaryRaw: card.salary,
         ...(postedAt ? { postedAt } : {}),
         ...(card.companyLogo ? { companyLogo: card.companyLogo } : {}),
@@ -149,13 +161,12 @@ export class JobWriter {
     return original?.id ?? null;
   }
 
-  private async detailDescription(
+  private async fetchDetail(
     portal: string,
     slug: string,
-  ): Promise<string | null> {
+  ): Promise<PortalJobDetail | null> {
     try {
-      const detail = await this.portals.detail(portal, slug);
-      return detail.description;
+      return await this.portals.detail(portal, slug);
     } catch (error) {
       const message = messageOf(error);
       this.logger.warn(`Không lấy được mô tả đầy đủ của ${slug}: ${message}`);
@@ -172,6 +183,9 @@ export class JobWriter {
     for (const card of cards) {
       const postedAt = parsePostedAt(card.postedAt);
       const provinceCode = resolveProvince(card.location ?? null);
+      const occupationCode = card.categories.length
+        ? resolveOccupation(card.title, card.tags, card.categories)
+        : null;
       const data = {
         ...(card.companyLogo ? { companyLogo: card.companyLogo } : {}),
         ...(postedAt ? { postedAt } : {}),
@@ -184,6 +198,17 @@ export class JobWriter {
                 card.title,
                 card.company ?? 'Không rõ',
                 provinceCode,
+              ),
+            }
+          : {}),
+        ...(occupationCode
+          ? {
+              categories: card.categories,
+              occupationCode,
+              subOccupationCode: resolveSubOccupation(
+                occupationCode,
+                card.title,
+                [...card.categories, ...card.tags],
               ),
             }
           : {}),

@@ -2,12 +2,14 @@ import {
   OCCUPATIONS,
   OTHER_CODE,
 } from 'src/modules/jobs/taxonomy/occupations.js';
+import { PORTAL_CATEGORY_OCCUPATION } from 'src/modules/jobs/taxonomy/portal-categories.js';
 import { PROVINCES } from 'src/modules/jobs/taxonomy/provinces.js';
 import { normalizeText } from 'src/common/text/vietnamese.js';
 import {
   buildSearchText,
   resolveOccupation,
   resolveProvince,
+  resolveSubOccupation,
 } from 'src/modules/jobs/taxonomy/resolve.js';
 
 /// Ba hàm này là ranh giới giữa dữ liệu bẩn từ portal và bộ lọc chạy bằng index.
@@ -135,8 +137,83 @@ describe('resolveOccupation', () => {
     },
   );
 
+  /// `dien tu` của nhóm Sản xuất từng khớp ngay bên trong cụm này: 8 tin vận hành sàn TMĐT trên production nằm ở Sản xuất.
+  test.each([
+    ['Nhân viên Vận hành Sàn Thương mại Điện tử', 'RETAIL'],
+    ['Kỹ sư điện tử', 'MANUFACTURING'],
+  ])(
+    '"thương mại điện tử" không bị đọc thành "điện tử": %s -> %s',
+    (title, code) => {
+      expect(resolveOccupation(title, [])).toBe(code);
+    },
+  );
+
   test('không khớp gì thì về OTHER, không phải null', () => {
     expect(resolveOccupation('Chuyên viên cao cấp', [])).toBe(OTHER_CODE);
+  });
+});
+
+describe('resolveOccupation - nhãn ngành của portal', () => {
+  test('nhãn portal thắng từ khoá DỰ PHÒNG của tiêu đề', () => {
+    expect(
+      resolveOccupation('Kỹ sư quản lý chất lượng', [], ['Xây Dựng']),
+    ).toBe('CONSTRUCTION');
+  });
+
+  /// Đo 2026-10-13 trên CareerViet: nhà tuyển dụng hay chọn kèm ngành của CÔNG TY, nên nhãn không được đè tiêu đề đã nói rõ nghề.
+  test('từ khoá CHÍNH của tiêu đề thắng nhãn portal', () => {
+    expect(
+      resolveOccupation(
+        'Marketing Officer',
+        [],
+        ['Y tế / Chăm sóc sức khỏe / Thẩm mỹ / Làm đẹp'],
+      ),
+    ).toBe('MARKETING');
+  });
+
+  test('tiêu đề mơ hồ thì nhãn portal quyết định', () => {
+    expect(
+      resolveOccupation('Chuyên viên cao cấp', [], ['Tiếp thị / Marketing']),
+    ).toBe('MARKETING');
+  });
+
+  test('nghề con xét trước nhóm cha', () => {
+    expect(
+      resolveOccupation(
+        'Chuyên viên',
+        [],
+        ['Data Engineer/Data Analyst/AI', 'Công Nghệ Thông Tin/Viễn Thông'],
+      ),
+    ).toBe('DATA_AI');
+  });
+
+  /// "Sản Xuất Chương Trình" là sản xuất chương trình truyền hình; từ khoá `san xuat` sẽ xếp nó vào nhà máy.
+  test('bảng đổi thắng từ khoá trên chính nhãn', () => {
+    expect(
+      resolveOccupation('Chuyên viên', [], ['Sản Xuất Chương Trình']),
+    ).toBe('DESIGN');
+  });
+
+  test('nhãn không mang thông tin ngành thì đi tiếp xuống tiêu đề', () => {
+    expect(
+      resolveOccupation('Kế toán trưởng', [], ['Quản Lý Cấp Cao', 'Khác']),
+    ).toBe('FINANCE');
+  });
+
+  test('nhãn lạ chưa có trong bảng vẫn xếp được bằng từ khoá', () => {
+    expect(
+      resolveOccupation('Chuyên viên', [], ['IT phần mềm, Thống kê']),
+    ).toBe('IT');
+  });
+
+  test('không có nhãn thì giữ nguyên hành vi theo tiêu đề', () => {
+    expect(resolveOccupation('Backend Developer', [])).toBe('IT');
+  });
+
+  test('nhãn portal góp vào việc chọn nghề con', () => {
+    expect(
+      resolveSubOccupation('DESIGN', 'Chuyên viên', ['Thiết Kế Đồ Họa']),
+    ).not.toBeNull();
   });
 });
 
@@ -184,6 +261,21 @@ describe('tính toàn vẹn của hai danh mục', () => {
         seen.set(keyword, occupation.code);
       }
     }
+  });
+
+  test('bảng nhãn portal chỉ trỏ tới mã ngành có thật', () => {
+    const codes = new Set(OCCUPATIONS.map((occupation) => occupation.code));
+
+    for (const code of Object.values(PORTAL_CATEGORY_OCCUPATION)) {
+      if (code !== null) expect(codes.has(code)).toBe(true);
+    }
+  });
+
+  /// Hai nhãn chỉ khác hoa/thường hay dấu sẽ thành một khoá sau chuẩn hoá, và nhãn sau đè nhãn trước trong im lặng.
+  test('nhãn portal không trùng nhau sau chuẩn hoá', () => {
+    const keys = Object.keys(PORTAL_CATEGORY_OCCUPATION).map(normalizeText);
+
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   test('mọi alias đều đã ở dạng chuẩn hoá', () => {

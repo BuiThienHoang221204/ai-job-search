@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  categoriesFromPosting,
   isBlockedPage,
   locationFromPosting,
   matchesLocation,
@@ -153,5 +154,19 @@ describe("trang chặn - bẫy widget reCAPTCHA", () => {
   test("trang có tin kèm widget reCAPTCHA của form góp ý KHÔNG phải trang chặn", () => {
     expect(isBlockedPage(searchHtml + '<div class="g-recaptcha"></div>')).toBe(false)
     expect(isBlockedPage(detailHtml + '<div class="g-recaptcha"></div>')).toBe(false)
+  })
+})
+
+describe("categoriesFromPosting", () => {
+  test("nhãn ngành lấy từ JSON-LD industry", () => {
+    expect(categoriesFromPosting(parseJobPosting(detailHtml))).toEqual([
+      "Tài chính / Đầu tư",
+      "Xuất nhập khẩu",
+      "Kế toán / Kiểm toán",
+    ])
+  })
+
+  test("không có JSON-LD thì trả mảng rỗng", () => {
+    expect(categoriesFromPosting(null)).toEqual([])
   })
 })

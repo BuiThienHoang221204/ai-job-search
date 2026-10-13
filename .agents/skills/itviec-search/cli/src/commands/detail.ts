@@ -3,6 +3,7 @@ import {
   htmlFetch,
   parseDetailLocation,
   parseJobCard,
+  parseJobExpertise,
   parseJobDescription,
   splitJobCards,
   type JobDetail,
@@ -25,9 +26,10 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
   if (!html) return null
 
   const description = parseJobDescription(html)
+  const categories = parseJobExpertise(html)
   const card = splitJobCards(html).map(parseJobCard).find((item) => item?.slug === slug)
 
-  if (card) return { ...card, description }
+  if (card) return { ...card, description, categories }
 
   // Trang chi tiết không nhúng lại thẻ tìm kiếm, nên phải bóc riêng từng
   // trường. Tên công ty suy từ slug của tin: ITviec đặt slug theo dạng
@@ -50,6 +52,7 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
     tags: [],
     url: `${BASE_URL}/it-jobs/${slug}`,
     description,
+    categories,
     companyLogo: null,
   }
 }

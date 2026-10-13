@@ -17,6 +17,7 @@ const card = (id: string): PortalJobCard => ({
   salary: null,
   postedAt: new Date().toISOString(),
   tags: [],
+  categories: [],
   url: `https://portal.test/${id}`,
 });
 

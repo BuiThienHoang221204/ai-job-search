@@ -52,6 +52,8 @@ export interface JobCard {
   salary: string | null
   postedAt: string | null
   tags: string[]
+  /** Nghề con trước, nhóm cha sau - từ `jobFunction` do nhà tuyển dụng chọn. */
+  categories: string[]
   url: string
 }
 
@@ -75,6 +77,10 @@ export interface ApiJob {
   address?: string
   workingLocations?: Array<{ address?: string }>
   skills?: Array<{ skillName?: string }>
+  jobFunction?: {
+    parentNameVI?: string
+    children?: Array<{ nameVI?: string }>
+  }
   prettyApprovedOn?: string
   approvedOn?: string
   jobDescription?: string
@@ -408,6 +414,15 @@ export function parseSalary(job: ApiJob): string | null {
   return pretty
 }
 
+/** Nhãn nghề của tin: nghề con đứng trước để backend xét cái cụ thể nhất trước. */
+export function categoriesOf(job: ApiJob): string[] {
+  const fn = job.jobFunction
+  if (!fn || typeof fn !== "object") return []
+  return [...(fn.children ?? []).map((child) => child.nameVI), fn.parentNameVI]
+    .map((label) => (label ?? "").trim())
+    .filter(Boolean)
+}
+
 /** Chuyển một tin từ API thành thẻ việc làm. */
 export function toJobCard(job: ApiJob): JobCard | null {
   const id = job.jobId !== undefined ? String(job.jobId) : null
@@ -429,6 +444,7 @@ export function toJobCard(job: ApiJob): JobCard | null {
     tags: (job.skills ?? [])
       .map((skill) => (skill.skillName ?? "").trim())
       .filter(Boolean),
+    categories: categoriesOf(job),
     url: job.jobUrl ?? `${BASE_URL}/${slug}`,
   }
 }
@@ -487,6 +503,27 @@ export function descriptionFromDetailHtml(html: string, job: ApiJob): string | n
 const isRef = (value: unknown): value is string =>
   typeof value === "string" && /^\$[0-9a-f]+$/.test(value)
 
+/** Giải tham chiếu `$xx` sang dòng JSON `xx:` của payload, đệ quy - `jobFunction` lồng hai tầng (`$39` → `children: "$3a"`). */
+export function resolveFlightRefs(buffer: string, value: unknown, depth = 0): unknown {
+  if (depth > 5) return undefined
+  if (isRef(value)) {
+    const row = buffer.match(new RegExp(`(?:^|\n)${value.slice(1)}:([\[{][^\n]*)`))?.[1]
+    if (!row) return undefined
+    try {
+      return resolveFlightRefs(buffer, JSON.parse(row), depth + 1)
+    } catch {
+      return undefined
+    }
+  }
+  if (Array.isArray(value)) return value.map((item) => resolveFlightRefs(buffer, item, depth))
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, resolveFlightRefs(buffer, item, depth)]),
+    )
+  }
+  return value
+}
+
 /**
  * Bỏ những trường còn là tham chiếu chưa giải.
  *
@@ -522,6 +559,7 @@ export function jobFromDetailHtml(html: string, url: string): JobDetail | null {
     jobUrl: url,
     jobDescription: resolve(raw.jobDescription),
     jobRequirement: resolve(raw.jobRequirement),
+    jobFunction: resolveFlightRefs(buffer, raw.jobFunction) as ApiJob["jobFunction"],
   }
 
   const card = toJobCard(job)

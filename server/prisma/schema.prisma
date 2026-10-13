@@ -212,6 +212,11 @@ model Job {
   currency  String?
 
   tags        String[] @default([])
+  /// Nhãn ngành nghề do CHÍNH portal gắn (nhà tuyển dụng chọn lúc đăng tin), giữ
+  /// nguyên văn. Tách khỏi `tags` vì `tags` của VietnamWorks là kỹ năng.
+  /// `resolveOccupation` xét cột này SAU từ khoá chính của tiêu đề, vì nhãn hay
+  /// lẫn ngành của CÔNG TY.
+  categories  String[] @default([])
   description String   @db.Text
 
   postedAt  DateTime?

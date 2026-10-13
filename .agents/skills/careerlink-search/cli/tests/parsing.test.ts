@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  categoriesFromPosting,
   isBlockedPage,
   locationFromPosting,
   matchesLocation,
@@ -159,5 +160,18 @@ describe("trang chặn", () => {
   test("trang tìm kiếm và trang chi tiết bình thường không bị nhận nhầm", () => {
     expect(isBlockedPage(searchHtml)).toBe(false)
     expect(isBlockedPage(detailHtml)).toBe(false)
+  })
+})
+
+describe("categoriesFromPosting", () => {
+  test("nhãn ngành lấy từ JSON-LD industry", () => {
+    expect(categoriesFromPosting(parseJobPosting(detailHtml))).toEqual([
+      "Kế toán / Kiểm toán",
+      "Tài chính / Đầu tư",
+    ])
+  })
+
+  test("không có JSON-LD thì trả mảng rỗng", () => {
+    expect(categoriesFromPosting(null)).toEqual([])
   })
 })

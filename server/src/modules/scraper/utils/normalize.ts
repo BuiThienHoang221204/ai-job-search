@@ -34,6 +34,14 @@ export const MIN_DESCRIPTION_LENGTH = 80;
 export const looksTruncated = (description: string): boolean =>
   /(\.\.\.|…)\s*$/.test(description);
 
+const strings = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
 const slugOf = (row: Record<string, unknown>): string | null =>
   text(row.slug) ?? text(row.id) ?? null;
 
@@ -64,6 +72,7 @@ export function normalizeCard(input: unknown): PortalJobCard | null {
     tags: Array.isArray(row.tags)
       ? row.tags.filter((tag): tag is string => typeof tag === 'string')
       : [],
+    categories: strings(row.categories),
     ...(description ? { description } : {}),
   };
 }

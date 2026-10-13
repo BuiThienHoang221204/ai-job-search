@@ -10,6 +10,7 @@ export type PortalJobCard = {
   salary: string | null;
   postedAt: string | null;
   tags: string[];
+  categories: string[];
   url: string;
   description?: string | null;
 };

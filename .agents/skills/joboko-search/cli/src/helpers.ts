@@ -79,6 +79,8 @@ export interface JobCard {
 
 export interface JobDetail extends JobCard {
   description: string | null
+  /** Nhãn ngành nghề do portal gắn (JSON-LD `industry`), giữ nguyên văn; backend đổi sang mã ngành. */
+  categories: string[]
 }
 
 export const nfc = (text: string): string => text.normalize("NFC")
@@ -210,6 +212,13 @@ export type JobPosting = {
   jobLocation?: unknown
   baseSalary?: { value?: { value?: unknown; minValue?: number; maxValue?: number } }
   industry?: string
+}
+
+/** Nhãn ngành nghề của tin: JSON-LD `industry` là một chuỗi nối bằng dấu phẩy. */
+export function categoriesFromPosting(posting: { industry?: string } | null): string[] {
+  return posting?.industry
+    ? nfc(posting.industry).split(/,(?![^(]*\))/).map((label) => label.trim()).filter(Boolean)
+    : []
 }
 
 export function parseJobPosting(html: string): JobPosting | null {

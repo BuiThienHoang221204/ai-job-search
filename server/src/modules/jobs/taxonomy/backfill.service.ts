@@ -32,6 +32,7 @@ export class TaxonomyBackfillService {
           company: true,
           location: true,
           tags: true,
+          categories: true,
         },
       });
       if (!batch.length) break;
@@ -39,7 +40,13 @@ export class TaxonomyBackfillService {
       for (const job of batch) {
         await this.prisma.job.update({
           where: { id: job.id },
-          data: derivedFields(job.title, job.company, job.location, job.tags),
+          data: derivedFields(
+            job.title,
+            job.company,
+            job.location,
+            job.tags,
+            job.categories,
+          ),
         });
       }
 

@@ -408,10 +408,8 @@ export const OCCUPATIONS: Occupation[] = [
       'resort',
       'front desk',
       'pastry',
-      'food and beverage',
-      'f b',
     ],
-    fallbackKeywords: ['bep', 'housekeeping'],
+    fallbackKeywords: ['bep', 'housekeeping', 'food and beverage', 'f b'],
   },
   {
     code: 'RETAIL',

@@ -1,6 +1,7 @@
 import { normalizeText } from '@/common/text/vietnamese';
 import { dedupeKeyOf } from './dedupe';
 import { OCCUPATIONS, OTHER_CODE } from './occupations';
+import { PORTAL_CATEGORY_OCCUPATION } from './portal-categories';
 import { PROVINCES, REMOTE_CODE } from './provinces';
 import { SUB_OCCUPATIONS } from './sub-occupations';
 
@@ -32,16 +33,49 @@ export function resolveProvince(location: string | null): string | null {
   return null;
 }
 
-/** Tiêu đề xét TRƯỚC thẻ (portal gắn "IT" cho tin kế toán ở công ty phần mềm); `fallbackKeywords` chỉ xét khi mọi `keywords` trượt; trả `OTHER` chứ không `null`. */
-export function resolveOccupation(title: string, tags: string[]): string {
-  const fromTitle = matchOccupation(padded(normalizeText(title)));
-  if (fromTitle) return fromTitle;
+/** Thứ tự: từ khoá chính trong tiêu đề → nhãn ngành của portal (hay lẫn ngành của CÔNG TY) → từ khoá dự phòng trong tiêu đề → thẻ; trả `OTHER` chứ không `null`. */
+export function resolveOccupation(
+  title: string,
+  tags: string[],
+  categories: string[] = [],
+): string {
+  const haystack = occupationHaystack(title);
 
-  const fromTags = matchOccupation(padded(normalizeText(tags.join(' '))));
-  return fromTags ?? OTHER_CODE;
+  return (
+    firstMatch(haystack, OCCUPATIONS) ??
+    occupationFromCategories(categories) ??
+    firstMatch(haystack, FALLBACKS) ??
+    matchOccupation(occupationHaystack(tags.join(' '))) ??
+    OTHER_CODE
+  );
 }
 
+const occupationHaystack = (text: string) =>
+  padded(normalizeText(text)).replaceAll(' thuong mai dien tu ', ' ecommerce ');
+
 const PREFIX_MIN_LENGTH = 4;
+
+const CATEGORY_OCCUPATION = new Map(
+  Object.entries(PORTAL_CATEGORY_OCCUPATION).map(([label, code]) => [
+    normalizeText(label),
+    code,
+  ]),
+);
+
+function occupationFromCategories(categories: string[]): string | null {
+  for (const label of categories) {
+    const key = normalizeText(label);
+    if (!key) continue;
+    if (CATEGORY_OCCUPATION.has(key)) {
+      const code = CATEGORY_OCCUPATION.get(key);
+      if (code) return code;
+      continue;
+    }
+    const matched = matchOccupation(occupationHaystack(key));
+    if (matched) return matched;
+  }
+  return null;
+}
 
 const FALLBACKS = OCCUPATIONS.map((occupation) => ({
   code: occupation.code,
@@ -99,6 +133,7 @@ export function derivedFields(
   company: string,
   location: string | null | undefined,
   tags: string[],
+  categories: string[] = [],
 ): {
   provinceCode: string | null;
   occupationCode: string;
@@ -107,12 +142,15 @@ export function derivedFields(
   dedupeKey: string | null;
 } {
   const provinceCode = resolveProvince(location ?? null);
-  const occupationCode = resolveOccupation(title, tags);
+  const occupationCode = resolveOccupation(title, tags, categories);
 
   return {
     provinceCode,
     occupationCode,
-    subOccupationCode: resolveSubOccupation(occupationCode, title, tags),
+    subOccupationCode: resolveSubOccupation(occupationCode, title, [
+      ...categories,
+      ...tags,
+    ]),
     searchText: buildSearchText(title, company, tags),
     dedupeKey: dedupeKeyOf(title, company, provinceCode),
   };

@@ -3,6 +3,7 @@ import {
   decodeEntities,
   matchesLocation,
   parseJobCards,
+  parseJobExpertise,
   searchUrl,
   splitJobCards,
 } from "../src/helpers.ts"
@@ -114,5 +115,21 @@ describe("matchesLocation", () => {
 describe("decodeEntities", () => {
   test("giải mã thực thể có tên và số", () => {
     expect(decodeEntities("R&amp;D &#39;test&#39; &nbsp;x")).toBe("R&D 'test'  x")
+  })
+})
+
+const detail = await Bun.file(new URL("./fixtures/detail.html", import.meta.url)).text()
+
+describe("parseJobExpertise", () => {
+  test("lấy nghề trong Job Expertise", () => {
+    expect(parseJobExpertise(detail)).toEqual(["Fullstack Developer"])
+  })
+
+  test("KHÔNG lấy Job Domain - đó là lĩnh vực của công ty", () => {
+    expect(parseJobExpertise(detail)).not.toContain("Software Products and Web Services")
+  })
+
+  test("trang không có mục đó thì trả mảng rỗng", () => {
+    expect(parseJobExpertise("<html></html>")).toEqual([])
   })
 })

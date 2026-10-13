@@ -65,6 +65,15 @@ describe("toJobCard", () => {
     }
   })
 
+  test("nhãn nghề: nghề con trước, nhóm cha sau", () => {
+    const card = toJobCard(jobs.find((job) => job.jobTitle === "Chuyên Viên Thực Thi Hải Quan")!)!
+    expect(card.categories).toEqual(["Luật Sở Hữu Trí Tuệ", "Pháp Lý"])
+  })
+
+  test("tin không có jobFunction thì nhãn rỗng", () => {
+    expect(toJobCard({ jobId: 1, jobTitle: "x", jobUrl: "https://a/b-1-jv" })!.categories).toEqual([])
+  })
+
   test("thiếu jobId thì trả null chứ không nổ", () => {
     expect(toJobCard({ jobTitle: "x", jobUrl: "https://a/b-1-jv" })).toBeNull()
   })
@@ -282,6 +291,14 @@ describe("dựng tin chỉ từ HTML", () => {
     expect(job.title).toBe("Full Stack Developer")
     expect(job.description!.length).toBeGreaterThan(toDescription(detailJob)!.length)
     expect(isTruncated(job.description)).toBe(false)
+  })
+
+  test("giải được nhãn nghề lồng hai tầng tham chiếu", () => {
+    // jobFunction là "$39", và children trong đó lại là "$3a" → ["$3b"].
+    expect(jobFromDetailHtml(detailHtml, url)!.categories).toEqual([
+      "Phần Mềm Máy Tính",
+      "Công Nghệ Thông Tin/Viễn Thông",
+    ])
   })
 
   test("KHÔNG để tham chiếu chưa giải lọt ra ngoài", () => {

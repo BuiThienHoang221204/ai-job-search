@@ -1,4 +1,5 @@
 import {
+  categoriesFromPosting,
   BASE_URL,
   describePosting,
   ExpiredError,
@@ -43,9 +44,8 @@ export async function detail(slugOrUrl: string): Promise<JobDetail | null> {
     workMode: null,
     salary: salaryFromPosting(posting),
     postedAt: posting?.datePosted ?? null,
-    tags: posting?.industry
-      ? nfc(posting.industry).split(",").map((tag) => tag.trim()).filter(Boolean)
-      : [],
+    tags: [],
+    categories: categoriesFromPosting(posting),
     url,
     description: describePosting(posting),
   }
