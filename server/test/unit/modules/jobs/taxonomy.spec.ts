@@ -210,6 +210,31 @@ describe('resolveOccupation - nhãn ngành của portal', () => {
     expect(resolveOccupation('Backend Developer', [])).toBe('IT');
   });
 
+  /// Nhãn thật của 123job, TopDev, JobOKO gom ngày 2026-10-13.
+  test.each([
+    ['Kế toán - Kiểm toán', 'FINANCE'],
+    ['Hành chính - Văn phòng', 'HR'],
+    ['Tư vấn/ Chăm sóc khách hàng', 'CUSTOMER'],
+    ['Xuất - Nhập khẩu', 'LOGISTICS'],
+    ['Vận tải - Lái xe/ Tài xế', 'MANUAL'],
+    ['Công nghệ thông tin', 'IT'],
+    ['Hành chính - Nhân sự', 'HR'],
+    ['Giáo dục - Đào tạo', 'EDUCATION'],
+  ])('nhãn %s -> %s', (label, code) => {
+    expect(resolveOccupation('Chuyên viên', [], [label])).toBe(code);
+  });
+
+  test('nhãn chỉ hình thức hoặc quá mơ hồ bị bỏ qua để xét nhãn sau', () => {
+    expect(
+      resolveOccupation(
+        'Chuyên viên',
+        [],
+        ['Thực tập', 'Phát triển thị trường', 'Kế toán - Kiểm toán'],
+      ),
+    ).toBe('FINANCE');
+    expect(resolveOccupation('Chuyên viên', [], ['Thực tập'])).toBe('OTHER');
+  });
+
   test('nhãn portal góp vào việc chọn nghề con', () => {
     expect(
       resolveSubOccupation('DESIGN', 'Chuyên viên', ['Thiết Kế Đồ Họa']),

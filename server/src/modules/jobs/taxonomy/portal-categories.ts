@@ -156,6 +156,8 @@ export const PORTAL_CATEGORY_OCCUPATION: Record<string, string | null> = {
   'Kỹ Thuật': null,
   'Quản lý điều hành': null,
   Manager: null,
+  'Thực tập': null,
+  'Phát triển thị trường': null,
 
   'Thương mại điện tử': 'RETAIL',
   'Bán lẻ / Bán sỉ': 'RETAIL',
@@ -173,4 +175,5 @@ export const PORTAL_CATEGORY_OCCUPATION: Record<string, string | null> = {
   'Nấu ăn': 'HOSPITALITY',
   'Pha chế': 'HOSPITALITY',
   'Giao Dịch Khách Hàng': 'CUSTOMER',
+  'Vận tải - Lái xe/ Tài xế': 'MANUAL',
 };
