@@ -264,7 +264,19 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 
 **Cầu dao `BLOCKED` nằm trong `PortalCliService.invoke`** (áp cho MỌI portal): gặp mã đó thì ngừng gọi portal ấy `BLOCKED_COOLDOWN_MS` (30 phút) và ném ngay không chạy CLI. Trước đó `JobWriter` vẫn gọi `detail` cho từng tin còn lại — mỗi lần một request vào đúng trang đang chặn mình, kéo dài lượt chặn. Portal mới nào có trang chặn riêng thì CLI của nó phải báo `BLOCKED`; `test/unit/modules/scraper/portal-blocked.spec.ts` canh cầu dao.
 
-**TopCV: 403 là `BLOCKED` NGAY, không thử lại** (`fetchVerdict` trong `topcv-search/cli/src/helpers.ts`). Hai lượt hỏng 28/09 và 30/09 nhận 403 đủ 5/5 lần trong 30s lùi dần — thử lại chưa cứu được lượt nào, chỉ gửi thêm 4 request đúng lúc đang bị chặn. Trước đó CLI báo `FETCH_FAILED` nên cầu dao không bật. Cloudflare của TopCV chặn THEO ĐỢT chứ không vĩnh viễn: cùng hai truy vấn đó chạy lại vài giờ sau vẫn ra tin.
+**TopCV: 403 là `BLOCKED` NGAY, không thử lại** (`fetchVerdict` trong `topcv-search/cli/src/helpers.ts`). Hai lượt hỏng 28/09 và 30/09 nhận 403 đủ 5/5 lần trong 30s lùi dần — thử lại chưa cứu được lượt nào, chỉ gửi thêm 4 request đúng lúc đang bị chặn. Trước đó CLI báo `FETCH_FAILED` nên cầu dao không bật. Hồi 08–09/2026 Cloudflare của TopCV chặn THEO ĐỢT (chạy lại vài giờ sau vẫn ra tin), nhưng **từ 2026-09-09 IP máy chủ Oracle bị chặn LIÊN TỤC** — xem đoạn dưới.
+
+**Ba portal chặn THEO IP máy chủ, không phải lỗi code — đo 2026-10-13.** Cùng URL, cùng User-Agent: từ máy cá nhân trả 200 kèm tin, từ máy chủ Oracle (168.107.87.28, Singapore) thì:
+
+| Portal | Từ máy chủ | Lớp chặn | Hỏng từ |
+|---|---|---|---|
+| `topcv` | 403 | Cloudflare | 2026-09-09, mọi đêm |
+| `vieclam24h` | 403, kể cả `robots.txt` | tường lửa AWS (`server: awselb/2.0`) | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được trên production |
+| `careerlink` | 200 nhưng là **Cloudflare Turnstile** ở trang tìm kiếm (trang chủ vẫn 200 có tin) | Cloudflare | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được |
+
+**KHÔNG vượt các lớp chặn này** — không proxy dân cư, không đổi IP để né, không giải thử thách, không đi vòng qua trang chưa bị chặn để lấy cùng dữ liệu. Đó là vượt rào kiểm soát truy cập, cùng lý do đã bỏ `jobsgo`. Đường hợp lệ là xin phép/API đối tác — chính là món nợ ToS của pha thương mại hoá. Portal vẫn để BẬT: mỗi đêm chỉ tốn 1 request rồi cầu dao `BLOCKED` ngắt, và hết bị chặn thì tự chạy lại. Máy chủ ARM mới trên Oracle nhiều khả năng bị đối xử y hệt (vẫn là IP datacenter).
+
+**Lỗi im lặng đã sửa cùng đợt:** CareerLink chỉ dò hCaptcha/reCAPTCHA nên coi trang Turnstile là "0 kết quả" — **14 đêm liền `DONE` với `jobsFound: 0`** mà không cảnh báo nào. Nay `isBlockedPage` dò cả `challenges.cloudflare.com/turnstile`, kèm điều kiện "không có thẻ tin, không có JSON-LD" (trang thật KHÔNG nhúng Turnstile, đã kiểm). Vieclam24h thì thử lại 403 bốn lần rồi báo `FETCH_FAILED` nên cầu dao không bật — nay 403 là `BLOCKED` ngay (`errorForStatus`), và `loadSubPages` ném tiếp `BlockedError` thay vì nuốt rồi gọi tiếp vào portal đang chặn. **Một lượt quét `DONE` với 0 tin nhiều đêm liền là dấu hiệu bị chặn, không phải portal hết tin** — kiểm `scrape_runs` theo portal khi thấy vậy.
 
 **Một truy vấn lỗi KHÔNG còn kéo đổ cả lượt quét** (`collectCards`). Trước đó `deps.search` ném thẳng ra ngoài: truy vấn đầu 403 là cả lượt `FAILED` với `jobsFound: 0`, tin đã gom từ truy vấn trước cũng mất. Nay: lỗi thường thì bỏ truy vấn đó, đi tiếp; `BLOCKED` thì dừng mọi truy vấn còn lại nhưng GIỮ tin đã gom; không gom được tin nào thì vẫn ném lỗi đầu tiên để lượt hỏng đúng lý do. `requested` chỉ bật SAU khi request thành công — đóng dấu nghề chưa quét được là đúng lỗi tự nuôi của vòng xoay đã ghi ở mục cụm nghề.
 
@@ -280,7 +292,28 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 
 Từng có adapter thứ hai gọi API job board công khai của Greenhouse/Lever/Ashby (`AtsSourceService`, khai bằng `ATS_BOARDS`). **Đã gỡ 2026-08-27** cùng toàn bộ dữ liệu của hai board từng bật — `ashby:ramp` và `greenhouse:gitlab`. Đừng dựng lại theo trí nhớ: hãy đọc lại commit đó.
 
-Món nợ ToS mà lộ trình ghi ở mục 4 vẫn còn nguyên: pha thương mại hoá bắt buộc thay LinkedIn scraper bằng nguồn có giấy phép. Việc gỡ ATS KHÔNG trả món nợ đó, chỉ bỏ một hướng đã thử.
+Món nợ ToS mà lộ trình ghi ở mục 4 vẫn còn nguyên, và nó RỘNG hơn ghi chú cũ ("thay LinkedIn scraper"). Việc gỡ ATS KHÔNG trả món nợ đó, chỉ bỏ một hướng đã thử.
+
+### Điều khoản sử dụng của các portal — rà 2026-10-13
+
+**Quyết định của chủ dự án: giữ nguyên cách làm hiện tại trong giai đoạn ĐỒ ÁN (phi thương mại); cân nhắc lại TRƯỚC khi thương mại hoá.** Bảng dưới là để quyết định lúc đó, đừng xoá. Không phải ý kiến pháp lý — trước khi thu tiền người dùng cần luật sư SHTT/công nghệ xem.
+
+Điều khoản cấm theo HAI tầng, và hệ thống hiện chạm cả hai: (1) **lấy** bằng bot, (2) **sao chép / hiển thị / khai thác thương mại / tạo sản phẩm phái sinh**. Trang không nhắc đích danh bot KHÔNG có nghĩa là được phép — tầng 2 vẫn áp dụng, và lưu toàn văn vào database rồi hiển thị lại là tầng 2.
+
+| Portal | Cấm bot / lấy tin | Cấm sao chép, hiển thị, thương mại | Trích nguyên văn |
+|---|---|---|---|
+| `linkedin` | **Có, đích danh** | Có | User Agreement 8.2: *"use software, devices, scripts, robots… (such as crawlers…) to scrape or copy the Services"*, *"Copy, use, display or distribute any information… obtained from the Services"*. Bên hay kiện (hiQ Labs thua ở phần vi phạm điều khoản) |
+| `joboko` | **Có, đích danh** | Có | *"dùng bot/crawler/scrape"*; *"không được sao chép, sửa đổi, phân phối, khai thác thương mại… nếu không có chấp thuận bằng văn bản"* |
+| `itviec` | Có (*"retrieved… downloaded"*) | Có | Terms 2.2: *"Other than… reasonable personal use… its content may not be retrieved, displayed, modified, copied… downloaded… without our prior written consent"* |
+| `vietnamworks` | — | Có | Cấm *"sao chép… hiển thị… khai thác nhằm mục đích thương mại"*, VÀ cấm riêng việc vận hành dịch vụ tuyển dụng tương tự / *"cung cấp sản phẩm… cạnh tranh với VietnamWorks"*. CLI gọi API nội bộ `ms.vietnamworks.com` |
+| `careerviet` | — (robots.txt chặn GPTBot/ClaudeBot/CCBot) | Có | *"Cách dùng nội dung trang web này trên bất cứ trang web nào khác… vì bất cứ mục đích nào đều bị ngăn cấm"* |
+| `topcv` | — | Có | *"không được sao chép… chuẩn bị các sản phẩm phái sinh… hiển thị, xuất bản, phân phối… hoặc khai thác Nội dung TopCV"* |
+| `careerlink` | — | Có (thương mại) | *"Nghiêm cấm sao chép, sửa đổi, phân phối, khai thác thương mại khi chưa có sự đồng ý bằng văn bản"* |
+| `vieclam24h` | — | Không thấy | Điều 6 chỉ nói nội dung người dùng + nhãn hiệu. Chưa đọc được trọn văn (trang chặn WebFetch) |
+
+**Đã xét và KHÔNG thêm:** `topdev` (robots.txt cho phép nhưng Điều khoản cấm *"sao chép… hiển thị… khai thác nhằm mục đích thương mại"*), `x-interview.com` (cấm đích danh *"trích xuất… tin tuyển dụng bằng công cụ tự động (crawler, bot, scraping)"*, và là đối thủ trực tiếp — nền tảng tìm việc + luyện phỏng vấn AI), `jobsgo` (Cloudflare). Glints, Việc Làm Tốt, Indeed VN, JobStreet, MyWork, Timviec365 trả 403 cho IP máy chủ. **Muốn thêm portal mới: đọc Điều khoản TRƯỚC khi viết CLI** — robots.txt cho phép không đủ.
+
+**Khi thương mại hoá, các bước giảm rủi ro đã bàn (theo thứ tự):** (1) dừng `linkedin` + `joboko` (cấm bot đích danh; ~40% tin mỗi đêm); (2) User-Agent tên bot thật kèm liên hệ thay vì giả Chrome, hiện "Nguồn: <portal>" trên mỗi tin; (3) trang chi tiết KHÔNG hiển thị toàn văn mô tả — chỉ phần hệ thống rút ra + nút "Đọc tin đầy đủ trên <portal>" (`JobDescriptionCard` hiện ghi *"Nội dung nguyên văn từ tin tuyển dụng gốc"*); (4) xoá toàn văn sau khi rút yêu cầu (tối thiểu hoá dữ liệu — cần đo chất lượng tối ưu CV/phỏng vấn khi chỉ còn `JobRequirement`); (5) nguồn hợp lệ: xin phép portal, nhà tuyển dụng đăng trực tiếp, Sàn giao dịch việc làm quốc gia `vieclam.gov.vn` (từ 01/01/2026, NĐ 318/2025; máy chủ Oracle không kết nối được), API có giấy phép (Jooble, Careerjet `careerjet.com.vn`). (1)–(4) chỉ HẠ rủi ro; chỉ (5) đưa nó về không. Nút "Ứng tuyển" dẫn về tin gốc (đang làm) là lập luận tốt nhất hiện có, nhưng không xử lý được việc lấy bằng bot và lưu bản sao.
 
 **Giải entity HTML TRƯỚC khi bỏ thẻ, và `&amp;` giải CUỐI.** Làm sai thứ tự thì `&lt;p&gt;` thành `<p>` rồi bị xoá mất cả chữ bên trong, hoặc `&amp;lt;` bị giải hai lần thành thẻ. Bài học này nay sống ở `common/web/html-text.ts`.
 

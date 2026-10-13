@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { parseJobCards } from "../src/helpers.ts"
+import { BlockedError, parseJobCards } from "../src/helpers.ts"
 import {
   INDEX_TTL_MS,
   loadSubPages,
@@ -89,6 +89,11 @@ describe("loadSubPages - đệm đĩa và đường lùi", () => {
   test("sitemap lỗi và chưa có đệm thì trả rỗng, KHÔNG ném - lượt tìm lùi về ngành cha", async () => {
     const broken = () => Promise.reject(new Error("mất mạng"))
     expect(await loadSubPages(broken, 1_000, freshCache())).toEqual([])
+  })
+
+  test("bị chặn thì ném tiếp, KHÔNG nuốt để lượt tìm gọi tiếp vào portal đang chặn", async () => {
+    const blocked = () => Promise.reject(new BlockedError("403"))
+    await expect(loadSubPages(blocked, 1_000, freshCache())).rejects.toBeInstanceOf(BlockedError)
   })
 
   test("đệm hết hạn mà tải lại lỗi thì vẫn dùng đệm cũ", async () => {

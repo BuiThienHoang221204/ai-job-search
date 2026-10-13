@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { BASE_URL, fold } from "./helpers.ts"
+import { BASE_URL, BlockedError, fold } from "./helpers.ts"
 
 /**
  * Chỉ mục trang NGÀNH CON của Vieclam24h, dựng từ sitemap của chính trang.
@@ -49,6 +49,8 @@ type Cached = { fetchedAt: number; paths: string[] }
  * Nạp chỉ mục: đọc đệm trên đĩa nếu còn hạn, không thì tải lại từ sitemap.
  * LỖI KHÔNG ĐƯỢC LÀM HỎNG LƯỢT TÌM: sitemap chết thì trả mảng rỗng và người gọi
  * lùi về trang ngành cha. Đệm hết hạn mà tải lại hỏng thì vẫn dùng đệm cũ.
+ * Riêng BlockedError thì ném tiếp: nuốt nó là gửi thêm request vào đúng portal
+ * đang chặn mình, và cầu dao ở backend không bao giờ bật.
  */
 export async function loadSubPages(
   fetchText: (url: string) => Promise<string>,
@@ -71,7 +73,8 @@ export async function loadSubPages(
     await mkdir(dirname(cacheFile), { recursive: true })
     await writeFile(cacheFile, JSON.stringify(fresh))
     return fresh.paths
-  } catch {
+  } catch (error) {
+    if (error instanceof BlockedError) throw error
     return cached?.paths ?? []
   }
 }

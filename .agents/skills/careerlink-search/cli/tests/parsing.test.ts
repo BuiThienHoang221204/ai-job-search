@@ -157,6 +157,19 @@ describe("trang chặn", () => {
     expect(parseJobCards(blocked)).toEqual([])
   })
 
+  test("nhận ra Cloudflare Turnstile - 14 đêm liền lượt quét báo DONE với 0 tin vì thiếu dòng này", () => {
+    // Trang máy chủ Oracle nhận được ở trang tìm kiếm ngày 2026-10-13.
+    const blocked = fixture("blocked-turnstile.html")
+    expect(isBlockedPage(blocked)).toBe(true)
+    expect(parseJobCards(blocked)).toEqual([])
+  })
+
+  test("trang thật nhúng widget thử thách vẫn KHÔNG bị coi là trang chặn", () => {
+    const widget = '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>'
+    expect(isBlockedPage(searchHtml + widget)).toBe(false)
+    expect(isBlockedPage(detailHtml + widget)).toBe(false)
+  })
+
   test("trang tìm kiếm và trang chi tiết bình thường không bị nhận nhầm", () => {
     expect(isBlockedPage(searchHtml)).toBe(false)
     expect(isBlockedPage(detailHtml)).toBe(false)

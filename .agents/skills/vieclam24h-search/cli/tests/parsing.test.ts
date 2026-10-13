@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
+  BlockedError,
+  errorForStatus,
   categoryUrl,
   clean,
   isBlockedPage,
@@ -205,5 +207,16 @@ describe("relevantTo - bỏ tin lạc đề của trang ngành", () => {
 describe("trang chặn - bẫy widget reCAPTCHA", () => {
   test("trang thật có widget reCAPTCHA của form góp ý KHÔNG bị coi là trang chặn", () => {
     expect(isBlockedPage(categoryHtml + '<div class="g-recaptcha"></div>')).toBe(false)
+  })
+})
+
+describe("errorForStatus", () => {
+  test("403 là BLOCKED để backend bật cầu dao, không thử lại", () => {
+    expect(errorForStatus(403)).toBeInstanceOf(BlockedError)
+  })
+
+  test("mã khác là lỗi thường", () => {
+    expect(errorForStatus(500)).not.toBeInstanceOf(BlockedError)
+    expect(errorForStatus(410)).not.toBeInstanceOf(BlockedError)
   })
 })

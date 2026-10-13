@@ -18,10 +18,14 @@ export class BlockedError extends Error {}
 /**
  * Trang hCaptcha của CareerLink trả HTTP **200**, nên không kiểm nội dung thì
  * nó thành "0 kết quả" - lượt quét báo xong mà không có gì. Đo 2026-09-29: bật
- * sau khoảng 5 trang tìm kiếm + 28 trang chi tiết ở nhịp 3 giây.
+ * sau khoảng 5 trang tìm kiếm + 28 trang chi tiết ở nhịp 3 giây. Từ 2026-10 IP
+ * máy chủ nhận Cloudflare Turnstile ở trang tìm kiếm, cũng 200. Trang chặn = có
+ * dấu hiệu thử thách VÀ không có nội dung thật (thẻ tin hoặc JSON-LD).
  */
 export const isBlockedPage = (html: string): boolean =>
-  /id="recaptcha_confirm_form"|js\.hcaptcha\.com/.test(html)
+  /id="recaptcha_confirm_form"|js\.hcaptcha\.com|challenges\.cloudflare\.com\/turnstile/.test(html) &&
+  splitJobCards(html).length === 0 &&
+  !parseJobPosting(html)
 
 /**
  * Tải HTML, lùi dần khi gặp 403/429/5xx. Trả "" khi 404. Ném BlockedError khi gặp captcha.

@@ -18,7 +18,14 @@ export class BlockedError extends Error {}
 /** Trang chặn = thiếu `__NEXT_DATA__` (trang thử thách không mang dữ liệu Next.js). KHÔNG dò chữ "recaptcha": widget trong form góp ý có trên trang thật - bẫy đã sập ở joboko-search. */
 export const isBlockedPage = (html: string): boolean => !html.includes('id="__NEXT_DATA__"')
 
-/** Tải HTML, lùi dần khi gặp 403/429/5xx. Trả "" khi 404. Ném BlockedError khi gặp trang chặn. */
+/** 403 là BLOCKED NGAY, không thử lại - tường lửa AWS trước Vieclam24h chặn theo IP, cả `robots.txt` cũng 403 (đo 2026-10-13 từ máy chủ Oracle). */
+export function errorForStatus(status: number): Error {
+  return status === 403
+    ? new BlockedError("Vieclam24h chặn IP (403); tạm dừng quét portal này")
+    : new Error(`Vieclam24h trả về ${status}`)
+}
+
+/** Tải HTML, lùi dần khi gặp 429/5xx. Trả "" khi 404. Ném BlockedError khi gặp 403 hoặc trang chặn. */
 export async function htmlFetch(url: string): Promise<string> {
   const maxRetries = 3
   let delay = 1_000
@@ -39,11 +46,8 @@ export async function htmlFetch(url: string): Promise<string> {
       return html
     }
 
-    const retryable =
-      response.status === 429 || response.status === 403 || response.status >= 500
-    if (!retryable || attempt === maxRetries) {
-      throw new Error(`Vieclam24h trả về ${response.status}`)
-    }
+    const retryable = response.status === 429 || response.status >= 500
+    if (!retryable || attempt === maxRetries) throw errorForStatus(response.status)
     const jitter = Math.floor(Math.random() * 500)
     await new Promise((resolve) => setTimeout(resolve, delay + jitter))
     delay *= 2
@@ -56,7 +60,7 @@ export async function htmlFetch(url: string): Promise<string> {
 export async function textFetch(url: string): Promise<string> {
   const response = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(60_000) })
   if (response.status === 404) return ""
-  if (!response.ok) throw new Error(`Vieclam24h trả về ${response.status} cho ${url}`)
+  if (!response.ok) throw errorForStatus(response.status)
   return response.text()
 }
 
