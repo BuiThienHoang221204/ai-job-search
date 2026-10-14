@@ -132,12 +132,16 @@ export class ApplicationsService {
     const rows = await this.prisma.application.findMany({
       where: { userId, ...(status ? { status } : {}) },
       orderBy: { updatedAt: 'desc' },
-      select: { jobId: true, job: { select: { title: true, company: true } } },
+      select: {
+        jobId: true,
+        job: { select: { title: true, company: true, companyLogo: true } },
+      },
     });
     return rows.map(({ jobId, job }) => ({
       jobId,
       title: job.title,
       company: job.company,
+      companyLogo: job.companyLogo,
     }));
   }
 

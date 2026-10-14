@@ -31,7 +31,7 @@ export class ApplicationsController {
   }
 
   @ApiOperation({
-    summary: 'Tin của mọi đơn (chỉ tên tin và công ty) để đổ vào ô chọn',
+    summary: 'Tin của mọi đơn (tên tin, công ty, logo) để đổ vào ô chọn',
   })
   @Get('jobs')
   jobs(@CurrentUser() user: AuthUser, @Query() query: ApplicationJobsDto) {

@@ -185,11 +185,16 @@ describe('Vòng đời đơn ứng tuyển', () => {
       return response.body as unknown[];
     };
 
-    test('chỉ trả tên tin và công ty của đơn đúng trạng thái', async () => {
+    test('chỉ trả tên tin, công ty và logo của đơn đúng trạng thái', async () => {
       await seedApplication('APPLIED');
 
       expect(await jobsOf({ status: 'APPLIED' })).toEqual([
-        { jobId, title: 'Backend Developer', company: 'Công ty Thử Nghiệm' },
+        {
+          jobId,
+          title: 'Backend Developer',
+          company: 'Công ty Thử Nghiệm',
+          companyLogo: null,
+        },
       ]);
       expect(await jobsOf({ status: 'VIEWED' })).toEqual([]);
     });
