@@ -170,15 +170,6 @@ export class TimeRangeQueryDto extends PaginationQueryDto {
 
 export class ScrapePortalsQueryDto extends TimeRangeQueryDto {}
 
-export class OccupationCoverageQueryDto {
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(60)
-  staleDays?: number;
-}
-
 export class ScrapeBatchesQueryDto extends TimeRangeQueryDto {
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true')

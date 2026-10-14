@@ -1,19 +1,5 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-} from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
-import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { Roles } from '@/common/decorators/roles.decorator';
@@ -22,7 +8,6 @@ import { JobSourceRouter } from './services/job-source.router';
 import { ScraperService } from './services/scraper.service';
 import { ThrottleScrape } from '@/common/throttle';
 import { StartScrapeDto } from './scraper.dto';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
 
 @ApiTags('Scraper')
 @ApiBearerAuth()
@@ -35,15 +20,6 @@ export class ScraperController {
   ) {}
 
   @ApiOperation({
-    summary:
-      'Lấy danh sách các cổng thông tin (portals) cào dữ liệu đã đăng ký',
-  })
-  @Get('portals')
-  listPortals() {
-    return { portals: this.portals.describePortals() };
-  }
-
-  @ApiOperation({
     summary: 'Tải lại danh sách cổng thông tin cấu hình từ đĩa (Admin)',
   })
   @Post('portals/reload')
@@ -51,25 +27,6 @@ export class ScraperController {
   async reloadPortals() {
     const portals = await this.portals.reload();
     return { portals };
-  }
-
-  @ApiOperation({
-    summary: 'Lấy lịch sử các lượt chạy scraper của người dùng hiện tại',
-  })
-  @Get('runs')
-  async history(
-    @CurrentUser() user: AuthUser,
-    @Query() query: PaginationQueryDto,
-  ) {
-    const page = await this.scraper.history(user.id, query);
-    return { ...page, items: withFailureKinds(page.items) };
-  }
-
-  @ApiOperation({ summary: 'Lấy chi tiết một lượt chạy scraper theo ID' })
-  @ApiParam({ name: 'id', description: 'ID của lượt chạy scraper' })
-  @Get('runs/:id')
-  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return withFailureKind(await this.scraper.get(user.id, id));
   }
 
   @ThrottleScrape()

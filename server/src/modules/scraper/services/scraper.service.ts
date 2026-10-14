@@ -1,8 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ScrapeRun } from '@/generated/prisma/client';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
-import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
 import { QUEUE, QueueService } from '@/modules/queue/queue.service';
@@ -31,8 +29,8 @@ export class ScraperService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ai: AiService,
-    private readonly prompts: PromptBuilderService,
+    ai: AiService,
+    prompts: PromptBuilderService,
     private readonly portals: JobSourceRouter,
     private readonly queue: QueueService,
     config: ConfigService,
@@ -264,28 +262,5 @@ export class ScraperService {
 
     this.logger.log(fanOutSummary(plan, queued, served.length, users.length));
     return queued;
-  }
-
-  async history(userId: string, query: PaginationQueryDto) {
-    const where = { OR: [{ userId }, { userId: null }] };
-
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.scrapeRun.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        ...pageArgs(query),
-      }),
-      this.prisma.scrapeRun.count({ where }),
-    ]);
-
-    return pageOf(items, total, query);
-  }
-
-  async get(userId: string, id: string) {
-    const run = await this.prisma.scrapeRun.findFirst({
-      where: { id, OR: [{ userId }, { userId: null }] },
-    });
-    if (!run) throw new NotFoundException(`Không tìm thấy lần quét: ${id}`);
-    return run;
   }
 }

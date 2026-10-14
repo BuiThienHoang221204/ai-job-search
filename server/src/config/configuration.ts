@@ -148,5 +148,4 @@ const configuration = () => ({
   },
 });
 
-export type AppConfig = ReturnType<typeof configuration>;
 export default configuration;

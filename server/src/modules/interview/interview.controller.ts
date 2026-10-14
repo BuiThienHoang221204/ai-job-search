@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Logger,
   HttpCode,
   Param,
   Post,
@@ -33,8 +32,6 @@ import { ThrottleAi } from '@/common/throttle';
 @ApiBearerAuth()
 @Controller('interview')
 export class InterviewController {
-  private readonly logger = new Logger(InterviewController.name);
-
   constructor(
     private readonly interview: InterviewService,
     private readonly answers: InterviewAnswersService,
@@ -64,15 +61,6 @@ export class InterviewController {
   @Post('prep')
   async enqueue(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
     return this.interview.enqueue(user.id, dto.jobId, dto.force ?? false);
-  }
-
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Tạo tài liệu chuẩn bị phỏng vấn đồng bộ ngay lập tức',
-  })
-  @Post('prep-sync')
-  prepNow(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
-    return this.interview.generate(user.id, dto.jobId, dto.force ?? false);
   }
 
   @ApiOperation({

@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type { ApplicationStatus } from '@/generated/prisma/enums';
@@ -31,8 +30,6 @@ const APPLICATION_JOB = {
 
 @Injectable()
 export class ApplicationsService {
-  private readonly logger = new Logger(ApplicationsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly documents: DocumentsService,

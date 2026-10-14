@@ -26,7 +26,6 @@ import type { AuthUser } from '@/common/types/auth-user';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import {
   CreateApplicationEmailDto,
-  PreviewQueryDto,
   CreateCoverLetterDto,
   CreateCvDto,
   JobFromUrlDto,
@@ -106,20 +105,6 @@ export class DocumentsController {
     return withFailureKind(
       await this.documents.setTemplate(user.id, id, dto.templateId, dto.accent),
     );
-  }
-
-  @ApiOperation({ summary: 'Lấy bản xem trước HTML của CV' })
-  @ApiParam({ name: 'id', description: 'ID của CV' })
-  @Get(':id/preview')
-  @Header('Content-Type', 'text/html; charset=utf-8')
-  @Header('Content-Security-Policy', 'sandbox')
-  @Header('X-Frame-Options', 'SAMEORIGIN')
-  preview(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Query() query: PreviewQueryDto,
-  ) {
-    return this.documents.previewHtml(user.id, id, query);
   }
 
   @ApiOperation({ summary: 'Xem trước bản nháp HTML chưa lưu của CV' })
@@ -229,15 +214,5 @@ export class DocumentsController {
     if (stream) return { queued: false, documentId };
     await this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId });
     return { queued: true, documentId };
-  }
-
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Tạo tài liệu đồng bộ ngay lập tức (không qua hàng đợi)',
-  })
-  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
-  @Post(':id/generate-sync')
-  async generateNow(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return withFailureKind(await this.generator.generate(user.id, id));
   }
 }

@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type {
-  OccupationCoverageQueryDto,
-  ScrapeBatchesQueryDto,
-  TimeRangeQueryDto,
-} from '../admin.dto';
+import type { ScrapeBatchesQueryDto, TimeRangeQueryDto } from '../admin.dto';
 import { pageFromArray } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
@@ -13,11 +9,7 @@ import {
   portalStats,
   type RunLite,
 } from '../utils/scrape-batches';
-import { occupationCoverage } from '../utils/occupation-coverage';
-import { daysAgo } from '@/common/duration';
 import { dateRange, registeredOnly } from '../utils/filters';
-
-const DEFAULT_STALE_DAYS = 7;
 
 const MAX_RUNS = 2_000;
 
@@ -49,35 +41,6 @@ export class AdminScrapeService {
       ? batches.filter((batch) => batch.failed > 0)
       : batches;
     return pageFromArray(items, query);
-  }
-
-  async occupationCoverage(query: OccupationCoverageQueryDto) {
-    const staleDays = query.staleDays ?? DEFAULT_STALE_DAYS;
-    const cutoff = daysAgo(staleDays);
-
-    const [jobRows, crawlRows] = await Promise.all([
-      this.prisma.job.groupBy({
-        by: ['occupationCode'],
-        _count: { _all: true },
-      }),
-      this.prisma.occupationCrawl.findMany({
-        where: { lastCrawledAt: { gte: cutoff } },
-        select: { occupationCode: true },
-        distinct: ['occupationCode'],
-      }),
-    ]);
-
-    const jobCounts = new Map(
-      jobRows
-        .filter(
-          (row): row is typeof row & { occupationCode: string } =>
-            row.occupationCode !== null,
-        )
-        .map((row) => [row.occupationCode, row._count._all]),
-    );
-    const crawledCodes = new Set(crawlRows.map((row) => row.occupationCode));
-
-    return { staleDays, items: occupationCoverage(jobCounts, crawledCodes) };
   }
 
   private cap(): number {

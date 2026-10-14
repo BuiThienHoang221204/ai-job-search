@@ -59,14 +59,6 @@ export class PreviewBodyDto extends UpdateCvDto {
   accent?: string;
 }
 
-export class PreviewQueryDto {
-  @IsOptional() @IsString() @Length(1, 40) templateId?: string;
-
-  @IsOptional()
-  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'accent phải có dạng #rrggbb' })
-  accent?: string;
-}
-
 export class SetTemplateDto {
   @IsString() @Length(1, 40) templateId!: string;
 

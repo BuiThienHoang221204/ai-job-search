@@ -63,17 +63,6 @@ describe('Phân trang trên các API danh sách', () => {
         }
       },
     },
-    {
-      path: '/api/scrape/runs',
-      seed: (userId: string, count: number) =>
-        harness.prisma.scrapeRun.createMany({
-          data: Array.from({ length: count }, () => ({
-            userId,
-            portal: 'topcv',
-            status: 'DONE' as const,
-          })),
-        }),
-    },
   ];
 
   describe.each(ENDPOINTS)('$path', ({ path, seed }) => {

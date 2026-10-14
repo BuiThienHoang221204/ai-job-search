@@ -91,17 +91,4 @@ export class UpskillController {
         }),
     });
   }
-
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Tạo báo cáo upskill đồng bộ ngay lập tức (dùng để thử nghiệm)',
-  })
-  @Post('generate-sync')
-  async generateNow(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: GenerateUpskillDto,
-  ) {
-    const report = await this.upskill.create(user.id, dto.jobId);
-    return this.upskill.generate(report.id);
-  }
 }

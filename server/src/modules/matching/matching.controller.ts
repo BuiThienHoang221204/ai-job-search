@@ -140,18 +140,4 @@ export class MatchingController {
       events: this.matching.streamEvaluate(user.id, jobId, force === 'true'),
     });
   }
-
-  @ThrottleAi()
-  @ApiOperation({
-    summary: 'Đánh giá độ tương thích công việc đồng bộ ngay lập tức',
-  })
-  @Post('evaluate-sync')
-  async evaluateNow(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: EvaluateJobDto,
-  ) {
-    return withFailureKind(
-      await this.matching.evaluate(user.id, dto.jobId, dto.force ?? false),
-    );
-  }
 }

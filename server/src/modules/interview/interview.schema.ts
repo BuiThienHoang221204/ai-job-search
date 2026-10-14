@@ -80,5 +80,3 @@ export const answerFeedbackSchema = z.object({
     'Tối đa 4 chỗ cần sửa, quan trọng nhất trước. Mảng rỗng nếu câu trả lời đã tốt.',
   ),
 });
-
-export type AnswerFeedback = z.infer<typeof answerFeedbackSchema>;

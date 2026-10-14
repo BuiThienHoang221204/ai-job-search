@@ -35,14 +35,6 @@ export class QuestionBankController {
     return this.questions.list(query);
   }
 
-  @ApiOperation({ summary: 'Chi tiết một câu hỏi kèm đáp án nếu đã có' })
-  @ApiParam({ name: 'id', description: 'ID câu hỏi' })
-  @Public()
-  @Get(':id')
-  get(@Param('id') id: string) {
-    return this.questions.get(id);
-  }
-
   @ApiOperation({
     summary: 'Sinh đáp án cho một câu hỏi, hoặc trả về đáp án đã có',
   })

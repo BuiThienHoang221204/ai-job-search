@@ -133,7 +133,7 @@ Dùng chung một bộ markup là để **đổi mẫu không đổi thứ tự 
 
 **`Document.templateId` và `templateOptions` là CỘT RIÊNG, không nhét vào `content`.** `content` là output của model đã qua zod, còn mẫu là lựa chọn của người dùng — trộn chung thì mỗi lần sinh lại CV sẽ xoá mất mẫu họ đã chọn.
 
-**Đổi mẫu và xem trước đều KHÔNG gọi model.** `GET :id/preview?templateId=` render thử mà không ghi database (đó là cách kho mẫu bấm thử được); `PUT :id/template` mới lưu.
+**Đổi mẫu và xem trước đều KHÔNG gọi model.** `POST :id/preview` kèm `templateId` render thử mà không ghi database (đó là cách kho mẫu bấm thử được; bản `GET` đã gỡ 2026-10-14 vì giao diện không gọi); `PUT :id/template` mới lưu.
 
 **`@Get('cv-templates')` phải đứng TRƯỚC `@Get(':id')`.** Đã hỏng thật: khai sau thì Nest khớp "cv-templates" vào `:id` và trả 404 *"Không tìm thấy tài liệu: cv-templates"*. Typecheck và unit test đều không bắt được vì lỗi nằm ở THỨ TỰ khai báo. Có test e2e ghim.
 
@@ -394,7 +394,7 @@ Hai chỗ dùng nó, và cả hai đều LỌC TRƯỚC khi xoay vòng/gọi mod
 
 `test/unit/modules/scraper/query-plan.spec.ts` ghim cả ba ca (`HR_CB`, `MKT_CONTENT` không bị lật ngôn ngữ, `IT_EMBEDDED`). Không tìm thấy vấn đề tương tự ở các nhóm còn lại trong ảnh chụp gốc (`HOSPITALITY`, `AGRICULTURE`, `MANUAL`, `RETAIL`, `DATA_AI`) — từ khoá của chúng đã đúng convention từ trước, 0 tin ở các nhóm đó thuần tuý là hệ quả của bug "chưa có hồ sơ" mà P0 vừa sửa.
 
-**`GET /admin/scrape/occupation-coverage` — thêm 2026-09-30, thay việc admin tự chụp ảnh "Chọn ngành nghề" đi so tay.** Ghép `Job.occupationCode` (đếm) với `OccupationCrawl.lastCrawledAt` (đã quét trong `staleDays` ngày, mặc định 7) cho từng nhóm ngành, trừ `OTHER`. `stale: true` CHỈ khi ngành đã có lượt quét mà vẫn 0 tin — **cố ý không** báo động cho ngành chưa từng được quét (`attempted: false, jobCount: 0`), vì đó là trạng thái bình thường trong ~4 đêm đầu của chu kỳ phủ `taxonomyBaseline()`, không phải bug. Logic thuần ở `admin/utils/occupation-coverage.ts` (không đụng `this.prisma`, test được không cần DB); truy vấn nằm ở `AdminScrapeService.occupationCoverage`.
+**`GET /admin/scrape/occupation-coverage` đã gỡ 2026-10-14** — giao diện admin chưa từng gọi nó. Muốn dựng lại (đếm tin theo ngành, tách "chưa tới lượt quét" khỏi "quét rồi vẫn 0 tin") thì đọc lại commit gỡ.
 
 ### Lượt quét hệ thống gom cụm theo NGHỀ, không theo nhóm ngành
 
@@ -535,7 +535,7 @@ Groq áp chế độ "strict" của OpenAI — đòi MỌI field có mặt trong
 - `interview.open`, `interview.turn` (`mock-interview/service/interview-turn.service.ts`), đi qua `streamText`. **Không có chuỗi dự phòng** ở đây theo chủ đích cũ của `streamText` (token đã rời đi thì không còn đường lùi) — Groq hỏng giữa buổi phỏng vấn thì lượt đó lỗi thẳng. Đây cũng là chỗ DUY NHẤT trong app người dùng ngồi đếm từng giây (đo 9,7s trước chữ đầu tiên).
 - `MatchingService.streamEvaluate` (không phải `evaluate` — route đó ghi rõ "dùng để thử nghiệm", không phải luồng người dùng), `CompanyService.streamBuild` và `build` (hàng đợi `COMPANY_BRIEF` chỉ nhận việc do người dùng bấm hoặc rời trang giữa lượt stream, không có cron nào đẩy vào, nên mỗi việc vẫn là một người đang chờ — sửa 2026-10-07 sau khi stream hỏng rơi sang `build` toàn model opencode), `JobFromUrlService.extract`, `QuestionBankService.ensureAnswer`, `InterviewAnswersService.feedback` (`interview.feedback`), `DocumentComposer.coverLetter`/`streamCoverLetter` (`document.coverLetter`) và `applicationEmail` (`document.applicationEmail`) — hàng đợi `GENERATE_DOCUMENT` chỉ nhận tài liệu do người dùng tạo. Các chỗ này đi qua `ModelChain` nên vẫn có lưới `MODEL_FALLBACK_IDS` nếu Groq hỏng.
 
-Đường chạy NỀN cùng tên `purpose` (`evaluate-sync`, `job.requirements`, `skill.canonicalize`, `upskill.*`, `profile.synthesize`, `scrape.plan`, `document.cv`) **không đọc biến này** — chúng dùng model mặc định của hệ thống, cố ý không đổi.
+Đường chạy NỀN cùng tên `purpose` (`job.requirements`, `skill.canonicalize`, `upskill.*`, `profile.synthesize`, `scrape.plan`, `document.cv`) **không đọc biến này** — chúng dùng model mặc định của hệ thống, cố ý không đổi.
 
 **`AI_FAST_FALLBACK_IDS` — chuỗi dự phòng RIÊNG cho các điểm gọi qua `ModelChain` ở trên, thêm 2026-09-30.** Mặc định (để trống) chúng rơi về `MODEL_FALLBACK_IDS` chung — an toàn nhưng có thể dính lại model chậm của tác vụ nền nếu Groq hỏng. Đặt biến này thì **THAY HẲN**, không cộng dồn: `AI_FAST_MODEL_ID` hỏng sẽ thử tiếp đúng những model trong danh sách này, không bao giờ rơi xuống chuỗi chậm.
 

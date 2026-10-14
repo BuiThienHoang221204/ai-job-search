@@ -168,7 +168,7 @@ describe('Sửa CV', () => {
       .expect(200);
 
     const response = await request(harness.server)
-      .get(`/api/documents/${document.id}/preview`)
+      .post(`/api/documents/${document.id}/preview`)
       .set(auth())
       .expect(200);
 

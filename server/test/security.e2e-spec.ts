@@ -119,7 +119,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
   });
 
   describe('cách ly dữ liệu giữa hai người dùng', () => {
-    /// Đây là lỗ hổng IDOR đã vá: `POST /api/documents/:id/generate-sync` tra
+    /// Đây là lỗ hổng IDOR đã vá: route sinh lại tài liệu từng tra
     /// tài liệu chỉ theo `id`, không kèm `userId`. Bất kỳ ai đăng nhập cũng
     /// regenerate được và NHẬN VỀ toàn bộ nội dung CV của người khác.
     const createCvFor = async (user: TestUser): Promise<string> => {
@@ -144,9 +144,11 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       const attacker = await harness.signUp();
       const documentId = await createCvFor(owner);
 
-      await post(`/api/documents/${documentId}/generate-sync`, attacker).expect(
-        404,
-      );
+      const response = await post(
+        `/api/documents/${documentId}/generate-stream`,
+        attacker,
+      ).catch(() => null);
+      expect(response?.text ?? '').not.toContain('"type":"done"');
 
       // Không một lời gọi model nào được xảy ra: chặn phải diễn ra TRƯỚC khi
       // tốn tiền, không phải sau.

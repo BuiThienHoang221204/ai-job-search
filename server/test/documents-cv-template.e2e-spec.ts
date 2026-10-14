@@ -89,7 +89,7 @@ describe('Kho mẫu CV', () => {
     const document = await seedDoneCv();
 
     const response = await request(harness.server)
-      .get(`/api/documents/${document.id}/preview`)
+      .post(`/api/documents/${document.id}/preview`)
       .set(auth())
       .expect(200);
 
@@ -106,8 +106,8 @@ describe('Kho mẫu CV', () => {
     const document = await seedDoneCv();
 
     await request(harness.server)
-      .get(`/api/documents/${document.id}/preview`)
-      .query({ templateId: 'trang-trong' })
+      .post(`/api/documents/${document.id}/preview`)
+      .send({ templateId: 'trang-trong' })
       .set(auth())
       .expect(200);
 
@@ -212,7 +212,7 @@ describe('Kho mẫu CV', () => {
       .expect(200);
 
     const response = await request(harness.server)
-      .get(`/api/documents/${document.id}/preview`)
+      .post(`/api/documents/${document.id}/preview`)
       .set(auth())
       .expect(200);
 
@@ -255,7 +255,7 @@ describe('Kho mẫu CV', () => {
     const other = await harness.signUp();
 
     await request(harness.server)
-      .get(`/api/documents/${document.id}/preview`)
+      .post(`/api/documents/${document.id}/preview`)
       .set({ Authorization: `Bearer ${other.token}` })
       .expect(404);
   });
@@ -266,7 +266,7 @@ describe('Kho mẫu CV', () => {
     });
 
     await request(harness.server)
-      .get(`/api/documents/${pending.id}/preview`)
+      .post(`/api/documents/${pending.id}/preview`)
       .set(auth())
       .expect(422);
   });
