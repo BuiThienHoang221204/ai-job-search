@@ -430,6 +430,18 @@ Bảng `job_requirement_matches` vẫn còn nguyên giá trị: nó cho "Khớp 
 - **Bản rút 0 kỹ năng là FAILED, không phải DONE** (`hasSkills` trong `ai/utils/requirements.ts`). Đo 2026-09-28: 29 tin DONE mà `requiredSkills` rỗng, dồn vào EDUCATION (9/54) và HEALTHCARE (4/30), phần lớn từ `auto/fast` và `mimo-v2.5-free`. Trong lô thì tin rỗng rút lẻ lại một lần (như tin bị lô bỏ sót); đường lẻ vẫn rỗng thì FAILED. Chỉ có kỹ năng ưu tiên vẫn là hợp lệ.
 - **"Khớp x/y" trên thẻ tin chỉ đếm kỹ năng** (`systemMatch.skillMet/skillTotal`); `percent` thì vẫn tính cả số năm. Hiện "1/1" cho một tin mà cái khớp duy nhất là số năm chính là lỗi đã khiến người dùng tin tin giáo viên hợp với họ.
 
+## Tự trả lời câu hỏi phỏng vấn — thêm 2026-10-14
+
+**`interview_answers` khoá theo vân tay CHỮ câu hỏi (`questionKey`), không theo vị trí.** Bấm "Soạn lại" thì bộ đề mới có thể đặt một câu khác vào đúng chỗ cũ; khoá theo vị trí sẽ gắn câu trả lời cũ sang câu mới mà không có gì báo. Khoá theo chữ thì câu đã đổi tự rơi khỏi mức sẵn sàng (`readinessOf`), còn câu giữ nguyên chữ vẫn giữ câu trả lời.
+
+**Route vẫn định vị câu bằng `:kind/:index` — và đó là số thứ tự trong mảng GỐC.** Giao diện bỏ phần tử hỏng khi hiển thị (`parseStarAnswers`); đánh số lại sau khi lọc thì câu trả lời được ghi vào nhầm câu. FE dùng `indexedStarAnswers`/`indexedToughQuestions` giữ số gốc, và `test/visual/interview-practice.spec.ts` ghim điều này bằng một bộ đề mở đầu bằng phần tử hỏng (đã thử đánh số lại: spec đỏ, nhận `star/0` thay vì `star/1`).
+
+**`POST .../feedback` lưu chữ TRƯỚC rồi mới gọi model**, nên model hỏng thì người dùng mất lượt nhận xét chứ không mất câu trả lời. `feedbackKey` là vân tay bản đã được nhận xét; sửa chữ sau đó thì `feedbackStale: true` thay vì xoá nhận xét.
+
+**Ngày phỏng vấn nằm ở `Application.interviewAt`, không ràng buộc với trạng thái đơn** — không có trạng thái "Phỏng vấn" nào (chỉ `VIEWED`/`APPLIED`/`WITHDRAWN`). Bộ đề soạn từ tin đã lưu thì chưa có đơn nên không ghi được ngày.
+
+**Soạn đề từ mô tả dán tay CHƯA làm.** `InterviewPrep.jobId` lẫn buổi phỏng vấn thử đều bắt buộc có tin; hướng gọn nhất đã bàn là tạo một `Job` riêng của người dùng từ đoạn dán, nhưng phải chặn nó khỏi danh sách tin và khỏi chấm điểm cho người khác.
+
 ## Hàng đợi
 
 Bảy file, mỗi file một việc. `queue.service.ts` **re-export** `QUEUE` và mọi type, nên 37 file gọi tới vẫn chỉ import một đường và không cần biết bên trong chia thế nào:
@@ -513,7 +525,7 @@ Groq áp chế độ "strict" của OpenAI — đòi MỌI field có mặt trong
 **Một biến DUY NHẤT — `AI_FAST_MODEL_ID` — cho MỌI tác vụ "người dùng đứng chờ trực diện".** Từng tách hai biến (`AI_INTERVIEW_MODEL_ID` riêng cho phỏng vấn), gộp lại 2026-09-30 theo đúng yêu cầu: một chỗ cấu hình cho cả nhóm, không phải nhớ nhiều tên biến cho cùng một ý định. Sáu điểm gọi đọc nó:
 
 - `interview.open`, `interview.turn` (`mock-interview/service/interview-turn.service.ts`), đi qua `streamText`. **Không có chuỗi dự phòng** ở đây theo chủ đích cũ của `streamText` (token đã rời đi thì không còn đường lùi) — Groq hỏng giữa buổi phỏng vấn thì lượt đó lỗi thẳng. Đây cũng là chỗ DUY NHẤT trong app người dùng ngồi đếm từng giây (đo 9,7s trước chữ đầu tiên).
-- `MatchingService.streamEvaluate` (không phải `evaluate` — route đó ghi rõ "dùng để thử nghiệm", không phải luồng người dùng), `CompanyService.streamBuild` và `build` (hàng đợi `COMPANY_BRIEF` chỉ nhận việc do người dùng bấm hoặc rời trang giữa lượt stream, không có cron nào đẩy vào, nên mỗi việc vẫn là một người đang chờ — sửa 2026-10-07 sau khi stream hỏng rơi sang `build` toàn model opencode), `JobFromUrlService.extract`, `QuestionBankService.ensureAnswer`, `DocumentComposer.coverLetter`/`streamCoverLetter` (`document.coverLetter`) và `applicationEmail` (`document.applicationEmail`) — hàng đợi `GENERATE_DOCUMENT` chỉ nhận tài liệu do người dùng tạo. Các chỗ này đi qua `ModelChain` nên vẫn có lưới `MODEL_FALLBACK_IDS` nếu Groq hỏng.
+- `MatchingService.streamEvaluate` (không phải `evaluate` — route đó ghi rõ "dùng để thử nghiệm", không phải luồng người dùng), `CompanyService.streamBuild` và `build` (hàng đợi `COMPANY_BRIEF` chỉ nhận việc do người dùng bấm hoặc rời trang giữa lượt stream, không có cron nào đẩy vào, nên mỗi việc vẫn là một người đang chờ — sửa 2026-10-07 sau khi stream hỏng rơi sang `build` toàn model opencode), `JobFromUrlService.extract`, `QuestionBankService.ensureAnswer`, `InterviewAnswersService.feedback` (`interview.feedback`), `DocumentComposer.coverLetter`/`streamCoverLetter` (`document.coverLetter`) và `applicationEmail` (`document.applicationEmail`) — hàng đợi `GENERATE_DOCUMENT` chỉ nhận tài liệu do người dùng tạo. Các chỗ này đi qua `ModelChain` nên vẫn có lưới `MODEL_FALLBACK_IDS` nếu Groq hỏng.
 
 Đường chạy NỀN cùng tên `purpose` (`evaluate-sync`, `job.requirements`, `skill.canonicalize`, `upskill.*`, `profile.synthesize`, `scrape.plan`, `document.cv`) **không đọc biến này** — chúng dùng model mặc định của hệ thống, cố ý không đổi.
 
