@@ -56,6 +56,14 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 **Mặc định KHÔNG comment.** Chỉ hàm nào vừa có NHIỀU logic vừa được gọi từ NHIỀU nơi (thường là hàm trong `utils/` và method của service) mới được một dòng `/** ... */` ngắn ngay trên khai báo. Không comment cho hằng, kiểu, trường, class, import; không `//` trong thân hàm; không docblock nhiều dòng. Ngoại lệ duy nhất là chỉ thị cho công cụ (`eslint-disable`, `@ts-expect-error`). Lý do dài (đo được gì, vì sao chọn cách này, bẫy đã sập) thì viết vào chính file này hoặc `server/README.md` — chỗ đó người ta còn đọc, còn comment nằm giữa code thì mục nát khi code đổi. Chốt 2026-10-06, thay quy ước "comment một dòng" trước đó.
 
+**Logic thẳng, đọc từ trên xuống — đừng viết "khéo".** Chốt 2026-10-14 sau một đợt rà thấy code chạy đúng nhưng khó đọc hơn mức cần:
+
+- **Chỉ tách hàm khi việc tách có lý do**: được gọi từ ≥ 2 nơi, HOẶC gói một khái niệm có tên rõ nghĩa (`closingOf`, `requireQuestion`). Không tách chỉ để thân hàm ngắn đi, không lồng hàm trong hàm (closure khai trong thân hàm khác) trừ callback một dòng.
+- **Không generic, không `...rest` chỉ để tiện cho một chỗ gọi.** Đã sửa: `withClosing<T extends {...}>({ steps, ...run })` → hàm thường `closingOf(status, steps)` trả chuỗi, còn việc ghép trường viết thẳng ở chỗ gọi.
+- **Lọc rồi map thì viết `filter` + `map` hoặc vòng `for` có `continue`.** Không dùng `flatMap` trả `[]` hoặc `[x]` để vừa lọc vừa map (`readinessOf`).
+- **Không mẹo chuỗi**: bỏ phần rỗng TRƯỚC rồi mới ghép. Đã sửa: ghép `"Nhãn: giá trị"` rồi lọc dòng `endsWith(': ')`.
+- **Không ternary lồng** — dùng `if`.
+
 **Service chỉ giữ phần chạm DATABASE.** Truy vấn Prisma, transaction, phân trang, kiểm quyền sở hữu — ở lại service. Mọi thứ khác (thuần hàm, định dạng chuỗi, dựng prompt, suy ra nhãn, ánh xạ dữ liệu) tách sang `utils/` cùng module. Kiểm nhanh: hàm không đụng `this.prisma` thì nó không thuộc về service.
 
 **DTO nằm ở file riêng**, không khai trong controller. Một `<tên>.dto.ts` cho mỗi module.

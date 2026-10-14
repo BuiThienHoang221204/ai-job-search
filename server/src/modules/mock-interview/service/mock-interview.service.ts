@@ -13,6 +13,7 @@ import {
   formatInterviewDossier,
   quietDays,
   toughQuestionTexts,
+  closingOf,
   trimToolOutput,
   type InterviewDossier,
   type ListMockInterviewsQuery,
@@ -94,12 +95,21 @@ export class MockInterviewService {
           jobId: true,
           job: { select: { title: true, company: true } },
           _count: { select: { steps: true } },
+          steps: {
+            orderBy: { index: 'desc' },
+            take: 1,
+            select: { text: true },
+          },
         },
       }),
       this.prisma.agentRun.count({ where }),
     ]);
 
-    return pageOf(items, total, query);
+    const runs = items.map(({ steps, ...run }) => ({
+      ...run,
+      closing: closingOf(run.status, steps),
+    }));
+    return pageOf(runs, total, query);
   }
 
   async buildContext(userId: string, jobId: string): Promise<string> {

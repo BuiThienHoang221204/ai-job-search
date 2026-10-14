@@ -56,8 +56,8 @@ export function practiceQuestions(prep: PrepContent): PracticeQuestion[] {
     kind: 'STAR' as const,
     index,
     question: textOf(item.question),
-    hint: STAR_PARTS.map(([field, label]) => `${label}: ${textOf(item[field])}`)
-      .filter((line) => !line.endsWith(': '))
+    hint: STAR_PARTS.filter(([field]) => textOf(item[field]))
+      .map(([field, label]) => `${label}: ${textOf(item[field])}`)
       .join('\n'),
   }));
   const tough = asRecords(prep.toughQuestions).map((item, index) => ({
@@ -94,12 +94,16 @@ export const answerView = (answer: StoredAnswer) => ({
 export function readinessOf(prep: PrepContent, answers: StoredAnswer[]) {
   const byKey = new Map(answers.map((answer) => [answer.questionKey, answer]));
   const questions = practiceQuestions(prep);
-  const matched = questions.flatMap((question) => {
+  const matched = [];
+  for (const question of questions) {
     const answer = byKey.get(question.key);
-    return answer && answer.text.trim()
-      ? [{ kind: question.kind, index: question.index, ...answerView(answer) }]
-      : [];
-  });
+    if (!answer?.text.trim()) continue;
+    matched.push({
+      kind: question.kind,
+      index: question.index,
+      ...answerView(answer),
+    });
+  }
   return {
     practiced: matched.length,
     total: questions.length,

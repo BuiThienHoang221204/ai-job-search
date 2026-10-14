@@ -299,7 +299,7 @@ export class InterviewService {
     ]);
 
     const jobIds = preps.map((prep) => prep.jobId);
-    const [answers, applications] = await Promise.all([
+    const [answers, applications, mocks] = await Promise.all([
       this.prisma.interviewAnswer.findMany({
         where: { userId, jobId: { in: jobIds } },
         select: { ...ANSWER_FIELDS, jobId: true },
@@ -308,7 +308,15 @@ export class InterviewService {
         where: { userId, jobId: { in: jobIds } },
         select: APPLICATION_FIELDS,
       }),
+      this.prisma.agentRun.groupBy({
+        by: ['jobId'],
+        where: { userId, workflow: 'interview', jobId: { in: jobIds } },
+        _count: { _all: true },
+      }),
     ]);
+    const mockCountByJob = new Map(
+      mocks.map((row) => [row.jobId, row._count._all]),
+    );
     const applicationByJob = new Map(
       applications.map((application) => [application.jobId, application]),
     );
@@ -323,6 +331,7 @@ export class InterviewService {
         practiced: readiness.practiced,
         total: readiness.total,
         application: applicationByJob.get(prep.jobId) ?? null,
+        mockCount: mockCountByJob.get(prep.jobId) ?? 0,
       };
     });
 

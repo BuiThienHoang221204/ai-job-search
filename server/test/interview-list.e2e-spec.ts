@@ -99,4 +99,75 @@ describe('GET /interview · danh sách chỉ trả bản tóm tắt', () => {
 
     expect((response.body as { total: number }).total).toBe(0);
   });
+
+  const seedRun = (
+    owner: TestUser,
+    status: 'DONE' | 'WAITING_USER',
+    steps: string[],
+    workflow = 'interview',
+  ) =>
+    harness.prisma.agentRun.create({
+      data: {
+        userId: owner.id,
+        jobId,
+        workflow,
+        status,
+        input: {},
+        steps: {
+          create: steps.map((text, index) => ({
+            index,
+            text,
+            toolCalls: [],
+            toolResults: [],
+            durationMs: 1,
+          })),
+        },
+      },
+    });
+
+  test('danh sách đếm số buổi phỏng vấn thử của CHÍNH người dùng cho từng tin', async () => {
+    await seedPrep();
+    await seedRun(user, 'DONE', ['', 'Tổng kết']);
+    await seedRun(user, 'WAITING_USER', ['']);
+    await seedRun(user, 'DONE', ['x'], 'apply');
+    const other = await harness.signUp();
+    await seedRun(other, 'DONE', ['x']);
+
+    const response = await request(harness.server)
+      .get('/api/interview')
+      .set(auth(user))
+      .expect(200);
+
+    expect(
+      (response.body as { items: { mockCount: number }[] }).items[0].mockCount,
+    ).toBe(2);
+  });
+
+  test('buổi đã xong mang lời tổng kết là chữ của bước cuối; buổi dở thì không', async () => {
+    await seedRun(user, 'DONE', [
+      '',
+      'Nhận xét giữa buổi',
+      'Bạn trả lời tốt phần kỹ thuật.',
+    ]);
+    await seedRun(user, 'WAITING_USER', ['', 'Nhận xét lượt một']);
+
+    const response = await request(harness.server)
+      .get('/api/mock-interviews')
+      .query({ jobId, workflow: 'interview' })
+      .set(auth(user))
+      .expect(200);
+    const items = (
+      response.body as {
+        items: { status: string; closing: string | null; steps?: unknown }[];
+      }
+    ).items;
+
+    expect(items.find((item) => item.status === 'DONE')?.closing).toBe(
+      'Bạn trả lời tốt phần kỹ thuật.',
+    );
+    expect(
+      items.find((item) => item.status === 'WAITING_USER')?.closing,
+    ).toBeNull();
+    expect(items[0]).not.toHaveProperty('steps');
+  });
 });

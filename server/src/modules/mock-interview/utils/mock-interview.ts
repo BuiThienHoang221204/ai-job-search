@@ -4,6 +4,18 @@ import { DAY_MS } from '@/common/duration';
 
 export const ASK_USER_TOOL = 'ask_user';
 
+const CLOSING_LIMIT = 400;
+
+/** Lời tổng kết của buổi đã xong là chữ của bước CUỐI; buổi chưa xong thì không có. */
+export function closingOf(
+  status: string,
+  lastSteps: Array<{ text: string }>,
+): string | null {
+  const text = lastSteps[0]?.text.trim() ?? '';
+  if (status !== 'DONE' || !text) return null;
+  return text.slice(0, CLOSING_LIMIT);
+}
+
 const TEXT_LIMIT = 500;
 const MAX_DESCRIPTION_CHARS = 2000;
 
