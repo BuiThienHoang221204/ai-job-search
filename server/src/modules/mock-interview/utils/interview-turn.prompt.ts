@@ -40,6 +40,14 @@ const RULES = [
 
 export const interviewTurnSystem = (): string => RULES;
 
+export function openingPrompt(dossier: string, question?: string): string {
+  const opening = `Hãy bắt đầu buổi phỏng vấn. Đây là lượt đầu tiên, chưa có câu trả lời nào của ứng viên, nên BỎ QUA phần nhận xét, viết thẳng "${TURN_MARKER.next}" rồi xuống dòng rồi "${QUESTION_MARK}" rồi`;
+  const ask = question?.trim()
+    ? `${opening} hỏi ĐÚNG câu ứng viên đã chọn để luyện, giữ nguyên ý: «${question.trim()}»`
+    : `${opening} một câu hỏi mở đầu về động lực/Agile.`;
+  return `${dossier}\n\n---\n${ask}`;
+}
+
 export interface TurnHead {
   done: boolean;
   rest: string;

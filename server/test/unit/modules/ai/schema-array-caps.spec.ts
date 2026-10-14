@@ -5,7 +5,10 @@ import {
   cvEditSchema,
   cvSchema,
 } from 'src/modules/documents/schemas/document.schema.js';
-import { interviewPrepSchema } from 'src/modules/interview/interview.schema.js';
+import {
+  answerFeedbackSchema,
+  interviewPrepSchema,
+} from 'src/modules/interview/interview.schema.js';
 import {
   upskillGapsSchema,
   upskillPlanSchema,
@@ -89,6 +92,7 @@ const MODEL_SCHEMAS: Array<[string, ZodType]> = [
   ['coverLetterSchema', coverLetterSchema],
   ['applicationEmailSchema', applicationEmailSchema],
   ['interviewPrepSchema', interviewPrepSchema],
+  ['answerFeedbackSchema', answerFeedbackSchema],
   ['upskillGapsSchema', upskillGapsSchema],
   ['upskillPlanSchema', upskillPlanSchema],
   ['profileProposalSchema', profileProposalSchema],

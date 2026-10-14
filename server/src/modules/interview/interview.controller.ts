@@ -3,11 +3,12 @@ import {
   Controller,
   Get,
   Logger,
+  HttpCode,
   Param,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -17,8 +18,15 @@ import {
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { PrepDto } from './interview.dto';
+import {
+  AnswerParamsDto,
+  FeedbackAnswerDto,
+  PrepDto,
+  SaveAnswerDto,
+} from './interview.dto';
+import { InterviewAnswersService } from './interview-answers.service';
 import { InterviewService } from './interview.service';
+import { KIND_OF_PARAM } from './utils/interview-answers';
 import { ThrottleAi } from '@/common/throttle';
 
 @ApiTags('Interview Preparation')
@@ -27,7 +35,10 @@ import { ThrottleAi } from '@/common/throttle';
 export class InterviewController {
   private readonly logger = new Logger(InterviewController.name);
 
-  constructor(private readonly interview: InterviewService) {}
+  constructor(
+    private readonly interview: InterviewService,
+    private readonly answers: InterviewAnswersService,
+  ) {}
 
   @ApiOperation({
     summary: 'Lấy danh sách các tài liệu chuẩn bị phỏng vấn của người dùng',
@@ -62,5 +73,43 @@ export class InterviewController {
   @Post('prep-sync')
   prepNow(@CurrentUser() user: AuthUser, @Body() dto: PrepDto) {
     return this.interview.generate(user.id, dto.jobId, dto.force ?? false);
+  }
+
+  @ApiOperation({
+    summary: 'Lưu câu người dùng tự trả lời; chuỗi rỗng là xoá câu trả lời',
+  })
+  @Put(':jobId/answers/:kind/:index')
+  saveAnswer(
+    @CurrentUser() user: AuthUser,
+    @Param() params: AnswerParamsDto,
+    @Body() dto: SaveAnswerDto,
+  ) {
+    return this.answers.save(
+      user.id,
+      params.jobId,
+      KIND_OF_PARAM[params.kind],
+      params.index,
+      dto.text,
+    );
+  }
+
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Lưu câu trả lời rồi nhờ AI nhận xét theo khung STAR',
+  })
+  @HttpCode(200)
+  @Post(':jobId/answers/:kind/:index/feedback')
+  feedback(
+    @CurrentUser() user: AuthUser,
+    @Param() params: AnswerParamsDto,
+    @Body() dto: FeedbackAnswerDto,
+  ) {
+    return this.answers.feedback(
+      user.id,
+      params.jobId,
+      KIND_OF_PARAM[params.kind],
+      params.index,
+      dto.text,
+    );
   }
 }

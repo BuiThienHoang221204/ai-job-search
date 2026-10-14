@@ -66,7 +66,11 @@ export class MockInterviewController {
   ): Promise<void> {
     let runId: string | null = null;
     try {
-      const opened = await this.turns.openStream(user.id, dto.jobId);
+      const opened = await this.turns.openStream(
+        user.id,
+        dto.jobId,
+        dto.question,
+      );
       runId = opened.runId;
       response.setHeader('Content-Type', 'text/plain; charset=utf-8');
       response.setHeader('Cache-Control', 'no-cache, no-transform');

@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { requiredCappedTextVi } from '@/common/model-output';
+import {
+  boundedList,
+  cappedTextVi,
+  requiredCappedTextVi,
+} from '@/common/model-output';
 
 const vn = (max: number, hint: string) => requiredCappedTextVi(max, hint);
 
@@ -60,3 +64,21 @@ export const interviewPrepSchema = z.object({
 });
 
 export type InterviewPrepResult = z.infer<typeof interviewPrepSchema>;
+
+export const answerFeedbackSchema = z.object({
+  summary: vn(
+    240,
+    'Một câu: câu trả lời đã làm được gì. Với câu STAR, nêu phần nào đã có.',
+  ),
+  improvements: boundedList(
+    cappedTextVi(
+      220,
+      'Một chỗ cần sửa, cụ thể và làm được ngay. Gợi ý con số hay ví dụ chỉ khi hồ sơ có.',
+    ),
+    4,
+  ).describe(
+    'Tối đa 4 chỗ cần sửa, quan trọng nhất trước. Mảng rỗng nếu câu trả lời đã tốt.',
+  ),
+});
+
+export type AnswerFeedback = z.infer<typeof answerFeedbackSchema>;

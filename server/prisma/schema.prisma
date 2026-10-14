@@ -47,18 +47,19 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile        Profile?
-  matches        JobMatch[]
-  skillMatches   JobRequirementMatch[]
-  savedJobs      SavedJob[]
-  interviewPreps InterviewPrep[]
-  upskillReports UpskillReport[]
-  documents      Document[]
-  scrapeRuns     ScrapeRun[]
-  aiCalls        AiCall[]
-  applications   Application[]
-  profileDrafts  ProfileDraft[]
-  agentRuns      AgentRun[]
+  profile          Profile?
+  matches          JobMatch[]
+  skillMatches     JobRequirementMatch[]
+  savedJobs        SavedJob[]
+  interviewPreps   InterviewPrep[]
+  interviewAnswers InterviewAnswer[]
+  upskillReports   UpskillReport[]
+  documents        Document[]
+  scrapeRuns       ScrapeRun[]
+  aiCalls          AiCall[]
+  applications     Application[]
+  profileDrafts    ProfileDraft[]
+  agentRuns        AgentRun[]
 
   @@map("users")
 }
@@ -176,9 +177,9 @@ model Job {
   ///
   /// Mã tỉnh/thành chuẩn hoá từ `location`. `null` = không suy ra được, và tin
   /// đó sẽ không xuất hiện khi lọc theo tỉnh - cố ý, vì đoán bừa còn tệ hơn.
-  provinceCode   String?
+  provinceCode      String?
   /// Mã nhóm ngành, suy từ `title` và `tags`.
-  occupationCode String?
+  occupationCode    String?
   /// Nghề cụ thể bên trong nhóm, ví dụ `IT_QA` trong nhóm `IT`. `null` khi
   /// không đủ căn cứ — lọc theo nghề sẽ bỏ qua tin đó thay vì đoán bừa.
   ///
@@ -188,13 +189,13 @@ model Job {
   /// `title`, `company` và `tags` gộp lại, đã hạ chữ thường và bỏ dấu. Ô tìm
   /// kiếm chạy `LIKE` trên đúng cột này để ăn được index trigram - `ILIKE` trên
   /// `title` thì không index nào đỡ nổi.
-  searchText     String?
+  searchText        String?
   /// Vân tay "công ty | chức danh đã bỏ nhiễu | tỉnh", dùng để nhận ra cùng một
   /// tin đăng trên nhiều portal. `null` = không đủ dữ liệu để gộp.
   ///
   /// KHÔNG đặt @@unique: hai tin thật sự khác nhau vẫn có thể đụng khoá, và lúc
   /// đó upsert sẽ ghi đè mất một tin. Kiểm tra bằng truy vấn lúc ghi.
-  dedupeKey      String?
+  dedupeKey         String?
 
   /// Trỏ về bản GỐC khi tin này là bản sao lấy từ portal khác.
   ///
@@ -222,14 +223,15 @@ model Job {
   postedAt  DateTime?
   scrapedAt DateTime  @default(now())
 
-  matches        JobMatch[]
-  skillMatches   JobRequirementMatch[]
-  saves          SavedJob[]
-  interviewPreps InterviewPrep[]
-  documents      Document[]
-  applications   Application[]
-  agentRuns      AgentRun[]
-  requirements   JobRequirement?
+  matches          JobMatch[]
+  skillMatches     JobRequirementMatch[]
+  saves            SavedJob[]
+  interviewPreps   InterviewPrep[]
+  interviewAnswers InterviewAnswer[]
+  documents        Document[]
+  applications     Application[]
+  agentRuns        AgentRun[]
+  requirements     JobRequirement?
 
   @@unique([source, externalId])
   /// Thứ tự mặc định của danh sách là `scrapedAt` giảm dần, kết bằng `id`, nên
@@ -531,6 +533,42 @@ model InterviewPrep {
   @@unique([userId, jobId])
   @@index([jobId])
   @@map("interview_preps")
+}
+
+enum InterviewQuestionKind {
+  STAR
+  TOUGH
+}
+
+/// Câu người dùng tự trả lời trong bộ chuẩn bị phỏng vấn, kèm nhận xét của model.
+///
+/// Khoá theo vân tay CHỮ câu hỏi chứ không theo vị trí: soạn lại bộ đề thì câu cũ
+/// không còn khớp nên câu trả lời của nó rơi khỏi mức sẵn sàng, thay vì gắn nhầm
+/// sang câu mới đứng cùng chỗ.
+model InterviewAnswer {
+  id     String @id @default(cuid())
+  userId String
+  jobId  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  questionKey String
+  kind        InterviewQuestionKind
+  question    String                @db.Text
+  text        String                @db.Text
+
+  feedback    Json?
+  /// Vân tay câu trả lời mà `feedback` đã nhận xét; khác `text` hiện tại tức là nhận xét đã cũ.
+  feedbackKey String?
+  modelId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, jobId, questionKey])
+  @@index([jobId])
+  @@map("interview_answers")
 }
 
 // ---------------------------------------------------------------------------
@@ -897,9 +935,11 @@ model Application {
 
   /// Ngày thực sự bấm nộp, không phải ngày tạo bản ghi. Một đơn có thể nằm ở
   /// RANKED nhiều ngày trước khi nộp.
-  appliedAt DateTime?
+  appliedAt   DateTime?
   /// Ngày chốt kết quả cuối (HIRED / REJECTED / NO_RESPONSE / ...).
-  closedAt  DateTime?
+  closedAt    DateTime?
+  /// Lịch phỏng vấn người dùng tự ghi; không ràng buộc với trạng thái đơn.
+  interviewAt DateTime?
 
   events ApplicationEvent[]
 
@@ -1126,9 +1166,9 @@ model SalaryReference {
   fetchedAt  DateTime
   visibility SalaryRefVisibility @default(INTERNAL)
 
-  industrySlug String
-  positionSlug String
-  positionName String
+  industrySlug   String
+  positionSlug   String
+  positionName   String
   /// `null` = không xếp được về mã ngành nào, và bản ghi sẽ không được trả ra.
   occupationCode String?
 
@@ -1220,25 +1260,25 @@ enum InterviewQuestionStatus {
 model InterviewQuestion {
   id String @id @default(cuid())
 
-  source   InterviewQuestionSource
+  source     InterviewQuestionSource
   /// Id ở hệ thống nguồn. `null` với câu tự sinh và câu do người dùng nhập.
-  sourceId String?
+  sourceId   String?
   /// Nguyên văn lúc thu về, KHÔNG sửa. Cần để chạy lại lượt dịch khi đổi prompt.
-  sourceText String @db.Text
+  sourceText String                  @db.Text
 
   status InterviewQuestionStatus @default(RAW)
 
   /// Câu hỏi tiếng Việt đem hiển thị.
-  text     String?               @db.Text
+  text     String?                @db.Text
   /// Mã nhóm ngành trong `OCCUPATIONS`. `null` khi chưa qua lượt phân loại.
   industry String?
   type     InterviewQuestionType?
 
   /// Độ khó theo nguồn, giữ nguyên chữ. Kho x-interview chỉ có 3% câu "Dễ" nên
   /// đừng tin cột này để xếp lộ trình luyện tập.
-  difficulty String?
+  difficulty          String?
   /// Số lượt luyện tập ở nguồn. Dùng để chọn câu nào đáng sinh đáp án trước.
-  sourcePracticeCount Int @default(0)
+  sourcePracticeCount Int     @default(0)
 
   why          String?  @db.Text
   keyPoints    String[] @default([])

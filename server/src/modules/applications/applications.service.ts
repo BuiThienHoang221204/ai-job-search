@@ -254,6 +254,19 @@ export class ApplicationsService {
     return updated;
   }
 
+  async setInterviewDate(userId: string, id: string, interviewAt: Date | null) {
+    const { count } = await this.prisma.application.updateMany({
+      where: { id, userId },
+      data: { interviewAt },
+    });
+    if (!count) throw new NotFoundException('Không tìm thấy đơn ứng tuyển');
+
+    return this.prisma.application.findUniqueOrThrow({
+      where: { id },
+      include: { job: { select: APPLICATION_JOB } },
+    });
+  }
+
   async countsFor(userId: string): Promise<{ total: number; active: number }> {
     const rows = await this.prisma.application.findMany({
       where: { userId },

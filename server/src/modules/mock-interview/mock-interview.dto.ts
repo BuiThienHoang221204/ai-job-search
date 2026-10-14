@@ -17,6 +17,11 @@ export class OpenMockInterviewDto {
   @IsString({ message: 'Thiếu mã công việc' })
   @Length(1, 40, { message: 'Mã công việc không hợp lệ' })
   jobId!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 300, { message: 'Câu hỏi mở đầu quá dài' })
+  question?: string;
 }
 
 export class AnswerTurnDto {

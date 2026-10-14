@@ -1,6 +1,7 @@
 import {
   countForeign,
   createStreamScrubber,
+  openingPrompt,
   QUESTION_MARK,
   splitTurnMarker,
   splitTurnParts,
@@ -228,5 +229,29 @@ describe('dọn chữ ngoài bảng Latin', () => {
     expect(countForeign(keep)).toBe(0);
     const scrub = createStreamScrubber();
     expect(scrub.push(keep) + scrub.flush()).toBe(keep);
+  });
+});
+
+describe('openingPrompt', () => {
+  test('không chọn câu thì mở bằng câu hỏi về động lực như cũ', () => {
+    const prompt = openingPrompt('HỒ SƠ');
+
+    expect(prompt.startsWith('HỒ SƠ\n\n---\n')).toBe(true);
+    expect(prompt).toContain('động lực/Agile');
+  });
+
+  test('"Luyện câu này" mở buổi bằng đúng câu người dùng chọn', () => {
+    const prompt = openingPrompt(
+      'HỒ SƠ',
+      '  Kể về lần bạn sửa lỗi production?  ',
+    );
+
+    expect(prompt).toContain('«Kể về lần bạn sửa lỗi production?»');
+    expect(prompt).not.toContain('động lực/Agile');
+    expect(prompt).toContain(QUESTION_MARK);
+  });
+
+  test('câu chọn toàn khoảng trắng coi như không chọn', () => {
+    expect(openingPrompt('HỒ SƠ', '   ')).toContain('động lực/Agile');
   });
 });

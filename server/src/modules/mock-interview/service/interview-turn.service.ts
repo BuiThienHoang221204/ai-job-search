@@ -13,10 +13,10 @@ import {
   countForeign,
   createStreamScrubber,
   interviewTurnSystem,
+  openingPrompt,
   QUESTION_MARK,
   splitTurnMarker,
   splitTurnParts,
-  TURN_MARKER,
   type TurnParts,
 } from '../utils/interview-turn.prompt';
 import {
@@ -39,6 +39,7 @@ export class InterviewTurnService {
   async openStream(
     userId: string,
     jobId: string,
+    question?: string,
   ): Promise<{ runId: string; stream: AsyncGenerator<string> }> {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
@@ -55,7 +56,7 @@ export class InterviewTurnService {
         jobId,
         status: 'RUNNING',
         startedAt: new Date(),
-        input: {},
+        input: question ? { question } : {},
       },
     });
 
@@ -69,10 +70,9 @@ export class InterviewTurnService {
     }
 
     const startedAt = Date.now();
-    const openingPrompt = `${dossier}\n\n---\nHãy bắt đầu buổi phỏng vấn. Đây là lượt đầu tiên, chưa có câu trả lời nào của ứng viên, nên BỎ QUA phần nhận xét, viết thẳng "${TURN_MARKER.next}" rồi xuống dòng rồi "${QUESTION_MARK}" rồi một câu hỏi mở đầu về động lực/Agile.`;
     const { result } = await this.ai.streamText({
       system: interviewTurnSystem(),
-      messages: [{ role: 'user', content: openingPrompt }],
+      messages: [{ role: 'user', content: openingPrompt(dossier, question) }],
       modelId: process.env.AI_FAST_MODEL_ID || undefined,
       context: { purpose: 'interview.open', userId },
     });

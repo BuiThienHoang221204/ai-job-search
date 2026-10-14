@@ -10,6 +10,7 @@ import type { AuthUser } from '@/common/types/auth-user';
 import {
   ApplicationJobsDto,
   CreateApplicationDto,
+  InterviewDateDto,
   ListApplicationsDto,
   UpdateStatusDto,
 } from './applications.dto';
@@ -57,6 +58,21 @@ export class ApplicationsController {
       dto.status,
       dto.note,
       'user',
+    );
+  }
+
+  @ApiOperation({ summary: 'Ghi, đổi hoặc xoá (null) ngày phỏng vấn của đơn' })
+  @ApiParam({ name: 'id', description: 'ID của đơn ứng tuyển' })
+  @Put(':id/interview-date')
+  setInterviewDate(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: InterviewDateDto,
+  ) {
+    return this.applications.setInterviewDate(
+      user.id,
+      id,
+      dto.interviewAt === null ? null : new Date(dto.interviewAt),
     );
   }
 }

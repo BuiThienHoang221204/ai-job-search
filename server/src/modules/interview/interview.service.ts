@@ -23,10 +23,26 @@ import {
   buildPrepPrompt,
   PREP_SECTIONS,
 } from './utils/interview-prep.prompt';
+import { readinessOf } from './utils/interview-answers';
 import { messageOf } from '@/common/error-message';
 import type { StreamObjectOptions } from '../ai/ai.types';
 
 const SKILL_NAME = 'job-application-assistant';
+
+const ANSWER_FIELDS = {
+  questionKey: true,
+  text: true,
+  feedback: true,
+  feedbackKey: true,
+  updatedAt: true,
+} as const;
+
+const APPLICATION_FIELDS = {
+  id: true,
+  jobId: true,
+  status: true,
+  interviewAt: true,
+} as const;
 
 const prepCall = (
   userId: string,
@@ -233,7 +249,23 @@ export class InterviewService {
     });
     if (!prep)
       throw new NotFoundException('Chưa soạn câu hỏi cho công việc này');
-    return withFailureKind(prep);
+
+    const [answers, application] = await Promise.all([
+      this.prisma.interviewAnswer.findMany({
+        where: { userId, jobId },
+        select: ANSWER_FIELDS,
+      }),
+      this.prisma.application.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+        select: APPLICATION_FIELDS,
+      }),
+    ]);
+
+    return {
+      ...withFailureKind(prep),
+      ...readinessOf(prep, answers),
+      application,
+    };
   }
 
   async list(userId: string, query: PaginationQueryDto) {
@@ -251,6 +283,8 @@ export class InterviewService {
           error: true,
           generatedAt: true,
           updatedAt: true,
+          starAnswers: true,
+          toughQuestions: true,
           job: {
             select: {
               id: true,
@@ -264,6 +298,34 @@ export class InterviewService {
       this.prisma.interviewPrep.count({ where }),
     ]);
 
-    return pageOf(withFailureKinds(preps), total, query);
+    const jobIds = preps.map((prep) => prep.jobId);
+    const [answers, applications] = await Promise.all([
+      this.prisma.interviewAnswer.findMany({
+        where: { userId, jobId: { in: jobIds } },
+        select: { ...ANSWER_FIELDS, jobId: true },
+      }),
+      this.prisma.application.findMany({
+        where: { userId, jobId: { in: jobIds } },
+        select: APPLICATION_FIELDS,
+      }),
+    ]);
+    const applicationByJob = new Map(
+      applications.map((application) => [application.jobId, application]),
+    );
+
+    const items = preps.map(({ starAnswers, toughQuestions, ...prep }) => {
+      const readiness = readinessOf(
+        { starAnswers, toughQuestions },
+        answers.filter((answer) => answer.jobId === prep.jobId),
+      );
+      return {
+        ...prep,
+        practiced: readiness.practiced,
+        total: readiness.total,
+        application: applicationByJob.get(prep.jobId) ?? null,
+      };
+    });
+
+    return pageOf(withFailureKinds(items), total, query);
   }
 }

@@ -1,4 +1,11 @@
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import type { ApplicationStatus } from '@/generated/prisma/enums';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { ALL_STATUSES } from './transitions';
@@ -30,4 +37,13 @@ export class UpdateStatusDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+}
+
+export class InterviewDateDto {
+  @ValidateIf((_, value) => value !== null)
+  @IsISO8601(
+    { strict: true },
+    { message: 'Ngày phỏng vấn phải là chuỗi ISO 8601 hoặc null' },
+  )
+  interviewAt!: string | null;
 }
