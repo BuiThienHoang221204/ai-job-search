@@ -135,6 +135,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
       name: 'Phân tích dữ liệu',
       keywords: [
         'data analyst',
+        'data analysis',
         'phan tich du lieu',
         'business intelligence',
         'bi developer',
@@ -397,6 +398,9 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'quality control',
         'quality assurance',
         'quan ly chat luong',
+        'iqc',
+        'ipqc',
+        'oqc',
       ],
     },
     {
@@ -437,7 +441,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
     {
       code: 'CON_QS',
       name: 'Dự toán / QS',
-      keywords: ['du toan', 'quantity surveyor', 'boc tach khoi luong'],
+      keywords: ['du toan', 'quantity surveyor', 'khoi luong'],
     },
     {
       code: 'CON_ME',

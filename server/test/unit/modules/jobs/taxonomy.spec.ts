@@ -118,6 +118,11 @@ describe('resolveOccupation', () => {
     ['Brand Manager', 'MARKETING'],
     ['Nhân Viên Telesale', 'SALES'],
     ['[Aeon Đà Nẵng] Trưởng Quầy Thực Phẩm Tươi Sống', 'RETAIL'],
+    ['Chief Financial Officer', 'FINANCE'],
+    ['Data Analysis Officer (AEON Group Point)', 'DATA_AI'],
+    ['Inspector 3, IQC', 'MANUFACTURING'],
+    ['Kỹ sư Khối lượng', 'CONSTRUCTION'],
+    ['BIM Engineer (Transportation Infrastructure)', 'CONSTRUCTION'],
   ])('tiêu đề từng rơi vào OTHER: %s -> %s', (title, code) => {
     expect(resolveOccupation(title, [])).toBe(code);
   });
@@ -143,6 +148,18 @@ describe('resolveOccupation', () => {
     ['Kỹ sư điện tử', 'MANUFACTURING'],
   ])(
     '"thương mại điện tử" không bị đọc thành "điện tử": %s -> %s',
+    (title, code) => {
+      expect(resolveOccupation(title, [])).toBe(code);
+    },
+  );
+
+  /// Tin "Content Creator" mang nhãn "Marketing - PR" từng nằm ở Thiết kế vì DESIGN đứng trước MARKETING trong danh mục.
+  test.each([
+    ['Nhân viên Sáng tạo Nội dung (Content Creator)', 'MARKETING'],
+    ['Content Creator TikTok', 'MARKETING'],
+    ['Graphic Designer', 'DESIGN'],
+  ])(
+    'sáng tạo nội dung là Marketing, không phải Thiết kế: %s -> %s',
     (title, code) => {
       expect(resolveOccupation(title, [])).toBe(code);
     },
