@@ -2,8 +2,6 @@ import {
   activityStreak,
   buildSuggestions,
   marketSummary,
-  normaliseSkill,
-  recurringGaps,
   roundedScore,
   weekDays,
   weeklyProgress,
@@ -24,94 +22,6 @@ describe('roundedScore', () => {
 
   test('làm tròn số lẻ', () => {
     expect(roundedScore(72.6)).toBe(73);
-  });
-});
-
-const job = (...skills: string[]) => skills;
-
-describe('normaliseSkill', () => {
-  test.each([
-    ['ReactJS', 'React'],
-    ['NodeJS', 'Node'],
-    ['Next.js', 'NextJS'],
-    ['Vue.js', 'VueJS'],
-    ['Express JS', 'ExpressJS'],
-  ])('%s và %s được coi là một', (a, b) => {
-    expect(normaliseSkill(a)).toBe(normaliseSkill(b));
-  });
-
-  test('không nhầm JavaScript thành Java', () => {
-    // Cắt đuôi "js" không được dính vào JavaScript, và so khớp chuỗi con thì
-    // "JavaScript".includes("Java") sẽ làm hệ thống im lặng về việc thiếu Java.
-    expect(normaliseSkill('JavaScript')).not.toBe(normaliseSkill('Java'));
-  });
-
-  test('không cắt đuôi của tên quá ngắn', () => {
-    expect(normaliseSkill('JS')).toBe('js');
-  });
-
-  test('bỏ khoảng trắng, dấu chấm, gạch dưới, gạch ngang', () => {
-    expect(normaliseSkill('Spring  Boot')).toBe(normaliseSkill('spring-boot'));
-    expect(normaliseSkill('Tailwind_CSS')).toBe(normaliseSkill('Tailwind CSS'));
-  });
-});
-
-describe('recurringGaps', () => {
-  test('KHÔNG báo kỹ năng mà hồ sơ đã có dù viết khác dạng', () => {
-    const gaps = recurringGaps([job('React'), job('React')], ['ReactJS']);
-    expect(gaps).toEqual([]);
-  });
-
-  test('đếm theo số TIN, không theo số lần xuất hiện', () => {
-    const gaps = recurringGaps(
-      [job('GraphQL', 'GraphQL', 'GraphQL'), job('GraphQL')],
-      [],
-    );
-    expect(gaps[0]).toEqual({ skill: 'GraphQL', jobCount: 2 });
-  });
-
-  test('bỏ kỹ năng chỉ một tin yêu cầu', () => {
-    const gaps = recurringGaps([job('GraphQL', 'Kafka'), job('GraphQL')], []);
-    expect(gaps.map((gap) => gap.skill)).toEqual(['GraphQL']);
-  });
-
-  test('sắp theo số tin giảm dần', () => {
-    const gaps = recurringGaps(
-      [job('GraphQL', 'Kafka'), job('GraphQL', 'Kafka'), job('GraphQL')],
-      [],
-    );
-    expect(gaps).toEqual([
-      { skill: 'GraphQL', jobCount: 3 },
-      { skill: 'Kafka', jobCount: 2 },
-    ]);
-  });
-
-  test('gộp các cách viết khác nhau của cùng một công nghệ', () => {
-    const gaps = recurringGaps(
-      [job('NodeJS'), job('Node.js'), job('node')],
-      [],
-    );
-    expect(gaps).toEqual([{ skill: 'NodeJS', jobCount: 3 }]);
-  });
-
-  test('bỏ qua cả kỹ năng chính lẫn kỹ năng phụ', () => {
-    const gaps = recurringGaps(
-      [job('React', 'NodeJS', 'Kafka'), job('React', 'NodeJS', 'Kafka')],
-      ['React', 'NodeJS'],
-    );
-    expect(gaps.map((gap) => gap.skill)).toEqual(['Kafka']);
-  });
-
-  test('giới hạn số kết quả trả về', () => {
-    const skills = ['a', 'b', 'c', 'd', 'e'];
-    expect(recurringGaps([job(...skills), job(...skills)], [], 3)).toHaveLength(
-      3,
-    );
-  });
-
-  test('không có tin nào hoặc kỹ năng rỗng thì trả mảng rỗng', () => {
-    expect(recurringGaps([], ['React'])).toEqual([]);
-    expect(recurringGaps([job('', '  '), job('', '  ')], [])).toEqual([]);
   });
 });
 

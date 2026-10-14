@@ -1,11 +1,6 @@
 import { DAY_MS } from '@/common/duration';
 import { PROVINCES } from '../jobs/taxonomy/provinces';
 import { SUB_OCCUPATIONS } from '../jobs/taxonomy/sub-occupations';
-export function normaliseSkill(value: string): string {
-  const base = value.toLowerCase().replace(/[\s._-]/g, '');
-  return base.length > 4 && base.endsWith('js') ? base.slice(0, -2) : base;
-}
-
 export type SkillGap = { skill: string; jobCount: number };
 
 export const roundedScore = (value: number | null | undefined) =>
@@ -36,31 +31,6 @@ export function todayScore(recent: ScoreRow[]) {
     career: average(recent.map((match) => match.careerScore)),
     sampleSize: recent.length,
   };
-}
-
-/** Kỹ năng bắt buộc mà hồ sơ chưa có, đếm theo số tin yêu cầu; chỉ giữ kỹ năng có ít nhất 2 tin. */
-export function recurringGaps(
-  jobSkills: string[][],
-  knownSkills: string[],
-  limit = 5,
-): SkillGap[] {
-  const known = new Set(knownSkills.map(normaliseSkill));
-  const counts = new Map<string, SkillGap>();
-
-  for (const skills of jobSkills) {
-    for (const skill of new Set(skills)) {
-      const key = normaliseSkill(skill);
-      if (!key || known.has(key)) continue;
-      const entry = counts.get(key) ?? { skill, jobCount: 0 };
-      entry.jobCount += 1;
-      counts.set(key, entry);
-    }
-  }
-
-  return [...counts.values()]
-    .filter((gap) => gap.jobCount >= 2)
-    .sort((a, b) => b.jobCount - a.jobCount || a.skill.localeCompare(b.skill))
-    .slice(0, limit);
 }
 
 export type SuggestionType = 'cv' | 'apply' | 'network' | 'skill';

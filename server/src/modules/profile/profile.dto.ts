@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Length,
   ArrayMaxSize,
   Max,
   MaxLength,
@@ -146,4 +147,10 @@ export class QuickStartProfileDto {
   @IsString() @MaxLength(SHORT) occupationCode!: string;
   @IsOptional() @IsString() @MaxLength(SHORT) subOccupationCode?: string;
   @IsOptional() @IsIn(EXPERIENCE_LEVELS) experienceLevel?: string;
+}
+
+export class AddSkillDto {
+  @IsString({ message: 'Thiếu tên kỹ năng' })
+  @Length(1, 80, { message: 'Tên kỹ năng phải từ 1 tới 80 ký tự' })
+  skill!: string;
 }

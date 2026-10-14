@@ -10,7 +10,11 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { QuickStartProfileDto, UpdateProfileDto } from './profile.dto';
+import {
+  AddSkillDto,
+  QuickStartProfileDto,
+  UpdateProfileDto,
+} from './profile.dto';
 import { ProfileService } from './profile.service';
 
 @ApiTags('Profile')
@@ -30,6 +34,15 @@ export class ProfileController {
   @Put()
   update(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
     return this.profile.update(user.id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Thêm MỘT kỹ năng vào hồ sơ; đã có thì giữ nguyên',
+  })
+  @Post('skills')
+  @HttpCode(200)
+  addSkill(@CurrentUser() user: AuthUser, @Body() dto: AddSkillDto) {
+    return this.profile.addSkill(user.id, dto.skill);
   }
 
   @ApiOperation({

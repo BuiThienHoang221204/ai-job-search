@@ -631,3 +631,34 @@ export const SUB_OCCUPATION_PARENT: Record<string, string> = Object.fromEntries(
     subs.map((sub) => [sub.code, parent]),
   ),
 );
+
+const NEARBY_FAMILIES: string[][] = [
+  ['IT_FULLSTACK', 'IT_BACKEND', 'IT_FRONTEND', 'IT_SWE'],
+  ['IT_MOBILE', 'IT_SWE'],
+  ['IT_DEVOPS', 'IT_SECURITY'],
+  ['DATA_ANALYST', 'DATA_SCIENCE'],
+  ['DATA_ENGINEER', 'DATA_SCIENCE'],
+  ['DESIGN_GRAPHIC', 'DESIGN_VIDEO'],
+  ['MKT_DIGITAL', 'MKT_SOCIAL', 'MKT_CONTENT'],
+  ['SALES_B2B', 'SALES_FIELD', 'SALES_TELE'],
+  ['CS_CARE', 'CS_CALL'],
+  ['FIN_ACCOUNTING', 'FIN_AUDIT', 'FIN_TAX'],
+  ['HR_RECRUIT', 'HR_CB', 'HR_ADMIN'],
+  ['MFG_MECHANICAL', 'MFG_ELECTRICAL'],
+  ['CON_CIVIL', 'CON_SUPERVISOR', 'CON_QS'],
+  ['LOG_IMPEXP', 'LOG_PURCHASE'],
+  ['LOG_WAREHOUSE', 'LOG_TRANSPORT'],
+  ['EDU_TEACHER', 'EDU_ASSISTANT'],
+  ['HOS_SERVICE', 'HOS_HOTEL'],
+  ['RET_STORE', 'RET_MANAGER'],
+];
+
+/** Nghề `code` cộng những nghề cùng nhóm gần trong `NEARBY_FAMILIES`. */
+export function nearbySubOccupations(code: string): string[] {
+  const codes = new Set([code]);
+  for (const family of NEARBY_FAMILIES) {
+    if (!family.includes(code)) continue;
+    for (const member of family) codes.add(member);
+  }
+  return [...codes];
+}

@@ -54,6 +54,7 @@ model User {
   interviewPreps   InterviewPrep[]
   interviewAnswers InterviewAnswer[]
   upskillReports   UpskillReport[]
+  learningItems    LearningItem[]
   documents        Document[]
   scrapeRuns       ScrapeRun[]
   aiCalls          AiCall[]
@@ -623,6 +624,37 @@ model ProfileDraft {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("profile_drafts")
+}
+
+enum LearningStatus {
+  LEARNING
+  SKIPPED
+  DONE
+}
+
+/// Kỹ năng người dùng đã chọn học hoặc bỏ qua ở trang Lộ trình học.
+///
+/// `skillKey` là id kỹ năng chuẩn trong danh bạ, hoặc tên đã gấp dấu khi kỹ năng
+/// chưa vào danh bạ — cùng khoá với `SkillGapService` dùng để gộp kỹ năng.
+model LearningItem {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  skillKey  String
+  skillName String
+  status    LearningStatus
+
+  /// Ba mốc: học nền tảng, làm dự án nhỏ, thêm vào hồ sơ.
+  steps Boolean[] @default([false, false, false])
+  /// Ngày học trong tuần người dùng tự chọn: MO, TU, WE, TH, FR, SA, SU.
+  days  String[]  @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, skillKey])
+  @@map("learning_items")
 }
 
 enum UpskillMode {

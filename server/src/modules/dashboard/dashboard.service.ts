@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
+import { SkillGapService } from '../upskill/skill-gap.service';
 import { missingFields } from '../profile/utils/completion';
 import { jobCardSelect } from '../jobs/job-card.select';
 import {
   activityStreak,
   buildSuggestions,
   marketSummary,
-  recurringGaps,
   roundedScore,
   todayScore,
   weeklyProgress,
@@ -16,11 +16,14 @@ import {
 import { DAY_MS, daysAgo } from '@/common/duration';
 import { OCCUPATIONS, OTHER_CODE } from '../jobs/taxonomy/occupations';
 
+const DASHBOARD_GAPS = 6;
+
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly applications: ApplicationsService,
+    private readonly skillGapReport: SkillGapService,
   ) {}
 
   private static readonly ELIGIBLE = {
@@ -121,50 +124,12 @@ export class DashboardService {
     };
   }
 
-  private async requiredSkillsIn(occupationCode: string) {
-    const rows = await this.prisma.jobRequirement.findMany({
-      where: {
-        status: 'DONE',
-        job: {
-          occupationCode,
-          duplicateOfId: null,
-          scrapedAt: { gte: daysAgo(30) },
-        },
-      },
-      select: { requiredSkills: true },
-      orderBy: { job: { scrapedAt: 'desc' } },
-      take: 300,
-    });
-    return rows.map((row) => row.requiredSkills);
-  }
-
-  /** Kỹ năng tin cùng ngành hay đòi mà hồ sơ chưa có; hồ sơ chưa rõ ngành thì rỗng. */
-  private async skillGapsOf(
-    profile: {
-      occupationCode: string | null;
-      primarySkills: string[];
-      secondarySkills: string[];
-    } | null,
-  ) {
-    const occupationCode = profile?.occupationCode;
-    if (!occupationCode || occupationCode === OTHER_CODE) return [];
-    return recurringGaps(
-      await this.requiredSkillsIn(occupationCode),
-      [...profile.primarySkills, ...profile.secondarySkills],
-      6,
-    );
-  }
-
+  /** Sáu kỹ năng đầu của trang Lộ trình học — cùng một cách tính để hai nơi luôn ra cùng con số. */
   async skillGaps(userId: string) {
-    const profile = await this.prisma.profile.findUnique({
-      where: { userId },
-      select: {
-        occupationCode: true,
-        primarySkills: true,
-        secondarySkills: true,
-      },
-    });
-    return this.skillGapsOf(profile);
+    const { gaps } = await this.skillGapReport.forUser(userId);
+    return gaps
+      .slice(0, DASHBOARD_GAPS)
+      .map((gap) => ({ skill: gap.name, jobCount: gap.demand }));
   }
 
   async overview(userId: string) {
@@ -230,7 +195,7 @@ export class DashboardService {
     const best = pendingMatches[0];
     const occupationCode = profile?.occupationCode ?? null;
     const hasOccupation = !!occupationCode && occupationCode !== OTHER_CODE;
-    const skillGaps = await this.skillGapsOf(profile);
+    const skillGaps = await this.skillGaps(userId);
 
     const suggestionInput: SuggestionInput = {
       profileCompletion: profile?.completion ?? 0,

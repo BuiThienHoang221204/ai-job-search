@@ -5,6 +5,7 @@ import {
 import {
   SUB_OCCUPATIONS,
   SUB_OCCUPATION_PARENT,
+  nearbySubOccupations,
 } from 'src/modules/jobs/taxonomy/sub-occupations.js';
 import { OCCUPATIONS } from 'src/modules/jobs/taxonomy/occupations.js';
 
@@ -77,6 +78,27 @@ describe('tính toàn vẹn của danh mục', () => {
           expect(word).toBe(word.toLowerCase());
           expect(word.normalize('NFD')).toBe(word);
         }
+      }
+    }
+  });
+});
+
+describe('nearbySubOccupations', () => {
+  test('gồm chính nghề đó và các nghề gần', () => {
+    expect(nearbySubOccupations('IT_FULLSTACK')).toEqual(
+      expect.arrayContaining(['IT_FULLSTACK', 'IT_BACKEND', 'IT_FRONTEND']),
+    );
+    expect(nearbySubOccupations('IT_FULLSTACK')).not.toContain('IT_QA');
+  });
+
+  test('nghề chưa khai nghề gần thì chỉ còn chính nó', () => {
+    expect(nearbySubOccupations('MED_NURSE')).toEqual(['MED_NURSE']);
+  });
+
+  test('mọi nghề khai trong nhóm gần đều có thật trong danh mục', () => {
+    for (const code of Object.keys(SUB_OCCUPATION_PARENT)) {
+      for (const near of nearbySubOccupations(code)) {
+        expect(SUB_OCCUPATION_PARENT[near]).toBe(SUB_OCCUPATION_PARENT[code]);
       }
     }
   });

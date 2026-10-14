@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Profile } from '@/generated/prisma/client';
+import { foldTerm } from '@/common/text/vietnamese';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import type { UpdateProfileDto } from './profile.dto';
@@ -18,6 +19,16 @@ export class ProfileService {
       where: { userId },
       create: { userId },
       update: {},
+    });
+  }
+
+  async addSkill(userId: string, skill: string): Promise<Profile> {
+    const profile = await this.get(userId);
+    const wanted = foldTerm(skill);
+    const known = [...profile.primarySkills, ...profile.secondarySkills];
+    if (known.some((item) => foldTerm(item) === wanted)) return profile;
+    return this.save(userId, {
+      secondarySkills: [...profile.secondarySkills, skill.trim()],
     });
   }
 

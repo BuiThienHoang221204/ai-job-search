@@ -41,6 +41,7 @@ describe('GET /dashboard/skill-gaps', () => {
           company: `Công ty ${index}`,
           description: 'Mô tả đủ dài để qua được kiểm tra đầu vào của DTO.',
           occupationCode: 'IT',
+          subOccupationCode: 'IT_BACKEND',
           tags: [],
         },
       });
