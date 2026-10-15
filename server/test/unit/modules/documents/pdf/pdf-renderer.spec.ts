@@ -116,12 +116,6 @@ describe('HttpPdfRenderer - duong hong', () => {
       expect(result.log).toContain('ECONNREFUSED');
     }
   });
-
-  test('available tra false khi /health khong len', async () => {
-    global.fetch = () => Promise.reject(new Error('ECONNREFUSED'));
-
-    await expect(new HttpPdfRenderer(BASE).available()).resolves.toBe(false);
-  });
 });
 
 describe('firstRenderError - log cua Chromium', () => {

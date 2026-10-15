@@ -41,6 +41,4 @@ export class SandboxError extends Error {
 
 export interface SandboxRunner {
   run(spec: SandboxSpec): Promise<SandboxResult>;
-
-  available(): Promise<boolean>;
 }

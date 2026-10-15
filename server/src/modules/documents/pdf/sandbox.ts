@@ -54,10 +54,6 @@ export class SandboxLatexCompiler implements LatexCompiler {
 
   constructor(@Inject(SANDBOX) private readonly sandbox: SandboxRunner) {}
 
-  available(): Promise<boolean> {
-    return this.sandbox.available();
-  }
-
   async compile(tex: string): Promise<LatexCompileResult> {
     try {
       const result = await this.sandbox.run({
@@ -105,10 +101,6 @@ export class SandboxPdfRenderer implements PdfRenderer {
   private readonly logger = new Logger(SandboxPdfRenderer.name);
 
   constructor(@Inject(SANDBOX) private readonly sandbox: SandboxRunner) {}
-
-  available(): Promise<boolean> {
-    return this.sandbox.available();
-  }
 
   async render(html: string): Promise<PdfRenderResult> {
     try {

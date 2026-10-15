@@ -11,7 +11,6 @@ export class FakeSandbox implements SandboxRunner {
 
   private results: SandboxResult[] = [];
   private failure: SandboxError | null = null;
-  private isAvailable = true;
 
   willReturn(result: Partial<SandboxResult>): this {
     this.results.push({
@@ -27,15 +26,6 @@ export class FakeSandbox implements SandboxRunner {
   willFail(kind: SandboxErrorKind, message = 'lỗi dựng sẵn'): this {
     this.failure = new SandboxError(kind, message);
     return this;
-  }
-
-  setAvailable(value: boolean): this {
-    this.isAvailable = value;
-    return this;
-  }
-
-  available(): Promise<boolean> {
-    return Promise.resolve(this.isAvailable);
   }
 
   async run(spec: SandboxSpec): Promise<SandboxResult> {
@@ -57,6 +47,5 @@ export class FakeSandbox implements SandboxRunner {
     this.calls.length = 0;
     this.results = [];
     this.failure = null;
-    this.isAvailable = true;
   }
 }

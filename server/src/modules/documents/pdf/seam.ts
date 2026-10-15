@@ -13,12 +13,10 @@ export type PdfRenderResult =
 
 export interface LatexCompiler {
   compile(tex: string): Promise<LatexCompileResult>;
-  available(): Promise<boolean>;
 }
 
 export interface PdfRenderer {
   render(html: string): Promise<PdfRenderResult>;
-  available(): Promise<boolean>;
 }
 
 export const EXPECTED_MAX_PAGES = 2;

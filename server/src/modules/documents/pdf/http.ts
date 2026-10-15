@@ -31,17 +31,6 @@ type ServiceCall = {
 
 type ServiceResult = { pdf: Buffer; response: Response } | PdfFailure;
 
-async function serviceAvailable(baseUrl: string): Promise<boolean> {
-  try {
-    const response = await fetch(`${baseUrl}/health`, {
-      signal: AbortSignal.timeout(5_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function readLog(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { log?: unknown; error?: unknown };
@@ -88,10 +77,6 @@ export class HttpLatexCompiler implements LatexCompiler {
 
   constructor(private readonly baseUrl: string) {}
 
-  available(): Promise<boolean> {
-    return serviceAvailable(this.baseUrl);
-  }
-
   async compile(tex: string): Promise<LatexCompileResult> {
     const result = await postToService({
       baseUrl: this.baseUrl,
@@ -127,10 +112,6 @@ export class HttpPdfRenderer implements PdfRenderer {
   private readonly logger = new Logger(HttpPdfRenderer.name);
 
   constructor(private readonly baseUrl: string) {}
-
-  available(): Promise<boolean> {
-    return serviceAvailable(this.baseUrl);
-  }
 
   async render(html: string): Promise<PdfRenderResult> {
     const result = await postToService({

@@ -73,19 +73,6 @@ export function dockerArgs(
 export class DockerSandbox implements SandboxRunner {
   private readonly logger = new Logger(DockerSandbox.name);
 
-  /** Hỏi `docker version` để chạm tới daemon, không chỉ kiểm có file thực thi. */
-  async available(): Promise<boolean> {
-    try {
-      const result = await this.spawn(
-        ['version', '--format', '{{.Server.Version}}'],
-        AVAILABILITY_TIMEOUT_MS,
-      );
-      return result.code === 0;
-    } catch {
-      return false;
-    }
-  }
-
   /** Ghi file vào thư mục tạm, chạy container, lấy artifact rồi dọn sạch dù hỏng hay không. */
   async run(spec: SandboxSpec): Promise<SandboxResult> {
     const work = await mkdtemp(join(tmpdir(), 'aijob-sandbox-'));

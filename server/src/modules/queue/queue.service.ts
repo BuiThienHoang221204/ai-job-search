@@ -9,8 +9,7 @@ import { appRole, runsBackgroundWork } from '@/config/app-role';
 import { QUEUE, QUEUE_POLICY } from './queue.constants';
 import { singletonKeyFor } from './queue-key';
 import { QueueConfigService } from './queue-config.service';
-import type { QueueStats, QueueStatsItem, QueueStatus } from './queue.types';
-import { messageOf } from '@/common/error-message';
+import type { QueueStats, QueueStatsItem } from './queue.types';
 
 export { QUEUE, QUEUE_POLICY } from './queue.constants';
 export type * from './queue.types';
@@ -23,61 +22,48 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
 
   private refreshTimer?: NodeJS.Timeout;
 
-  private isStarted = false;
-  private startupError: string | null = null;
-
   constructor(private readonly queueConfig: QueueConfigService) {}
 
   onModuleInit(): void {
     this.started = (async () => {
-      try {
-        const { PgBoss: PgBossClass } = await import('pg-boss');
+      const { PgBoss: PgBossClass } = await import('pg-boss');
 
-        const connectionString = process.env.DATABASE_URL;
-        if (!connectionString) throw new Error('DATABASE_URL chưa được đặt');
+      const connectionString = process.env.DATABASE_URL;
+      if (!connectionString) throw new Error('DATABASE_URL chưa được đặt');
 
-        this.boss = new PgBossClass({
-          connectionString,
-          schema: 'pgboss',
-          max: 10,
-        });
-        this.boss.on('error', (error: Error) =>
-          this.logger.error('pg-boss lỗi', error),
-        );
+      this.boss = new PgBossClass({
+        connectionString,
+        schema: 'pgboss',
+        max: 10,
+      });
+      this.boss.on('error', (error: Error) =>
+        this.logger.error('pg-boss lỗi', error),
+      );
 
-        await this.boss.start();
-        for (const name of Object.values(QUEUE)) {
-          await this.ensureQueue(name);
-        }
-
-        this.isStarted = true;
-        this.logger.log(
-          `Hàng đợi sẵn sàng (policy ${QUEUE_POLICY}): ${Object.values(QUEUE).join(', ')}`,
-        );
-        this.logger.log(
-          `Vai tiến trình: ${appRole()}` +
-            (runsBackgroundWork() ? '' : ' - KHÔNG đăng ký worker nào'),
-        );
-
-        this.refreshTimer = setInterval(() => {
-          this.queueConfig.refreshCache().catch((error: unknown) => {
-            this.logger.error('Lỗi refresh queue config', error);
-          });
-        }, 30_000);
-      } catch (error) {
-        this.startupError = messageOf(error);
-        throw error;
+      await this.boss.start();
+      for (const name of Object.values(QUEUE)) {
+        await this.ensureQueue(name);
       }
+
+      this.logger.log(
+        `Hàng đợi sẵn sàng (policy ${QUEUE_POLICY}): ${Object.values(QUEUE).join(', ')}`,
+      );
+      this.logger.log(
+        `Vai tiến trình: ${appRole()}` +
+          (runsBackgroundWork() ? '' : ' - KHÔNG đăng ký worker nào'),
+      );
+
+      this.refreshTimer = setInterval(() => {
+        this.queueConfig.refreshCache().catch((error: unknown) => {
+          this.logger.error('Lỗi refresh queue config', error);
+        });
+      }, 30_000);
     })();
   }
 
   async onApplicationShutdown(): Promise<void> {
     if (this.refreshTimer) clearInterval(this.refreshTimer);
     await this.boss?.stop({ graceful: true });
-  }
-
-  status(): QueueStatus {
-    return { ready: this.isStarted, error: this.startupError };
   }
 
   async getStats(): Promise<QueueStats> {

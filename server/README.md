@@ -890,14 +890,11 @@ Lỗi đó ảnh hưởng **cả bộ lọc tỉnh/thành trên trang danh sách
 
 **Cắt độ dài chứ không lọc theo danh sách khoá.** Lọc khoá thì lần sau giao diện muốn thêm một trường sẽ im lặng không nhận được gì; cắt độ dài giữ nguyên hình dạng dữ liệu. `trimToolOutput` giữ nguyên độ dài mảng vì giao diện đọc `results.length`, và có test đơn vị ghim điều đó.
 
-### Hai probe, trả lời hai câu hỏi khác nhau
+### Probe sức khoẻ
 
-| Route | Câu hỏi | Khi trả lỗi thì làm gì |
-|---|---|---|
-| `GET /api/health` | Tiến trình còn trả lời được không? | Khởi động lại container |
-| `GET /api/ready` | Có nhận việc được không? | Rút khỏi load balancer, **đừng** khởi động lại |
+`GET /api/health` chỉ trả lời "tiến trình còn sống không" và là thứ `HEALTHCHECK` của image gọi. Nó cố ý **không** kiểm database hay hàng đợi: kiểm ở đây thì một lần database chập chờn sẽ khiến Docker khởi động lại một tiến trình hoàn toàn khoẻ mạnh — làm sự cố nặng thêm.
 
-`HEALTHCHECK` trong image cố ý dùng `/api/health` chứ không phải `/api/ready`: nếu healthcheck của container đọc readiness thì một lần database chập chờn sẽ khiến Docker khởi động lại một tiến trình hoàn toàn khoẻ mạnh — làm sự cố nặng thêm thay vì chỉ ngừng nhận request.
+`GET /api/ready` (kiểm database, hàng đợi, dịch vụ LaTeX/PDF) đã gỡ 2026-10-14 vì không orchestrator nào gọi. Có load balancer cần readiness thì dựng lại từ git history, và giữ nguyên tắc cũ: LaTeX/PDF hỏng KHÔNG làm app "chưa sẵn sàng".
 
 ### Đổi `schema.prisma`: KHÔNG dùng `migrate dev`
 

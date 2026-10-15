@@ -1,29 +1,14 @@
-import {
-  Controller,
-  Get,
-  Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '@/common/decorators/public.decorator';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { QueueService, type QueueStats } from '../queue/queue.service';
-import { HealthService } from './health.service';
-import {
-  toPublicReadiness,
-  type PublicReadiness,
-} from './utils/public-readiness';
 
 @ApiTags('System Health')
 @Controller()
 export class HealthController {
-  private readonly logger = new Logger(HealthController.name);
-
-  constructor(
-    private readonly health: HealthService,
-    private readonly queue: QueueService,
-  ) {}
+  constructor(private readonly queue: QueueService) {}
 
   @SkipThrottle()
   @Public()
@@ -33,25 +18,6 @@ export class HealthController {
   @Get('health')
   live(): { status: 'ok'; uptimeSeconds: number } {
     return { status: 'ok', uptimeSeconds: Math.round(process.uptime()) };
-  }
-
-  @Public()
-  @ApiOperation({
-    summary:
-      'Readiness probe - Kiểm tra độ sẵn sàng của các tài nguyên hệ thống (DB, S3...)',
-  })
-  @Get('ready')
-  async ready(): Promise<PublicReadiness> {
-    const report = await this.health.readiness();
-    for (const [name, check] of Object.entries(report.checks)) {
-      if (check.error)
-        this.logger.warn(`Phép kiểm ${name} hỏng: ${check.error}`);
-    }
-    const body = toPublicReadiness(report);
-    if (!report.ready) {
-      throw new ServiceUnavailableException(body);
-    }
-    return body;
   }
 
   @Roles('ADMIN')

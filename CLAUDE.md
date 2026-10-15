@@ -103,7 +103,7 @@ Bộ test đơn vị chạy qua **`test/run-unit.mjs`**, không phải `jest` tr
 
 ## CV đi đường HTML, thư xin việc vẫn đi đường LaTeX
 
-**Hai bộ máy sinh PDF, không phải một.** `latex-service/` in `.tex`, `pdf-service/` in HTML bằng Chromium. Chọn bằng `LATEX_SERVICE_URL` và `PDF_SERVICE_URL`, mỗi cái có bản `docker run` dự phòng cho máy phát triển. Cả hai đều báo trong `/ready` và **cả hai đều cố ý không tính vào `ready`** — có test e2e ghim.
+**Hai bộ máy sinh PDF, không phải một.** `latex-service/` in `.tex`, `pdf-service/` in HTML bằng Chromium. Chọn bằng `LATEX_SERVICE_URL` và `PDF_SERVICE_URL`, mỗi cái có bản `docker run` dự phòng cho máy phát triển.
 
 Lý do có đường thứ hai: **CV cần xem trước**, mà LaTeX chỉ ra PDF sau vài giây nên không có cách nào cho người dùng thấy mẫu trước khi tải. Bản HTML thì chính nó vừa là bản in vừa là bản nhúng vào iframe, nên xem trước là miễn phí và luôn khớp file tải về. Đây là nền cho kho mẫu CV (chọn mẫu, đổi màu) — thứ TopCV và ITviec đều có.
 
@@ -228,7 +228,7 @@ docker build -t aijob-latex -f latex-service/Dockerfile latex-service
 
 **Ảnh nền là `texlive/texlive:latest-medium`, KHÔNG phải `latest`.** Đo trên Docker Hub 2026-08-21: bản đầy đủ 2,70GB nén / 8,92GB trên ổ, bản medium 0,94GB nén / khoảng 2,5-3GB trên ổ. Bản đầy đủ mang theo mọi ngôn ngữ, ConTeXt và toàn bộ kho font mà hai template của dự án không chạm tới. Lý do đầy đủ nằm trong `latex-service/Dockerfile`.
 
-`/ready` báo `checks.latex` nhưng **cố ý không tính nó vào `ready`**: mất PDF thì người dùng vẫn chấm điểm, xem việc, soạn CV và ứng tuyển được, nên đừng để orchestrator khởi động lại cả app vì một tính năng phụ. Có test e2e ghim đúng điều đó.
+Mất PDF thì người dùng vẫn chấm điểm, xem việc, soạn CV và ứng tuyển được — nên không probe sức khoẻ nào được phụ thuộc vào dịch vụ LaTeX/PDF (`/ready` từng kiểm chúng nhưng không tính vào `ready`; route đó đã gỡ 2026-10-14).
 
 **Giá trị header HTTP phải là ISO-8859-1.** Dịch vụ gửi các dòng `Missing character` (chứa chữ tiếng Việt) qua header nên phải **base64**. Gửi thẳng thì `fetch` của Node từ chối cả phản hồi và app báo "không nối được tới dịch vụ" — một lỗi sai hoàn toàn hướng.
 

@@ -54,9 +54,7 @@ export type ScrapeRunPayload = {
   userId?: string;
 };
 
-export type Queue = Pick<QueueService, 'send' | 'sendMany' | 'work' | 'status'>;
-
-export type QueueStatus = { ready: boolean; error: string | null };
+export type Queue = Pick<QueueService, 'send' | 'sendMany' | 'work'>;
 
 export type QueueStatsItem = {
   name: string;

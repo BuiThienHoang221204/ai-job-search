@@ -1,9 +1,5 @@
 import { singletonKeyFor } from 'src/modules/queue/queue-key.js';
-import {
-  QUEUE,
-  type Queue,
-  type QueueStatus,
-} from 'src/modules/queue/queue.service.js';
+import { QUEUE, type Queue } from 'src/modules/queue/queue.service.js';
 import type { QueueStats } from 'src/modules/queue/queue.types.js';
 
 type Sent = { queue: string; key: string; data: object };
@@ -69,7 +65,6 @@ export class FakeQueue implements Queue {
   /// Bản giả luôn coi như đã khởi tạo xong: nó không mở kết nối nào.
   ///
   /// Đặt được thành lỗi để test readiness probe dựng được ca hàng đợi hỏng.
-  statusOverride: QueueStatus = { ready: true, error: null };
 
   /// Như `QueueService.getStats`: việc đã xếp mà chưa được `drain` tính là đang chờ.
   getStats(): Promise<QueueStats> {
@@ -89,10 +84,6 @@ export class FakeQueue implements Queue {
       totalWaiting: this.sent.length,
       totalActive: 0,
     });
-  }
-
-  status(): QueueStatus {
-    return this.statusOverride;
   }
 
   /// Các payload đã được gửi vào một queue, theo thứ tự gửi.

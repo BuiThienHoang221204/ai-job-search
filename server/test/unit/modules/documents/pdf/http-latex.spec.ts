@@ -162,22 +162,3 @@ describe('HttpLatexCompiler - duong that bai', () => {
     }
   });
 });
-
-describe('HttpLatexCompiler - available', () => {
-  test('health 200 la san sang', async () => {
-    const calls = fakeFetch(() => new Response('{}', { status: 200 }));
-
-    expect(await new HttpLatexCompiler(BASE).available()).toBe(true);
-    expect(calls[0].url).toBe(`${BASE}/health`);
-  });
-
-  test('health hong la KHONG san sang, khong nem loi', async () => {
-    fakeFetch(() => new Response('', { status: 503 }));
-    expect(await new HttpLatexCompiler(BASE).available()).toBe(false);
-  });
-
-  test('khong noi duoc cung la KHONG san sang', async () => {
-    global.fetch = () => Promise.reject(new Error('fetch failed'));
-    expect(await new HttpLatexCompiler(BASE).available()).toBe(false);
-  });
-});

@@ -102,8 +102,8 @@ USER node
 
 EXPOSE 3000
 
-# Dùng LIVENESS chứ không phải readiness. Readiness hỏng khi database chập chờn, và
-# nếu healthcheck của container đọc nó thì Docker sẽ khởi động lại một tiến trình
+# /api/health chỉ hỏi "tiến trình còn trả lời không", KHÔNG kiểm database. Kiểm
+# database ở đây thì một lần chập chờn sẽ khiến Docker khởi động lại một tiến trình
 # hoàn toàn khoẻ mạnh - làm sự cố nặng thêm thay vì chỉ ngừng nhận request.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD node -e "const p=process.env.PORT||4000;fetch('http://127.0.0.1:'+p+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
