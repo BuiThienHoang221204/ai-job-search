@@ -16,8 +16,12 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { DocumentGenerator } from './document-generator.service';
 import { DocumentRenderer } from './document-renderer.service';
 import { emailTitle } from '../utils/letter-target';
-import { parseCvEdit, requirePastedJob } from '../utils/document-input';
-import { resolveLayout } from '../templates/cv-layout';
+import {
+  parseCvEdit,
+  parseIdentityEdit,
+  parseLayoutEdit,
+  requirePastedJob,
+} from '../utils/document-input';
 import { isTemplateId, resolveTemplateOptions } from '../templates/registry';
 
 export type PdfEngine = 'latex' | 'html';
@@ -206,7 +210,12 @@ export class DocumentsService {
     userId: string,
     id: string,
     templateId: string,
-    accent?: string,
+    options: {
+      accent?: string;
+      font?: string;
+      size?: string;
+      lineHeight?: number;
+    },
   ): Promise<Document> {
     const document = await this.get(userId, id);
 
@@ -224,7 +233,7 @@ export class DocumentsService {
       where: { id },
       data: {
         templateId,
-        templateOptions: resolveTemplateOptions(templateId, { accent }),
+        templateOptions: resolveTemplateOptions(templateId, options),
       },
     });
   }
@@ -232,7 +241,7 @@ export class DocumentsService {
   async updateCv(
     userId: string,
     id: string,
-    input: { content?: unknown; layout?: unknown },
+    input: { content?: unknown; layout?: unknown; identity?: unknown },
   ): Promise<Document> {
     const document = await this.get(userId, id);
 
@@ -255,14 +264,19 @@ export class DocumentsService {
     const layout =
       input.layout === undefined
         ? document.layout
-        : resolveLayout(input.layout);
+        : parseLayoutEdit(input.layout);
+
+    const data: Prisma.DocumentUpdateInput = {
+      content: content as Prisma.InputJsonValue,
+      layout: layout as Prisma.InputJsonValue,
+    };
+    if (input.identity !== undefined) {
+      data.identity = parseIdentityEdit(input.identity);
+    }
 
     const updated = await this.prisma.document.update({
       where: { id },
-      data: {
-        content: content as Prisma.InputJsonValue,
-        layout: layout as Prisma.InputJsonValue,
-      },
+      data,
     });
 
     return this.writeSource(updated, content);
@@ -275,8 +289,13 @@ export class DocumentsService {
     override?: {
       templateId?: string;
       accent?: string;
+      font?: string;
+      size?: string;
+      lineHeight?: number;
       content?: unknown;
       layout?: unknown;
+      identity?: unknown;
+      editing?: boolean;
     },
   ): Promise<string> {
     const document = await this.get(userId, id);
@@ -287,23 +306,33 @@ export class DocumentsService {
       );
     }
 
-    const { identity } = await this.generator.context(document);
-
     const previewed = {
       ...document,
       templateId: override?.templateId ?? document.templateId,
       templateOptions: override?.templateId
-        ? { accent: override.accent }
+        ? {
+            accent: override.accent,
+            font: override.font,
+            size: override.size,
+            lineHeight: override.lineHeight,
+          }
         : document.templateOptions,
       layout: override?.layout ?? document.layout,
+      identity:
+        override?.identity === undefined
+          ? document.identity
+          : parseIdentityEdit(override.identity),
     };
+    const { identity } = await this.generator.context(previewed);
 
     const content =
       override?.content === undefined
         ? document.content
         : parseCvEdit(override.content);
+    const editing =
+      override?.editing === true && override.content !== undefined;
 
-    const html = this.renderer.toHtml(previewed, content, identity);
+    const html = this.renderer.toHtml(previewed, content, identity, editing);
 
     if (!html) {
       throw new UnprocessableEntityException(

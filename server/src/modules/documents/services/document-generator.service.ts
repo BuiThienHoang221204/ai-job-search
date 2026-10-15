@@ -3,6 +3,7 @@ import type { Document, Prisma } from '@/generated/prisma/client';
 import type { ModelStreamEvent } from '@/common/stream-event';
 import { PrismaService } from '@/prisma/prisma.service';
 import type { Identity } from '../content.types';
+import { mergeIdentity } from '../utils/identity';
 import { letterTarget, type DocumentParams } from '../utils/letter-target';
 import { DocumentComposer } from './document-composer.service';
 import { DocumentRenderer } from './document-renderer.service';
@@ -31,13 +32,14 @@ export class DocumentGenerator {
         : Promise.resolve(null),
     ]);
 
-    const identity: Identity = {
+    const fromProfile: Identity = {
       name: user.name,
       email: user.email,
       location: profile?.location ?? null,
       title: profile?.headline ?? null,
       phone: profile?.phone ?? null,
     };
+    const identity = mergeIdentity(fromProfile, document.identity);
 
     const params = (document.content ?? {}) as DocumentParams;
     return { profile, target: letterTarget(job, params), params, identity };

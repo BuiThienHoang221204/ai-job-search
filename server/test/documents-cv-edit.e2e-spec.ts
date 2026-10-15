@@ -250,6 +250,46 @@ describe('Sửa CV', () => {
     expect(response.text.match(/class="entry"/g)).toHaveLength(2);
   });
 
+  // Chế độ sửa tại chỗ: trang cha cần biết ô nào ứng với trường nào, kể cả ô còn trống.
+  test('editing=true gắn địa chỉ trường và giữ dòng rỗng đúng chỉ số', async () => {
+    const document = await seedDoneCv();
+    const blank = {
+      position: '',
+      company: '',
+      location: '',
+      period: '',
+      bullets: [],
+    };
+
+    const response = await request(harness.server)
+      .post(`/api/documents/${document.id}/preview`)
+      .set(auth())
+      .send({
+        editing: true,
+        content: {
+          ...CV_CONTENT,
+          experiences: [...CV_CONTENT.experiences, blank],
+        },
+      })
+      .expect(200);
+
+    expect(response.text).toContain('data-field="experiences.0.position"');
+    expect(response.text).toContain('data-entry="experiences.1"');
+    expect(response.text).toContain('data-field="experiences.1.bullets.0"');
+  });
+
+  test('không có editing thì bản xem trước không mang địa chỉ trường', async () => {
+    const document = await seedDoneCv();
+
+    const response = await request(harness.server)
+      .post(`/api/documents/${document.id}/preview`)
+      .set(auth())
+      .send({ content: CV_CONTENT })
+      .expect(200);
+
+    expect(response.text).not.toContain('data-field');
+  });
+
   test('dòng rỗng vẫn được LƯU để người dùng quay lại còn thấy', async () => {
     const document = await seedDoneCv();
 
@@ -321,5 +361,150 @@ describe('Sửa CV', () => {
       .set(auth())
       .send({ content: CV_CONTENT })
       .expect(422);
+  });
+
+  // Phần đầu CV sửa riêng cho từng CV: không ghi ngược về hồ sơ, không đổi email đăng nhập.
+  describe('phần đầu CV', () => {
+    const previewOf = (id: string) =>
+      request(harness.server)
+        .post(`/api/documents/${id}/preview`)
+        .set(auth())
+        .expect(200);
+
+    test('lưu được tên và email riêng cho CV này mà không đụng tài khoản', async () => {
+      const document = await seedDoneCv();
+
+      await request(harness.server)
+        .put(`/api/documents/${document.id}/cv`)
+        .set(auth())
+        .send({
+          identity: { name: 'TEN-RIENG-CV', email: 'lienhe@test.local' },
+        })
+        .expect(200);
+
+      const preview = await previewOf(document.id);
+      expect(preview.text).toContain('TEN-RIENG-CV');
+      expect(preview.text).toContain('lienhe@test.local');
+      expect(preview.text).not.toContain(user.email);
+
+      const account = await harness.prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+      });
+      expect(account.email).toBe(user.email);
+      expect(account.name).not.toBe('TEN-RIENG-CV');
+    });
+
+    test('xoá trắng email thì CV ẩn dòng đó thay vì lấy lại từ tài khoản', async () => {
+      const document = await seedDoneCv();
+
+      await request(harness.server)
+        .put(`/api/documents/${document.id}/cv`)
+        .set(auth())
+        .send({ identity: { email: '' } })
+        .expect(200);
+
+      expect((await previewOf(document.id)).text).not.toContain(user.email);
+    });
+
+    test('lưu nội dung mà không gửi phần đầu thì phần đầu đã sửa vẫn giữ nguyên', async () => {
+      const document = await seedDoneCv();
+      const put = (body: object) =>
+        request(harness.server)
+          .put(`/api/documents/${document.id}/cv`)
+          .set(auth())
+          .send(body)
+          .expect(200);
+
+      await put({ identity: { name: 'TEN-RIENG-CV' } });
+      await put({ content: CV_CONTENT });
+
+      expect((await previewOf(document.id)).text).toContain('TEN-RIENG-CV');
+    });
+
+    test('xem trước phần đầu CHƯA lưu không ghi gì vào database', async () => {
+      const document = await seedDoneCv();
+
+      const response = await request(harness.server)
+        .post(`/api/documents/${document.id}/preview`)
+        .set(auth())
+        .send({ identity: { title: 'CHUC-DANH-NHAP' } })
+        .expect(200);
+
+      expect(response.text).toContain('CHUC-DANH-NHAP');
+      const after = await harness.prisma.document.findUniqueOrThrow({
+        where: { id: document.id },
+      });
+      expect(after.identity).toBeNull();
+    });
+
+    test('phần đầu quá dài nhận 400 để người dùng sửa', async () => {
+      const document = await seedDoneCv();
+
+      await request(harness.server)
+        .put(`/api/documents/${document.id}/cv`)
+        .set(auth())
+        .send({ identity: { name: 'x'.repeat(200) } })
+        .expect(400);
+    });
+  });
+
+  describe('tên mục riêng', () => {
+    test('lưu được tên mục riêng và bản xem trước dùng tên đó', async () => {
+      const document = await seedDoneCv();
+
+      await request(harness.server)
+        .put(`/api/documents/${document.id}/cv`)
+        .set(auth())
+        .send({ layout: { titles: { experience: 'HANH-TRINH-RIENG' } } })
+        .expect(200);
+
+      const preview = await request(harness.server)
+        .post(`/api/documents/${document.id}/preview`)
+        .set(auth())
+        .expect(200);
+      expect(preview.text).toContain('HANH-TRINH-RIENG');
+    });
+
+    test('tên mục quá dài nhận 400', async () => {
+      const document = await seedDoneCv();
+
+      await request(harness.server)
+        .put(`/api/documents/${document.id}/cv`)
+        .set(auth())
+        .send({ layout: { titles: { skills: 'x'.repeat(80) } } })
+        .expect(400);
+    });
+  });
+
+  describe('font, cỡ chữ, khoảng cách dòng', () => {
+    const setTemplate = (id: string, body: object) =>
+      request(harness.server)
+        .put(`/api/documents/${id}/template`)
+        .set(auth())
+        .send({ templateId: 'classic', ...body });
+
+    test('lưu được và bản xem trước dùng đúng lựa chọn', async () => {
+      const document = await seedDoneCv();
+
+      await setTemplate(document.id, {
+        font: 'times',
+        size: 'small',
+        lineHeight: 1.35,
+      }).expect(200);
+
+      const preview = await request(harness.server)
+        .post(`/api/documents/${document.id}/preview`)
+        .set(auth())
+        .expect(200);
+      expect(preview.text).toContain('"Liberation Serif"');
+      expect(preview.text).toContain('line-height: 1.35;');
+    });
+
+    test('font lạ hoặc khoảng cách dòng ngoài 1.2–1.8 nhận 400', async () => {
+      const document = await seedDoneCv();
+
+      await setTemplate(document.id, { font: 'comic-sans' }).expect(400);
+      await setTemplate(document.id, { lineHeight: 2.5 }).expect(400);
+    });
   });
 });

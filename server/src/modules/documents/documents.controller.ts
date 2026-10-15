@@ -103,7 +103,7 @@ export class DocumentsController {
     @Body() dto: SetTemplateDto,
   ) {
     return withFailureKind(
-      await this.documents.setTemplate(user.id, id, dto.templateId, dto.accent),
+      await this.documents.setTemplate(user.id, id, dto.templateId, dto),
     );
   }
 

@@ -11,7 +11,7 @@ import {
   userKey,
   type Storage,
 } from '@/modules/storage/storage.interface';
-import type { Identity } from '../content.types';
+import type { CvContent, Identity } from '../content.types';
 import type { CoverLetterResult } from '../schemas/document.schema';
 import { renderCoverLetter, renderCv, slugify } from '../templates/latex';
 import type { LetterTarget } from '../utils/letter-target';
@@ -107,15 +107,17 @@ export class DocumentRenderer {
     document: Document,
     content: unknown,
     identity: Identity,
+    editing = false,
   ): string | null {
     if (document.kind !== 'CV') return null;
     return renderCvHtml(
       identity,
-      cvContent(content),
+      editing ? (content as CvContent) : cvContent(content),
       document.templateId,
       document.templateOptions,
       document.layout,
       renderLanguage(document),
+      editing,
     );
   }
 

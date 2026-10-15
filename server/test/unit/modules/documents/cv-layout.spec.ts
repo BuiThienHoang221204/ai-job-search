@@ -201,3 +201,39 @@ describe('data-section — mỏ neo cho việc bấm vào bản xem trước', (
     );
   });
 });
+
+// Tên mục người dùng đặt riêng nằm trong `layout.titles`; mặc định vẫn là nhãn theo ngôn ngữ.
+describe('tên mục riêng', () => {
+  test('resolveLayout giữ tên hợp lệ, bỏ tên rỗng và khoá lạ', () => {
+    const resolved = resolveLayout({
+      titles: { profile: '  About me  ', skills: '   ', la: 'x', education: 3 },
+    });
+
+    expect(resolved.titles).toEqual({ profile: 'About me' });
+  });
+
+  test('bản in dùng tên riêng thay cho nhãn mặc định', () => {
+    const html = renderCvHtml(identity, content, 'classic', null, {
+      titles: { profile: 'ABOUT-ME-RIENG' },
+    });
+
+    expect(html).toContain('ABOUT-ME-RIENG');
+    expect(html).not.toContain(`>${SECTION_TITLES.vi.profile}<`);
+  });
+
+  test('ở chế độ sửa tiêu đề có ô sửa, chữ gợi ý là nhãn mặc định', () => {
+    const html = renderCvHtml(
+      identity,
+      content,
+      'classic',
+      null,
+      null,
+      'vi',
+      true,
+    );
+
+    expect(html).toContain(
+      `data-field="layout.titles.profile" data-placeholder="${SECTION_TITLES.vi.profile}"`,
+    );
+  });
+});

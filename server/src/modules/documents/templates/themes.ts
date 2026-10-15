@@ -13,6 +13,7 @@ export type CvTemplateMeta = {
 
 export type CvTheme = {
   meta: CvTemplateMeta;
+  fontPt: number;
   css: (accent: string) => string;
 };
 
@@ -79,6 +80,7 @@ const classic: CvTheme = {
     accent: '#3873b3',
     usesAccent: true,
   },
+  fontPt: 10.5,
   css: (accent) => `
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 15mm' })}
 
@@ -110,6 +112,7 @@ const minimal: CvTheme = {
     accent: '#1a1a1a',
     usesAccent: false,
   },
+  fontPt: 10.5,
   css: () => `
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.5', margin: '16mm 17mm' })}
 
@@ -138,6 +141,7 @@ const modern: CvTheme = {
     accent: '#0f766e',
     usesAccent: true,
   },
+  fontPt: 10.5,
   css: (accent) => `
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 0 14mm 0' })}
 
@@ -175,6 +179,7 @@ const accentBar: CvTheme = {
     accent: '#b45309',
     usesAccent: true,
   },
+  fontPt: 10.5,
   css: (accent) => `
 /* Lề trái 0 vì left:0 của fixed neo vào mép VÙNG NỘI DUNG, không phải mép giấy; offset âm cũng bị cắt. Xem CLAUDE.md. */
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 15mm 14mm 0' })}
@@ -223,6 +228,7 @@ const formal: CvTheme = {
     accent: '#1f3864',
     usesAccent: true,
   },
+  fontPt: 11,
   css: (accent) => `
 ${base({ font: SERIF, fontSize: '11pt', lineHeight: '1.4', margin: '16mm 18mm' })}
 
@@ -253,6 +259,7 @@ const compact: CvTheme = {
     accent: '#334155',
     usesAccent: true,
   },
+  fontPt: 9.5,
   css: (accent) => `
 ${base({ font: SANS, fontSize: '9.5pt', lineHeight: '1.32', margin: '11mm 12mm' })}
 

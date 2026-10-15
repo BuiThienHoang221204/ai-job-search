@@ -167,6 +167,16 @@ export const cvEditSchema = z.object({
 
 export type CvEditResult = z.infer<typeof cvEditSchema>;
 
+export const identityEditSchema = z.object({
+  name: z.string().max(120).optional(),
+  email: z.string().max(160).optional(),
+  phone: z.string().max(40).optional(),
+  location: z.string().max(160).optional(),
+  title: z.string().max(160).optional(),
+});
+
+export type IdentityEdit = z.infer<typeof identityEditSchema>;
+
 export const coverLetterSchema = z.object({
   salutation: vn(
     120,

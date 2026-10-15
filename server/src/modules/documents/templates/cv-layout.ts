@@ -38,14 +38,18 @@ export const SECTION_TITLES: Record<
   },
 };
 
+export const SECTION_TITLE_MAX = 60;
+
 export type CvLayout = {
   order: SectionKey[];
   hidden: SectionKey[];
+  titles?: Partial<Record<SectionKey, string>>;
 };
 
 export const DEFAULT_LAYOUT: CvLayout = {
   order: [...SECTION_KEYS],
   hidden: [],
+  titles: {},
 };
 
 const isSectionKey = (value: unknown): value is SectionKey =>
@@ -54,11 +58,31 @@ const isSectionKey = (value: unknown): value is SectionKey =>
 const cleanKeys = (raw: unknown): SectionKey[] =>
   Array.isArray(raw) ? [...new Set(raw.filter(isSectionKey))] : [];
 
+/** Tên mục người dùng đặt riêng; tên rỗng bị bỏ để mục quay về nhãn mặc định theo ngôn ngữ. */
+const cleanTitles = (raw: unknown): Partial<Record<SectionKey, string>> => {
+  const titles: Partial<Record<SectionKey, string>> = {};
+  if (!raw || typeof raw !== 'object') return titles;
+  for (const [key, value] of Object.entries(raw)) {
+    if (!isSectionKey(key) || typeof value !== 'string') continue;
+    const title = value.trim();
+    if (title) titles[key] = title;
+  }
+  return titles;
+};
+
 /** Khoá mục thiếu được nối vào cuối, nên thêm mục ở bản sau không làm CV cũ mất mục. */
 export const resolveLayout = (raw: unknown): CvLayout => {
-  const stored = (raw ?? {}) as { order?: unknown; hidden?: unknown };
+  const stored = (raw ?? {}) as {
+    order?: unknown;
+    hidden?: unknown;
+    titles?: unknown;
+  };
   const order = cleanKeys(stored.order);
   const missing = SECTION_KEYS.filter((key) => !order.includes(key));
 
-  return { order: [...order, ...missing], hidden: cleanKeys(stored.hidden) };
+  return {
+    order: [...order, ...missing],
+    hidden: cleanKeys(stored.hidden),
+    titles: cleanTitles(stored.titles),
+  };
 };

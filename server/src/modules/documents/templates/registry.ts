@@ -3,10 +3,15 @@ import { buildCvHeader, buildCvSections } from './body';
 import { resolveLayout, type DocumentLanguage } from './cv-layout';
 import { htmlDocument } from './html';
 import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes';
+import {
+  resolveTypography,
+  typographyCss,
+  type CvTypography,
+} from './typography';
 
 export const DEFAULT_TEMPLATE_ID = 'classic';
 
-export type CvTemplateOptions = {
+export type CvTemplateOptions = CvTypography & {
   accent: string;
 };
 
@@ -29,10 +34,15 @@ export const resolveTemplateOptions = (
   raw: unknown,
 ): CvTemplateOptions => {
   const theme = findTheme(templateId);
-  if (!theme.meta.usesAccent) return { accent: theme.meta.accent };
+  const typography = resolveTypography(raw);
+  if (!theme.meta.usesAccent)
+    return { ...typography, accent: theme.meta.accent };
 
   const accent = (raw as { accent?: unknown } | null)?.accent;
-  return { accent: isAccent(accent) ? accent : theme.meta.accent };
+  return {
+    ...typography,
+    accent: isAccent(accent) ? accent : theme.meta.accent,
+  };
 };
 
 export const renderCvHtml = (
@@ -42,6 +52,7 @@ export const renderCvHtml = (
   rawOptions: unknown = null,
   rawLayout: unknown = null,
   language: DocumentLanguage = 'vi',
+  editing = false,
 ): string => {
   const theme = findTheme(templateId);
   const options = resolveTemplateOptions(templateId, rawOptions);
@@ -49,13 +60,13 @@ export const renderCvHtml = (
 
   const body = [
     '<div class="page-bar"></div>',
-    buildCvHeader(identity),
-    buildCvSections(content, layout, language),
+    buildCvHeader(identity, editing),
+    buildCvSections(content, layout, language, editing),
   ].join('\n');
 
   return htmlDocument({
     title: `${identity.name} - CV`,
-    css: theme.css(options.accent),
+    css: theme.css(options.accent) + typographyCss(options, theme.fontPt),
     body,
   });
 };

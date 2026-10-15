@@ -781,6 +781,11 @@ model Document {
   /// tự nối khoá còn thiếu vào cuối, nên thêm mục mới không làm CV cũ mất mục.
   layout Json?
 
+  /// Phần đầu CV người dùng sửa riêng cho CV này: `{ name?, email?, phone?, location?, title? }`.
+  /// Khoá vắng mặt = lấy theo tài khoản/hồ sơ; chuỗi rỗng = cố ý ẩn dòng đó. Không ghi ngược về
+  /// hồ sơ hay email đăng nhập — sửa ở CV này không làm CV khác đổi theo.
+  identity Json?
+
   modelId     String?
   generatedAt DateTime?
   error       String?   @db.Text

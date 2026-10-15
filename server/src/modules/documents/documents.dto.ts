@@ -1,15 +1,26 @@
 import {
   IsBoolean,
   IsIn,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
   Length,
   Matches,
   ValidateIf,
+  Max,
+  Min,
 } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import type { PdfEngine } from './services/documents.service';
+import {
+  CV_FONTS,
+  FONT_SCALES,
+  LINE_HEIGHT_MAX,
+  LINE_HEIGHT_MIN,
+  type CvFont,
+  type CvFontSize,
+} from './templates/typography';
 
 const pastedJob = (dto: CreateCvDto): boolean =>
   !dto.jobId &&
@@ -49,14 +60,27 @@ export class PdfQueryDto {
 export class UpdateCvDto {
   @IsOptional() @IsObject() content?: unknown;
   @IsOptional() @IsObject() layout?: unknown;
+  @IsOptional() @IsObject() identity?: unknown;
 }
 
 export class PreviewBodyDto extends UpdateCvDto {
   @IsOptional() @IsString() @Length(1, 40) templateId?: string;
 
+  @IsOptional() @IsBoolean() editing?: boolean;
+
   @IsOptional()
   @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'accent phải có dạng #rrggbb' })
   accent?: string;
+
+  @IsOptional() @IsIn(Object.keys(CV_FONTS)) font?: CvFont;
+
+  @IsOptional() @IsIn(Object.keys(FONT_SCALES)) size?: CvFontSize;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(LINE_HEIGHT_MIN)
+  @Max(LINE_HEIGHT_MAX)
+  lineHeight?: number;
 }
 
 export class SetTemplateDto {
@@ -65,6 +89,15 @@ export class SetTemplateDto {
   @IsOptional()
   @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'accent phải có dạng #rrggbb' })
   accent?: string;
+  @IsOptional() @IsIn(Object.keys(CV_FONTS)) font?: CvFont;
+
+  @IsOptional() @IsIn(Object.keys(FONT_SCALES)) size?: CvFontSize;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(LINE_HEIGHT_MIN)
+  @Max(LINE_HEIGHT_MAX)
+  lineHeight?: number;
 }
 
 export class CreateCoverLetterDto {
