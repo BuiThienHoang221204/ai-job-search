@@ -1,3 +1,4 @@
+import { PickType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -83,3 +84,14 @@ export class ListJobsQueryDto extends PaginationQueryDto {
   @IsBoolean()
   applied?: boolean;
 }
+
+export class PublicJobsQueryDto extends PickType(ListJobsQueryDto, [
+  'limit',
+  'offset',
+  'q',
+  'province',
+  'occupation',
+  'subOccupation',
+  'workMode',
+  'postedWithin',
+]) {}

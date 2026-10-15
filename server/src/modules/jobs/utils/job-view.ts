@@ -178,7 +178,7 @@ function occupationFacetWhere(
 
 export function whereFrom(
   query: ListJobsQueryDto,
-  userId: string,
+  userId: string | null,
   fit: ProfileFit | null = null,
 ): Prisma.JobWhereInput {
   const needle = query.q ? normalizeText(query.q) : '';
@@ -197,8 +197,8 @@ export function whereFrom(
     ...(query.workMode?.length ? { workMode: { in: query.workMode } } : {}),
     ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
     ...(since ? { postedAt: { gte: since } } : {}),
-    ...(query.saved ? { saves: { some: { userId } } } : {}),
-    ...(query.applied ? { applications: { some: { userId } } } : {}),
+    ...(query.saved && userId ? { saves: { some: { userId } } } : {}),
+    ...(query.applied && userId ? { applications: { some: { userId } } } : {}),
   };
 }
 

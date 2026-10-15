@@ -14,6 +14,8 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { Public } from '@/common/decorators/public.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { ListJobsQueryDto } from './job.dto';
 import { JobsService } from './jobs.service';
@@ -35,6 +37,8 @@ export class JobsController {
   @ApiOperation({
     summary: 'Lấy danh mục tỉnh thành và ngành nghề kèm số lượng tin để lọc',
   })
+  @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get('filters')
   filters() {
     return this.jobs.filters();

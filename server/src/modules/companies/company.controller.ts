@@ -15,6 +15,8 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Public } from '@/common/decorators/public.decorator';
 import { justDone, streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 import { QUEUE, QueueService } from '../queue/queue.service';
@@ -36,6 +38,8 @@ export class CompanyController {
     summary: 'Lấy thông tin tóm tắt công ty theo ID tin tuyển dụng',
   })
   @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
+  @Public()
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get('brief/by-job/:jobId')
   brief(@Param('jobId') jobId: string) {
     return this.companies.forJob(jobId);

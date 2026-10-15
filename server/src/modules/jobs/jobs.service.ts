@@ -6,7 +6,11 @@ import { toMatchProfile } from '../matching/ai/utils/requirements';
 import { SkillDictionaryService } from '../matching/ai/services/skill-dictionary.service';
 import { SalaryService } from '../salary/salary.service';
 import { yearsOfExperience } from '../profile/utils/experience-years';
-import { jobCardSelect } from './job-card.select';
+import {
+  jobCardSelect,
+  PUBLIC_JOB_DETAIL_SELECT,
+  PUBLIC_JOB_FIELDS,
+} from './job-card.select';
 import {
   filterTree,
   listOrderFor,
@@ -23,7 +27,8 @@ import {
   withoutChecks,
 } from './utils/job-view';
 import { needsOccupation, profileFit } from './utils/occupation-gate';
-import type { ListJobsQueryDto } from './job.dto';
+import type { ListJobsQueryDto, PublicJobsQueryDto } from './job.dto';
+import { toPublicJobDetail } from './utils/public-job';
 
 @Injectable()
 export class JobsService {
@@ -140,6 +145,33 @@ export class JobsService {
       this.prisma.jobRequirementMatch.count({ where }),
     ] as const;
   }
+  /** Danh sách cho khách chưa đăng nhập: không lương, không đối chiếu hồ sơ, luôn mới quét trước. */
+  async publicList(query: PublicJobsQueryDto) {
+    const where = whereFrom(query, null);
+    const [rows, total] = await Promise.all([
+      this.prisma.job.findMany({
+        where,
+        orderBy: orderFor('newest'),
+        ...pageArgs(query),
+        select: PUBLIC_JOB_FIELDS,
+      }),
+      this.prisma.job.count({ where }),
+    ]);
+    return pageOf(rows, total, query);
+  }
+
+  async publicGet(id: string) {
+    const [job, dictionary] = await Promise.all([
+      this.prisma.job.findUnique({
+        where: { id },
+        select: PUBLIC_JOB_DETAIL_SELECT,
+      }),
+      this.dictionary.lookup(),
+    ]);
+    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${id}`);
+    return toPublicJobDetail(job, dictionary);
+  }
+
   async filters() {
     const [byProvince, byOccupation, bySubOccupation] = await Promise.all([
       this.prisma.job.groupBy({
