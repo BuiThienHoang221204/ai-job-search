@@ -13,10 +13,9 @@ import {
 } from './sandbox.interface';
 import { messageOf } from '@/common/error-message';
 
-const AVAILABILITY_TIMEOUT_MS = 5_000;
+const CLEANUP_TIMEOUT_MS = 5_000;
 
 const DEFAULT_MEMORY_MB = 512;
-const DEFAULT_CPUS = 1;
 
 type Spawned = {
   code: number;
@@ -44,8 +43,7 @@ export function dockerArgs(
   work: string,
   spec: SandboxSpec,
 ): string[] {
-  const memory = spec.limits?.memoryMb ?? DEFAULT_MEMORY_MB;
-  const cpus = spec.limits?.cpus ?? DEFAULT_CPUS;
+  const memory = spec.memoryMb ?? DEFAULT_MEMORY_MB;
 
   return [
     'run',
@@ -53,11 +51,11 @@ export function dockerArgs(
     '--name',
     name,
     '--network',
-    spec.network === 'egress' ? 'bridge' : 'none',
+    'none',
     '--memory',
     `${memory}m`,
     '--cpus',
-    String(cpus),
+    '1',
     '--pull',
     'never',
     '-v',
@@ -132,7 +130,7 @@ export class DockerSandbox implements SandboxRunner {
       try {
         artifacts[path] = await readFile(join(work, path));
       } catch {
-        // Thiếu artifact là bình thường khi compile hỏng; caller quyết định.
+        continue;
       }
     }
 
@@ -140,7 +138,7 @@ export class DockerSandbox implements SandboxRunner {
   }
 
   private async forceRemove(name: string): Promise<void> {
-    await this.spawn(['rm', '-f', name], AVAILABILITY_TIMEOUT_MS).catch(
+    await this.spawn(['rm', '-f', name], CLEANUP_TIMEOUT_MS).catch(
       (error: unknown) =>
         this.logger.error(
           `Không xoá được container ${name}: ${messageOf(error)}`,

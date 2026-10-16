@@ -32,7 +32,8 @@ export class DashboardService {
   } as const;
 
   /** Tin mới trong ngành từ `since`: tổng số, top tỉnh, top nghề; không tính bản sao. */
-  private async market(occupationCode: string, since: Date) {
+  private async market(occupationCode: string | null, since: Date) {
+    if (!occupationCode || occupationCode === OTHER_CODE) return null;
     const where = {
       occupationCode,
       duplicateOfId: null,
@@ -103,7 +104,9 @@ export class DashboardService {
 
     const activity = {
       documents: documents.map((row) => row.createdAt),
-      applied: appliedRows.flatMap((row) => row.appliedAt ?? []),
+      applied: appliedRows
+        .map((row) => row.appliedAt)
+        .filter((date): date is Date => date !== null),
       interviews: runs.map((row) => row.createdAt),
     };
     const now = new Date();
@@ -135,6 +138,9 @@ export class DashboardService {
   async overview(userId: string) {
     const since = daysAgo(7);
     const eligible = { userId, ...DashboardService.ELIGIBLE };
+    const profileRead = Promise.resolve(
+      this.prisma.profile.findUnique({ where: { userId } }),
+    );
 
     const [
       profile,
@@ -147,8 +153,10 @@ export class DashboardService {
       applications,
       totalScored,
       progress,
+      skillGaps,
+      market,
     ] = await Promise.all([
-      this.prisma.profile.findUnique({ where: { userId } }),
+      profileRead,
       this.prisma.jobMatch.count({ where: eligible }),
       this.prisma.jobMatch.count({
         where: { ...eligible, createdAt: { gte: since } },
@@ -190,12 +198,14 @@ export class DashboardService {
       this.applications.countsFor(userId),
       this.prisma.jobMatch.count({ where: { userId, status: 'DONE' } }),
       this.progress(userId),
+      this.skillGaps(userId),
+      profileRead.then((row) =>
+        this.market(row?.occupationCode ?? null, since),
+      ),
     ]);
 
     const best = pendingMatches[0];
     const occupationCode = profile?.occupationCode ?? null;
-    const hasOccupation = !!occupationCode && occupationCode !== OTHER_CODE;
-    const skillGaps = await this.skillGaps(userId);
 
     const suggestionInput: SuggestionInput = {
       profileCompletion: profile?.completion ?? 0,
@@ -218,7 +228,7 @@ export class DashboardService {
     return {
       profileCompletion: profile?.completion ?? 0,
       occupationCode,
-      market: hasOccupation ? await this.market(occupationCode, since) : null,
+      market,
       matchingJobs: { total: matchCount, newThisWeek },
       averageMatchScore: roundedScore(aggregate._avg.overallScore),
       pendingMatches: pendingMatches.map(

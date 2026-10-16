@@ -107,7 +107,11 @@ function fakePrisma(original: { id: string } | null = null) {
         id: 'run-1',
         portal: 'topcv',
         userId: null,
+        status: 'PENDING',
       }),
+      updateMany: jest.fn<Promise<{ count: number }>, [unknown]>(() =>
+        Promise.resolve({ count: 1 }),
+      ),
       update: jest.fn((args: { data: unknown }) => Promise.resolve(args.data)),
     },
     profile: {
@@ -1031,5 +1035,45 @@ describe('ScraperService.run - xoay vòng hồ sơ được chấm điểm', () 
     await runScrape(buildService(prisma, router, fakeQueue()));
 
     expect(prisma.profile.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('ScraperService.run - giành lần quét trước khi chạy', () => {
+  test('giành chỗ có điều kiện: chỉ lật PENDING sang RUNNING', async () => {
+    const { router } = fakePortals({ 1: [card('a')] });
+    const prisma = fakePrisma();
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(prisma.scrapeRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'run-1', status: 'PENDING' },
+        data: expect.objectContaining({ status: 'RUNNING' }) as unknown,
+      }),
+    );
+  });
+
+  test('việc bị giao lại khi lần quét đã chạy thì không quét lần hai', async () => {
+    const { router, calls } = fakePortals({ 1: [card('a')] });
+    const prisma = fakePrisma();
+    prisma.scrapeRun.findUnique = jest.fn().mockResolvedValue({
+      id: 'run-1',
+      portal: 'topcv',
+      userId: null,
+      status: 'RUNNING',
+    });
+    prisma.scrapeRun.updateMany = jest.fn<
+      Promise<{ count: number }>,
+      [unknown]
+    >(() => Promise.resolve({ count: 0 }));
+    const service = buildService(prisma, router, fakeQueue());
+
+    const result = await runScrape(service);
+
+    expect(calls).toEqual([]);
+    expect(prisma.job.upsert).not.toHaveBeenCalled();
+    expect(prisma.scrapeRun.update).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ id: 'run-1', status: 'RUNNING' });
   });
 });

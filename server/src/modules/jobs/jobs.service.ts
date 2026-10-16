@@ -177,19 +177,16 @@ export class JobsService {
       this.prisma.job.groupBy({
         by: ['provinceCode'],
         where: { duplicateOfId: null },
-        orderBy: { provinceCode: 'asc' },
         _count: true,
       }),
       this.prisma.job.groupBy({
         by: ['occupationCode'],
         where: { duplicateOfId: null },
-        orderBy: { occupationCode: 'asc' },
         _count: true,
       }),
       this.prisma.job.groupBy({
         by: ['subOccupationCode'],
         where: { duplicateOfId: null },
-        orderBy: { subOccupationCode: 'asc' },
         _count: true,
       }),
     ]);

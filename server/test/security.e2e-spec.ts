@@ -63,6 +63,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
     test.each([
       ['GET', '/api/skills'],
       ['POST', '/api/skills/reload'],
+      ['POST', '/api/scrape'],
       ['POST', '/api/scrape/portals/reload'],
       ['POST', '/api/admin/reconcile/run-now'],
       ['GET', '/api/queue/stats'],
@@ -75,15 +76,6 @@ describe('Phân quyền và cách ly dữ liệu', () => {
     test('/api/admin/ai-health trả 403', async () => {
       const user = await harness.signUp();
       await get('/api/admin/ai-health', user).expect(403);
-    });
-
-    /// Quét việc làm theo hồ sơ của chính mình là TÍNH NĂNG, không phải việc
-    /// vận hành - nên route này cố ý mở cho người dùng thường. Nó cần rate limit,
-    /// không cần chặn quyền. Test này giữ cho lần siết quyền sau không siết lầm.
-    test('POST /api/scrape KHÔNG bị chặn theo vai trò', async () => {
-      const user = await harness.signUp();
-      const response = await post('/api/scrape', user).send({});
-      expect(response.status).not.toBe(403);
     });
   });
 
@@ -243,7 +235,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
 
         expect(response.status).toBeLessThan(300);
         expect(response.body).not.toHaveProperty('refreshToken');
-        expect(response.body).toHaveProperty('accessToken');
+        expect(response.body).not.toHaveProperty('accessToken');
       },
     );
   });

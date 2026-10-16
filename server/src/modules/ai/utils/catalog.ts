@@ -1,8 +1,8 @@
 import { formatModelRef } from './model-ref';
-import { ModelUnavailableError } from './failure-kind';
+import { ModelUnavailableError } from '@/common/ai/failure-kind';
 import type { ModelRef } from './model-ref';
 import type { ProviderDescriptor } from '../providers/index';
-import type { CatalogModel, CatalogProvider, ModelListing } from '../ai.types';
+import type { CatalogModel, CatalogProvider } from '../ai.types';
 
 const SUPPORTED_NPMS = new Set([
   '@ai-sdk/openai-compatible',
@@ -58,34 +58,4 @@ export function selectModel(
     );
   }
   return found;
-}
-
-export function toListing(
-  models: CatalogModel[],
-  descriptor: ProviderDescriptor,
-  live: Map<string, Record<string, unknown>> | undefined,
-  defaultModelId: string,
-): ModelListing[] {
-  return models
-    .map((model) => {
-      const entry = live?.get(model.id);
-      const declared =
-        entry && descriptor.declaresStructuredOutput
-          ? descriptor.declaresStructuredOutput(entry)
-          : null;
-      return {
-        id: model.id,
-        ref: formatModelRef({ providerId: descriptor.id, modelId: model.id }),
-        name: model.name,
-        toolCall: model.tool_call !== false,
-        structuredOutput: descriptor.knownNoStructuredOutput?.includes(model.id)
-          ? false
-          : declared,
-      };
-    })
-    .sort(
-      (a, b) =>
-        Number(b.id === defaultModelId) - Number(a.id === defaultModelId) ||
-        a.name.localeCompare(b.name),
-    );
 }

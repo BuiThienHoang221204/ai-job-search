@@ -1,4 +1,13 @@
 import { HOUR_MS } from '@/common/duration';
+import type { QueueStats } from '@/modules/queue/queue.service';
+import {
+  fillBuckets,
+  toUsageRow,
+  type BucketRow,
+  type Granularity,
+  type GroupedSums,
+} from './ai-usage';
+import { registeredOnly } from './filters';
 export const OVERVIEW_THRESHOLDS = {
   minSuccessRate: 80,
   minCallsForRate: 20,
@@ -7,6 +16,8 @@ export const OVERVIEW_THRESHOLDS = {
 } as const;
 
 export type Severity = 'danger' | 'warning';
+
+const SEVERITY_RANK: Record<Severity, number> = { danger: 0, warning: 1 };
 
 export interface AttentionItem {
   id: string;
@@ -115,7 +126,125 @@ export function buildAttention(input: AttentionInput): AttentionItem[] {
     });
   }
 
-  return items.sort((a, b) =>
-    a.severity === b.severity ? 0 : a.severity === 'danger' ? -1 : 1,
+  return items.sort(
+    (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
   );
+}
+
+export interface ErrorSampleRow {
+  purpose: string;
+  failureKind: string | null;
+  errorMessage: string | null;
+}
+
+export interface FailureGroupRow {
+  purpose: string;
+  failureKind: string | null;
+  _count: { _all: number };
+}
+
+export interface PortalRun {
+  portal: string;
+  status: string;
+  jobsNew: number;
+  error: string | null;
+  createdAt: Date;
+}
+
+export interface OverviewInput {
+  days: number;
+  now: Date;
+  since: Date;
+  before: Date;
+  granularity: Granularity;
+  calls: number;
+  ok: number;
+  prevCalls: number;
+  prevOk: number;
+  tokens: GroupedSums;
+  prevTokens: GroupedSums;
+  newJobs: number | null;
+  prevNewJobs: number | null;
+  groups: Array<FailureGroupRow & { _max: { createdAt: Date | null } }>;
+  prevGroups: FailureGroupRow[];
+  samples: ErrorSampleRow[];
+  kinds: Array<{ failureKind: string | null; _count: { _all: number } }>;
+  buckets: BucketRow[];
+  runs: PortalRun[];
+  registeredPortals: string[];
+  queue: QueueStats;
+}
+
+const groupKey = (row: { purpose: string; failureKind: string | null }) =>
+  `${row.purpose}|${row.failureKind}`;
+
+/** Dựng trang tổng quan admin từ các số đã truy vấn; không chạm database. */
+export function buildOverview(input: OverviewInput) {
+  const { calls, ok, days, now, queue } = input;
+  const prevBy = new Map(
+    input.prevGroups.map((group) => [groupKey(group), group._count._all]),
+  );
+  const sampleBy = new Map(
+    input.samples.map((sample) => [groupKey(sample), sample.errorMessage]),
+  );
+  const errorGroups = input.groups.map((group) => ({
+    purpose: group.purpose,
+    failureKind: group.failureKind,
+    count: group._count._all,
+    previousCount: prevBy.get(groupKey(group)) ?? 0,
+    lastAt: group._max.createdAt,
+    sample: sampleBy.get(groupKey(group)) ?? null,
+  }));
+
+  const successRate = rate(ok, calls);
+  const previousSuccessRate = comparableRate(input.prevOk, input.prevCalls);
+  const portals = registeredOnly(input.runs, input.registeredPortals);
+  const lastScrapeAt = portals.reduce<Date | null>(
+    (latest, run) =>
+      !latest || run.createdAt > latest ? run.createdAt : latest,
+    null,
+  );
+
+  return {
+    windowDays: days,
+    since: input.since,
+    previousSince: input.before,
+    granularity: input.granularity,
+    thresholds: OVERVIEW_THRESHOLDS,
+    metrics: {
+      aiCalls: { current: calls, previous: input.prevCalls },
+      successRate: { current: successRate, previous: previousSuccessRate },
+      tokens: {
+        current: toUsageRow(input.tokens).totalTokens,
+        previous: toUsageRow(input.prevTokens).totalTokens,
+      },
+      newJobs: {
+        current: input.newJobs ?? 0,
+        previous: input.prevNewJobs ?? 0,
+      },
+      queueWaiting: queue.totalWaiting,
+      queueActive: queue.totalActive,
+    },
+    series: fillBuckets(input.buckets, days, now),
+    errorGroups,
+    queues: queue.queues.filter((row) => row.size + row.active > 0),
+    queueCount: queue.queues.length,
+    portals,
+    attention: buildAttention({
+      calls,
+      ok,
+      previousSuccessRate,
+      failed: calls - ok,
+      topFailure: topFailureKind(
+        input.kinds.map((row) => ({
+          kind: row.failureKind,
+          count: row._count._all,
+        })),
+      ),
+      queueWaiting: queue.totalWaiting,
+      portals,
+      lastScrapeAt,
+      now,
+    }),
+  };
 }

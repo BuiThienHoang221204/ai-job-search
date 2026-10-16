@@ -19,15 +19,10 @@ export type GenerateObjectOptions<T> = {
 
 export type StreamTextResult = ReturnType<typeof streamText>;
 
-export type StreamObjectOptions<T> = {
-  schema: ZodType<T>;
-  system: string;
-  prompt: string;
-  context: AiCallContext;
-  modelId?: string;
-  fallbackModelIds?: string[];
-  timeoutMs?: number;
-};
+export type StreamObjectOptions<T> = Omit<
+  GenerateObjectOptions<T>,
+  'maxRetries'
+>;
 
 export type StreamObjectResult<T> = {
   modelId: string;
@@ -37,10 +32,9 @@ export type StreamObjectResult<T> = {
 
 export type StreamTextOptions = {
   system: string;
-  prompt?: string;
-  messages?: ModelMessage[];
+  messages: ModelMessage[];
   modelId?: string;
-  context?: AiCallContext;
+  context: AiCallContext;
   timeoutMs?: number;
 };
 
@@ -59,7 +53,6 @@ export interface Ai {
 export type CatalogModel = {
   id: string;
   name: string;
-  tool_call?: boolean;
   provider?: { npm?: string; api?: string };
 };
 
@@ -81,13 +74,4 @@ export type ResolvedModel = {
   dropJsonMode: boolean;
   honorsResponseFormat: boolean;
   streamsJson: boolean;
-  defaultMaxOutputTokens?: number;
-};
-
-export type ModelListing = {
-  id: string;
-  ref: string;
-  name: string;
-  toolCall: boolean;
-  structuredOutput: boolean | null;
 };

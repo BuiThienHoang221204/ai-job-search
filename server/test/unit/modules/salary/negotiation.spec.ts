@@ -105,6 +105,10 @@ const input = (over: Partial<NegotiationInput> = {}): NegotiationInput => ({
   minYears: 2,
   seniority: 'UNKNOWN',
   fitScore: 50,
+  postedMin: null,
+  postedMax: null,
+  currentSalary: null,
+  expectedSalary: null,
   ...over,
 });
 

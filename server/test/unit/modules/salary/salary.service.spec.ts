@@ -64,6 +64,18 @@ describe('SalaryService', () => {
     expect(where[0].occupationCode).toEqual({ not: null });
   });
 
+  it('danh sách vị trí công khai có trần số dòng', async () => {
+    const findMany = jest.fn<Promise<unknown[]>, [{ take?: number }]>(() =>
+      Promise.resolve([]),
+    );
+    const { prisma } = fakePrisma({ findMany });
+    await new SalaryService(prisma).positions({});
+
+    const take = findMany.mock.calls[0][0].take;
+    expect(take).toBeGreaterThan(0);
+    expect(take).toBeLessThanOrEqual(1_000);
+  });
+
   it('ném NotFound khi vị trí không có dữ liệu công khai', async () => {
     const { prisma } = fakePrisma();
 

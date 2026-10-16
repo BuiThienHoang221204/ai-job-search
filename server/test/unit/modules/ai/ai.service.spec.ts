@@ -62,9 +62,10 @@ jest.mock('@ai-sdk/openai-compatible', () => ({
 
 import { z } from 'zod';
 import { AiService } from 'src/modules/ai/services/ai.service.js';
-import { ModelUnavailableError } from 'src/modules/ai/utils/failure-kind.js';
+import { ModelUnavailableError } from 'src/common/ai/failure-kind.js';
 import type { ModelCatalogService } from 'src/modules/ai/services/model-catalog.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
+import { Logger } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 
 const SCHEMA = z.object({ diem: z.number() });
@@ -821,6 +822,50 @@ describe('AiService.generateObject - nhật ký', () => {
 
     await expect(service.generateObject(call('a-free'))).rejects.toThrow();
     expect(recorded[0].failureKind).toBe('SCHEMA');
+  });
+});
+
+describe('AiService.generateObject - log lệch schema không lộ dữ liệu CV', () => {
+  test('in chỗ lệch schema và độ dài phản hồi, KHÔNG in nguyên văn', async () => {
+    const leaked =
+      '{"name":"Nguyễn Văn A","email":"nguyenvana@example.com","phone":"0912345678"}';
+    generateObjectMock.mockRejectedValue(
+      new actualAi.NoObjectGeneratedError({
+        message: 'No object generated',
+        text: leaked,
+        response: { id: 'r1', timestamp: new Date(0), modelId: 'a-free' },
+        usage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          inputTokenDetails: {
+            noCacheTokens: 10,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+          },
+          outputTokenDetails: { textTokens: 5, reasoningTokens: 0 },
+        },
+        finishReason: 'stop',
+      }),
+    );
+    const errorSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      const { service } = build({ structuredOutputs: true });
+      await expect(service.generateObject(call('a-free'))).rejects.toThrow();
+
+      const logged = errorSpy.mock.calls.map((args) => String(args[0]));
+      expect(logged.length).toBeGreaterThan(0);
+      const text = logged.join(' ');
+      expect(text).toContain(`${leaked.length} ký tự`);
+      expect(text).not.toContain('nguyenvana@example.com');
+      expect(text).not.toContain('0912345678');
+      expect(text).not.toContain('Nguyễn Văn A');
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
 

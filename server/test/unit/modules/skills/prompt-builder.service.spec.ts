@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Job, Profile } from 'src/generated/prisma/client.js';
 import { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
-import { PROFILE_LABELS } from 'src/modules/skills/utils/shared-placeholders.js';
+import {
+  PROFILE_LABELS,
+  renderShared,
+} from 'src/modules/skills/utils/shared-placeholders.js';
 import {
   EVALUATION_SECTIONS,
   evaluationPrompt,
@@ -290,7 +293,7 @@ const EVALUATION_MD = readFileSync(
 );
 
 const sharedFramework = () =>
-  service.renderShared(
+  renderShared(
     service.dropSubsection(
       service.keepSections(EVALUATION_MD, EVALUATION_SECTIONS),
       'Salary Benchmark',
@@ -357,14 +360,14 @@ describe('renderShared - khung dùng chung để cache được', () => {
   });
 
   test('token không có nhãn (tên, tài chính) vẫn ra đúng câu NOT_PROVIDED như render', () => {
-    expect(
-      service.renderShared('[YOUR_NAME] [YOUR_FINANCIAL_SITUATION_CONTEXT]'),
-    ).toBe(`${NOT_PROVIDED} ${NOT_PROVIDED}`);
+    expect(renderShared('[YOUR_NAME] [YOUR_FINANCIAL_SITUATION_CONTEXT]')).toBe(
+      `${NOT_PROVIDED} ${NOT_PROVIDED}`,
+    );
   });
 
   test('khung vẫn nói rõ "chưa cung cấp" khi hồ sơ thiếu dòng được trỏ tới', () => {
     // Luật chấm bảo model chấm thấp mục ghi "chưa cung cấp"; bỏ vế này thì dòng vắng mặt thành im lặng.
-    const output = service.renderShared('[YOUR_PRIMARY_SKILLS]');
+    const output = renderShared('[YOUR_PRIMARY_SKILLS]');
     expect(output).toContain(NOT_PROVIDED);
     expect(output).toContain('(xem «Kỹ năng chính»)');
   });
@@ -375,8 +378,6 @@ describe('renderShared - khung dùng chung để cache được', () => {
   });
 
   test('khung không có token nào thì không chèn ghi chú', () => {
-    expect(service.renderShared('Không có gì để trỏ')).toBe(
-      'Không có gì để trỏ',
-    );
+    expect(renderShared('Không có gì để trỏ')).toBe('Không có gì để trỏ');
   });
 });

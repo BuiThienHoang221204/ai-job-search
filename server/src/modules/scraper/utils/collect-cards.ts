@@ -51,6 +51,7 @@ export async function collectCards(
         advanced = true;
 
         if (isBlockedError(cursor.error)) {
+          // eslint-disable-next-line max-depth
           for (const other of cursors) other.done = true;
           deps.log(
             `${portal}: bị chặn ở "${cursor.query.query}", dừng các truy vấn còn lại`,
@@ -73,9 +74,9 @@ export async function collectCards(
     deps.log(`${portal}: bỏ ${stale} tin đăng quá ${limits.maxAgeDays} ngày`);
   }
 
-  const askedIndices = cursors.flatMap((cursor, index) =>
-    cursor.requested ? [index] : [],
-  );
+  const askedIndices = cursors
+    .map((_, index) => index)
+    .filter((index) => cursors[index].requested);
   if (askedIndices.length < cursors.length) {
     deps.log(
       `${portal}: ${cursors.length - askedIndices.length}/${cursors.length} truy vấn không gửi được request nào vì đã đầy trần tin`,

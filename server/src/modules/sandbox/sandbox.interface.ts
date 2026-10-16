@@ -11,12 +11,7 @@ export type SandboxSpec = {
 
   artifacts: string[];
 
-  network?: 'none' | 'egress';
-
-  limits?: {
-    memoryMb?: number;
-    cpus?: number;
-  };
+  memoryMb?: number;
 };
 
 export type SandboxResult = {

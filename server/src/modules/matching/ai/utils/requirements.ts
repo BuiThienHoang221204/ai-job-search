@@ -36,7 +36,7 @@ export function toRequirements(row: JobRequirement): JobRequirements {
 
 /** Hồ sơ cho phép đối chiếu; `headline` được gộp vào danh sách kỹ năng. */
 export function toMatchProfile(profile: {
-  headline?: string | null;
+  headline: string | null;
   primarySkills: string[];
   secondarySkills: string[];
   citizenship: string | null;

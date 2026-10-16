@@ -46,12 +46,9 @@ describe('ModelChain — chuỗi dự phòng riêng cho một lượt gọi', ()
       .mockRejectedValueOnce(denied(403))
       .mockResolvedValueOnce('xong bằng model nhanh dự phòng');
 
-    const result = await chainOf(['opencode/cham']).run(
-      'groq/a',
-      attempt,
-      undefined,
-      ['groq/b'],
-    );
+    const result = await chainOf(['opencode/cham']).run('groq/a', attempt, [
+      'groq/b',
+    ]);
 
     expect(result).toBe('xong bằng model nhanh dự phòng');
     expect(attempt.mock.calls.map((call) => call[0])).toEqual([
@@ -75,7 +72,6 @@ describe('ModelChain — chuỗi dự phòng riêng cho một lượt gọi', ()
     const result = await chainOf(['opencode/cham']).run(
       'groq/openai/gpt-oss-120b',
       attempt,
-      undefined,
       ['gemini/models/gemini-3.5-flash-lite'],
     );
 

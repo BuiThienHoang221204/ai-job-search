@@ -4,7 +4,6 @@ export type ProviderDescriptor = {
   apiKeyEnv: string;
   userAgentEnv?: string;
   baseURLEnv?: string;
-  maxConcurrencyEnv?: string;
   honorsResponseFormat?: boolean;
   extraHeaders?: Record<string, string>;
   explicitStreamFlag?: boolean;
@@ -13,8 +12,6 @@ export type ProviderDescriptor = {
   knownNoStructuredOutput?: readonly string[];
   streamsJson?: readonly string[] | 'all';
   rateLimitFor?: (modelId: string) => readonly RateLimitSpec[] | undefined;
-  staticModels?: readonly string[];
-  defaultMaxOutputTokens?: number;
 };
 
 export type RateLimitSpec = {

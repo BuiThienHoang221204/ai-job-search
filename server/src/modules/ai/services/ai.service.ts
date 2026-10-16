@@ -15,18 +15,20 @@ import {
   schemaIssues,
   truncateError,
   type SchemaIssue,
-} from '../utils/failure-kind';
-import { estimateTokens, markUsed } from '../utils/fast-model-scheduler';
+} from '@/common/ai/failure-kind';
+import { estimateTokens } from '@/common/ai/token-estimate';
+import { markUsed } from '../utils/fast-model-scheduler';
 import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt';
 import { routeSdkWarnings } from '../utils/sdk-warnings';
 import { clipMiddle, emptyStream, streamFrom } from '../utils/stream';
-import { AiCallLog } from './ai-call-log';
+import { AiCallLog, type AiCallEntry } from './ai-call-log';
 import { ConcurrencyGate } from '../utils/concurrency-gate';
 import { LanguageModelFactory } from './language-model';
 import { ModelCatalogService } from './model-catalog.service';
-import { DEFAULT_CHAIN_BUDGET_MS, ModelChain } from './model-chain';
+import { ModelChain } from './model-chain';
 import type {
   Ai,
+  AiCallContext,
   GenerateObjectOptions,
   StreamObjectOptions,
   StreamObjectResult,
@@ -35,8 +37,6 @@ import type {
 } from '../ai.types';
 
 const DEFAULT_TIMEOUT_MS = 90_000;
-
-const LOG_TEXT_LIMIT = 4000;
 
 const DB_TEXT_LIMIT = 2000;
 
@@ -57,7 +57,6 @@ function failureFields(error: unknown, issues: SchemaIssue[]) {
 export class AiService implements Ai {
   private readonly logger = new Logger(AiService.name);
   private readonly chain: ModelChain;
-  private readonly chainBudgetMs: number;
   private readonly callLog: AiCallLog;
   private readonly models: LanguageModelFactory;
   private readonly gate: ConcurrencyGate;
@@ -72,8 +71,6 @@ export class AiService implements Ai {
   ) {
     this.structuredOutputsDefault =
       config.get<boolean>('ai.structuredOutputs') ?? false;
-    this.chainBudgetMs =
-      config.get<number>('ai.chainBudgetMs') ?? DEFAULT_CHAIN_BUDGET_MS;
     this.chain = new ModelChain({
       defaultModelId: config.get<string>('ai.modelId') ?? '',
       defaultProviderId: config.get<string>('ai.provider') ?? '',
@@ -95,7 +92,6 @@ export class AiService implements Ai {
     return this.chain.run(
       options.modelId,
       (modelId) => this.withFormatFallback({ ...options, modelId }),
-      this.chainBudgetMs,
       options.fallbackModelIds,
     );
   }
@@ -190,15 +186,7 @@ export class AiService implements Ai {
     options: GenerateObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<{ object: T; modelId: string }> {
-    const {
-      model,
-      id,
-      provider,
-      ref,
-      defaultMaxOutputTokens,
-      release,
-      startedAt,
-    } = await this.open(
+    const { model, id, provider, ref, release, startedAt } = await this.open(
       options.modelId,
       structuredOutputs,
       false,
@@ -212,9 +200,6 @@ export class AiService implements Ai {
         system: this.systemFor(options, structuredOutputs),
         prompt: options.prompt,
         maxRetries: options.maxRetries ?? 2,
-        ...(defaultMaxOutputTokens
-          ? { maxOutputTokens: defaultMaxOutputTokens }
-          : {}),
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),
@@ -259,7 +244,7 @@ export class AiService implements Ai {
     }
   }
 
-  /** In nguyên văn thứ model trả về khi lệch schema, để biết model hiểu sai chỗ nào. */
+  /** Chỉ in chỗ lệch schema và ĐỘ DÀI phản hồi: nguyên văn có thể mang tên, số điện thoại, email từ CV. */
   private logSchemaFailure(
     ref: string,
     durationMs: number,
@@ -277,8 +262,7 @@ export class AiService implements Ai {
               ...issues.map(formatIssue),
             ].join('\n')
           : '--- không bóc được chi tiết lệch schema (nhiều khả năng JSON hỏng, không phải sai kiểu) ---',
-        `--- model trả về (${text.length} ký tự) ---`,
-        text ? clipMiddle(text, LOG_TEXT_LIMIT) : '(rỗng)',
+        `--- model trả về ${text.length} ký tự (không in nội dung, xem ai_calls.responseText) ---`,
       ].join('\n'),
     );
   }
@@ -289,7 +273,6 @@ export class AiService implements Ai {
     return this.chain.run(
       options.modelId,
       (modelId) => this.streamOnce({ ...options, modelId }),
-      this.chainBudgetMs,
       options.fallbackModelIds,
     );
   }
@@ -347,15 +330,7 @@ export class AiService implements Ai {
     options: StreamObjectOptions<T>,
     structuredOutputs: boolean,
   ): Promise<StreamObjectResult<T>> {
-    const {
-      model,
-      id,
-      provider,
-      ref,
-      defaultMaxOutputTokens,
-      release,
-      startedAt,
-    } = await this.open(
+    const { model, id, provider, ref, release, startedAt } = await this.open(
       options.modelId,
       structuredOutputs,
       true,
@@ -367,9 +342,6 @@ export class AiService implements Ai {
       schema: options.schema,
       system: this.systemFor(options, structuredOutputs),
       prompt: options.prompt,
-      ...(defaultMaxOutputTokens
-        ? { maxOutputTokens: defaultMaxOutputTokens }
-        : {}),
       abortSignal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
       onFinish: ({ usage, error }) => {
         release();
@@ -427,50 +399,54 @@ export class AiService implements Ai {
       options.modelId,
       false,
       false,
-      estimateTokens(
-        options.system,
-        options.prompt ?? JSON.stringify(options.messages ?? []),
-      ),
+      estimateTokens(options.system, JSON.stringify(options.messages)),
     );
 
-    const record = (ok: boolean, extra: Record<string, unknown>) => {
-      if (!options.context) return;
-      void this.callLog.record({
-        context: options.context,
-        provider,
-        modelId: id,
-        ok,
-        durationMs: Date.now() - startedAt,
-        ...extra,
-      });
-    };
+    const call = { provider, modelId: id, startedAt };
 
     return {
       modelId: id,
       result: streamText({
         model,
         system: options.system,
-        ...(options.messages
-          ? { messages: options.messages }
-          : { prompt: options.prompt ?? '' }),
+        messages: options.messages,
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),
         onFinish: ({ usage }) => {
           release();
-          record(true, {
+          this.recordText(options.context, call, {
+            ok: true,
             inputTokens: usage?.inputTokens,
             outputTokens: usage?.outputTokens,
           });
         },
         onError: ({ error }) => {
           release();
-          record(false, {
+          this.recordText(options.context, call, {
+            ok: false,
             failureKind: classifyFailure(error),
             errorMessage: truncateError(error),
           });
         },
       }),
     };
+  }
+
+  private recordText(
+    context: AiCallContext,
+    call: { provider: string; modelId: string; startedAt: number },
+    result: Pick<
+      AiCallEntry,
+      'ok' | 'failureKind' | 'errorMessage' | 'inputTokens' | 'outputTokens'
+    >,
+  ): void {
+    void this.callLog.record({
+      context,
+      provider: call.provider,
+      modelId: call.modelId,
+      durationMs: Date.now() - call.startedAt,
+      ...result,
+    });
   }
 }

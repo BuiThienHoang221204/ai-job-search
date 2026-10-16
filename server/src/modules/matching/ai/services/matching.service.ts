@@ -9,9 +9,10 @@ import { jobCardSelect } from '@/modules/jobs/job-card.select';
 import { MATCH_DETAIL_FIELDS } from '@/modules/jobs/utils/job-view';
 import { AiService } from '@/modules/ai/services/ai.service';
 import type { ModelStreamEvent } from '@/common/stream-event';
-import type { FailureKind } from '@/modules/ai/utils/failure-kind';
+import type { FailureKind } from '@/common/ai/failure-kind';
 import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
 import { SkillRegistryService } from '@/modules/skills/services/skill-registry.service';
+import { renderShared } from '@/modules/skills/utils/shared-placeholders';
 import {
   computeOverall,
   evaluationSchema,
@@ -30,12 +31,9 @@ import {
   evaluationPrompt,
   EVALUATION_SECTIONS,
 } from '../prompt/evaluation.prompt';
-import {
-  streamFailureEvent,
-  withFailureKind,
-} from '@/modules/ai/utils/failure-view';
-import { fastModelChain } from '@/common/model-env';
-import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { streamFailureEvent, withFailureKind } from '@/common/ai/failure-view';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
+import { estimateTokens } from '@/common/ai/token-estimate';
 import { messageOf } from '@/common/error-message';
 
 const SKILL_NAME = 'job-application-assistant';
@@ -64,7 +62,7 @@ export class MatchingService {
       skill.references.get(REFERENCE_FILE) ?? '',
       EVALUATION_SECTIONS,
     );
-    const framework = this.prompts.renderShared(
+    const framework = renderShared(
       this.prompts.dropSubsection(selected, 'Salary Benchmark'),
     );
 
@@ -112,22 +110,20 @@ export class MatchingService {
     return { inputs: { profile, job, system, prompt, hash } };
   }
 
-  /** Đánh dấu cặp FAILED và trả câu lỗi để người gọi tự quyết cách báo. */
-  private async fail(
+  private fail(
     userId: string,
     jobId: string,
     error: unknown,
     label: string,
-  ): Promise<{ match: JobMatch; message: string }> {
+  ): Promise<JobMatch> {
     const message = messageOf(error);
     this.logger.error(
       `${label} thất bại (user=${userId} job=${jobId}): ${message}`,
     );
-    const match = await this.prisma.jobMatch.update({
+    return this.prisma.jobMatch.update({
       where: { userId_jobId: { userId, jobId } },
       data: { status: 'FAILED', error: message },
     });
-    return { match, message };
   }
 
   async evaluate(
@@ -149,8 +145,7 @@ export class MatchingService {
 
       return await this.persist(userId, jobId, object, modelId, hash);
     } catch (error) {
-      const { match } = await this.fail(userId, jobId, error, 'Chấm điểm');
-      return match;
+      return this.fail(userId, jobId, error, 'Chấm điểm');
     }
   }
 

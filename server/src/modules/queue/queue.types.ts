@@ -2,7 +2,6 @@ import type { QueueService } from './queue.service';
 
 export type ExtractRequirementsPayload = {
   jobIds: string[];
-  force?: boolean;
 };
 
 export type RequirementMatchPayload = {

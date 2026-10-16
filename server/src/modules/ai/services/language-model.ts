@@ -12,7 +12,6 @@ export type ResolvedLanguageModel = {
   id: string;
   provider: string;
   ref: string;
-  defaultMaxOutputTokens?: number;
 };
 
 export class LanguageModelFactory {
@@ -85,7 +84,6 @@ export class LanguageModelFactory {
         providerId: resolved.providerId,
         modelId: resolved.model.id,
       }),
-      defaultMaxOutputTokens: resolved.defaultMaxOutputTokens,
     };
   }
 }

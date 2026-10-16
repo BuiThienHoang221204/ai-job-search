@@ -1,7 +1,5 @@
 import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
-import { OCCUPATIONS } from '../jobs/taxonomy/occupations';
-
-const OCCUPATION_CODES = OCCUPATIONS.map((o) => o.code);
+import { OCCUPATION_CODES } from '../jobs/taxonomy/occupations';
 
 export class ListPositionsQueryDto {
   @IsOptional()

@@ -5,7 +5,6 @@ import { buildPositionIndex, resolveJobPosition } from './utils/job-position';
 import { negotiationRange } from './utils/negotiation';
 import { occupationName, orderBands, rankPeers } from './utils/salary-view';
 import type {
-  PositionIndex,
   SalaryGuide,
   SalaryGuideJob,
   SalaryGuideProfile,
@@ -14,7 +13,7 @@ import type {
 
 const PEER_LIMIT = 6;
 
-const INDEX_CACHE_MS = 10 * 60_000;
+const MAX_POSITIONS = 1_000;
 
 const INDEX_SELECT = {
   positionSlug: true,
@@ -38,29 +37,17 @@ const INDEX_SELECT = {
 export class SalaryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private index: PositionIndex | null = null;
-  private indexUntil = 0;
-
-  private async positionIndex(): Promise<PositionIndex> {
-    if (this.index && Date.now() < this.indexUntil) return this.index;
-
-    const rows = await this.prisma.salaryReference.findMany({
-      where: { visibility: 'PUBLIC' },
-      select: INDEX_SELECT,
-    });
-
-    this.index = buildPositionIndex(rows);
-    this.indexUntil = Date.now() + INDEX_CACHE_MS;
-    return this.index;
-  }
-
   async guideForJob(
     job: SalaryGuideJob,
     requirements: SalaryGuideRequirements | null,
     fitScore: number | null,
-    profile: SalaryGuideProfile | null = null,
+    profile: SalaryGuideProfile | null,
   ): Promise<SalaryGuide | null> {
-    const resolved = resolveJobPosition(job, await this.positionIndex());
+    const rows = await this.prisma.salaryReference.findMany({
+      where: { visibility: 'PUBLIC' },
+      select: INDEX_SELECT,
+    });
+    const resolved = resolveJobPosition(job, buildPositionIndex(rows));
     if (!resolved) return null;
 
     const range = negotiationRange({
@@ -112,6 +99,7 @@ export class SalaryService {
       },
       select: { ...INDEX_SELECT, bands: false },
       orderBy: [{ avgMonthly: 'desc' }, { positionName: 'asc' }],
+      take: MAX_POSITIONS,
     });
 
     return rows.map((row) => ({

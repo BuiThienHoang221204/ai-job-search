@@ -55,17 +55,4 @@ describe('ngân sách thời gian của cả chuỗi', () => {
     expect(result).toBe('xong');
     expect(attempt).toHaveBeenCalledTimes(3);
   });
-
-  test('tham số budgetOverrideMs thắng ngân sách chung', async () => {
-    const boom = denied(403);
-    const attempt = jest
-      .fn<Promise<string>, [string | undefined]>()
-      .mockRejectedValue(boom);
-
-    await expect(
-      chainOf(['opencode/b'], 60_000).run('opencode/a', attempt, 0),
-    ).rejects.toBe(boom);
-
-    expect(attempt).toHaveBeenCalledTimes(1);
-  });
 });

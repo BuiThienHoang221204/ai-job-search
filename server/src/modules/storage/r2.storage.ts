@@ -4,11 +4,8 @@ import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
-  DeleteObjectCommand,
-  HeadObjectCommand,
-  ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
-import type { Storage, StoredFile } from './storage.interface';
+import type { Storage } from './storage.interface';
 
 @Injectable()
 export class R2Storage implements Storage {
@@ -41,11 +38,6 @@ export class R2Storage implements Storage {
     return Buffer.concat(chunks);
   }
 
-  async readText(key: string): Promise<string> {
-    const buf = await this.read(key);
-    return buf.toString('utf8');
-  }
-
   async write(key: string, data: Buffer | string): Promise<void> {
     const body = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
     await this.client.send(
@@ -61,51 +53,5 @@ export class R2Storage implements Storage {
       }),
     );
     this.logger.debug(`Wrote ${key} (${body.length} bytes)`);
-  }
-
-  async exists(key: string): Promise<boolean> {
-    try {
-      await this.client.send(
-        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async list(prefix: string): Promise<StoredFile[]> {
-    const results: StoredFile[] = [];
-    let continuationToken: string | undefined;
-
-    do {
-      const res = await this.client.send(
-        new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: prefix,
-          ContinuationToken: continuationToken,
-        }),
-      );
-
-      for (const obj of res.Contents ?? []) {
-        if (obj.Key && obj.LastModified) {
-          results.push({
-            key: obj.Key,
-            size: obj.Size ?? 0,
-            updatedAt: obj.LastModified,
-          });
-        }
-      }
-      continuationToken = res.NextContinuationToken;
-    } while (continuationToken);
-
-    return results;
-  }
-
-  async delete(key: string): Promise<void> {
-    await this.client.send(
-      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
-    this.logger.debug(`Deleted ${key}`);
   }
 }

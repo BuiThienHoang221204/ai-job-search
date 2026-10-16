@@ -1,10 +1,12 @@
 import {
   buildAttention,
+  buildOverview,
   comparableRate,
   previousSince,
   rate,
   topFailureKind,
   type AttentionInput,
+  type OverviewInput,
 } from 'src/modules/admin/utils/overview.js';
 
 const now = new Date('2026-09-24T05:00:00Z');
@@ -110,5 +112,98 @@ describe('topFailureKind', () => {
 
   test('không có lần hỏng nào thì null', () => {
     expect(topFailureKind([])).toBeNull();
+  });
+});
+
+describe('buildOverview', () => {
+  const emptySums = {
+    _count: { _all: 0 },
+    _sum: { inputTokens: null, outputTokens: null, cachedTokens: null },
+  };
+  const base: OverviewInput = {
+    days: 1,
+    now,
+    since: new Date('2026-09-23T05:00:00Z'),
+    before: new Date('2026-09-22T05:00:00Z'),
+    granularity: 'hour',
+    calls: 10,
+    ok: 7,
+    prevCalls: 0,
+    prevOk: 0,
+    tokens: emptySums,
+    prevTokens: emptySums,
+    newJobs: null,
+    prevNewJobs: 4,
+    groups: [
+      {
+        purpose: 'match.evaluate',
+        failureKind: 'SCHEMA',
+        _count: { _all: 2 },
+        _max: { createdAt: now },
+      },
+      {
+        purpose: 'match.evaluate',
+        failureKind: null,
+        _count: { _all: 1 },
+        _max: { createdAt: now },
+      },
+    ],
+    prevGroups: [
+      { purpose: 'match.evaluate', failureKind: null, _count: { _all: 5 } },
+    ],
+    samples: [
+      {
+        purpose: 'match.evaluate',
+        failureKind: null,
+        errorMessage: 'lỗi không phân loại',
+      },
+    ],
+    kinds: [],
+    buckets: [],
+    runs: [
+      {
+        portal: 'itviec',
+        status: 'DONE',
+        jobsNew: 3,
+        error: null,
+        createdAt: now,
+      },
+      {
+        portal: 'da-go',
+        status: 'DONE',
+        jobsNew: 1,
+        error: null,
+        createdAt: now,
+      },
+    ],
+    registeredPortals: ['itviec'],
+    queue: { queues: [], totalWaiting: 0, totalActive: 0 },
+  };
+
+  test('ghép mẫu lỗi và số kỳ trước theo cặp purpose + failureKind, kể cả failureKind null', () => {
+    const result = buildOverview(base);
+
+    expect(result.errorGroups).toEqual([
+      expect.objectContaining({
+        failureKind: 'SCHEMA',
+        count: 2,
+        previousCount: 0,
+        sample: null,
+      }),
+      expect.objectContaining({
+        failureKind: null,
+        count: 1,
+        previousCount: 5,
+        sample: 'lỗi không phân loại',
+      }),
+    ]);
+  });
+
+  test('chỉ giữ portal còn đăng ký, số tin mới thiếu thì là 0', () => {
+    const result = buildOverview(base);
+
+    expect(result.portals.map((run) => run.portal)).toEqual(['itviec']);
+    expect(result.metrics.newJobs).toEqual({ current: 0, previous: 4 });
+    expect(result.series).toHaveLength(24);
   });
 });

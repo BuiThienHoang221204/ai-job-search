@@ -7,7 +7,8 @@ export function reconcileNote(result: ReconcileResult): string {
     result.upskillReports +
     result.interviewPreps +
     result.profileDrafts +
-    result.jobRequirements;
+    result.jobRequirements +
+    result.scrapeRuns;
 
   const parts: string[] = [];
   if (requeued) {

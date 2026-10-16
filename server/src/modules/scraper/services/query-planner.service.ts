@@ -32,28 +32,6 @@ export class QueryPlanner {
     private readonly systemQueryLimit: number,
   ) {}
 
-  private deterministicQueries(profile: Profile | null): SearchPlan {
-    return { queries: planFromProfile(profile) };
-  }
-
-  private async refineQueries(
-    profile: Profile | null,
-    userId: string,
-  ): Promise<{
-    plan: SearchPlan;
-    modelId: string;
-  }> {
-    const { object, modelId } = await this.ai.generateObject<SearchPlan>({
-      schema: searchPlanSchema,
-      context: { purpose: 'scrape.plan', userId },
-      system: SEARCH_PLAN_SYSTEM,
-      prompt: searchPlanPrompt(this.prompts.profileSummary(profile)),
-      timeoutMs: PLAN_TIMEOUT_MS,
-      maxRetries: 0,
-    });
-    return { plan: object, modelId };
-  }
-
   async forUser(
     profile: Profile | null,
     userId: string,
@@ -61,15 +39,22 @@ export class QueryPlanner {
     plan: SearchPlan;
     modelId: string | null;
   }> {
-    const baseline = this.deterministicQueries(profile);
+    const baseline: SearchPlan = { queries: planFromProfile(profile) };
     if (!baseline.queries.length) {
       return { plan: baseline, modelId: null };
     }
 
     try {
-      const refined = await this.refineQueries(profile, userId);
-      this.logger.log(`Truy vấn do ${refined.modelId} tinh chỉnh`);
-      return refined;
+      const { object, modelId } = await this.ai.generateObject<SearchPlan>({
+        schema: searchPlanSchema,
+        context: { purpose: 'scrape.plan', userId },
+        system: SEARCH_PLAN_SYSTEM,
+        prompt: searchPlanPrompt(this.prompts.profileSummary(profile)),
+        timeoutMs: PLAN_TIMEOUT_MS,
+        maxRetries: 0,
+      });
+      this.logger.log(`Truy vấn do ${modelId} tinh chỉnh`);
+      return { plan: object, modelId };
     } catch (error) {
       const message = messageOf(error);
       this.logger.warn(

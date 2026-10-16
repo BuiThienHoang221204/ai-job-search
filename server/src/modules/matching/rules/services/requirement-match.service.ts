@@ -32,30 +32,19 @@ export class RequirementMatchService {
 
   private requirements(jobId?: string): Promise<JobRequirement[]> {
     return this.prisma.jobRequirement.findMany({
-      where: { status: 'DONE', ...(jobId ? { jobId } : {}) },
+      where: {
+        status: 'DONE',
+        job: { duplicateOfId: null },
+        ...(jobId ? { jobId } : {}),
+      },
     });
   }
 
-  async scoreJob(jobId: string): Promise<number> {
+  /** Đối chiếu một tin với mọi hồ sơ, một hồ sơ với mọi tin, hoặc cả kho khi không truyền gì. */
+  async score(scope: { jobId?: string; userId?: string }): Promise<number> {
     const [requirements, candidates] = await Promise.all([
-      this.requirements(jobId),
-      this.candidates(),
-    ]);
-    return this.apply(requirements, candidates);
-  }
-
-  async scoreAll(): Promise<number> {
-    const [requirements, candidates] = await Promise.all([
-      this.requirements(),
-      this.candidates(),
-    ]);
-    return this.apply(requirements, candidates);
-  }
-
-  async scoreUser(userId: string): Promise<number> {
-    const [requirements, candidates] = await Promise.all([
-      this.requirements(),
-      this.candidates(userId),
+      this.requirements(scope.jobId),
+      this.candidates(scope.userId),
     ]);
     return this.apply(requirements, candidates);
   }
@@ -110,7 +99,12 @@ export class RequirementMatchService {
     await this.prisma.$transaction([
       this.prisma.jobRequirementMatch.deleteMany({ where: { OR: drop } }),
       ...(fresh.length
-        ? [this.prisma.jobRequirementMatch.createMany({ data: fresh })]
+        ? [
+            this.prisma.jobRequirementMatch.createMany({
+              data: fresh,
+              skipDuplicates: true,
+            }),
+          ]
         : []),
     ]);
 

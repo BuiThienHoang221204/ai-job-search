@@ -2,13 +2,12 @@ import { QUEUE, QueueService } from 'src/modules/queue/queue.service.js';
 import type { QueueConfigService } from 'src/modules/queue/queue-config.service.js';
 import { purgePgBossJobs, testDatabaseUrl } from './support/test-database.js';
 
-/// `QueueService` chỉ hỏi `QueueConfigService` hai điều - số worker song song và
-/// một lệnh nạp lại cache - và không điều nào dính tới hợp đồng chặn trùng đang
-/// kiểm ở đây. Dựng bản thật sẽ kéo theo Prisma và một lượt seed vào database.
+/// `QueueService` chỉ hỏi `QueueConfigService` số worker song song, không dính tới
+/// hợp đồng chặn trùng đang kiểm ở đây. Dựng bản thật sẽ kéo theo Prisma và một
+/// lượt seed vào database.
 const stubQueueConfig = () =>
   ({
     getConcurrency: () => 1,
-    refreshCache: () => Promise.resolve(),
   }) as unknown as QueueConfigService;
 
 /// Hợp đồng chặn trùng của hàng đợi, kiểm trên pg-boss THẬT.
@@ -40,7 +39,7 @@ describe('Chặn trùng trên hàng đợi thật', () => {
   });
 
   afterAll(async () => {
-    await queue.onApplicationShutdown();
+    await queue.beforeApplicationShutdown();
     // Dọn cả khi kết thúc, không chỉ lúc bắt đầu. Việc xếp vào đây là việc THẬT
     // trong pg-boss: bỏ lại thì worker của lần chạy tiếp theo - hoặc của một
     // container trỏ vào database test - sẽ nhặt lấy và cố xử lý những payload chỉ
@@ -206,7 +205,7 @@ describe('Chặn trùng trên hàng đợi thật', () => {
         // Hàng đợi vẫn nguyên policy cũ: không có gì bị xoá sau lần từ chối.
         expect((await boss.getQueue(target))?.policy).toBe('standard');
       } finally {
-        await fresh.onApplicationShutdown();
+        await fresh.beforeApplicationShutdown();
         await boss.stop({ graceful: false });
       }
     });
@@ -223,7 +222,7 @@ describe('Chặn trùng trên hàng đợi thật', () => {
 
         expect((await boss.getQueue(target))?.policy).toBe('exclusive');
       } finally {
-        await fresh.onApplicationShutdown();
+        await fresh.beforeApplicationShutdown();
         await boss.stop({ graceful: false });
       }
     });

@@ -1,7 +1,7 @@
 import {
+  BeforeApplicationShutdown,
   Injectable,
   Logger,
-  OnApplicationShutdown,
   OnModuleInit,
 } from '@nestjs/common';
 import type { PgBoss, SendOptions, WorkOptions } from 'pg-boss';
@@ -15,12 +15,10 @@ export { QUEUE, QUEUE_POLICY } from './queue.constants';
 export type * from './queue.types';
 
 @Injectable()
-export class QueueService implements OnModuleInit, OnApplicationShutdown {
+export class QueueService implements OnModuleInit, BeforeApplicationShutdown {
   private readonly logger = new Logger(QueueService.name);
   private boss!: PgBoss;
   private started!: Promise<void>;
-
-  private refreshTimer?: NodeJS.Timeout;
 
   constructor(private readonly queueConfig: QueueConfigService) {}
 
@@ -52,17 +50,10 @@ export class QueueService implements OnModuleInit, OnApplicationShutdown {
         `Vai tiến trình: ${appRole()}` +
           (runsBackgroundWork() ? '' : ' - KHÔNG đăng ký worker nào'),
       );
-
-      this.refreshTimer = setInterval(() => {
-        this.queueConfig.refreshCache().catch((error: unknown) => {
-          this.logger.error('Lỗi refresh queue config', error);
-        });
-      }, 30_000);
     })();
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    if (this.refreshTimer) clearInterval(this.refreshTimer);
+  async beforeApplicationShutdown(): Promise<void> {
     await this.boss?.stop({ graceful: true });
   }
 

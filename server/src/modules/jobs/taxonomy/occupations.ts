@@ -480,6 +480,12 @@ export const OCCUPATIONS: Occupation[] = [
   },
 ];
 
+export const OCCUPATION_CODES = OCCUPATIONS.map((o) => o.code);
+
+export const OCCUPATION_NAMES = new Map(
+  OCCUPATIONS.map((o) => [o.code, o.name]),
+);
+
 export const OTHER_CODE = 'OTHER';
 
 const OTHER_SUB_SUFFIX = '_OTHER';

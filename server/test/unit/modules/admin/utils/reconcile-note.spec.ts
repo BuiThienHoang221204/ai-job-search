@@ -9,6 +9,7 @@ const result = (patch: Partial<ReconcileResult> = {}): ReconcileResult => ({
   interviewPreps: 0,
   profileDrafts: 0,
   jobRequirements: 0,
+  scrapeRuns: 0,
   deferred: 0,
   ...patch,
 });

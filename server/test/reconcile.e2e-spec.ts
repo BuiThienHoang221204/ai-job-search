@@ -247,7 +247,43 @@ describe('Nhặt việc nền bị rơi', () => {
       interviewPreps: 0,
       profileDrafts: 0,
       jobRequirements: 0,
+      scrapeRuns: 0,
     });
     expect(harness.queue.sent).toEqual([]);
+  });
+  /// `ScrapeRun` không có `updatedAt`: RUNNING tính từ `startedAt`, PENDING từ
+  /// `createdAt`. Sai tên cột thì Prisma chỉ ném khi đường này chạy thật.
+  test('lần quét kẹt RUNNING quá 2 giờ bị đánh hỏng, lần quét đang chạy hay đang chờ thì không', async () => {
+    const hoursAgo = (hours: number) =>
+      new Date(Date.now() - hours * 60 * 60 * 1000);
+    const [stuck, alive, waiting, abandoned] = await Promise.all([
+      harness.prisma.scrapeRun.create({
+        data: { portal: 'topcv', status: 'RUNNING', startedAt: hoursAgo(3) },
+      }),
+      harness.prisma.scrapeRun.create({
+        data: { portal: 'itviec', status: 'RUNNING', startedAt: hoursAgo(1) },
+      }),
+      harness.prisma.scrapeRun.create({
+        data: {
+          portal: 'careerviet',
+          status: 'PENDING',
+          createdAt: hoursAgo(3),
+        },
+      }),
+      harness.prisma.scrapeRun.create({
+        data: { portal: 'joboko', status: 'PENDING', createdAt: hoursAgo(13) },
+      }),
+    ]);
+
+    const result = await reconcile.run();
+
+    const statusOf = async (id: string) =>
+      (await harness.prisma.scrapeRun.findUniqueOrThrow({ where: { id } }))
+        .status;
+    expect(result.scrapeRuns).toBe(2);
+    expect(await statusOf(stuck.id)).toBe('FAILED');
+    expect(await statusOf(alive.id)).toBe('RUNNING');
+    expect(await statusOf(waiting.id)).toBe('PENDING');
+    expect(await statusOf(abandoned.id)).toBe('FAILED');
   });
 });

@@ -4,6 +4,6 @@ import { ModelCatalogService } from './services/model-catalog.service';
 
 @Module({
   providers: [ModelCatalogService, AiService],
-  exports: [ModelCatalogService, AiService],
+  exports: [AiService],
 })
 export class AiModule {}

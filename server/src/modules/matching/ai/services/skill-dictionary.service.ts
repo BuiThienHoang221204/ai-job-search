@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
+import { isUniqueViolation } from '@/prisma/prisma-errors';
 import { AiService } from '@/modules/ai/services/ai.service';
 import {
   SEMANTIC_INDEX,
@@ -109,19 +110,26 @@ export class SkillDictionaryService {
     }));
   }
 
-  private async insertCanonical(
-    name: string,
-    vector: number[],
-  ): Promise<string> {
-    const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
-      `insert into canonical_skills (id, name, model, embedding)
-       values (gen_random_uuid()::text, $1, $2, $3::vector)
-       returning id`,
-      name,
-      this.semantic.modelId,
-      vectorLiteral(vector),
-    );
-    return rows[0].id;
+  private async createCanonical(candidate: Candidate): Promise<string> {
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
+        `insert into canonical_skills (id, name, model, embedding)
+         values (gen_random_uuid()::text, $1, $2, $3::vector)
+         returning id`,
+        candidate.raw,
+        this.semantic.modelId,
+        vectorLiteral(candidate.vector),
+      );
+      await tx.skillAlias.create({
+        data: {
+          key: candidate.key,
+          raw: candidate.raw,
+          skillId: rows[0].id,
+          source: 'EXACT',
+        },
+      });
+      return rows[0].id;
+    });
   }
 
   /** Phân loại cách viết mới theo lô; chuỗi đã có trong danh bạ thì bỏ qua, không gọi model. */
@@ -214,36 +222,35 @@ export class SkillDictionaryService {
           ? candidate.near[picked - 1]
           : null;
 
-      if (target) {
-        await this.prisma.skillAlias.create({
-          data: {
-            key: candidate.key,
-            raw: candidate.raw,
-            skillId: target.id,
-            source: 'LLM',
-          },
-        });
-        target.aliases.push(candidate.raw);
-        added += 1;
-        continue;
-      }
+      try {
+        if (target) {
+          await this.prisma.skillAlias.create({
+            data: {
+              key: candidate.key,
+              raw: candidate.raw,
+              skillId: target.id,
+              source: 'LLM',
+            },
+          });
+          target.aliases.push(candidate.raw);
+          added += 1;
+          continue;
+        }
 
-      const id = await this.insertCanonical(candidate.raw, candidate.vector);
-      await this.prisma.skillAlias.create({
-        data: {
-          key: candidate.key,
-          raw: candidate.raw,
-          skillId: id,
-          source: 'EXACT',
-        },
-      });
-      canonicals.push({
-        id,
-        name: candidate.raw,
-        aliases: [candidate.raw],
-        vector: candidate.vector,
-      });
-      added += 1;
+        const id = await this.createCanonical(candidate);
+        canonicals.push({
+          id,
+          name: candidate.raw,
+          aliases: [candidate.raw],
+          vector: candidate.vector,
+        });
+        added += 1;
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        this.logger.log(
+          `Danh bạ: "${candidate.raw}" đã được lượt khác thêm trước, bỏ qua`,
+        );
+      }
     }
 
     return added;

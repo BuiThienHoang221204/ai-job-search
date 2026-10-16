@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PortalCliService } from './portal-cli.service';
 import type {
   JobSource,
@@ -10,8 +10,6 @@ import type {
 
 @Injectable()
 export class JobSourceRouter implements JobSource {
-  private readonly logger = new Logger(JobSourceRouter.name);
-
   constructor(private readonly cli: PortalCliService) {}
 
   private get adapters(): JobSource[] {
@@ -22,19 +20,7 @@ export class JobSourceRouter implements JobSource {
     const lists = await Promise.all(
       this.adapters.map((adapter) => adapter.reload()),
     );
-    const entries = lists.flat();
-
-    const seen = new Set<string>();
-    for (const entry of entries) {
-      if (seen.has(entry.key)) {
-        this.logger.warn(
-          `Khoá nguồn "${entry.key}" khai hai lần; mục đứng trước sẽ thắng.`,
-        );
-      }
-      seen.add(entry.key);
-    }
-
-    return entries;
+    return lists.flat();
   }
 
   listPortals(): string[] {

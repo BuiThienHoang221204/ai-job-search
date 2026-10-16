@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { Job, JobRequirement } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
-import { classifyFailure } from '@/modules/ai/utils/failure-kind';
+import { classifyFailure } from '@/common/ai/failure-kind';
 import {
   jobRequirementsBatchSchema,
   jobRequirementsSchema,
@@ -110,12 +110,9 @@ export class JobRequirementsService {
     }
   }
 
-  async extractMany(
-    jobIds: string[],
-    force = false,
-  ): Promise<JobRequirement[]> {
+  async extractMany(jobIds: string[]): Promise<JobRequirement[]> {
     if (jobIds.length <= 1) {
-      return jobIds.length ? [await this.extract(jobIds[0], force)] : [];
+      return jobIds.length ? [await this.extract(jobIds[0])] : [];
     }
 
     const [jobs, existing] = await Promise.all([
@@ -132,12 +129,12 @@ export class JobRequirementsService {
     for (const job of jobs) {
       const hash = sourceHash(job);
       const previous = byJobId.get(job.id);
-      if (!force && isUpToDate(previous, hash)) {
+      if (isUpToDate(previous, hash)) {
         results.push(previous);
         continue;
       }
       if (job.description.length > BATCH_MAX_DESCRIPTION) {
-        results.push(await this.extract(job.id, force));
+        results.push(await this.extract(job.id));
         continue;
       }
       batch.push({ job, hash });
@@ -145,7 +142,7 @@ export class JobRequirementsService {
 
     if (!batch.length) return results;
     if (batch.length === 1) {
-      results.push(await this.extract(batch[0].job.id, force));
+      results.push(await this.extract(batch[0].job.id));
       return results;
     }
 
@@ -169,7 +166,7 @@ export class JobRequirementsService {
           this.logger.warn(
             `Lô ${extracted ? 'trả 0 kỹ năng' : 'thiếu phần tử'} [${offset + 1}] cho ${entry.job.id}; rút lẻ`,
           );
-          results.push(await this.extract(entry.job.id, force));
+          results.push(await this.extract(entry.job.id));
           continue;
         }
         results.push(
@@ -193,7 +190,7 @@ export class JobRequirementsService {
         `Lô ${batch.length} tin hỏng (${message}); rút lại từng tin một`,
       );
       for (const entry of batch) {
-        results.push(await this.extract(entry.job.id, force));
+        results.push(await this.extract(entry.job.id));
       }
       return results;
     }

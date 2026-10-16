@@ -1,4 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
+import { Prisma } from 'src/generated/prisma/client.js';
 import { SkillDictionaryService } from 'src/modules/matching/ai/services/skill-dictionary.service.js';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
@@ -8,19 +9,43 @@ import { FakeSemanticIndex } from 'src/testing/fake-semantic-index.js';
 type Alias = { key: string; raw: string; skillId: string; source: string };
 type CanonicalRow = { id: string; name: string; vector: number[] };
 
-/** Bản giả đủ cho đúng 3 truy vấn service dùng: bảng alias, select và insert `canonical_skills`. */
-function fakePrisma(aliases: Alias[], canonicals: CanonicalRow[]) {
+const uniqueViolation = () =>
+  new Prisma.PrismaClientKnownRequestError('trùng khoá', {
+    code: 'P2002',
+    clientVersion: 'test',
+  });
+
+/** Bản giả đủ cho đúng các truy vấn service dùng: bảng alias, select/insert `canonical_skills` và `$transaction` có rollback. `takenElsewhere` là khoá một worker khác đã ghi trước — `create` ném P2002 như unique key thật. */
+function fakePrisma(
+  aliases: Alias[],
+  canonicals: CanonicalRow[],
+  takenElsewhere: string[] = [],
+) {
   let nextId = 1;
-  return {
+  const prisma = {
     aliases,
     canonicals,
     skillAlias: {
       findMany: () =>
         Promise.resolve(aliases.map(({ key, skillId }) => ({ key, skillId }))),
       create: ({ data }: { data: Alias }) => {
+        if (takenElsewhere.includes(data.key)) {
+          return Promise.reject(uniqueViolation());
+        }
         aliases.push(data);
         return Promise.resolve(data);
       },
+    },
+    $transaction: async <T>(run: (tx: unknown) => Promise<T>): Promise<T> => {
+      const aliasCount = aliases.length;
+      const canonicalCount = canonicals.length;
+      try {
+        return await run(prisma);
+      } catch (error) {
+        aliases.length = aliasCount;
+        canonicals.length = canonicalCount;
+        throw error;
+      }
     },
     $queryRawUnsafe: (sql: string, ...params: unknown[]) => {
       if (sql.trimStart().startsWith('insert')) {
@@ -44,10 +69,15 @@ function fakePrisma(aliases: Alias[], canonicals: CanonicalRow[]) {
       );
     },
   };
+  return prisma;
 }
 
-function build(aliases: Alias[] = [], canonicals: CanonicalRow[] = []) {
-  const prisma = fakePrisma(aliases, canonicals);
+function build(
+  aliases: Alias[] = [],
+  canonicals: CanonicalRow[] = [],
+  takenElsewhere: string[] = [],
+) {
+  const prisma = fakePrisma(aliases, canonicals, takenElsewhere);
   const ai = new FakeAi();
   const semantic = new FakeSemanticIndex();
   const config = { get: () => undefined };
@@ -181,5 +211,39 @@ describe('SkillDictionaryService.ingest', () => {
       remaining: 1,
     });
     expect(semantic.calls).toEqual([['Excel', 'Misa']]);
+  });
+
+  test('worker khác đã thêm cùng cách viết thì bỏ qua nó, KHÔNG để lại kỹ năng mồ côi, phần còn lại của lô vẫn ghi', async () => {
+    const { service, prisma } = build([], [], ['misa']);
+
+    expect(await service.ingest(['Excel', 'Misa', 'Word'])).toEqual({
+      added: 2,
+      remaining: 0,
+    });
+    expect(prisma.canonicals.map((row) => row.name)).toEqual(['Excel', 'Word']);
+    expect(prisma.aliases.map((row) => row.key)).toEqual(['excel', 'word']);
+  });
+
+  test('alias LLM trùng với lượt khác cũng bỏ qua, không đứt lô', async () => {
+    const { service, ai, prisma } = build(
+      [],
+      [await canonicalNear('js', 'JS', 'JavaScript')],
+      ['javascript'],
+    );
+    ai.willReturn({ decisions: [{ term: 1, match: 1 }] });
+
+    expect(await service.ingest(['JavaScript'])).toEqual({
+      added: 0,
+      remaining: 0,
+    });
+    expect(prisma.aliases).toHaveLength(0);
+  });
+
+  test('lỗi khác P2002 vẫn ném ra ngoài', async () => {
+    const { service, prisma } = build();
+    prisma.skillAlias.create = () => Promise.reject(new Error('mất kết nối'));
+
+    await expect(service.ingest(['Excel'])).rejects.toThrow('mất kết nối');
+    expect(prisma.canonicals).toHaveLength(0);
   });
 });

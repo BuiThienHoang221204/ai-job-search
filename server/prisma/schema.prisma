@@ -841,6 +841,7 @@ model ScrapeRun {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([portal, createdAt(sort: Desc)])
   @@map("scrape_runs")
 }
 

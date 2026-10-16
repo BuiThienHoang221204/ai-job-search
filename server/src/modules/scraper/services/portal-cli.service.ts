@@ -90,8 +90,8 @@ export class PortalCliService implements OnModuleInit {
   constructor(config: ConfigService) {
     this.repoRoot = resolve(process.cwd(), '..');
     this.portalsDir = config.get<string>('scraper.portalsDir')!;
-    this.timeoutMs = config.get<number>('scraper.timeoutMs') ?? 60_000;
-    this.delayMs = config.get<number>('scraper.portalDelayMs') ?? 3_000;
+    this.timeoutMs = config.get<number>('scraper.timeoutMs')!;
+    this.delayMs = config.get<number>('scraper.portalDelayMs')!;
   }
 
   async onModuleInit(): Promise<void> {

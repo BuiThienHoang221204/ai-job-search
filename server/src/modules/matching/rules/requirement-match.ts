@@ -27,6 +27,9 @@ const SKILL_KINDS: ReadonlySet<CheckKind> = new Set<CheckKind>([
   'NICE',
 ]);
 
+const ELIGIBILITY_MET: Record<RequirementMatch['eligibility'], boolean | null> =
+  { PASS: true, FAIL: false, UNVERIFIED: null };
+
 type SkillHit = { skill: string; viaDictionary: boolean } | null;
 
 function findSkill(
@@ -84,6 +87,7 @@ function checkLocation(
 }
 
 /** Đối chiếu hồ sơ với yêu cầu đã rút bằng luật, KHÔNG gọi model. */
+// eslint-disable-next-line complexity
 export function matchRequirements(
   requirements: JobRequirements,
   profile: MatchProfile,
@@ -124,8 +128,7 @@ export function matchRequirements(
     checks.push({
       label: 'Quốc tịch / giấy phép lao động',
       kind: 'ELIGIBILITY',
-      met:
-        eligibility === 'PASS' ? true : eligibility === 'FAIL' ? false : null,
+      met: ELIGIBILITY_MET[eligibility],
       note: requirements.eligibilityQuote || undefined,
     });
   }

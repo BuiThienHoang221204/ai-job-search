@@ -1,5 +1,9 @@
 import { z, type ZodType } from 'zod';
-import { formatIssue, truncateError, type SchemaIssue } from './failure-kind';
+import {
+  formatIssue,
+  truncateError,
+  type SchemaIssue,
+} from '@/common/ai/failure-kind';
 
 export function schemaInstruction<T>(
   system: string,

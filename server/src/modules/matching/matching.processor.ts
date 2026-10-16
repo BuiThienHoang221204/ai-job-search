@@ -46,10 +46,7 @@ export class MatchingProcessor implements OnModuleInit {
       QUEUE.EXTRACT_REQUIREMENTS,
       async (data) => {
         this.logger.log(`Rút yêu cầu cho lô ${data.jobIds.length} tin`);
-        const results = await this.requirements.extractMany(
-          data.jobIds,
-          data.force ?? false,
-        );
+        const results = await this.requirements.extractMany(data.jobIds);
 
         for (const result of results) {
           if (result.status !== 'DONE') continue;
@@ -70,13 +67,12 @@ export class MatchingProcessor implements OnModuleInit {
           return;
         }
 
-        const terms = data.jobId
-          ? await this.termsOfJob(data.jobId)
-          : data.userId
-            ? await this.termsOfUser(data.userId)
-            : null;
-
-        if (terms === null) {
+        let terms: string[];
+        if (data.jobId) {
+          terms = await this.termsOfJob(data.jobId);
+        } else if (data.userId) {
+          terms = await this.termsOfUser(data.userId);
+        } else {
           throw new Error('Payload danh bạ phải có jobId, userId hoặc round.');
         }
 
@@ -96,18 +92,18 @@ export class MatchingProcessor implements OnModuleInit {
       async (data) => {
         if (data.jobId) {
           this.logger.log(`Đối chiếu tin job=${data.jobId} với mọi hồ sơ`);
-          await this.matches.scoreJob(data.jobId);
+          await this.matches.score({ jobId: data.jobId });
           await this.handOverToShortlist();
           return;
         }
         if (data.userId) {
           this.logger.log(`Đối chiếu hồ sơ user=${data.userId} với mọi tin`);
-          await this.matches.scoreUser(data.userId);
+          await this.matches.score({ userId: data.userId });
           await this.handOverToShortlist(data.userId);
           return;
         }
         this.logger.log('Đối chiếu lại toàn bộ kho');
-        await this.matches.scoreAll();
+        await this.matches.score({});
         await this.handOverToShortlist();
       },
     );

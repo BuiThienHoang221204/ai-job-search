@@ -93,6 +93,7 @@ function clamp(value: number, min: number | null, max: number | null): number {
   return result;
 }
 
+// eslint-disable-next-line complexity
 export function negotiationRange(
   input: NegotiationInput,
 ): NegotiationRange | null {
@@ -104,11 +105,9 @@ export function negotiationRange(
   const requiredLabel = labelForYears(requiredYears);
 
   const experienceLabel = candidateLabel ?? requiredLabel;
-  const experienceSource: ExperienceSource | null = candidateLabel
-    ? 'PROFILE'
-    : requiredLabel
-      ? 'POSTING'
-      : null;
+  let experienceSource: ExperienceSource | null = null;
+  if (candidateLabel) experienceSource = 'PROFILE';
+  else if (requiredLabel) experienceSource = 'POSTING';
   const experienceGap =
     candidateLabel !== null &&
     requiredLabel !== null &&
@@ -166,7 +165,7 @@ export function negotiationRange(
   }
 
   let anchoredOnCurrentSalary = false;
-  const current = input.currentSalary ?? null;
+  const current = input.currentSalary;
   if (current !== null && current > 0) {
     const raised = current * MIN_RAISE_OVER_CURRENT;
     if (raised > floor) {
@@ -177,12 +176,12 @@ export function negotiationRange(
   }
 
   let cappedByPosting = false;
-  const postedMax = input.postedMax ?? null;
+  const postedMax = input.postedMax;
   if (postedMax !== null && postedMax > 0 && postedMax < ceiling) {
     ceiling = postedMax;
     cappedByPosting = true;
   }
-  const postedMin = input.postedMin ?? null;
+  const postedMin = input.postedMin;
   if (postedMin !== null && postedMin > 0 && postedMin > floor) {
     floor = Math.min(postedMin, ceiling);
   }
@@ -190,7 +189,7 @@ export function negotiationRange(
   if (floor > ceiling) floor = ceiling;
 
   const target = Math.min(Math.max(rawTarget, floor), ceiling);
-  const expected = input.expectedSalary ?? null;
+  const expected = input.expectedSalary;
 
   const roundedFloor = roundToStep(floor);
   const roundedCeiling = roundToStep(ceiling);

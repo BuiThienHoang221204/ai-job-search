@@ -1,6 +1,6 @@
 import type { Logger } from '@nestjs/common';
 import type { PrismaService } from '@/prisma/prisma.service';
-import type { FailureKind } from '../utils/failure-kind';
+import type { FailureKind } from '@/common/ai/failure-kind';
 import type { AiCallContext } from '../ai.types';
 import { messageOf } from '@/common/error-message';
 

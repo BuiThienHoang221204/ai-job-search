@@ -54,10 +54,10 @@ export interface NegotiationInput {
   minYears: number | null;
   seniority: Seniority;
   fitScore: number | null;
-  postedMin?: number | null;
-  postedMax?: number | null;
-  currentSalary?: number | null;
-  expectedSalary?: number | null;
+  postedMin: number | null;
+  postedMax: number | null;
+  currentSalary: number | null;
+  expectedSalary: number | null;
 }
 
 export interface NegotiationRange {

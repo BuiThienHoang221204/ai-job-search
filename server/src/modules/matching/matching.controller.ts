@@ -26,7 +26,7 @@ import { AiShortlistService } from './rules/services/ai-shortlist.service';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
-import { withFailureKind } from '../ai/utils/failure-view';
+import { withFailureKind } from '@/common/ai/failure-view';
 
 @ApiTags('Matching & Scoring')
 @ApiBearerAuth()
@@ -53,8 +53,7 @@ export class MatchingController {
   @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
   @Get(':jobId')
   async get(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string) {
-    const match = await this.matching.getMatch(user.id, jobId);
-    return match && withFailureKind(match);
+    return withFailureKind(await this.matching.getMatch(user.id, jobId));
   }
 
   @ThrottleAi()

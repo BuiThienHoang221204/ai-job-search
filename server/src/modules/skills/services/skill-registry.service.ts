@@ -123,15 +123,4 @@ export class SkillRegistryService implements OnModuleInit {
     if (!skill) throw new NotFoundException(`Không tìm thấy skill: ${name}`);
     return skill;
   }
-
-  reference(skillName: string, fileName: string): string {
-    const skill = this.get(skillName);
-    const content = skill.references.get(fileName);
-    if (!content) {
-      throw new NotFoundException(
-        `Skill ${skillName} không có file ${fileName}`,
-      );
-    }
-    return content;
-  }
 }

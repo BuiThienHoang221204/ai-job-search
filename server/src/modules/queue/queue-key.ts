@@ -46,11 +46,16 @@ function scopeKey(queue: string, data: object): string {
 export function singletonKeyFor(queue: string, data: object): string {
   switch (queue) {
     case QUEUE.EVALUATE_MATCH:
-    case QUEUE.INTERVIEW_PREP:
       return [
         requireField(queue, data, 'userId'),
         requireField(queue, data, 'jobId'),
         isForced(data) ? 'force' : 'cache',
+      ].join(':');
+
+    case QUEUE.INTERVIEW_PREP:
+      return [
+        requireField(queue, data, 'userId'),
+        requireField(queue, data, 'jobId'),
       ].join(':');
 
     case QUEUE.UPSKILL_REPORT:
@@ -66,16 +71,10 @@ export function singletonKeyFor(queue: string, data: object): string {
       return requireField(queue, data, 'draftId');
 
     case QUEUE.COMPANY_BRIEF:
-      return [
-        requireField(queue, data, 'nameKey'),
-        isForced(data) ? 'force' : 'cache',
-      ].join(':');
+      return requireField(queue, data, 'nameKey');
 
     case QUEUE.EXTRACT_REQUIREMENTS:
-      return [
-        batchFingerprint(queue, data),
-        isForced(data) ? 'force' : 'cache',
-      ].join(':');
+      return batchFingerprint(queue, data);
 
     case QUEUE.SKILL_CANONICALIZE:
     case QUEUE.REQUIREMENT_MATCH:

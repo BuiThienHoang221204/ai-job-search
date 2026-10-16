@@ -36,21 +36,20 @@ export class ScraperService {
     config: ConfigService,
   ) {
     this.limits = {
-      defaultLocation:
-        config.get<string>('scraper.defaultLocation') ?? 'Vietnam',
-      maxJobsPerPortal: config.get<number>('scraper.maxJobsPerPortal') ?? 50,
-      maxAgeDays: config.get<number>('scraper.maxAgeDays') ?? 7,
-      maxPages: config.get<number>('scraper.maxPages') ?? 5,
-      requirePostedAt: config.get<boolean>('scraper.requirePostedAt') ?? false,
+      defaultLocation: config.get<string>('scraper.defaultLocation')!,
+      maxJobsPerPortal: config.get<number>('scraper.maxJobsPerPortal')!,
+      maxAgeDays: config.get<number>('scraper.maxAgeDays')!,
+      maxPages: config.get<number>('scraper.maxPages')!,
+      requirePostedAt: config.get<boolean>('scraper.requirePostedAt')!,
     };
     this.writer = new JobWriter(prisma, portals);
     this.planner = new QueryPlanner(
       prisma,
       ai,
       prompts,
-      config.get<number>('scraper.systemQueryLimit') ?? 10,
+      config.get<number>('scraper.systemQueryLimit')!,
     );
-    this.autoScore = config.get<boolean>('scraper.autoScore') ?? false;
+    this.autoScore = config.get<boolean>('scraper.autoScore')!;
   }
 
   async create(userId: string | null, portal: string): Promise<ScrapeRun> {
@@ -66,10 +65,16 @@ export class ScraperService {
     });
     if (!run) throw new NotFoundException(`Không tìm thấy lần quét: ${runId}`);
 
-    await this.prisma.scrapeRun.update({
-      where: { id: runId },
+    const claimed = await this.prisma.scrapeRun.updateMany({
+      where: { id: runId, status: 'PENDING' },
       data: { status: 'RUNNING', startedAt: new Date(), error: null },
     });
+    if (claimed.count === 0) {
+      this.logger.warn(
+        `Bỏ qua lần quét ${runId}: đang ở trạng thái ${run.status}, không còn PENDING`,
+      );
+      return run;
+    }
 
     try {
       const planned = await this.planFor(run);

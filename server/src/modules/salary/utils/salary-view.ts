@@ -1,7 +1,5 @@
-import { OCCUPATIONS } from '@/modules/jobs/taxonomy/occupations';
+import { OCCUPATION_NAMES } from '@/modules/jobs/taxonomy/occupations';
 import { EXPERIENCE_LABELS } from '../salary.types';
-
-const OCCUPATION_NAMES = new Map(OCCUPATIONS.map((o) => [o.code, o.name]));
 
 const LABEL_ORDER: readonly string[] = EXPERIENCE_LABELS;
 

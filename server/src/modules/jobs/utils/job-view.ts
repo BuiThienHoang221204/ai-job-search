@@ -6,7 +6,7 @@ import type {
 } from '@/generated/prisma/client';
 import { countTerms, normalizeText } from '@/common/text/vietnamese';
 import { isStaleMatch } from '@/modules/matching/rules/staleness';
-import { withFailureKind } from '@/modules/ai/utils/failure-view';
+import { withFailureKind } from '@/common/ai/failure-view';
 import { toRequirements } from '@/modules/matching/ai/utils/requirements';
 import { matchRequirements } from '@/modules/matching/rules/requirement-match';
 import type {
@@ -75,7 +75,7 @@ export function withMatchState<
 }
 
 export function withMatchDetail<
-  T extends { matches: { evaluatedAt: Date | null; error?: string | null }[] },
+  T extends { matches: { evaluatedAt: Date | null; error: string | null }[] },
 >(job: T, profileUpdatedAt: Date | null) {
   const { matches, ...rest } = job;
   const match = matches[0];

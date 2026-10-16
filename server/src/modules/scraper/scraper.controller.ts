@@ -31,9 +31,11 @@ export class ScraperController {
 
   @ThrottleScrape()
   @ApiOperation({
-    summary: 'Bắt đầu một lượt quét tin tuyển dụng mới từ cổng thông tin',
+    summary:
+      'Bắt đầu một lượt quét tin tuyển dụng mới từ cổng thông tin (Admin)',
   })
   @Post()
+  @Roles('ADMIN')
   async start(@CurrentUser() user: AuthUser, @Body() dto: StartScrapeDto) {
     const available = this.portals.listPortals();
     const portal = dto.portal ?? available[0];

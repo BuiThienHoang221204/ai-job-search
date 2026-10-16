@@ -1,9 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { STUCK_AFTER_MS } from '@/common/duration';
+import { HOUR_MS, STUCK_AFTER_MS } from '@/common/duration';
 import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 
 const MAX_PER_KIND = 100;
+
+const SCRAPE_RUNNING_STUCK_MS = 2 * HOUR_MS;
+const SCRAPE_PENDING_STUCK_MS = 12 * HOUR_MS;
 
 const STUCK_MESSAGE =
   'Máy chủ khởi động lại khi việc này đang chạy dở, nên nó không bao giờ hoàn tất. Hãy bấm chạy lại.';
@@ -16,6 +19,7 @@ export type ReconcileResult = {
   interviewPreps: number;
   profileDrafts: number;
   jobRequirements: number;
+  scrapeRuns: number;
   deferred: number;
 };
 
@@ -88,6 +92,7 @@ export class ReconcileService {
   private async failStuck(stuckBefore: Date) {
     const where = stuckWhere(stuckBefore);
     const data = { status: 'FAILED' as const, error: STUCK_MESSAGE };
+    const now = Date.now();
 
     const [
       agentRuns,
@@ -95,6 +100,7 @@ export class ReconcileService {
       interviewPreps,
       profileDrafts,
       jobRequirements,
+      scrapeRuns,
     ] = await Promise.all([
       this.prisma.agentRun.updateMany({
         where,
@@ -110,6 +116,21 @@ export class ReconcileService {
       this.prisma.interviewPrep.updateMany({ where, data }),
       this.prisma.profileDraft.updateMany({ where, data }),
       this.prisma.jobRequirement.updateMany({ where, data }),
+      this.prisma.scrapeRun.updateMany({
+        where: {
+          OR: [
+            {
+              status: 'RUNNING',
+              startedAt: { lt: new Date(now - SCRAPE_RUNNING_STUCK_MS) },
+            },
+            {
+              status: 'PENDING',
+              createdAt: { lt: new Date(now - SCRAPE_PENDING_STUCK_MS) },
+            },
+          ],
+        },
+        data: { ...data, finishedAt: new Date() },
+      }),
     ]);
 
     return {
@@ -118,6 +139,7 @@ export class ReconcileService {
       interviewPreps: interviewPreps.count,
       profileDrafts: profileDrafts.count,
       jobRequirements: jobRequirements.count,
+      scrapeRuns: scrapeRuns.count,
     };
   }
 
@@ -131,6 +153,7 @@ export class ReconcileService {
       ['bộ câu hỏi phỏng vấn', result.interviewPreps],
       ['bản đọc CV', result.profileDrafts],
       ['bản rút yêu cầu', result.jobRequirements],
+      ['lần quét tin', result.scrapeRuns],
     ]
       .filter(([, count]) => count)
       .map(([label, count]) => `${count} ${label}`)

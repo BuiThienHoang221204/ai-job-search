@@ -1,5 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class StartScrapeDto {
-  @IsOptional() @IsString() portal?: string;
+  @IsOptional() @IsString() @MaxLength(60) portal?: string;
 }

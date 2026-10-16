@@ -15,14 +15,11 @@ import {
   type Granularity,
 } from '../utils/ai-usage';
 import {
-  buildAttention,
-  comparableRate,
-  OVERVIEW_THRESHOLDS,
+  buildOverview,
   previousSince,
-  rate,
-  topFailureKind,
+  type ErrorSampleRow,
 } from '../utils/overview';
-import { failureWindow, failuresWhere, registeredOnly } from '../utils/filters';
+import { failureWindow, failuresWhere } from '../utils/filters';
 import { QueueService } from '@/modules/queue/queue.service';
 import { JobSourceRouter } from '@/modules/scraper/services/job-source.router';
 import { visibleResponse } from '../utils/response-redaction';
@@ -230,9 +227,7 @@ export class AdminService {
     const previous = { createdAt: { gte: before, lt: since } };
 
     const [
-      calls,
       ok,
-      prevCalls,
       prevOk,
       tokens,
       prevTokens,
@@ -245,9 +240,7 @@ export class AdminService {
       runs,
       queue,
     ] = await Promise.all([
-      this.prisma.aiCall.count({ where: current }),
       this.prisma.aiCall.count({ where: { ...current, ok: true } }),
-      this.prisma.aiCall.count({ where: previous }),
       this.prisma.aiCall.count({ where: { ...previous, ok: true } }),
       this.prisma.aiCall.aggregate({ where: current, ...TOKEN_SUMS }),
       this.prisma.aiCall.aggregate({ where: previous, ...TOKEN_SUMS }),
@@ -292,85 +285,46 @@ export class AdminService {
       this.queue.getStats(),
     ]);
 
-    const samples = await Promise.all(
-      groups.map((group) =>
-        this.prisma.aiCall.findFirst({
-          where: {
-            ...current,
-            ok: false,
-            purpose: group.purpose,
-            failureKind: group.failureKind,
-          },
-          orderBy: { createdAt: 'desc' },
-          select: { errorMessage: true },
-        }),
-      ),
-    );
-
-    const prevBy = new Map(
-      prevGroups.map((g) => [`${g.purpose}|${g.failureKind}`, g._count._all]),
-    );
-    const errorGroups = groups.map((group, index) => ({
-      purpose: group.purpose,
-      failureKind: group.failureKind,
-      count: group._count._all,
-      previousCount: prevBy.get(`${group.purpose}|${group.failureKind}`) ?? 0,
-      lastAt: group._max.createdAt,
-      sample: samples[index]?.errorMessage ?? null,
-    }));
-
-    const successRate = rate(ok, calls);
-    const previousSuccessRate = comparableRate(prevOk, prevCalls);
-    const portals = registeredOnly(runs, this.sources.listPortals());
-    const lastScrapeAt = portals.reduce<Date | null>(
-      (latest, run) =>
-        !latest || run.createdAt > latest ? run.createdAt : latest,
-      null,
-    );
-    const failed = calls - ok;
-
-    return {
-      windowDays: days,
+    const samples = await this.latestErrorSamples(
       since,
-      previousSince: before,
+      groups.map((group) => group.purpose),
+    );
+
+    return buildOverview({
+      days,
+      now,
+      since,
+      before,
       granularity,
-      thresholds: OVERVIEW_THRESHOLDS,
-      metrics: {
-        aiCalls: { current: calls, previous: prevCalls },
-        successRate: { current: successRate, previous: previousSuccessRate },
-        tokens: {
-          current: toUsageRow(tokens).totalTokens,
-          previous: toUsageRow(prevTokens).totalTokens,
-        },
-        newJobs: {
-          current: newJobs._sum.jobsNew ?? 0,
-          previous: prevNewJobs._sum.jobsNew ?? 0,
-        },
-        queueWaiting: queue.totalWaiting,
-        queueActive: queue.totalActive,
-      },
-      series: fillBuckets(buckets, days, now),
-      errorGroups,
-      queues: queue.queues.filter((row) => row.size + row.active > 0),
-      queueCount: queue.queues.length,
-      portals,
-      attention: buildAttention({
-        calls,
-        ok,
-        previousSuccessRate,
-        failed,
-        topFailure: topFailureKind(
-          kinds.map((row) => ({
-            kind: row.failureKind,
-            count: row._count._all,
-          })),
-        ),
-        queueWaiting: queue.totalWaiting,
-        portals,
-        lastScrapeAt,
-        now,
-      }),
-    };
+      calls: tokens._count._all,
+      ok,
+      prevCalls: prevTokens._count._all,
+      prevOk,
+      tokens,
+      prevTokens,
+      newJobs: newJobs._sum.jobsNew,
+      prevNewJobs: prevNewJobs._sum.jobsNew,
+      groups,
+      prevGroups,
+      samples,
+      kinds,
+      buckets,
+      runs,
+      registeredPortals: this.sources.listPortals(),
+      queue,
+    });
+  }
+
+  private latestErrorSamples(
+    since: Date,
+    purposes: string[],
+  ): Promise<ErrorSampleRow[]> {
+    if (!purposes.length) return Promise.resolve([]);
+    return this.prisma.$queryRaw<ErrorSampleRow[]>`
+      select distinct on (purpose, "failureKind") purpose, "failureKind"::text as "failureKind", "errorMessage"
+      from ai_calls
+      where "createdAt" >= ${since} and not ok and purpose = any(${purposes})
+      order by purpose, "failureKind", "createdAt" desc`;
   }
 
   private usageBuckets(granularity: Granularity, since: Date) {

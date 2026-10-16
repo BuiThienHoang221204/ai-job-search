@@ -1,22 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { parseModelRef, formatModelRef } from '../utils/model-ref';
-import { ModelUnavailableError } from '../utils/failure-kind';
-import {
-  selectModel,
-  streamsJsonFor,
-  toListing,
-  usableAdapter,
-} from '../utils/catalog';
+import { ModelUnavailableError } from '@/common/ai/failure-kind';
+import { selectModel, streamsJsonFor } from '../utils/catalog';
 import {
   findProvider,
   providerIds,
   type ProviderDescriptor,
 } from '../providers/index';
-import type { CatalogProvider, ModelListing, ResolvedModel } from '../ai.types';
+import type { CatalogProvider, ResolvedModel } from '../ai.types';
 import { messageOf } from '@/common/error-message';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CATALOG_FETCH_TIMEOUT_MS = 10_000;
 
 @Injectable()
 export class ModelCatalogService {
@@ -93,25 +89,13 @@ export class ModelCatalogService {
     try {
       live = await this.liveModels(declared, apiKey, headers);
     } catch (error) {
-      if (!descriptor.staticModels?.length) {
-        throw new ModelUnavailableError(
-          `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${messageOf(
-            error,
-          )}`,
-        );
-      }
+      throw new ModelUnavailableError(
+        `Không hỏi được ${declared}/models của lõi ${descriptor.label}: ${messageOf(
+          error,
+        )}`,
+      );
     }
     if (!live?.size) {
-      if (descriptor.staticModels?.length) {
-        const models: CatalogProvider['models'] = {};
-        for (const id of descriptor.staticModels) models[id] = { id, name: id };
-        return {
-          id: descriptor.id,
-          name: descriptor.label,
-          api: declared,
-          models,
-        };
-      }
       throw new ModelUnavailableError(
         `Lõi ${descriptor.label} tại ${declared} không trả model nào.`,
       );
@@ -135,6 +119,7 @@ export class ModelCatalogService {
     this.logger.log(`Tải model catalog: ${this.catalogUrl}`);
     const response = await fetch(this.catalogUrl, {
       headers: { 'User-Agent': 'ai-job-search' },
+      signal: AbortSignal.timeout(CATALOG_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
       throw new Error(`Không thể tải model catalog (${response.status})`);
@@ -163,6 +148,7 @@ export class ModelCatalogService {
         ...headers,
         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
+      signal: AbortSignal.timeout(CATALOG_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) return undefined;
 
@@ -219,7 +205,6 @@ export class ModelCatalogService {
       dropJsonMode: descriptor.dropJsonMode === true,
       honorsResponseFormat: descriptor.honorsResponseFormat !== false,
       streamsJson: streamsJsonFor(descriptor, selected.id),
-      defaultMaxOutputTokens: descriptor.defaultMaxOutputTokens,
     };
   }
 
@@ -249,30 +234,5 @@ export class ModelCatalogService {
         `Lõi ${descriptor.label} khai model "${modelId}" không hỗ trợ structured output.`,
       );
     }
-  }
-
-  async listModels(providerId?: string): Promise<ModelListing[]> {
-    const id = providerId ?? this.defaultProviderId;
-    const descriptor = findProvider(id);
-    if (!descriptor) throw new Error(`Không biết lõi model: ${id}`);
-
-    const apiKey = this.apiKeyFor(descriptor);
-    const headers = this.headersFor(descriptor);
-    const provider = await this.catalogFor(descriptor, apiKey, headers);
-
-    const models = Object.values(provider.models).filter((model) =>
-      usableAdapter(model, provider),
-    );
-
-    let live: Map<string, Record<string, unknown>> | undefined;
-    try {
-      if (provider.api)
-        live = await this.liveModels(provider.api, apiKey, headers);
-    } catch {
-      live = undefined;
-    }
-
-    const served = live?.size ? models.filter((m) => live.has(m.id)) : models;
-    return toListing(served, descriptor, live, this.defaultModelId);
   }
 }

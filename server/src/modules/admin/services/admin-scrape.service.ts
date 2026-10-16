@@ -44,7 +44,7 @@ export class AdminScrapeService {
   }
 
   private cap(): number {
-    return this.config.get<number>('scraper.maxJobsPerPortal') ?? 50;
+    return this.config.get<number>('scraper.maxJobsPerPortal')!;
   }
 
   private async recentRuns(range: TimeRangeQueryDto): Promise<RunLite[]> {

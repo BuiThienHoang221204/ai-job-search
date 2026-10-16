@@ -19,20 +19,9 @@ const DEFAULTS: Record<string, QueueConfig> = {
   'scrape.run': { concurrency: 1, serial: true },
 };
 
-function envKeyFor(queueName: string): string {
-  return `${queueName.replace(/\./g, '_').toUpperCase()}_CONCURRENCY`;
-}
-
 export function concurrencyForQueue(queue: string): number {
   const config = DEFAULTS[queue];
-  if (!config) return 1;
-  if (config.serial) return 1;
-
-  const raw = process.env[envKeyFor(queue)];
-  if (raw) {
-    const parsed = parseInt(raw, 10);
-    if (parsed > 0) return parsed;
-  }
+  if (!config || config.serial) return 1;
   return config.concurrency;
 }
 

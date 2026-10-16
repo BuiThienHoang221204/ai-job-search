@@ -26,7 +26,7 @@ describe('singletonKeyFor', () => {
     ).toBe('u1:j1:cache');
     expect(
       singletonKeyFor(QUEUE.INTERVIEW_PREP, { userId: 'u1', jobId: 'j1' }),
-    ).toBe('u1:j1:cache');
+    ).toBe('u1:j1');
     expect(
       singletonKeyFor(QUEUE.UPSKILL_REPORT, { userId: 'u1', reportId: 'r1' }),
     ).toBe('r1');
@@ -42,7 +42,7 @@ describe('singletonKeyFor', () => {
         nameKey: 'fpt software',
         company: 'FPT Software',
       }),
-    ).toBe('fpt software:cache');
+    ).toBe('fpt software');
   });
 
   describe('khoá rút yêu cầu đi theo LÔ', () => {
@@ -113,6 +113,24 @@ describe('singletonKeyFor', () => {
 
     expect(cached).not.toBe(forced);
     expect(forced).toBe('u1:j1:force');
+  });
+
+  /// Bộ đề phỏng vấn chỉ có MỘT bản ghi cho mỗi (người dùng, tin): "Soạn lại"
+  /// mang khoá riêng thì chạy song song với lượt đang RUNNING, tốn hai lượt gọi
+  /// model và bản ghi về sau đè bản trước.
+  test('soạn lại bộ đề phỏng vấn dùng chung khoá với lượt thường', () => {
+    const cached = singletonKeyFor(QUEUE.INTERVIEW_PREP, {
+      userId: 'u1',
+      jobId: 'j1',
+      force: false,
+    });
+    const forced = singletonKeyFor(QUEUE.INTERVIEW_PREP, {
+      userId: 'u1',
+      jobId: 'j1',
+      force: true,
+    });
+
+    expect(forced).toBe(cached);
   });
 
   test('hai người dùng khác nhau trên cùng công việc có khoá khác nhau', () => {

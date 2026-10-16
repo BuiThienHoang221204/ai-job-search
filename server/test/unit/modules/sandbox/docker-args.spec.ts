@@ -25,43 +25,8 @@ const valueOf = (args: string[], flag: string): string | undefined =>
   args[args.indexOf(flag) + 1];
 
 describe('dockerArgs - mạng', () => {
-  test('KHÔNG khai gì thì CẮT MẠNG', () => {
-    // Mặc định đóng. Quên khai `network` phải cho ra cấu hình an toàn, không phải
-    // cấu hình tiện.
+  test('luôn CẮT MẠNG, spec không có cách nào mở', () => {
     expect(valueOf(dockerArgs('c', '/tmp/w', spec()), '--network')).toBe(
-      'none',
-    );
-  });
-
-  test("khai 'none' thì cắt mạng", () => {
-    expect(
-      valueOf(
-        dockerArgs('c', '/tmp/w', spec({ network: 'none' })),
-        '--network',
-      ),
-    ).toBe('none');
-  });
-
-  test("chỉ 'egress' mới mở mạng", () => {
-    // Hiện KHÔNG lượt chạy nào khai `egress` — Assisted Apply đã gỡ ngày
-    // 2026-08-17. Giữ nhánh này vì luật là danh sách TRẮNG: test dưới đây ghim
-    // rằng một giá trị lạ không mở được mạng, và đó là bất biến bảo mật.
-    expect(
-      valueOf(
-        dockerArgs('c', '/tmp/w', spec({ network: 'egress' })),
-        '--network',
-      ),
-    ).toBe('bridge');
-  });
-
-  test('một giá trị lạ KHÔNG mở được mạng', () => {
-    /*
-     * Kiểu TypeScript không bảo vệ được ở biên: spec có thể tới từ JSON đã lưu
-     * trong hàng đợi, và ở đó `network` là một chuỗi bất kỳ. Nhánh so sánh phải là
-     * danh sách trắng ('egress') chứ không phải danh sách đen ('none').
-     */
-    const la = { network: 'bridge' } as unknown as Partial<SandboxSpec>;
-    expect(valueOf(dockerArgs('c', '/tmp/w', spec(la)), '--network')).toBe(
       'none',
     );
   });
@@ -82,14 +47,9 @@ describe('dockerArgs - các chốt an toàn khác', () => {
     expect(valueOf(args, '--cpus')).toBe('1');
   });
 
-  test('caller nới được trần', () => {
-    const args = dockerArgs(
-      'c',
-      '/tmp/w',
-      spec({ limits: { memoryMb: 2048, cpus: 2 } }),
-    );
+  test('caller nới được trần bộ nhớ', () => {
+    const args = dockerArgs('c', '/tmp/w', spec({ memoryMb: 2048 }));
     expect(valueOf(args, '--memory')).toBe('2048m');
-    expect(valueOf(args, '--cpus')).toBe('2');
   });
 
   test('mount thư mục làm việc vào /work và chạy ở đó', () => {

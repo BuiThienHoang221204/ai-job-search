@@ -43,6 +43,7 @@ describe('Rate limiting', () => {
   /// chủ của mình mà là uy tín IP của nó ở phía portal.
   test('quét portal quá 3 lượt mỗi giờ thì bị chặn', async () => {
     const user = await harness.signUp();
+    await harness.promoteToAdmin(user.id);
     const start = () =>
       request(harness.server)
         .post('/api/scrape')
@@ -64,6 +65,8 @@ describe('Rate limiting', () => {
   /// người dùng chung một IP; đếm theo IP thì một người tiêu hết trần của cả site.
   test('trần tính theo tài khoản: người này hết lượt không chặn người kia cùng IP', async () => {
     const [greedy, other] = [await harness.signUp(), await harness.signUp()];
+    await harness.promoteToAdmin(greedy.id);
+    await harness.promoteToAdmin(other.id);
     const start = (token: string) =>
       request(harness.server)
         .post('/api/scrape')
@@ -74,6 +77,21 @@ describe('Rate limiting', () => {
     expect((await start(greedy.token)).status).toBe(429);
 
     expect((await start(other.token)).status).not.toBe(429);
+  });
+
+  /// Mỗi lần tải PDF là một lượt LaTeX/Chromium mới, không có cache. Trần chung
+  /// 120/phút đủ cho một tài khoản làm cạn RAM máy in PDF.
+  test('tải PDF quá 10 lượt mỗi phút thì bị chặn', async () => {
+    const user = await harness.signUp();
+    const download = () =>
+      request(harness.server)
+        .get('/api/documents/khong-ton-tai/pdf')
+        .set('Authorization', `Bearer ${user.token}`);
+
+    for (let i = 0; i < 10; i += 1) {
+      expect((await download()).status).toBe(404);
+    }
+    expect((await download()).status).toBe(429);
   });
 
   /// Probe phải nằm ngoài mọi trần: orchestrator hỏi đều đặn từ MỘT địa chỉ, nên

@@ -16,27 +16,4 @@ describe('concurrencyForQueue', () => {
   test('hàng đợi không tồn tại trả về 1', () => {
     expect(concurrencyForQueue('queue.khong.ton.tai')).toBe(1);
   });
-
-  test('override bằng env variable', () => {
-    const original = process.env.MATCH_EVALUATE_CONCURRENCY;
-    process.env.MATCH_EVALUATE_CONCURRENCY = '25';
-    expect(concurrencyForQueue(QUEUE.EVALUATE_MATCH)).toBe(25);
-    // Restore
-    if (original === undefined) {
-      delete process.env.MATCH_EVALUATE_CONCURRENCY;
-    } else {
-      process.env.MATCH_EVALUATE_CONCURRENCY = original;
-    }
-  });
-
-  test('env无效 giá trị bỏ qua, dùng default', () => {
-    const original = process.env.MATCH_EVALUATE_CONCURRENCY;
-    process.env.MATCH_EVALUATE_CONCURRENCY = 'abc';
-    expect(concurrencyForQueue(QUEUE.EVALUATE_MATCH)).toBe(10);
-    if (original === undefined) {
-      delete process.env.MATCH_EVALUATE_CONCURRENCY;
-    } else {
-      process.env.MATCH_EVALUATE_CONCURRENCY = original;
-    }
-  });
 });

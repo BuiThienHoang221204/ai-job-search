@@ -7,7 +7,7 @@ import {
   isTooLargeForModel,
   isTransientUpstream,
   ModelUnavailableError,
-} from '../utils/failure-kind';
+} from '@/common/ai/failure-kind';
 import { formatModelRef, parseModelRef } from '../utils/model-ref';
 import { providerIds } from '../providers/index';
 
@@ -67,12 +67,10 @@ export class ModelChain {
   async run<T>(
     requested: string | undefined,
     attempt: (modelId: string | undefined) => Promise<T>,
-    budgetOverrideMs?: number,
     fallbackOverride?: string[],
   ): Promise<T> {
     const chain = this.links(requested, fallbackOverride);
-    const budgetMs =
-      budgetOverrideMs ?? this.options.budgetMs ?? DEFAULT_CHAIN_BUDGET_MS;
+    const budgetMs = this.options.budgetMs ?? DEFAULT_CHAIN_BUDGET_MS;
     const startedAt = Date.now();
     let lastSkipped: unknown;
 

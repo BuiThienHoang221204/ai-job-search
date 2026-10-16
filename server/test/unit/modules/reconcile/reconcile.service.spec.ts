@@ -10,7 +10,10 @@ import type { QueueService } from 'src/modules/queue/queue.service.js';
 /// `ProfileDraft` là NGÕ CỤT thật: `retry()` chỉ nhận FAILED nên người dùng bấm
 /// chạy lại bao nhiêu lần cũng nhận 400 "đang ở trạng thái RUNNING".
 
-type UpdateManyArgs = { where: { status: { in: string[] } }; data: unknown };
+type UpdateManyArgs = {
+  where: { status?: { in: string[] }; OR?: Array<Record<string, unknown>> };
+  data: unknown;
+};
 
 /** Mỗi bảng ghi lại đúng `where` nó nhận, để khẳng định được nó CÓ bị quét. */
 function fakePrisma(counts: Record<string, number> = {}) {
@@ -31,6 +34,7 @@ function fakePrisma(counts: Record<string, number> = {}) {
       interviewPrep: { updateMany: updateMany('interviewPrep') },
       profileDraft: { updateMany: updateMany('profileDraft') },
       jobRequirement: { updateMany: updateMany('jobRequirement') },
+      scrapeRun: { updateMany: updateMany('scrapeRun') },
     },
   };
 }
@@ -48,7 +52,7 @@ const build = (counts?: Record<string, number>) => {
 };
 
 describe('ReconcileService.failStuck', () => {
-  test('quét đủ NĂM bảng có thể kẹt, không sót bảng nào', async () => {
+  test('quét đủ SÁU bảng có thể kẹt, không sót bảng nào', async () => {
     const { calls, service } = build();
 
     await service.run();
@@ -58,6 +62,7 @@ describe('ReconcileService.failStuck', () => {
       'interviewPrep',
       'jobRequirement',
       'profileDraft',
+      'scrapeRun',
       'upskillReport',
     ]);
   });
@@ -67,8 +72,9 @@ describe('ReconcileService.failStuck', () => {
 
     await service.run();
 
-    for (const args of Object.values(calls)) {
-      expect(args.where.status.in.sort()).toEqual(['PENDING', 'RUNNING']);
+    for (const [table, args] of Object.entries(calls)) {
+      if (table === 'scrapeRun') continue;
+      expect(args.where.status?.in.sort()).toEqual(['PENDING', 'RUNNING']);
     }
   });
 
@@ -102,6 +108,7 @@ describe('ReconcileService.failStuck', () => {
       interviewPrep: 3,
       profileDraft: 4,
       jobRequirement: 5,
+      scrapeRun: 6,
     });
 
     await expect(service.run()).resolves.toMatchObject({
@@ -110,6 +117,38 @@ describe('ReconcileService.failStuck', () => {
       interviewPreps: 3,
       profileDrafts: 4,
       jobRequirements: 5,
+      scrapeRuns: 6,
     });
+  });
+
+  /// `ScrapeRun` không có `updatedAt`, và một lượt quét đêm chạy lần lượt từng
+  /// portal (hàng đợi `scrape.run` là serial) nên lần quét cuối có thể nằm
+  /// PENDING hàng giờ mà vẫn sống. RUNNING tính từ `startedAt`, PENDING từ
+  /// `createdAt` với hạn dài hơn.
+  test('ScrapeRun: RUNNING quá 2 giờ theo startedAt, PENDING quá 12 giờ theo createdAt', async () => {
+    jest.useFakeTimers();
+    const now = new Date('2026-10-16T12:00:00Z');
+    jest.setSystemTime(now);
+    try {
+      const { calls, service } = build();
+
+      await service.run();
+
+      const where = calls.scrapeRun.where;
+      expect(where).not.toHaveProperty('updatedAt');
+      expect(where.OR).toEqual([
+        {
+          status: 'RUNNING',
+          startedAt: { lt: new Date('2026-10-16T10:00:00Z') },
+        },
+        {
+          status: 'PENDING',
+          createdAt: { lt: new Date('2026-10-16T00:00:00Z') },
+        },
+      ]);
+      expect(calls.scrapeRun.data).toMatchObject({ status: 'FAILED' });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

@@ -1,8 +1,15 @@
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 
 export class EvaluateJobDto {
   @IsString()
+  @MaxLength(40)
   jobId!: string;
 
   @IsOptional()
