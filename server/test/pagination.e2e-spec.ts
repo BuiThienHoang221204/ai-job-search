@@ -129,6 +129,14 @@ describe('Phân trang trên các API danh sách', () => {
         .set(auth(user.token))
         .expect(400);
     });
+
+    test('offset vượt trần bị từ chối', async () => {
+      await request(harness.server)
+        .get(path)
+        .query({ offset: 100_001 })
+        .set(auth(user.token))
+        .expect(400);
+    });
   });
 
   describe('GET /api/applications · status', () => {

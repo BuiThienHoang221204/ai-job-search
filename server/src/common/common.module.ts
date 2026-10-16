@@ -5,6 +5,7 @@ import {
   type NestModule,
 } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { PrismaExceptionFilter } from './filters/prisma-exception.filter';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -16,6 +17,7 @@ import { RequestLogMiddleware } from './middleware/request-log.middleware';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_FILTER, useClass: PrismaExceptionFilter },
   ],
 })

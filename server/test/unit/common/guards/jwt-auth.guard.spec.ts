@@ -1,7 +1,14 @@
-import type { ExecutionContext } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  UnauthorizedException,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from 'src/common/decorators/public.decorator.js';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard.js';
+import {
+  JwtAuthGuard,
+  UNAUTHORIZED_MESSAGE,
+} from 'src/common/guards/jwt-auth.guard.js';
 
 /// Lớp cha do AuthGuard('jwt') sinh ra - nơi chứa canActivate thật của passport.
 const passportPrototype = Object.getPrototypeOf(JwtAuthGuard.prototype) as {
@@ -55,5 +62,31 @@ describe('JwtAuthGuard', () => {
       expect.any(Function),
       expect.any(Function),
     ]);
+  });
+
+  describe('handleRequest', () => {
+    const guard = () => new JwtAuthGuard(new Reflector());
+
+    it('có user thì trả user', () => {
+      const user = { id: 'u1' };
+      expect(guard().handleRequest(null, user)).toBe(user);
+    });
+
+    it('không có user thì 401 tiếng Việt - vẫn đóng theo mặc định', () => {
+      expect(() => guard().handleRequest(null, false)).toThrow(
+        new UnauthorizedException(UNAUTHORIZED_MESSAGE),
+      );
+    });
+
+    it('strategy ném 401 tiếng Anh thì đổi thành câu tiếng Việt', () => {
+      expect(() =>
+        guard().handleRequest(new UnauthorizedException(), { id: 'u1' }),
+      ).toThrow(UNAUTHORIZED_MESSAGE);
+    });
+
+    it('lỗi khác (ví dụ database sập) giữ nguyên, không giả làm 401', () => {
+      const failure = new InternalServerErrorException('db');
+      expect(() => guard().handleRequest(failure, false)).toThrow(failure);
+    });
   });
 });

@@ -11,6 +11,8 @@ import { PrismaService } from 'src/prisma/prisma.service.js';
 import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
 import { GoogleAuthService } from 'src/modules/auth/google-auth.service.js';
 import { FakeSandbox } from 'src/testing/fake-sandbox.js';
+import { FakeStorage } from 'src/testing/fake-storage.js';
+import { STORAGE } from 'src/modules/storage/storage.interface.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 import { FakeGoogleAuth } from 'src/testing/fake-google-auth.js';
 import { FakeQueue } from './fake-queue.js';
@@ -114,6 +116,8 @@ export async function createTestApp(
     .useValue(sandbox)
     .overrideProvider(GoogleAuthService)
     .useValue(google)
+    .overrideProvider(STORAGE)
+    .useValue(new FakeStorage())
     .compile();
 
   const app = moduleRef.createNestApplication({ bodyParser: false });
@@ -144,10 +148,7 @@ export async function createTestApp(
 
     // `response.body` của supertest là `any`; khai kiểu ngay tại đây để phần
     // còn lại của hàm không phải làm việc với any.
-    const body = response.body as {
-      accessToken: string;
-      user: { id: string };
-    };
+    const body = response.body as { user: { id: string } };
 
     // `response.headers` của supertest là `any`. Đưa qua `unknown` rồi thu hẹp
     // bằng kiểm tra thật, thay vì ép kiểu: set-cookie có thể là chuỗi, mảng
@@ -181,7 +182,7 @@ export async function createTestApp(
       id: body.user.id,
       email: address,
       password: TEST_PASSWORD,
-      token: body.accessToken,
+      token: authCookie.split(';')[0].slice(AUTH_COOKIE.length + 1),
       // Bỏ phần thuộc tính (Path, HttpOnly...); header Cookie chỉ nhận cặp
       // tên=giá trị.
       cookie: authCookie.split(';')[0],

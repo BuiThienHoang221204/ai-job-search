@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Logger } from '@nestjs/common';
+import { ConsoleLogger, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -9,6 +9,10 @@ import { configureApp } from './bootstrap';
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? new ConsoleLogger({ json: true })
+        : undefined,
   });
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');

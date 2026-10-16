@@ -28,6 +28,9 @@ import { QueueModule } from './modules/queue/queue.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { StorageModule } from './modules/storage/storage.module';
 
+export const THROTTLED_MESSAGE =
+  'Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
@@ -42,6 +45,7 @@ import { StorageModule } from './modules/storage/storage.module';
           },
         ],
         skipIf: () => config.get<boolean>('throttle.disabled') === true,
+        errorMessage: THROTTLED_MESSAGE,
       }),
     }),
     CommonModule,

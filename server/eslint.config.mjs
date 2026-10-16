@@ -4,6 +4,32 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+const importPatterns = [
+  {
+    regex: '^@/.*\\.js$',
+    message:
+      'Alias @/ KHÔNG được có đuôi .js: hook của nest build không viết lại được, build vẫn xanh nhưng app sập lúc chạy (Cannot find module).',
+  },
+  {
+    regex: '^\\.{1,2}/.*\\.js$',
+    message:
+      'Import tương đối viết KHÔNG đuôi .js (package là CommonJS, Node tự thêm đuôi).',
+  },
+  {
+    regex: '^(\\.\\./){2,}',
+    message: 'Import sâu từ ../../ trở lên: dùng alias @/ (không đuôi .js).',
+  },
+];
+
+const commonImportPatterns = [
+  ...importPatterns,
+  {
+    regex: '^(@/modules/|(\\.\\./)+modules/)',
+    message:
+      'src/common/ là hạ tầng, KHÔNG import từ src/modules/: chuyển phần dùng chung lên common/ hoặc để code đó ở lại module.',
+  },
+];
+
 export default tseslint.config(
   {
     // src/generated/ là mã Prisma sinh ra nên không lint. Lưu ý: bỏ qua ở đây
@@ -50,27 +76,15 @@ export default tseslint.config(
   {
     files: ['src/**/*.ts'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              regex: '^@/.*\\.js$',
-              message:
-                'Alias @/ KHÔNG được có đuôi .js: hook của nest build không viết lại được, build vẫn xanh nhưng app sập lúc chạy (Cannot find module).',
-            },
-            {
-              regex: '^\\.{1,2}/.*\\.js$',
-              message:
-                'Import tương đối viết KHÔNG đuôi .js (package là CommonJS, Node tự thêm đuôi).',
-            },
-            {
-              regex: '^(\\.\\./){2,}',
-              message: 'Import sâu từ ../../ trở lên: dùng alias @/ (không đuôi .js).',
-            },
-          ],
-        },
-      ],
+      'no-restricted-imports': ['error', { patterns: importPatterns }],
+      complexity: ['warn', { max: 20, variant: 'modified' }],
+      'max-depth': ['warn', 4],
+    },
+  },
+  {
+    files: ['src/common/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: commonImportPatterns }],
     },
   },
 );

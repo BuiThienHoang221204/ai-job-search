@@ -2,9 +2,17 @@ import { resolve } from 'node:path';
 
 const fromServerRoot = (relative: string) => resolve(process.cwd(), relative);
 
-const int = (name: string, fallback: number) =>
-  parseInt(process.env[name] ?? String(fallback), 10);
+function int(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value)) {
+    throw new Error(`Biến môi trường ${name} phải là số nguyên, nhận "${raw}"`);
+  }
+  return value;
+}
 
+// eslint-disable-next-line complexity
 const configuration = () => ({
   port: int('PORT', 4_000),
   nodeEnv: process.env.NODE_ENV ?? 'development',

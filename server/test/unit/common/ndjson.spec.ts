@@ -1,4 +1,8 @@
-import type { Logger } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  type Logger,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { streamNdjson } from 'src/common/ndjson.js';
 import type { ModelStreamEvent } from 'src/common/stream-event.js';
@@ -23,7 +27,11 @@ function fakeResponse() {
     destroy: jest.fn(),
     on: jest.fn(),
   };
-  return { written, response: response as unknown as Response };
+  return {
+    written,
+    mocks: response,
+    response: response as unknown as Response,
+  };
 }
 
 const fakeLogger = () =>
@@ -98,5 +106,89 @@ describe('streamNdjson - nhịp tim', () => {
 
     await jest.advanceTimersByTimeAsync(60_000);
     expect(written).toHaveLength(afterDone);
+  });
+});
+
+/** Ném `error` ngay, hoặc sau khi đã phát một mảnh `partial`. */
+function failingEvents(
+  error: Error,
+  afterPartial: boolean,
+): AsyncIterable<ModelStreamEvent<{ ok: boolean }>> {
+  return {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async *[Symbol.asyncIterator]() {
+      if (afterPartial) yield { type: 'partial', data: { step: 1 } };
+      throw error;
+    },
+  };
+}
+
+describe('streamNdjson - lỗi trước sự kiện đầu tiên', () => {
+  test('HttpException trước sự kiện đầu thành sự kiện error kèm mã, rồi end() chứ không destroy()', async () => {
+    const { mocks, response } = fakeResponse();
+
+    await streamNdjson({
+      response,
+      logger: fakeLogger(),
+      label: 'thử',
+      events: failingEvents(new NotFoundException('Không tìm thấy X'), false),
+    });
+
+    expect(mocks.destroy).not.toHaveBeenCalled();
+    expect(mocks.end).toHaveBeenCalledTimes(1);
+    const [chunk] = mocks.end.mock.calls[0] as unknown as [string];
+    expect(JSON.parse(chunk)).toEqual({
+      type: 'error',
+      message: 'Không tìm thấy X',
+      statusCode: 404,
+    });
+  });
+
+  test('prelude không tính là sự kiện của generator: 409 sau prelude vẫn thành sự kiện error', async () => {
+    const { written, mocks, response } = fakeResponse();
+
+    await streamNdjson({
+      response,
+      logger: fakeLogger(),
+      label: 'thử',
+      prelude: { type: 'partial', data: { step: 0 } },
+      events: failingEvents(new ConflictException('Đang chạy'), false),
+    });
+
+    expect(written).toHaveLength(1);
+    expect(mocks.destroy).not.toHaveBeenCalled();
+    const [chunk] = mocks.end.mock.calls[0] as unknown as [string];
+    expect(JSON.parse(chunk)).toMatchObject({
+      type: 'error',
+      statusCode: 409,
+    });
+  });
+
+  test('lỗi thường trước sự kiện đầu vẫn destroy() như cũ, không lộ câu lỗi thô', async () => {
+    const { mocks, response } = fakeResponse();
+
+    await streamNdjson({
+      response,
+      logger: fakeLogger(),
+      label: 'thử',
+      events: failingEvents(new Error('ECONNRESET 10.0.0.1'), false),
+    });
+
+    expect(mocks.destroy).toHaveBeenCalledTimes(1);
+    expect(mocks.end).not.toHaveBeenCalled();
+  });
+
+  test('HttpException SAU khi đã có dữ liệu thì destroy() để client không tưởng đã đủ', async () => {
+    const { mocks, response } = fakeResponse();
+
+    await streamNdjson({
+      response,
+      logger: fakeLogger(),
+      label: 'thử',
+      events: failingEvents(new ConflictException('Đang chạy'), true),
+    });
+
+    expect(mocks.destroy).toHaveBeenCalledTimes(1);
+    expect(mocks.end).not.toHaveBeenCalled();
   });
 });

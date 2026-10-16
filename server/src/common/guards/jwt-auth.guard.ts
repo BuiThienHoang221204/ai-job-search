@@ -1,7 +1,14 @@
-import { Injectable, type ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+
+export const UNAUTHORIZED_MESSAGE =
+  'Bạn cần đăng nhập để tiếp tục, hoặc phiên đăng nhập đã hết hạn.';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -16,5 +23,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     );
     if (isPublic) return true;
     return super.canActivate(context);
+  }
+
+  handleRequest<TUser>(error: Error | null, user: TUser | false): TUser {
+    if (error && !(error instanceof UnauthorizedException)) throw error;
+    if (error || !user) throw new UnauthorizedException(UNAUTHORIZED_MESSAGE);
+    return user;
   }
 }

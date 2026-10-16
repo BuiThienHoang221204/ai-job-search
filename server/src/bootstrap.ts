@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { vietnameseValidationError } from './common/validation-message';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -9,6 +10,10 @@ import express, {
   type Response,
 } from 'express';
 
+export const REQUEST_ID_HEADER = 'x-request-id';
+
+const VALID_REQUEST_ID = /^[\w-]{1,64}$/;
+
 const HELMET_OPTIONS = {
   crossOriginResourcePolicy: { policy: 'cross-origin' as const },
 };
@@ -16,8 +21,16 @@ const HELMET_OPTIONS = {
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
 
-  app.use(express.json({ strict: false }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ strict: false, limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const incoming = req.header(REQUEST_ID_HEADER);
+    const id =
+      incoming && VALID_REQUEST_ID.test(incoming) ? incoming : randomUUID();
+    res.setHeader(REQUEST_ID_HEADER, id);
+    next();
+  });
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (

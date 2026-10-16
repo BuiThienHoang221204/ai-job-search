@@ -11,3 +11,6 @@ export const ThrottleAuth = () =>
 
 export const ThrottleScrape = () =>
   Throttle({ default: { limit: 3, ttl: HOUR } });
+
+export const ThrottlePdf = () =>
+  Throttle({ default: { limit: 10, ttl: MINUTE } });

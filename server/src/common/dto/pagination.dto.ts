@@ -5,6 +5,8 @@ export const DEFAULT_PAGE_SIZE = 20;
 
 export const MAX_PAGE_SIZE = 100;
 
+export const MAX_OFFSET = 100_000;
+
 export class PaginationQueryDto {
   @IsOptional()
   @Type(() => Number)
@@ -17,5 +19,6 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(MAX_OFFSET)
   offset?: number;
 }

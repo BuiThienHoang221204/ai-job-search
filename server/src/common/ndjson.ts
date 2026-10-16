@@ -1,4 +1,4 @@
-import type { Logger } from '@nestjs/common';
+import { HttpException, type Logger } from '@nestjs/common';
 import type { Response } from 'express';
 import type { ModelStreamEvent } from './stream-event';
 import { messageOf } from './error-message';
@@ -11,7 +11,6 @@ export type NdjsonStream<T> = {
   label: string;
   events: AsyncIterable<ModelStreamEvent<T>>;
   prelude?: ModelStreamEvent<unknown>;
-  onAbandon?: () => void;
 };
 
 export function justDone<T>(result: T): AsyncIterable<ModelStreamEvent<T>> {
@@ -23,9 +22,9 @@ export function justDone<T>(result: T): AsyncIterable<ModelStreamEvent<T>> {
   };
 }
 
-/** Đẩy sự kiện ra NDJSON; hỏng giữa chừng thì `destroy()` để client không tưởng dữ liệu đã đủ. */
+/** Đẩy sự kiện ra NDJSON; `HttpException` trước sự kiện đầu thành sự kiện `error`, hỏng giữa chừng thì `destroy()`. */
 export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
-  const { response, logger, label, events, prelude, onAbandon } = stream;
+  const { response, logger, label, events, prelude } = stream;
 
   response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
   response.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -35,27 +34,31 @@ export async function streamNdjson<T>(stream: NdjsonStream<T>): Promise<void> {
   if (prelude) response.write(`${JSON.stringify(prelude)}\n`);
 
   let finished = false;
+  let written = 0;
 
   const beat = setInterval(() => {
     if (!finished) response.write('\n');
   }, HEARTBEAT_MS);
 
-  if (onAbandon) {
-    response.on('close', () => {
-      if (finished) return;
-      logger.warn(`Người dùng rời trang giữa lượt ${label}; xếp lại hàng đợi`);
-      onAbandon();
-    });
-  }
-
   try {
     for await (const event of events) {
       response.write(`${JSON.stringify(event)}\n`);
+      written += 1;
     }
     finished = true;
   } catch (error) {
     finished = true;
     const message = messageOf(error);
+    if (written === 0 && error instanceof HttpException) {
+      logger.warn(`Stream ${label} bị từ chối: ${message}`);
+      const event: ModelStreamEvent<T> = {
+        type: 'error',
+        message,
+        statusCode: error.getStatus(),
+      };
+      response.end(`${JSON.stringify(event)}\n`);
+      return;
+    }
     logger.error(`Stream ${label} hỏng: ${message}`);
     response.destroy();
     return;

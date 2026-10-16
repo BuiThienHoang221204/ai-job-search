@@ -23,7 +23,7 @@
     "test:cov": "node test/run-unit.mjs --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "node test/run-e2e.mjs",
-    "db:up": "docker compose up -d",
+    "db:up": "docker compose up -d postgres",
     "db:migrate": "prisma migrate dev",
     "db:seed": "node scripts/seed-demo.mjs",
     "db:studio": "prisma studio",
