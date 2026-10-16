@@ -16,7 +16,7 @@ import {
 } from '../ai/failure-kind';
 import { PrismaExceptionFilter } from './prisma-exception.filter';
 
-const AI_FAILURE: Record<
+const FAILURE: Record<
   Exclude<FailureKind, 'OTHER'>,
   { status: number; message: string }
 > = {
@@ -27,14 +27,21 @@ const AI_FAILURE: Record<
   },
   TIMEOUT: {
     status: HttpStatus.GATEWAY_TIMEOUT,
-    message: 'Quá thời gian chờ AI phản hồi. Hãy thử lại sau vài phút.',
+    message: 'Quá thời gian chờ phản hồi. Hãy thử lại sau vài phút.',
   },
   UPSTREAM: {
     status: HttpStatus.SERVICE_UNAVAILABLE,
     message:
-      'Nhà cung cấp AI đang quá tải hoặc đã hết lượt gọi. Hãy thử lại sau vài phút.',
+      'Dịch vụ phía sau đang quá tải hoặc tạm ngưng. Hãy thử lại sau vài phút.',
   },
 };
+
+const AI_UPSTREAM_MESSAGE =
+  'Nhà cung cấp AI đang quá tải hoặc đã hết lượt gọi. Hãy thử lại sau vài phút.';
+
+const isAiError = (error: unknown): boolean =>
+  error instanceof ModelUnavailableError ||
+  (error instanceof Error && error.name.startsWith('AI_'));
 
 const UNEXPECTED_MESSAGE = 'Máy chủ gặp lỗi ngoài dự kiến. Hãy thử lại sau.';
 
@@ -97,9 +104,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (error instanceof ModelUnavailableError) failureKind = 'UPSTREAM';
 
     if (failureKind !== 'OTHER') {
-      const { status, message } = AI_FAILURE[failureKind];
+      const { status } = FAILURE[failureKind];
+      let message = FAILURE[failureKind].message;
+      if (failureKind === 'UPSTREAM' && isAiError(error)) {
+        message = AI_UPSTREAM_MESSAGE;
+      }
       this.logger.error(
-        `Lượt AI hỏng (${failureKind}) tại ${route} -> ${status}: ${messageOf(error)}`,
+        `Gọi dịch vụ ngoài hỏng (${failureKind}) tại ${route} -> ${status}: ${messageOf(error)}`,
       );
       response
         .status(status)

@@ -5,7 +5,7 @@ import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 
 const MAX_PER_KIND = 100;
 
-const SCRAPE_RUNNING_STUCK_MS = 2 * HOUR_MS;
+const SCRAPE_RUNNING_STUCK_MS = 4 * HOUR_MS;
 const SCRAPE_PENDING_STUCK_MS = 12 * HOUR_MS;
 
 const STUCK_MESSAGE =

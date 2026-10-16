@@ -253,15 +253,15 @@ describe('Nhặt việc nền bị rơi', () => {
   });
   /// `ScrapeRun` không có `updatedAt`: RUNNING tính từ `startedAt`, PENDING từ
   /// `createdAt`. Sai tên cột thì Prisma chỉ ném khi đường này chạy thật.
-  test('lần quét kẹt RUNNING quá 2 giờ bị đánh hỏng, lần quét đang chạy hay đang chờ thì không', async () => {
+  test('lần quét kẹt RUNNING quá 4 giờ bị đánh hỏng, lần quét đang chạy hay đang chờ thì không', async () => {
     const hoursAgo = (hours: number) =>
       new Date(Date.now() - hours * 60 * 60 * 1000);
     const [stuck, alive, waiting, abandoned] = await Promise.all([
       harness.prisma.scrapeRun.create({
-        data: { portal: 'topcv', status: 'RUNNING', startedAt: hoursAgo(3) },
+        data: { portal: 'topcv', status: 'RUNNING', startedAt: hoursAgo(5) },
       }),
       harness.prisma.scrapeRun.create({
-        data: { portal: 'itviec', status: 'RUNNING', startedAt: hoursAgo(1) },
+        data: { portal: 'itviec', status: 'RUNNING', startedAt: hoursAgo(3) },
       }),
       harness.prisma.scrapeRun.create({
         data: {

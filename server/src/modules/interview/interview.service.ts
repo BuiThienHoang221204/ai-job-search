@@ -83,7 +83,10 @@ export class InterviewService {
     });
     const inFlight =
       existing?.status === 'RUNNING' || existing?.status === 'PENDING';
-    const willRun = !inFlight && (force || existing?.status !== 'DONE');
+    if (!force && existing?.status === 'DONE') {
+      return { queued: true, queueJobId: null };
+    }
+    const willRun = !inFlight;
 
     if (willRun) {
       await this.prisma.interviewPrep.upsert({

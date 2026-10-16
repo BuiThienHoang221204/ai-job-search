@@ -70,7 +70,7 @@ describe('InterviewService.enqueue', () => {
     await service.enqueue('user-1', 'job-1', false);
 
     expect(upserts).toEqual([]);
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('ép chạy lại thì đặt bản DONE về PENDING', async () => {

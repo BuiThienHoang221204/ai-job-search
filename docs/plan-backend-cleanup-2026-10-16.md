@@ -231,3 +231,10 @@ Theo [MS], phần lớn việc ở đây **chỉ làm khi đang sửa module đ�
 | SQL raw theo giờ VN ở admin; p50/p95 bằng JS | Prisma không làm được; chưa gần trần 5.000 dòng | — |
 | `timingPadHash` ở đăng nhập | Chống dò email theo thời gian phản hồi | — |
 | Seam `ProfileSource`, hai adapter PDF | Adapter thứ hai đã có hoặc đã nằm trong lộ trình | `server/README.md`, ADR 0002/0004 |
+
+## Sửa sau lượt rà toàn bộ diff (2026-10-16)
+
+- **Khoá `INTERVIEW_PREP`:** `enqueue` không gửi việc khi bộ đề đã DONE mà không ép chạy lại. Lượt gửi vô ích đó từng chiếm khoá `userId:jobId` và nuốt mất lượt "Soạn lại" bấm ngay sau, để bản ghi nằm PENDING tới khi reconcile đánh FAILED.
+- **Câu báo lỗi:** `AllExceptionsFilter` giữ nguyên mã HTTP và `failureKind`, nhưng câu "nhà cung cấp AI quá tải" chỉ dùng khi lỗi chắc chắn đến từ AI (tên `AI_*` hoặc `ModelUnavailableError`). Timeout và 5xx khác dùng câu trung tính, vì `TimeoutError` của `AbortSignal` không cho biết lời gọi nào hết giờ.
+- **Reconcile `ScrapeRun`:** mốc RUNNING kẹt nâng từ 2 lên **4 giờ**. Trường hợp xấu nhất của một lượt quét hệ thống là 30 truy vấn × 5 trang × (60 giây timeout CLI + 3 giây nhịp) ≈ 2,6 giờ, nên mốc 2 giờ có thể đánh FAILED một lượt còn sống. Nâng `SCRAPER_SYSTEM_QUERY_LIMIT`, `SCRAPER_MAX_PAGES` hay `SCRAPER_TIMEOUT_MS` thì tính lại mốc này.
+- **App admin:** `AuthResult` bỏ `accessToken`, khớp body `{ user }` của backend.

@@ -125,7 +125,7 @@ describe('ReconcileService.failStuck', () => {
   /// portal (hàng đợi `scrape.run` là serial) nên lần quét cuối có thể nằm
   /// PENDING hàng giờ mà vẫn sống. RUNNING tính từ `startedAt`, PENDING từ
   /// `createdAt` với hạn dài hơn.
-  test('ScrapeRun: RUNNING quá 2 giờ theo startedAt, PENDING quá 12 giờ theo createdAt', async () => {
+  test('ScrapeRun: RUNNING quá 4 giờ theo startedAt, PENDING quá 12 giờ theo createdAt', async () => {
     jest.useFakeTimers();
     const now = new Date('2026-10-16T12:00:00Z');
     jest.setSystemTime(now);
@@ -139,7 +139,7 @@ describe('ReconcileService.failStuck', () => {
       expect(where.OR).toEqual([
         {
           status: 'RUNNING',
-          startedAt: { lt: new Date('2026-10-16T10:00:00Z') },
+          startedAt: { lt: new Date('2026-10-16T08:00:00Z') },
         },
         {
           status: 'PENDING',

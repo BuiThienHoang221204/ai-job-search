@@ -109,6 +109,19 @@ describe('AllExceptionsFilter', () => {
     },
   );
 
+  test('lỗi 5xx không đến từ AI không bị báo là AI quá tải', () => {
+    const captured = run(new Error('pdf-service trả 503 Service Unavailable'));
+
+    expect(captured.status).toBe(503);
+    expect((captured.body as { message: string }).message).not.toMatch(/AI/);
+  });
+
+  test('nhà cung cấp AI từ chối thì nói rõ là AI', () => {
+    const captured = run(namedError('AI_APICallError', 'Rate limit exceeded'));
+
+    expect((captured.body as { message: string }).message).toMatch(/AI/);
+  });
+
   test('lỗi Prisma đã biết đi đúng đường của PrismaExceptionFilter dù thứ tự đăng ký filter thế nào', () => {
     const captured = run(
       new Prisma.PrismaClientKnownRequestError('trùng', {
