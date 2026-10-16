@@ -202,25 +202,18 @@ export function whereFrom(
   };
 }
 
-export type ListOrder = JobSort | 'posted';
+export const listOrderFor = (query: ListJobsQueryDto): JobSort =>
+  query.scored ? 'newest' : (query.sort ?? 'newest');
 
-export const listOrderFor = (query: ListJobsQueryDto): ListOrder =>
-  query.scored ? 'posted' : (query.sort ?? 'newest');
-
-export function orderFor(
-  sort: ListOrder,
-): Prisma.JobOrderByWithRelationInput[] {
-  if (sort === 'posted') {
-    return [
-      { postedAt: { sort: 'desc', nulls: 'last' } },
-      { scrapedAt: 'desc' },
-      { id: 'desc' },
-    ];
-  }
+export function orderFor(sort: JobSort): Prisma.JobOrderByWithRelationInput[] {
   if (sort === 'salary') {
     return [{ salaryMax: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }];
   }
-  return [{ scrapedAt: 'desc' }, { id: 'desc' }];
+  return [
+    { postedAt: { sort: 'desc', nulls: 'last' } },
+    { scrapedAt: 'desc' },
+    { id: 'desc' },
+  ];
 }
 
 type CountRow = { _count: number };

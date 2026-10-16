@@ -376,6 +376,29 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       }
     });
 
+    test('"Tất cả việc làm" sort newest cũng xếp theo ngày ĐĂNG, không theo ngày quét', async () => {
+      const daysAgo = (days: number) =>
+        new Date(Date.now() - days * 86_400_000);
+      const posted: Array<[string, Date | null]> = [
+        [ids[0], daysAgo(10)],
+        [ids[1], daysAgo(5)],
+        [ids[2], daysAgo(1)],
+        [ids[3], null],
+      ];
+      for (const [id, postedAt] of posted) {
+        await harness.prisma.job.update({ where: { id }, data: { postedAt } });
+      }
+
+      const page = await pageOf({ sort: 'newest', limit: 100 });
+
+      expect(page.items.map((item) => item.id)).toEqual([
+        ids[2],
+        ids[1],
+        ids[0],
+        ids[3],
+      ]);
+    });
+
     test('cổng chỉ áp cho scored, không áp cho "Tất cả việc làm"', async () => {
       await setProfile('IT');
 

@@ -14,7 +14,6 @@ import {
 import {
   filterTree,
   listOrderFor,
-  type ListOrder,
   MATCH_DETAIL_FIELDS,
   MATCH_STATE_FIELDS,
   orderFor,
@@ -27,7 +26,7 @@ import {
   withoutChecks,
 } from './utils/job-view';
 import { needsOccupation, profileFit } from './utils/occupation-gate';
-import type { ListJobsQueryDto, PublicJobsQueryDto } from './job.dto';
+import type { JobSort, ListJobsQueryDto, PublicJobsQueryDto } from './job.dto';
 import { toPublicJobDetail } from './utils/public-job';
 
 @Injectable()
@@ -108,7 +107,7 @@ export class JobsService {
     where: Prisma.JobWhereInput,
     query: ListJobsQueryDto,
     userId: string,
-    sort: ListOrder,
+    sort: JobSort,
   ) {
     return [
       this.prisma.job.findMany({
@@ -145,7 +144,7 @@ export class JobsService {
       this.prisma.jobRequirementMatch.count({ where }),
     ] as const;
   }
-  /** Danh sách cho khách chưa đăng nhập: không lương, không đối chiếu hồ sơ, luôn mới quét trước. */
+  /** Danh sách cho khách chưa đăng nhập: không lương, không đối chiếu hồ sơ, luôn mới đăng trước. */
   async publicList(query: PublicJobsQueryDto) {
     const where = whereFrom(query, null);
     const [rows, total] = await Promise.all([
