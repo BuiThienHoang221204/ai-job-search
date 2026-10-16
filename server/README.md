@@ -410,15 +410,16 @@ Thay bằng: **màn Tạo CV nhận thẳng JD dán tay hoặc link tin tuyển 
 
 **Bảng `AgentRun`/`AgentStep` GIỮ NGUYÊN** và nay chỉ phục vụ buổi luyện phỏng vấn. Không có migration nào: mọi buổi luyện đã diễn ra nằm trong đó, và các cột riêng của `/apply` (`input`, `result`, `review`, `answer`) để yên cho bản ghi cũ đọc được.
 
-Phần còn lại đổi tên thành `modules/mock-interview/` — 5 file phẳng, không thư mục con:
+Phần còn lại đổi tên thành `modules/mock-interview/`:
 
 | file | việc |
 |---|---|
-| `mock-interview.controller.ts` | 4 đường HTTP + DTO. Hai đường đọc trả JSON, hai đường chạy trả chữ chảy dần |
-| `mock-interview.service.ts` | mọi thứ chạm DB để ĐỌC: danh sách, chi tiết, hạn ngạch một buổi, và dựng khối bối cảnh |
-| `interview-turn.service.ts` | một lượt đối đáp: gọi model, lọc luồng chữ, ghi bước |
-| `interview-turn.prompt.ts` | giao thức `TIẾP`/`HẾT` + `@@HOI@@` và bộ lọc luồng. Hàm thuần |
-| `mock-interview.utils.ts` | hàm thuần KHÔNG chạm DB: `trimToolOutput`, `askUserStep`, `attachAnswer`, `formatInterviewDossier` |
+| `mock-interview.controller.ts` | 4 đường HTTP. Hai đường đọc trả JSON, hai đường chạy trả chữ chảy dần |
+| `mock-interview.dto.ts` | DTO của các đường trên |
+| `services/mock-interview.service.ts` | mọi thứ chạm DB để ĐỌC: danh sách, chi tiết, hạn ngạch một buổi, và dựng khối bối cảnh |
+| `services/interview-turn.service.ts` | một lượt đối đáp: gọi model, lọc luồng chữ, ghi bước |
+| `utils/interview-turn.prompt.ts` | giao thức `TIẾP`/`HẾT` + `@@HOI@@` và bộ lọc luồng. Hàm thuần |
+| `utils/mock-interview.ts` | hàm thuần KHÔNG chạm DB: `askUserStep`, `attachAnswer`, `formatInterviewDossier` |
 
 Route đổi theo: `/agent-runs` → `/mock-interviews`, và mở buổi nay là `POST /mock-interviews` thay cho `POST /agent-runs/interview/open-stream`. **Bảng `agent_runs`/`agent_steps` giữ nguyên tên** — đổi tên bảng cần migration, mà dữ liệu buổi luyện cũ nằm cả trong đó.
 
@@ -429,7 +430,7 @@ Route đổi theo: `/agent-runs` → `/mock-interviews`, và mở buổi nay là
 
 Đi kèm là namespace config `web.*` tách khỏi `agent.*`. Trước đó `ReviewResearchService` đọc `agent.searchApiKey`, `agent.fetchTimeoutMs`… cho một việc chẳng dính gì tới agent, nên **chỉnh `AGENT_FETCH_TIMEOUT_MS` để chữa một lượt chạy agent là lặng lẽ đổi cả luồng tìm hiểu công ty**, và xoá `SERPER_API_KEY` để tắt `web_search` của agent là tắt luôn tra cứu công ty.
 
-**Tên biến môi trường GIỮ NGUYÊN** (`AGENT_FETCH_MAX_BYTES`, `AGENT_FETCH_TIMEOUT_MS`, `SERPER_*`). Đổi tên biến là đúng cái đã gây sự cố 2026-08-24 — xem mục "Biến môi trường tìm kiếm là `SERPER_*`" trong `CLAUDE.md`. Chỉ namespace nội bộ đổi.
+**Tên biến môi trường GIỮ NGUYÊN** (`AGENT_FETCH_MAX_BYTES`, `AGENT_FETCH_TIMEOUT_MS`, `SERPER_*`). Đổi tên biến là đúng cái đã gây sự cố 2026-08-24 — xem `docs/adr/0016-tim-hieu-cong-ty.md`, đoạn "Biến môi trường tìm kiếm là `SERPER_*`". Chỉ namespace nội bộ đổi.
 
 Sau khi `/apply` bị gỡ thì `AgentLimits` và namespace `agent.*` biến mất hẳn; `WebLimits` là thứ còn lại, và nay `JobFromUrlService` với `ReviewResearchService` cùng đọc nó.
 
@@ -685,7 +686,7 @@ không tránh được cờ này — đừng thử lại.
 ### Test nằm ở đâu
 
 Unit test **không** nằm cạnh module mà ở `test/unit/**`, phản chiếu đúng cây
-`src/**`: `src/modules/scraper/sources/normalize.ts` được kiểm bởi
+`src/**`: `src/modules/scraper/utils/normalize.ts` được kiểm bởi
 `test/unit/modules/scraper/normalize.spec.ts`. Nhờ vậy `src/` chỉ còn mã chạy
 thật, và `tsconfig.build.json` không phải lọc file test ra khỏi bản build.
 
@@ -882,13 +883,9 @@ Lỗi đó ảnh hưởng **cả bộ lọc tỉnh/thành trên trang danh sách
 `GET /api/mock-interviews/:id` bị giao diện hỏi lại **mỗi 4 giây suốt cả buổi**, mà một buổi luyện kéo dài hàng chục phút. Nên nó dùng `MockInterviewService.detail()` chứ không dùng `get()`:
 
 - **bỏ hẳn cột `messages`** — hội thoại thô để chạy tiếp một lượt. `InterviewTurnService` cần nó, giao diện thì chưa bao giờ đọc.
-- **cắt mọi chuỗi dài trong `toolResults` còn 500 ký tự** (`mock-interview.utils.ts`). `lib/interview-transcript.ts` bên giao diện chỉ đọc `error`, `ok`, `reason`, `saved`, `critique`, `asked`, `pages`, `file`, `path` và `results.length` — nó không bao giờ vẽ `content` hay `text`, mà đó đúng là hai trường nặng nhất (`read_skill_reference` ~8.000 ký tự, `fetch_url` tới 20.000).
-
-Đo trên 5 lượt chạy thật thời còn vòng lặp agent: **73.957 → 3.569 ký tự mỗi lần hỏi, giảm 95%**.
+- **KHÔNG cắt `toolResults` nữa** (gỡ 2026-10-16). Bộ cắt 500 ký tự viết cho output công cụ của vòng lặp agent cũ (`read_skill_reference` ~8.000 ký tự, `fetch_url` tới 20.000); khi agent đã gỡ, thứ duy nhất còn nằm trong `toolResults` là câu hỏi và CÂU TRẢ LỜI của người dùng (tới 4.000 ký tự), và bộ cắt đang cắt chính câu trả lời đó. e2e `mock-interview-turn.e2e-spec.ts` ghim việc trả đủ.
 
 **`get()` phải giữ nguyên `messages`** — cắt ở đó là làm hỏng nhánh chạy tiếp của phỏng vấn, và lỗi sẽ hiện ra dưới dạng agent quên sạch bối cảnh chứ không phải một exception.
-
-**Cắt độ dài chứ không lọc theo danh sách khoá.** Lọc khoá thì lần sau giao diện muốn thêm một trường sẽ im lặng không nhận được gì; cắt độ dài giữ nguyên hình dạng dữ liệu. `trimToolOutput` giữ nguyên độ dài mảng vì giao diện đọc `results.length`, và có test đơn vị ghim điều đó.
 
 ### Probe sức khoẻ
 
