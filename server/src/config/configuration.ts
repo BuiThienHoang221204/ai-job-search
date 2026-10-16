@@ -100,7 +100,7 @@ const configuration = () => ({
 
     defaultLocation: process.env.SCRAPER_DEFAULT_LOCATION ?? 'Vietnam',
 
-    maxJobsPerPortal: int('SCRAPER_MAX_JOBS_PER_PORTAL', 50),
+    maxJobsPerPortal: int('SCRAPER_MAX_JOBS_PER_PORTAL', 100),
 
     maxAgeDays: int('SCRAPER_MAX_AGE_DAYS', 7),
 

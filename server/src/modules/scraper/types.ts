@@ -33,6 +33,7 @@ export type PortalEntry = {
   enabled: boolean;
   supportsJobAge: boolean;
   delayMs: number | null;
+  maxJobs: number | null;
   occupations: string[] | null;
   description: string;
 };

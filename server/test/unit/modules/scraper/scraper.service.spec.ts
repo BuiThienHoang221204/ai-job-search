@@ -245,6 +245,23 @@ describe('ScraperService.run - phân trang', () => {
 
     expect(calls[0].postedWithinDays).toBe(7);
   });
+
+  test('portal khai maxJobs thì dùng trần riêng thay cho trần chung', async () => {
+    const { router } = fakePortals(
+      { 1: [card('a'), card('b'), card('c')] },
+      undefined,
+      [{ ...itOnlyPortal, occupations: null, maxJobs: 2 }],
+    );
+    const prisma = fakePrisma();
+    const service = buildService(prisma, router, fakeQueue(), {
+      'scraper.maxJobsPerPortal': 50,
+      'scraper.systemQueryLimit': 1,
+    });
+
+    await runScrape(service);
+
+    expect(prisma.job.upsert).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('ScraperService.run - cửa sổ 7 ngày', () => {
@@ -826,6 +843,7 @@ const itOnlyPortal: PortalEntry = {
   enabled: true,
   supportsJobAge: false,
   delayMs: null,
+  maxJobs: null,
   occupations: ['IT'],
   description: '',
 };

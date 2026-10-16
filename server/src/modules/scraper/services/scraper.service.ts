@@ -92,6 +92,9 @@ export class ScraperService {
         });
       }
       const { plan, modelId, clusterCodes } = planned;
+      const portalMaxJobs = this.portals
+        .describePortals()
+        .find((p) => p.key === run.portal)?.maxJobs;
 
       if (!plan.queries.length) {
         throw new Error(
@@ -110,7 +113,10 @@ export class ScraperService {
         {
           search: (portal, args) => this.portals.search(portal, args),
           log: (message) => this.logger.log(message),
-          limits: this.limits,
+          limits: {
+            ...this.limits,
+            maxJobsPerPortal: portalMaxJobs ?? this.limits.maxJobsPerPortal,
+          },
         },
         run.portal,
         plan.queries,

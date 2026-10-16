@@ -21,7 +21,7 @@ const REST_AFTER_CALL_MS = 1_200;
 
 export const BLOCKED_COOLDOWN_MS = 30 * 60_000;
 
-const delayFrom = (raw: unknown): number | null =>
+const positiveIntFrom = (raw: unknown): number | null =>
   typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : null;
 
 const occupationsFrom = (raw: unknown): string[] | null =>
@@ -43,6 +43,7 @@ export function evaluateCandidate(input: {
     enabled?: unknown;
     jobAge?: unknown;
     delayMs?: unknown;
+    maxJobs?: unknown;
     occupations?: unknown;
     description?: unknown;
   };
@@ -59,7 +60,8 @@ export function evaluateCandidate(input: {
       cliPath: `.agents/skills/${input.directory}/cli/src/cli.ts`,
       enabled,
       supportsJobAge: input.frontmatter.jobAge === true,
-      delayMs: delayFrom(input.frontmatter.delayMs),
+      delayMs: positiveIntFrom(input.frontmatter.delayMs),
+      maxJobs: positiveIntFrom(input.frontmatter.maxJobs),
       occupations: occupationsFrom(input.frontmatter.occupations),
       description:
         typeof input.frontmatter.description === 'string'

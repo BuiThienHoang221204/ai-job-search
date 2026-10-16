@@ -42,6 +42,7 @@ describe('evaluateCandidate', () => {
         enabled: true,
         supportsJobAge: false,
         delayMs: null,
+        maxJobs: null,
         occupations: null,
         description: '',
       },
@@ -61,6 +62,14 @@ describe('evaluateCandidate', () => {
       const result = evaluateCandidate({ ...base, frontmatter: { delayMs } });
       expect('entry' in result && result.entry.delayMs).toBeNull();
     }
+  });
+
+  test('khai maxJobs là số nguyên dương thì portal có trần tin riêng', () => {
+    const result = evaluateCandidate({
+      ...base,
+      frontmatter: { maxJobs: 50 },
+    });
+    expect('entry' in result && result.entry.maxJobs).toBe(50);
   });
 
   test('khai jobAge: true thì portal tự lọc được theo ngày đăng', () => {
