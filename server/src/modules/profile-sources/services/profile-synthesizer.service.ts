@@ -1,10 +1,15 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ProfileDraft } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
 import type { StreamObjectOptions } from '@/modules/ai/ai.types';
 import type { ModelStreamEvent } from '@/common/stream-event';
-import { parseEvidenceList } from '../utils/evidence';
+import type { Evidence } from '../utils/evidence';
 import { WITHOUT_EVIDENCE, type DraftView } from '../utils/profile-draft.utils';
 import {
   profileProposalSchema,
@@ -15,8 +20,9 @@ import {
   SYNTHESIS_SYSTEM,
   SYNTHESIS_TIMEOUT_MS,
 } from '../utils/profile-synthesis.prompt';
-import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { streamFailureEvent } from '@/common/ai/failure-view';
 import { messageOf } from '@/common/error-message';
+import { STUCK_AFTER_MS } from '@/common/duration';
 
 @Injectable()
 export class ProfileSynthesizerService {
@@ -28,9 +34,15 @@ export class ProfileSynthesizerService {
   ) {}
 
   async *streamSynthesize(
+    userId: string,
     draftId: string,
   ): AsyncGenerator<ModelStreamEvent<DraftView>> {
-    const draft = await this.start(draftId);
+    const { draft, claimed } = await this.start(userId, draftId);
+    if (!claimed) {
+      throw new ConflictException(
+        `Bản nháp đang ở trạng thái ${draft.status}, không đọc lại được.`,
+      );
+    }
 
     try {
       const { partials, object, modelId } = await this.ai.streamObject(
@@ -50,8 +62,12 @@ export class ProfileSynthesizerService {
   }
 
   /** Tổng hợp bản nháp: đọc bằng chứng đã lưu, gọi model MỘT LẦN, ghi đề xuất. */
-  async synthesize(draftId: string): Promise<DraftView> {
-    const draft = await this.start(draftId);
+  async synthesize(userId: string, draftId: string): Promise<DraftView | null> {
+    const { draft, claimed } = await this.start(userId, draftId);
+    if (!claimed) {
+      this.logger.debug(`Bỏ qua bản nháp ${draftId}: đang ${draft.status}`);
+      return null;
+    }
 
     try {
       const { object, modelId } = await this.ai.generateObject(
@@ -63,26 +79,41 @@ export class ProfileSynthesizerService {
     }
   }
 
-  private async start(draftId: string): Promise<ProfileDraft> {
-    const draft = await this.prisma.profileDraft.findUnique({
-      where: { id: draftId },
+  /** Giành chỗ RUNNING chỉ khi bản nháp đang chờ, đã hỏng, hoặc RUNNING đã kẹt — bản DONE không bao giờ bị đọc lại. */
+  private async start(
+    userId: string,
+    draftId: string,
+  ): Promise<{ draft: ProfileDraft; claimed: boolean }> {
+    const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS);
+    const claim = await this.prisma.profileDraft.updateMany({
+      where: {
+        id: draftId,
+        userId,
+        OR: [
+          { status: { in: ['PENDING', 'FAILED'] } },
+          { status: 'RUNNING', updatedAt: { lt: stuckBefore } },
+        ],
+      },
+      data: { status: 'RUNNING', error: null },
+    });
+
+    const draft = await this.prisma.profileDraft.findFirst({
+      where: { id: draftId, userId },
     });
     if (!draft) {
       throw new NotFoundException(`Không tìm thấy bản nháp hồ sơ: ${draftId}`);
     }
 
-    await this.prisma.profileDraft.update({
-      where: { id: draftId },
-      data: { status: 'RUNNING', error: null },
-    });
-    return draft;
+    return { draft, claimed: claim.count > 0 };
   }
 
   /** Ném khi không có bằng chứng — gọi trong `try` để bản nháp vẫn chuyển FAILED. */
   private synthesisCall(
     draft: ProfileDraft,
   ): StreamObjectOptions<ProfileProposal> {
-    const evidence = parseEvidenceList(draft.evidence);
+    const evidence = Array.isArray(draft.evidence)
+      ? (draft.evidence as unknown as Evidence[])
+      : [];
     if (evidence.length === 0) {
       throw new Error('Bản nháp không có bằng chứng nào đọc được');
     }

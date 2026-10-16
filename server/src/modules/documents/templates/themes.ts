@@ -181,7 +181,7 @@ const accentBar: CvTheme = {
   },
   fontPt: 10.5,
   css: (accent) => `
-/* Lề trái 0 vì left:0 của fixed neo vào mép VÙNG NỘI DUNG, không phải mép giấy; offset âm cũng bị cắt. Xem CLAUDE.md. */
+/* Lề trái 0 vì left:0 của fixed neo vào mép VÙNG NỘI DUNG, không phải mép giấy; offset âm cũng bị cắt. Xem docs/adr/0002-cv-html-va-kho-mau.md. */
 ${base({ font: SANS, fontSize: '10.5pt', lineHeight: '1.45', margin: '14mm 15mm 14mm 0' })}
 
 .page-bar {

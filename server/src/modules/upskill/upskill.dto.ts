@@ -7,12 +7,13 @@ import {
   IsOptional,
   IsString,
   Length,
+  MaxLength,
 } from 'class-validator';
 
 export const WEEK_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
 
 export class GenerateUpskillDto {
-  @IsOptional() @IsString() jobId?: string;
+  @IsOptional() @IsString() @MaxLength(40) jobId?: string;
 }
 
 export class LearningKeyDto {

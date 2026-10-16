@@ -4,7 +4,7 @@ import {
   QueueService,
   type CompanyBriefPayload,
 } from '../queue/queue.service';
-import { CompanyService } from './service/company.service';
+import { CompanyService } from './services/company.service';
 
 @Injectable()
 export class CompanyProcessor implements OnModuleInit {

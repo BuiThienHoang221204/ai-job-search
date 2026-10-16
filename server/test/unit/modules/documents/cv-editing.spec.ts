@@ -10,6 +10,7 @@ const identity: Identity = {
   email: 'minhan@example.com',
   phone: '0900000000',
   location: 'TP. Ho Chi Minh',
+  title: null,
 };
 
 const content: CvContent = {

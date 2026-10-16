@@ -1,3 +1,10 @@
+import type { StreamObjectOptions } from '@/modules/ai/ai.types';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
+import { estimateTokens } from '@/common/ai/token-estimate';
+import { companyBriefSchema, type CompanyBrief } from './company-brief';
+
+const BRIEF_TIMEOUT_MS = 120_000;
+
 export type NumberedSource = {
   title: string;
   url: string;
@@ -43,4 +50,19 @@ export function briefQueries(company: string): string[] {
     `${company} đánh giá nhân viên môi trường làm việc`,
     `có nên làm việc tại ${company}`,
   ];
+}
+
+export function briefCall(
+  company: string,
+  sources: NumberedSource[],
+): StreamObjectOptions<CompanyBrief> {
+  const prompt = buildBriefPrompt(company, sources);
+  return {
+    schema: companyBriefSchema,
+    context: { purpose: 'company.brief' },
+    system: BRIEF_SYSTEM,
+    prompt,
+    timeoutMs: BRIEF_TIMEOUT_MS,
+    ...fastModelChain(estimateTokens(BRIEF_SYSTEM, prompt)),
+  };
 }

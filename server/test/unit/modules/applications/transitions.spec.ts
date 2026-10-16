@@ -1,20 +1,9 @@
 import {
-  ALL_STATUSES,
   FINAL_STATUSES,
   OPEN_STATUSES,
-  checkTransition,
   isFinal,
   timestampsFor,
-  type TransitionRequest,
 } from 'src/modules/applications/transitions.js';
-
-const move = (
-  overrides: Partial<TransitionRequest> &
-    Pick<TransitionRequest, 'from' | 'to'>,
-): TransitionRequest => ({
-  actor: 'user',
-  ...overrides,
-});
 
 describe('isFinal', () => {
   test('hai trạng thái mở không phải trạng thái cuối', () => {
@@ -29,48 +18,6 @@ describe('isFinal', () => {
     const all = [...OPEN_STATUSES, ...FINAL_STATUSES];
     expect(new Set(all).size).toBe(all.length);
     expect(all).toHaveLength(3);
-  });
-});
-
-describe('checkTransition', () => {
-  test('mọi đường đi giữa ba trạng thái đều hợp lệ với người dùng', () => {
-    for (const from of ALL_STATUSES) {
-      for (const to of ALL_STATUSES) {
-        if (from === to) continue;
-        expect(checkTransition(move({ from, to })).ok).toBe(true);
-      }
-    }
-  });
-
-  test('chuyển sang chính trạng thái đang có thì bị chặn', () => {
-    expect(checkTransition(move({ from: 'APPLIED', to: 'APPLIED' })).ok).toBe(
-      false,
-    );
-  });
-
-  test('worker không mở lại được đơn đã huỷ', () => {
-    expect(
-      checkTransition(
-        move({ from: 'WITHDRAWN', to: 'APPLIED', actor: 'system' }),
-      ).ok,
-    ).toBe(false);
-  });
-
-  test('người dùng thì mở lại được', () => {
-    // Huỷ nhầm rồi nộp lại là chuyện thường; chặn ở đây chỉ đẩy người dùng sang
-    // việc tạo đơn thứ hai cho cùng một tin, mà ràng buộc trùng đơn sẽ chặn.
-    expect(
-      checkTransition(move({ from: 'WITHDRAWN', to: 'APPLIED', actor: 'user' }))
-        .ok,
-    ).toBe(true);
-  });
-
-  test('hệ thống vẫn được đánh dấu huỷ một đơn còn mở', () => {
-    expect(
-      checkTransition(
-        move({ from: 'APPLIED', to: 'WITHDRAWN', actor: 'system' }),
-      ).ok,
-    ).toBe(true);
   });
 });
 

@@ -1,6 +1,7 @@
 import {
   answerKeyOf,
   findQuestion,
+  practiceProgress,
   practiceQuestions,
   questionKeyOf,
   readinessOf,
@@ -113,6 +114,17 @@ describe('readinessOf', () => {
 
     expect(fresh.feedbackStale).toBe(false);
     expect(stale.feedbackStale).toBe(true);
+  });
+});
+
+describe('practiceProgress', () => {
+  test('chỉ đếm khoá còn khớp câu hỏi của bộ đề hiện tại', () => {
+    expect(
+      practiceProgress(prep, [
+        questionKeyOf('Kể về xung đột?'),
+        questionKeyOf('Câu đã bị soạn lại?'),
+      ]),
+    ).toEqual({ practiced: 1, total: 3 });
   });
 });
 

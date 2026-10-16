@@ -1,6 +1,5 @@
+import type { BriefConfidence } from '@/generated/prisma/enums';
 import type { SearchHit } from '@/common/web/serper';
-
-export type { SearchHit };
 
 const REVIEW_HOSTS = [
   'itviec.com',
@@ -222,14 +221,12 @@ export function trimToReviewText(raw: string, budget = 5_000): string {
     .join(SEPARATOR);
 }
 
-export type BriefConfidence = 'high' | 'medium' | 'low';
-
 export function confidenceOf(urls: string[]): BriefConfidence {
   const total = urls.length;
   const known = urls.filter(isReviewHost).length;
 
-  if (total === 0) return 'low';
-  if (known >= 1 && total >= 2) return 'high';
-  if (known >= 1 || total >= 3) return 'medium';
-  return 'low';
+  if (total === 0) return 'LOW';
+  if (known >= 1 && total >= 2) return 'HIGH';
+  if (known >= 1 || total >= 3) return 'MEDIUM';
+  return 'LOW';
 }

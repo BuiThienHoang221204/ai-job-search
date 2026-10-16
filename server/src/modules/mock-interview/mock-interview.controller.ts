@@ -23,9 +23,9 @@ import {
   ListMockInterviewsDto,
   OpenMockInterviewDto,
 } from './mock-interview.dto';
-import { InterviewTurnService } from './service/interview-turn.service';
-import { MockInterviewService } from './service/mock-interview.service';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
+import { InterviewTurnService } from './services/interview-turn.service';
+import { MockInterviewService } from './services/mock-interview.service';
+import { withFailureKind } from '@/common/ai/failure-view';
 import { messageOf } from '@/common/error-message';
 
 @ApiTags('Phỏng vấn thử')
@@ -46,7 +46,7 @@ export class MockInterviewController {
     @Query() query: ListMockInterviewsDto,
   ) {
     const page = await this.sessions.list(user.id, query);
-    return { ...page, items: withFailureKinds(page.items) };
+    return { ...page, items: page.items.map(withFailureKind) };
   }
 
   @ApiOperation({ summary: 'Chi tiết một buổi luyện theo ID' })
@@ -103,17 +103,19 @@ export class MockInterviewController {
     @Body() dto: AnswerTurnDto,
     @Res() response: Response,
   ): Promise<void> {
-    response.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    response.setHeader('Cache-Control', 'no-cache, no-transform');
-    response.setHeader('X-Accel-Buffering', 'no');
-    response.flushHeaders();
-
     try {
       for await (const piece of this.turns.stream(user.id, id, dto.text)) {
+        if (!response.headersSent) {
+          response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          response.setHeader('Cache-Control', 'no-cache, no-transform');
+          response.setHeader('X-Accel-Buffering', 'no');
+          response.flushHeaders();
+        }
         response.write(piece);
       }
     } catch (error) {
       this.logger.error(`Lượt phỏng vấn ${id} hỏng: ${messageOf(error)}`);
+      if (!response.headersSent) throw error;
       response.destroy();
       return;
     }

@@ -1,5 +1,4 @@
 import type { Prisma } from '@/generated/prisma/client';
-import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { DAY_MS } from '@/common/duration';
 
 export const ASK_USER_TOOL = 'ask_user';
@@ -16,7 +15,6 @@ export function closingOf(
   return text.slice(0, CLOSING_LIMIT);
 }
 
-const TEXT_LIMIT = 500;
 const MAX_DESCRIPTION_CHARS = 2000;
 
 const STATUS_LABEL: Record<string, string> = {
@@ -55,24 +53,6 @@ export type InterviewDossier = {
     score: number;
     gaps: string[];
   } | null;
-};
-
-export const trimToolOutput = (value: unknown): unknown => {
-  if (typeof value === 'string') {
-    return value.length > TEXT_LIMIT
-      ? `${value.slice(0, TEXT_LIMIT)}… [cắt ${value.length - TEXT_LIMIT} ký tự]`
-      : value;
-  }
-  if (Array.isArray(value)) return value.map(trimToolOutput);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
-        key,
-        trimToolOutput(item),
-      ]),
-    );
-  }
-  return value;
 };
 
 export const askUserStep = (
@@ -183,11 +163,6 @@ export function formatInterviewDossier(dossier: InterviewDossier): string {
 
   return lines.join('\n');
 }
-
-export type ListMockInterviewsQuery = PaginationQueryDto & {
-  jobId?: string;
-  workflow?: string;
-};
 
 export type StreamedTurn = { body: string; done: boolean };
 

@@ -37,7 +37,7 @@ export type CoverLetterContent = {
 export type Identity = {
   name: string;
   email: string;
-  phone?: string | null;
-  location?: string | null;
-  title?: string | null;
+  phone: string | null;
+  location: string | null;
+  title: string | null;
 };

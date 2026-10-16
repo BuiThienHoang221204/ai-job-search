@@ -83,8 +83,8 @@ export class DocumentRenderer {
     return null;
   }
 
-  readSource(storageKey: string): Promise<string> {
-    return this.storage.readText(storageKey);
+  async readSource(storageKey: string): Promise<string> {
+    return (await this.storage.read(storageKey)).toString('utf8');
   }
 
   async toPdf(tex: string, label: string): Promise<Buffer> {

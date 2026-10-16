@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,7 +8,7 @@ import {
 import type { Profile, UpskillReport } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '../ai/services/ai.service';
-import { withFailureKind, streamFailureEvent } from '../ai/utils/failure-view';
+import { withFailureKind, streamFailureEvent } from '@/common/ai/failure-view';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service';
 import { SkillRegistryService } from '../skills/services/skill-registry.service';
 import type { ModelStreamEvent } from '@/common/stream-event';
@@ -26,6 +27,7 @@ import {
   type ScoredJob,
 } from './utils/upskill.prompt';
 import { messageOf } from '@/common/error-message';
+import { STUCK_AFTER_MS } from '@/common/duration';
 
 const SKILL_NAME = 'upskill';
 
@@ -81,7 +83,12 @@ export class UpskillService {
   async *streamGenerate(
     reportId: string,
   ): AsyncGenerator<ModelStreamEvent<UpskillReport>> {
-    const report = await this.start(reportId);
+    const { report, claimed } = await this.start(reportId);
+    if (!claimed) {
+      throw new ConflictException(
+        `Báo cáo đang ở trạng thái ${report.status}, không tạo lại được.`,
+      );
+    }
 
     try {
       const prepared = await this.prepare(report);
@@ -117,7 +124,11 @@ export class UpskillService {
   }
 
   async generate(reportId: string): Promise<UpskillReport> {
-    const report = await this.start(reportId);
+    const { report, claimed } = await this.start(reportId);
+    if (!claimed) {
+      this.logger.debug(`Bỏ qua báo cáo ${reportId}: đang ${report.status}`);
+      return report;
+    }
 
     try {
       const prepared = await this.prepare(report);
@@ -140,18 +151,29 @@ export class UpskillService {
     }
   }
 
-  private async start(reportId: string): Promise<UpskillReport> {
+  /** Giành chỗ RUNNING chỉ khi báo cáo đang chờ, đã hỏng, hoặc RUNNING đã kẹt — báo cáo DONE không bao giờ bị chạy lại. */
+  private async start(
+    reportId: string,
+  ): Promise<{ report: UpskillReport; claimed: boolean }> {
+    const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS);
+    const claim = await this.prisma.upskillReport.updateMany({
+      where: {
+        id: reportId,
+        OR: [
+          { status: { in: ['PENDING', 'FAILED'] } },
+          { status: 'RUNNING', createdAt: { lt: stuckBefore } },
+        ],
+      },
+      data: { status: 'RUNNING', error: null },
+    });
+
     const report = await this.prisma.upskillReport.findUnique({
       where: { id: reportId },
     });
     if (!report)
       throw new NotFoundException(`Không tìm thấy báo cáo: ${reportId}`);
 
-    await this.prisma.upskillReport.update({
-      where: { id: reportId },
-      data: { status: 'RUNNING', error: null },
-    });
-    return report;
+    return { report, claimed: claim.count > 0 };
   }
 
   private async prepare(report: UpskillReport): Promise<Prepared> {

@@ -11,7 +11,7 @@ import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { ALL_STATUSES } from './transitions';
 
 export class CreateApplicationDto {
-  @IsString() jobId!: string;
+  @IsString() @MaxLength(40) jobId!: string;
 
   @IsOptional()
   skipDocuments?: boolean;

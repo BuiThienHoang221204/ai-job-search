@@ -70,6 +70,6 @@ const pdfRendererProvider = {
     latexCompilerProvider,
     pdfRendererProvider,
   ],
-  exports: [DocumentsService, LATEX_COMPILER, PDF_RENDERER],
+  exports: [DocumentsService],
 })
 export class DocumentsModule {}

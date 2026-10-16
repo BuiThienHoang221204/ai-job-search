@@ -33,7 +33,7 @@ export class ProfileController {
   @ApiOperation({ summary: 'Cập nhật một phần thông tin hồ sơ người dùng' })
   @Put()
   update(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
-    return this.profile.update(user.id, dto);
+    return this.profile.save(user.id, dto);
   }
 
   @ApiOperation({
@@ -51,6 +51,6 @@ export class ProfileController {
   @Post('quick-start')
   @HttpCode(200)
   quickStart(@CurrentUser() user: AuthUser, @Body() dto: QuickStartProfileDto) {
-    return this.profile.update(user.id, dto as unknown as UpdateProfileDto);
+    return this.profile.save(user.id, dto);
   }
 }

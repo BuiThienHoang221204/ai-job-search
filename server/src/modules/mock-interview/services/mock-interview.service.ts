@@ -4,19 +4,17 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@/generated/prisma/client';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
 import { STUCK_AFTER_MS } from '@/common/duration';
+import type { ListMockInterviewsDto } from '../mock-interview.dto';
 import {
   DOCUMENT_LABEL,
   formatInterviewDossier,
   quietDays,
   toughQuestionTexts,
   closingOf,
-  trimToolOutput,
   type InterviewDossier,
-  type ListMockInterviewsQuery,
 } from '../utils/mock-interview';
 
 @Injectable()
@@ -62,16 +60,10 @@ export class MockInterviewService {
     if (!run) {
       throw new NotFoundException(`Không tìm thấy buổi luyện: ${runId}`);
     }
-    return {
-      ...run,
-      steps: run.steps.map((step) => ({
-        ...step,
-        toolResults: trimToolOutput(step.toolResults) as Prisma.JsonValue,
-      })),
-    };
+    return run;
   }
 
-  async list(userId: string, query: ListMockInterviewsQuery) {
+  async list(userId: string, query: ListMockInterviewsDto) {
     const where = {
       userId,
       ...(query.jobId ? { jobId: query.jobId } : {}),
@@ -112,14 +104,9 @@ export class MockInterviewService {
     return pageOf(runs, total, query);
   }
 
-  async buildContext(userId: string, jobId: string): Promise<string> {
+  async buildContext(userId: string, jobId: string): Promise<string | null> {
     const dossier = await this.interviewDossier(userId, jobId);
-    if (!dossier) {
-      this.logger.warn(`Không dựng được bối cảnh: không có công việc ${jobId}`);
-      return '';
-    }
-
-    return formatInterviewDossier(dossier);
+    return dossier ? formatInterviewDossier(dossier) : null;
   }
 
   private async interviewDossier(

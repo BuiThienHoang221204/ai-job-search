@@ -9,7 +9,13 @@ import {
   typographyCss,
 } from 'src/modules/documents/templates/typography.js';
 
-const identity: Identity = { name: 'An', email: 'an@example.com' };
+const identity: Identity = {
+  name: 'An',
+  email: 'an@example.com',
+  phone: null,
+  location: null,
+  title: null,
+};
 const content: CvContent = {
   profileStatement: 'Kế toán.',
   coreCompetencies: [],

@@ -1,7 +1,5 @@
-import { OCCUPATIONS } from '../jobs/taxonomy/occupations';
+import { OCCUPATION_NAMES } from '../jobs/taxonomy/occupations';
 import type { ListQuestionsQueryDto } from './question-bank.dto';
-
-const OCCUPATION_NAMES = new Map(OCCUPATIONS.map((o) => [o.code, o.name]));
 
 export const NO_SAMPLE_ANSWER = new Set(['HANH_VI', 'DONG_CO']);
 

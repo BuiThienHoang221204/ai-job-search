@@ -90,6 +90,16 @@ export const answerView = (answer: StoredAnswer) => ({
   updatedAt: answer.updatedAt,
 });
 
+export function practiceProgress(prep: PrepContent, answeredKeys: string[]) {
+  const answered = new Set(answeredKeys);
+  const questions = practiceQuestions(prep);
+  return {
+    practiced: questions.filter((question) => answered.has(question.key))
+      .length,
+    total: questions.length,
+  };
+}
+
 /** Ghép câu trả lời đã lưu vào câu hỏi của bộ đề HIỆN TẠI; câu trả lời của câu đã bị soạn lại thì bỏ. */
 export function readinessOf(prep: PrepContent, answers: StoredAnswer[]) {
   const byKey = new Map(answers.map((answer) => [answer.questionKey, answer]));

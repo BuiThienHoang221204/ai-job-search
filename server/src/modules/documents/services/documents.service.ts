@@ -23,6 +23,12 @@ import {
   requirePastedJob,
 } from '../utils/document-input';
 import { isTemplateId, resolveTemplateOptions } from '../templates/registry';
+import type {
+  CreateApplicationEmailDto,
+  PreviewBodyDto,
+  SetTemplateDto,
+  UpdateCvDto,
+} from '../documents.dto';
 
 export type PdfEngine = 'latex' | 'html';
 
@@ -71,12 +77,7 @@ export class DocumentsService {
 
   async createApplicationEmail(
     userId: string,
-    input: {
-      jobId?: string;
-      jobDescription?: string;
-      company?: string;
-      title?: string;
-    },
+    input: CreateApplicationEmailDto,
   ): Promise<Document> {
     if (input.jobId) {
       const job = await this.requireJob(input.jobId);
@@ -210,12 +211,7 @@ export class DocumentsService {
     userId: string,
     id: string,
     templateId: string,
-    options: {
-      accent?: string;
-      font?: string;
-      size?: string;
-      lineHeight?: number;
-    },
+    options: SetTemplateDto,
   ): Promise<Document> {
     const document = await this.get(userId, id);
 
@@ -230,7 +226,7 @@ export class DocumentsService {
     }
 
     return this.prisma.document.update({
-      where: { id },
+      where: { id, userId },
       data: {
         templateId,
         templateOptions: resolveTemplateOptions(templateId, options),
@@ -241,7 +237,7 @@ export class DocumentsService {
   async updateCv(
     userId: string,
     id: string,
-    input: { content?: unknown; layout?: unknown; identity?: unknown },
+    input: UpdateCvDto,
   ): Promise<Document> {
     const document = await this.get(userId, id);
 
@@ -275,7 +271,7 @@ export class DocumentsService {
     }
 
     const updated = await this.prisma.document.update({
-      where: { id },
+      where: { id, userId },
       data,
     });
 
@@ -286,17 +282,7 @@ export class DocumentsService {
   async previewHtml(
     userId: string,
     id: string,
-    override?: {
-      templateId?: string;
-      accent?: string;
-      font?: string;
-      size?: string;
-      lineHeight?: number;
-      content?: unknown;
-      layout?: unknown;
-      identity?: unknown;
-      editing?: boolean;
-    },
+    override?: PreviewBodyDto,
   ): Promise<string> {
     const document = await this.get(userId, id);
 

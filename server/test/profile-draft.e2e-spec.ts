@@ -133,6 +133,18 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     expect(harness.queue.sentTo(QUEUE.PROFILE_SYNTHESIZE)).toHaveLength(1);
   });
 
+  test('nộp hai lần cùng tên file thì mỗi bản nháp giữ file gốc riêng', async () => {
+    const first = await uploadAndGetId(harness, user);
+    const second = await uploadAndGetId(harness, user);
+
+    const drafts = await harness.prisma.profileDraft.findMany({
+      where: { id: { in: [first, second] } },
+      select: { storageKey: true },
+    });
+    const keys = drafts.map((draft) => draft.storageKey);
+    expect(new Set(keys).size).toBe(2);
+  });
+
   test('lượt đọc chạy xong thì lưu đề xuất, KHÔNG ghi vào hồ sơ', async () => {
     harness.ai.willReturn(proposal);
     const draftId = await uploadAndGetId(harness, user);
@@ -388,6 +400,54 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
       .set('Authorization', `Bearer ${other.token}`)
       .send({ primarySkills: ['NestJS'] })
       .expect(404);
+  });
+
+  test('người khác không đọc lại, chạy lại hay tải file CV của bản nháp được', async () => {
+    harness.ai.willFail(new Error('gateway hết giờ'));
+    const draftId = await uploadAndGetId(harness, user);
+    await harness.queue.drain();
+    const callsBefore = harness.ai.calls.length;
+    const other = await harness.signUp();
+    const asOther = { Authorization: `Bearer ${other.token}` };
+
+    const stream = await request(harness.server)
+      .post(`/api/profile-drafts/${draftId}/synthesize-stream`)
+      .set(asOther);
+    expect(stream.text).toContain('"statusCode":404');
+
+    await request(harness.server)
+      .post(`/api/profile-drafts/${draftId}/retry`)
+      .set(asOther)
+      .expect(404);
+    await request(harness.server)
+      .get(`/api/profile-drafts/${draftId}/file`)
+      .set(asOther)
+      .expect(404);
+
+    expect(harness.ai.calls).toHaveLength(callsBefore);
+    const draft = await harness.prisma.profileDraft.findUniqueOrThrow({
+      where: { id: draftId },
+    });
+    expect(draft.status).toBe('FAILED');
+  });
+
+  test('bấm chạy lại hai lần CÙNG LÚC chỉ xếp MỘT lượt đọc', async () => {
+    harness.ai.willFail(new Error('gateway hết giờ'));
+    const draftId = await uploadAndGetId(harness, user);
+    await harness.queue.drain();
+    const queuedBefore = harness.queue.sentTo(QUEUE.PROFILE_SYNTHESIZE).length;
+
+    const retry = () =>
+      request(harness.server)
+        .post(`/api/profile-drafts/${draftId}/retry`)
+        .set('Authorization', `Bearer ${user.token}`)
+        .then((response) => response.status);
+    const statuses = await Promise.all([retry(), retry()]);
+
+    expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+    expect(harness.queue.sentTo(QUEUE.PROFILE_SYNTHESIZE)).toHaveLength(
+      queuedBefore + 1,
+    );
   });
 
   test('không đăng nhập thì không nộp được', async () => {

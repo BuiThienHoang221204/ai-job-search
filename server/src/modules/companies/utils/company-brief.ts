@@ -73,12 +73,6 @@ export const VERDICTS = {
   unknown: 'UNKNOWN',
 } as const;
 
-export const CONFIDENCES = {
-  high: 'HIGH',
-  medium: 'MEDIUM',
-  low: 'LOW',
-} as const;
-
 export type SourceStatus = 'read' | 'snippet' | 'unreachable';
 
 export type BriefSource = {
@@ -95,12 +89,54 @@ export type PreparedBrief = {
   unreachable: Array<{ url: string; title: string }>;
 };
 
+export const PUBLIC_BRIEF_SELECT = {
+  verdict: true,
+  summary: true,
+  pros: true,
+  cons: true,
+  confidence: true,
+  rating: true,
+  reviewCount: true,
+  sources: true,
+  expiresAt: true,
+  updatedAt: true,
+} as const satisfies Partial<Record<keyof BriefRecord, true>>;
+
+export type PublicBriefRow = Pick<
+  BriefRecord,
+  keyof typeof PUBLIC_BRIEF_SELECT
+>;
+
+export type PublicBrief = Omit<PublicBriefRow, 'expiresAt'>;
+
 export type BriefView = {
   company: string;
   researchable: boolean;
-  brief: BriefRecord | null;
+  brief: PublicBrief | null;
   stale: boolean;
 };
+
+export const FORCE_COOLDOWN_MS = 60 * 60_000;
+
+export function forceTooSoon(updatedAt: Date, now: number): boolean {
+  return now - updatedAt.getTime() < FORCE_COOLDOWN_MS;
+}
+
+export function briefViewOf(
+  company: string,
+  row: PublicBriefRow | null,
+  now: number,
+): BriefView {
+  if (!row) return { company, researchable: true, brief: null, stale: false };
+
+  const { expiresAt, ...brief } = row;
+  return {
+    company,
+    researchable: true,
+    brief,
+    stale: expiresAt.getTime() <= now,
+  };
+}
 
 export function resolveSources(
   brief: CompanyBrief,

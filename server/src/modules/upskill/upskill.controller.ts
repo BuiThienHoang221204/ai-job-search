@@ -84,11 +84,6 @@ export class UpskillController {
         type: 'partial',
         data: { step: 0, reportId: report.id },
       },
-      onAbandon: () =>
-        void this.queue.send(QUEUE.UPSKILL_REPORT, {
-          userId: user.id,
-          reportId: report.id,
-        }),
     });
   }
 }

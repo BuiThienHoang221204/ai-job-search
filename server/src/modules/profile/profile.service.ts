@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { Profile } from '@/generated/prisma/client';
+import type { Prisma, Profile } from '@/generated/prisma/client';
 import { foldTerm } from '@/common/text/vietnamese';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
-import type { UpdateProfileDto } from './profile.dto';
 import { completionPercent } from './utils/completion';
 import { occupationAfterSave } from './utils/occupation';
 
@@ -32,12 +31,11 @@ export class ProfileService {
     });
   }
 
-  update(userId: string, dto: UpdateProfileDto): Promise<Profile> {
-    return this.save(userId, dto as Record<string, unknown>);
-  }
-
   /** Đường GHI duy nhất: thiếu `completion` hay `occupationCode` là hồ sơ tàng hình. */
-  async save(userId: string, data: Record<string, unknown>): Promise<Profile> {
+  async save(
+    userId: string,
+    data: Omit<Prisma.ProfileUncheckedCreateInput, 'userId'>,
+  ): Promise<Profile> {
     const saved = await this.prisma.profile.upsert({
       where: { userId },
       create: { userId, ...data },

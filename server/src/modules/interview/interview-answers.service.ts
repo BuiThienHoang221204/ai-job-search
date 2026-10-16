@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { InterviewQuestionKind } from '@/generated/prisma/enums';
-import { fastModelChain } from '@/common/model-env';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
 import { PrismaService } from '@/prisma/prisma.service';
-import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { estimateTokens } from '@/common/ai/token-estimate';
 import { AiService } from '../ai/services/ai.service';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service';
 import { answerFeedbackSchema } from './interview.schema';

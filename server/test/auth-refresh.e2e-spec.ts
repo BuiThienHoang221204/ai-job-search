@@ -51,6 +51,11 @@ describe('Refresh token và thu hồi phiên', () => {
   const cookieNamed = (response: request.Response, name: string) =>
     cookiesOf(response).find((value) => value.startsWith(`${name}=`));
 
+  const accessTokenOf = (response: request.Response) =>
+    (cookieNamed(response, AUTH_COOKIE) ?? '')
+      .split(';')[0]
+      .slice(AUTH_COOKIE.length + 1);
+
   describe('đăng nhập', () => {
     let user: TestUser;
 
@@ -92,9 +97,8 @@ describe('Refresh token và thu hồi phiên', () => {
     test('cookie hợp lệ đổi được cặp token mới dùng được ngay', async () => {
       const response = await refresh(user.refreshCookie).expect(200);
 
-      const body = response.body as { accessToken: string };
       expect(cookieNamed(response, AUTH_COOKIE)).toBeDefined();
-      await me(body.accessToken).expect(200);
+      await me(accessTokenOf(response)).expect(200);
     });
 
     test('không có cookie trả 401', async () => {
@@ -147,8 +151,7 @@ describe('Refresh token và thu hồi phiên', () => {
       await bumpVersion();
 
       const response = await login(user).expect(200);
-      const body = response.body as { accessToken: string };
-      await me(body.accessToken).expect(200);
+      await me(accessTokenOf(response)).expect(200);
     });
   });
 

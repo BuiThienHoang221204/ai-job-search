@@ -197,7 +197,10 @@ describe('renderCvHtml - mục rỗng thì ẩn hẳn', () => {
 
 describe('renderCvHtml - trường tuỳ chọn thiếu', () => {
   test('không có chức danh và địa điểm thì không in dòng rỗng', () => {
-    const html = renderCvHtml({ name: 'A B', email: 'a@b.c' }, emptyContent);
+    const html = renderCvHtml(
+      { name: 'A B', email: 'a@b.c', phone: null, location: null, title: null },
+      emptyContent,
+    );
 
     expect(html).toContain('a@b.c');
     expect(html).not.toContain('class="cv-title"');

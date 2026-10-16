@@ -3,8 +3,8 @@ import type { Document, Profile } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
 import type { StreamObjectOptions } from '@/modules/ai/ai.types';
-import { fastModelChain } from '@/common/model-env';
-import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
+import { estimateTokens } from '@/common/ai/token-estimate';
 import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
 import { SkillRegistryService } from '@/modules/skills/services/skill-registry.service';
 import {
@@ -40,11 +40,6 @@ export interface ComposeInput {
   identity: Identity;
 }
 
-export interface ComposeResult {
-  content: unknown;
-  modelId: string;
-}
-
 @Injectable()
 export class DocumentComposer {
   constructor(
@@ -54,14 +49,18 @@ export class DocumentComposer {
     private readonly prompts: PromptBuilderService,
   ) {}
 
-  compose(input: ComposeInput): Promise<ComposeResult> {
+  async compose(
+    input: ComposeInput,
+  ): Promise<{ object: unknown; modelId: string }> {
     const { document, profile, target, identity } = input;
 
     switch (document.kind) {
       case 'CV':
-        return this.cv(document, profile, target);
+        return this.ai.generateObject(this.cvCall(document, profile, target));
       case 'COVER_LETTER':
-        return this.coverLetter(document, profile, target);
+        return this.ai.generateObject(
+          await this.coverLetterCall(document, profile, target),
+        );
       case 'APPLICATION_EMAIL':
         return this.applicationEmail(document, profile, target, identity);
       default:
@@ -124,17 +123,6 @@ export class DocumentComposer {
     };
   }
 
-  private async cv(
-    document: Document,
-    profile: Profile | null,
-    target: LetterTarget | null,
-  ): Promise<ComposeResult> {
-    const { object, modelId } = await this.ai.generateObject(
-      this.cvCall(document, profile, target),
-    );
-    return { content: object, modelId };
-  }
-
   streamCv(
     document: Document,
     profile: Profile | null,
@@ -178,17 +166,6 @@ export class DocumentComposer {
     };
   }
 
-  private async coverLetter(
-    document: Document,
-    profile: Profile | null,
-    target: LetterTarget | null,
-  ): Promise<ComposeResult> {
-    const { object, modelId } = await this.ai.generateObject(
-      await this.coverLetterCall(document, profile, target),
-    );
-    return { content: object, modelId };
-  }
-
   async streamCoverLetter(
     document: Document,
     profile: Profile | null,
@@ -204,7 +181,7 @@ export class DocumentComposer {
     profile: Profile | null,
     target: LetterTarget | null,
     identity: Identity,
-  ): Promise<ComposeResult> {
+  ): Promise<{ object: unknown; modelId: string }> {
     if (!target) {
       throw new NotFoundException(
         'Mail ứng tuyển cần một tin tuyển dụng hoặc một mô tả công việc dán tay',
@@ -240,7 +217,7 @@ export class DocumentComposer {
       });
 
     return {
-      content: {
+      object: {
         ...object,
         company: target.company,
         position: target.title,

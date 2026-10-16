@@ -2,8 +2,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '../ai/services/ai.service';
 import { pageArgs, pageOf } from '@/common/pagination';
-import { fastModelChain } from '@/common/model-env';
-import { estimateTokens } from '../ai/utils/fast-model-scheduler';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
+import { estimateTokens } from '@/common/ai/token-estimate';
 import type { ListQuestionsQueryDto } from './question-bank.dto';
 import {
   questionAnswerPrompt,

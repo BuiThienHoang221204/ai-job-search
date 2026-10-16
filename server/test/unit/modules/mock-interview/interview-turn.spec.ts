@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { InterviewTurnService } from 'src/modules/mock-interview/service/interview-turn.service.js';
-import type { MockInterviewService } from 'src/modules/mock-interview/service/mock-interview.service.js';
+import { InterviewTurnService } from 'src/modules/mock-interview/services/interview-turn.service.js';
+import type { MockInterviewService } from 'src/modules/mock-interview/services/mock-interview.service.js';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 
@@ -15,21 +15,36 @@ const textStream = (pieces: string[]): AsyncIterable<string> => ({
 type Written = {
   steps: Array<Record<string, unknown>>;
   runs: Array<Record<string, unknown>>;
+  claims: Array<{
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }>;
 };
 
-const build = (
-  pieces: string[],
-  options: { run?: Record<string, unknown>; lastStep?: unknown } = {},
-) => {
-  const written: Written = { steps: [], runs: [] };
+type BuildOptions = {
+  run?: Record<string, unknown>;
+  lastStep?: unknown;
+  claimCount?: number;
+  streamText?: () => Promise<unknown>;
+};
+
+const build = (pieces: string[], options: BuildOptions = {}) => {
+  const written: Written = { steps: [], runs: [], claims: [] };
+  let streamCalls = 0;
 
   const prisma = {
-    job: { findUnique: () => Promise.resolve({ id: 'job-1' }) },
     agentRun: {
       create: () => Promise.resolve({ id: 'run-1' }),
       update: (args: { data: Record<string, unknown> }) => {
         written.runs.push(args.data);
         return Promise.resolve({});
+      },
+      updateMany: (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
+        written.claims.push(args);
+        return Promise.resolve({ count: options.claimCount ?? 1 });
       },
     },
     agentStep: {
@@ -44,8 +59,11 @@ const build = (
   } as unknown as PrismaService;
 
   const ai = {
-    streamText: () =>
-      Promise.resolve({ result: { textStream: textStream(pieces) } }),
+    streamText: () => {
+      streamCalls += 1;
+      if (options.streamText) return options.streamText();
+      return Promise.resolve({ result: { textStream: textStream(pieces) } });
+    },
   } as unknown as AiService;
 
   const sessions = {
@@ -65,6 +83,7 @@ const build = (
   return {
     service: new InterviewTurnService(prisma, ai, sessions),
     written,
+    streamCalls: () => streamCalls,
   };
 };
 
@@ -269,5 +288,82 @@ describe('InterviewTurnService.openStream — lượt đầu buổi', () => {
     }>;
     expect(messages[0].content).toBe(DOSSIER);
     expect(messages[1].role).toBe('assistant');
+  });
+});
+
+describe('InterviewTurnService.stream — giành lượt chống gửi trùng', () => {
+  it('giành lượt WAITING_USER → RUNNING khoá theo userId trước khi gọi model', async () => {
+    const { service, written } = build(['TIẾP\nỔn.\n@@HOI@@\nTiếp?']);
+
+    await collect(service.stream('u1', 'run-1', 'x'));
+
+    expect(written.claims[0]).toEqual({
+      where: { id: 'run-1', userId: 'u1', status: 'WAITING_USER' },
+      data: { status: 'RUNNING' },
+    });
+    expect(written.runs.at(-1)?.status).toBe('WAITING_USER');
+    expect(written.claims).toHaveLength(1);
+  });
+
+  it('lượt gửi thứ hai thua cuộc giành thì 400, không gọi model, không ghi bước', async () => {
+    const { service, written, streamCalls } = build(['TIẾP\nx\n@@HOI@@\ny'], {
+      claimCount: 0,
+    });
+
+    await expect(
+      collect(service.stream('u1', 'run-1', 'x')),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(streamCalls()).toBe(0);
+    expect(written.steps).toHaveLength(0);
+  });
+
+  it('model ném lỗi trước khi stream thì trả lượt về WAITING_USER để bấm lại', async () => {
+    const { service, written } = build([], {
+      streamText: () => Promise.reject(new Error('429 rate limited')),
+    });
+
+    await expect(collect(service.stream('u1', 'run-1', 'x'))).rejects.toThrow(
+      '429',
+    );
+    expect(written.claims.at(-1)).toEqual({
+      where: { id: 'run-1', status: 'RUNNING' },
+      data: { status: 'WAITING_USER' },
+    });
+  });
+
+  it('model không trả câu hỏi thì cũng trả lượt về WAITING_USER', async () => {
+    const { service, written } = build(['TIẾP\n']);
+
+    await expect(
+      collect(service.stream('u1', 'run-1', 'x')),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(written.claims.at(-1)?.data).toEqual({ status: 'WAITING_USER' });
+  });
+
+  it('người đọc bỏ luồng giữa chừng thì vẫn trả lượt về', async () => {
+    const { service, written } = build([
+      'TIẾP\nNhận xét dài.\n@@HOI@@\nCâu hỏi?',
+    ]);
+
+    const stream = service.stream('u1', 'run-1', 'x');
+    await stream.next();
+    await stream.return(undefined);
+
+    expect(written.claims.at(-1)?.data).toEqual({ status: 'WAITING_USER' });
+    expect(written.steps).toHaveLength(0);
+  });
+});
+
+describe('InterviewTurnService.openStream — model hỏng không để buổi kẹt RUNNING', () => {
+  it('streamText ném sau khi tạo run thì run thành FAILED', async () => {
+    const { service, written } = build([], {
+      streamText: () => Promise.reject(new Error('503 upstream')),
+    });
+
+    await expect(service.openStream('u1', 'job-1')).rejects.toThrow('503');
+    expect(written.runs.at(-1)).toEqual({
+      status: 'FAILED',
+      error: '503 upstream',
+    });
   });
 });

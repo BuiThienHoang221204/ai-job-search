@@ -7,9 +7,10 @@ import {
   IsString,
   Length,
   Matches,
-  ValidateIf,
   Max,
+  MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import type { PdfEngine } from './services/documents.service';
@@ -29,7 +30,7 @@ const pastedJob = (dto: CreateCvDto): boolean =>
     dto.title !== undefined);
 
 export class CreateCvDto {
-  @IsOptional() @IsString() jobId?: string;
+  @IsOptional() @IsString() @MaxLength(40) jobId?: string;
 
   @IsOptional() @IsIn(['vi', 'en']) language?: 'vi' | 'en';
 
@@ -101,13 +102,13 @@ export class SetTemplateDto {
 }
 
 export class CreateCoverLetterDto {
-  @IsString() jobId!: string;
+  @IsString() @MaxLength(40) jobId!: string;
 
   @IsOptional() @IsBoolean() stream?: boolean;
 }
 
 export class CreateApplicationEmailDto {
-  @IsOptional() @IsString() jobId?: string;
+  @IsOptional() @IsString() @MaxLength(40) jobId?: string;
 
   @ValidateIf((dto: CreateApplicationEmailDto) => !dto.jobId)
   @IsString({ message: 'Thiếu mô tả công việc' })
@@ -138,5 +139,5 @@ export class ListDocumentsDto extends PaginationQueryDto {
   @IsIn(['CV', 'COVER_LETTER', 'APPLICATION_EMAIL'])
   kind?: 'CV' | 'COVER_LETTER' | 'APPLICATION_EMAIL';
 
-  @IsOptional() @IsString() jobId?: string;
+  @IsOptional() @IsString() @MaxLength(40) jobId?: string;
 }

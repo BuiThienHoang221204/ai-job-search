@@ -6,10 +6,11 @@
 jest.mock('ai', () => ({}));
 jest.mock('@ai-sdk/openai-compatible', () => ({}));
 
+import { ConflictException } from '@nestjs/common';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
-import { CompanyService } from 'src/modules/companies/service/company.service.js';
-import type { ReviewResearchService } from 'src/modules/companies/service/review-research.service.js';
-import type { SearchHit } from 'src/modules/companies/utils/review-sources.js';
+import { CompanyService } from 'src/modules/companies/services/company.service.js';
+import type { ReviewResearchService } from 'src/modules/companies/services/review-research.service.js';
+import type { SearchHit } from 'src/common/web/serper.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 
@@ -316,5 +317,76 @@ describe('CompanyService.build', () => {
 
     await expect(service.build('Confidential')).rejects.toThrow(/ẩn danh/);
     expect(searched).toEqual([]);
+  });
+});
+
+describe('CompanyService.forJob / planRefresh', () => {
+  const stored = (updatedAt: Date) => ({
+    verdict: 'MIXED',
+    summary: 'Ổn.',
+    pros: [],
+    cons: [],
+    confidence: 'LOW',
+    rating: null,
+    reviewCount: null,
+    sources: [],
+    expiresAt: new Date(Date.now() + 86_400_000),
+    updatedAt,
+  });
+
+  function serviceWith(brief: ReturnType<typeof stored> | null) {
+    const findUnique = jest.fn<
+      Promise<ReturnType<typeof stored> | null>,
+      [{ select?: Record<string, boolean> }]
+    >(() => Promise.resolve(brief));
+    const prisma = {
+      job: {
+        findUnique: () => Promise.resolve({ company: 'FPT Software' }),
+      },
+      companyBrief: { findUnique },
+    } as unknown as PrismaService;
+    const service = new CompanyService(
+      prisma,
+      new FakeAi() as unknown as AiService,
+      fakeResearch([]).research,
+    );
+    return { service, findUnique };
+  }
+
+  test('đường đọc công khai chỉ chọn trường đã duyệt, không có modelId', async () => {
+    const { service, findUnique } = serviceWith(stored(new Date()));
+
+    await service.forJob('job-1');
+
+    const select = findUnique.mock.calls[0][0].select ?? {};
+    expect(select).not.toHaveProperty('modelId');
+    expect(select).not.toHaveProperty('nameKey');
+    expect(select.summary).toBe(true);
+  });
+
+  test('làm mới cưỡng bức ngay sau lượt trước bị 409', async () => {
+    const { service } = serviceWith(stored(new Date()));
+
+    await expect(service.planRefresh('job-1', true)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  test('bản cũ hơn cửa sổ chặn thì làm mới cưỡng bức được', async () => {
+    const { service } = serviceWith(
+      stored(new Date(Date.now() - 2 * 60 * 60_000)),
+    );
+
+    await expect(service.planRefresh('job-1', true)).resolves.toMatchObject({
+      force: true,
+    });
+  });
+
+  test('chưa có bản nào thì force không bị chặn', async () => {
+    const { service } = serviceWith(null);
+
+    await expect(service.planRefresh('job-1', true)).resolves.toMatchObject({
+      company: 'FPT Software',
+    });
   });
 });

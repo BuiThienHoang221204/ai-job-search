@@ -8,8 +8,6 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { AUTH_COOKIE } from './auth.cookie';
 import { isAccessPayload } from './jwt-payload';
 
-export type { JwtPayload } from './jwt-payload';
-
 const fromCookie = (request: Request): string | null => {
   const cookies: unknown = (request as { cookies?: unknown }).cookies;
   if (typeof cookies !== 'object' || cookies === null) return null;

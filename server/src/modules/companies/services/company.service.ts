@@ -1,30 +1,29 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { CompanyBrief as BriefRecord } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
-import { fastModelChain } from '@/common/model-env';
-import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
 import type { CompanyBriefPayload } from '@/modules/queue/queue.service';
 import {
-  BRIEF_SYSTEM,
+  briefCall,
   briefQueries,
-  buildBriefPrompt,
   type NumberedSource,
 } from '../utils/company-brief.prompt';
 import {
-  companyBriefSchema,
-  CONFIDENCES,
+  briefViewOf,
   emptyBrief,
+  forceTooSoon,
+  PUBLIC_BRIEF_SELECT,
   resolveSources,
   VERDICTS,
   type BriefView,
   type CompanyBrief,
   type PreparedBrief,
+  type PublicBriefRow,
 } from '../utils/company-brief';
 import { companyKeyOf } from '../utils/company-key';
 import { ReviewResearchService } from './review-research.service';
@@ -35,17 +34,11 @@ import {
   trimToReviewText,
 } from '../utils/review-sources';
 import type { ModelStreamEvent } from '@/common/stream-event';
-import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { streamFailureEvent } from '@/common/ai/failure-view';
 import { messageOf } from '@/common/error-message';
 import { DAY_MS } from '@/common/duration';
 
-const BRIEF_TIMEOUT_MS = 120_000;
 const TTL_DAYS = 60;
-const MAX_SOURCES = 5;
-
-const MAX_SNIPPETS = 2;
-
-const SOURCE_BUDGET = 5_000;
 
 @Injectable()
 export class CompanyService {
@@ -74,16 +67,12 @@ export class CompanyService {
       };
     }
 
-    const brief = await this.prisma.companyBrief.findUnique({
+    const row = await this.prisma.companyBrief.findUnique({
       where: { nameKey },
+      select: PUBLIC_BRIEF_SELECT,
     });
 
-    return {
-      company: job.company,
-      researchable: true,
-      brief,
-      stale: brief !== null && brief.expiresAt.getTime() <= Date.now(),
-    };
+    return briefViewOf(job.company, row, Date.now());
   }
 
   async planRefresh(
@@ -97,6 +86,11 @@ export class CompanyService {
       );
     }
     if (view.brief && !view.stale && !force) return null;
+    if (view.brief && force && forceTooSoon(view.brief.updatedAt, Date.now())) {
+      throw new ConflictException(
+        'Bản tìm hiểu công ty này vừa được làm mới. Hãy thử lại sau khoảng một giờ.',
+      );
+    }
 
     return {
       nameKey: companyKeyOf(view.company)!,
@@ -107,7 +101,7 @@ export class CompanyService {
 
   async *streamBuild(
     company: string,
-  ): AsyncGenerator<ModelStreamEvent<BriefRecord>> {
+  ): AsyncGenerator<ModelStreamEvent<PublicBriefRow>> {
     const prepared = await this.prepare(company);
 
     try {
@@ -116,16 +110,9 @@ export class CompanyService {
         return;
       }
 
-      const briefPrompt = buildBriefPrompt(company, prepared.sources);
-      const { partials, object, modelId } =
-        await this.ai.streamObject<CompanyBrief>({
-          schema: companyBriefSchema,
-          context: { purpose: 'company.brief' },
-          system: BRIEF_SYSTEM,
-          prompt: briefPrompt,
-          timeoutMs: BRIEF_TIMEOUT_MS,
-          ...fastModelChain(estimateTokens(BRIEF_SYSTEM, briefPrompt)),
-        });
+      const { partials, object, modelId } = await this.ai.streamObject(
+        briefCall(company, prepared.sources),
+      );
 
       for await (const partial of partials) {
         yield { type: 'partial', data: partial };
@@ -142,19 +129,13 @@ export class CompanyService {
     }
   }
 
-  async build(company: string): Promise<BriefRecord> {
+  async build(company: string): Promise<PublicBriefRow> {
     const prepared = await this.prepare(company);
     if (prepared.sources.length === 0) return this.saveEmpty(prepared);
 
-    const briefPrompt = buildBriefPrompt(company, prepared.sources);
-    const { object, modelId } = await this.ai.generateObject<CompanyBrief>({
-      schema: companyBriefSchema,
-      context: { purpose: 'company.brief' },
-      system: BRIEF_SYSTEM,
-      prompt: briefPrompt,
-      timeoutMs: BRIEF_TIMEOUT_MS,
-      ...fastModelChain(estimateTokens(BRIEF_SYSTEM, briefPrompt)),
-    });
+    const { object, modelId } = await this.ai.generateObject(
+      briefCall(company, prepared.sources),
+    );
 
     return this.save(prepared, object, modelId);
   }
@@ -171,7 +152,7 @@ export class CompanyService {
     return { nameKey, company, ...(await this.collectSources(company)) };
   }
 
-  private saveEmpty(prepared: PreparedBrief): Promise<BriefRecord> {
+  private saveEmpty(prepared: PreparedBrief): Promise<PublicBriefRow> {
     this.logger.warn(`Không đọc được nguồn nào về "${prepared.company}"`);
     return this.save(prepared, emptyBrief(), null);
   }
@@ -190,7 +171,7 @@ export class CompanyService {
 
     const unreachable: Array<{ url: string; title: string }> = [];
     const pages: Array<NumberedSource | null> = await Promise.all(
-      pickReviewSources(hits, MAX_SOURCES).map(async (hit) => {
+      pickReviewSources(hits).map(async (hit) => {
         const text = await this.research.readPage(hit.url);
         if (text === null) {
           unreachable.push({ url: hit.url, title: hit.title });
@@ -199,13 +180,13 @@ export class CompanyService {
         return {
           title: hit.title,
           url: hit.url,
-          text: trimToReviewText(text, SOURCE_BUDGET),
+          text: trimToReviewText(text),
           kind: 'page' as const,
         };
       }),
     );
 
-    const snippets = pickSnippetSources(hits, MAX_SNIPPETS).map((hit) => ({
+    const snippets = pickSnippetSources(hits).map((hit) => ({
       title: hit.title,
       url: hit.url,
       text: hit.snippet,
@@ -226,7 +207,7 @@ export class CompanyService {
     prepared: PreparedBrief,
     brief: CompanyBrief,
     modelId: string | null,
-  ): Promise<BriefRecord> {
+  ): Promise<PublicBriefRow> {
     const { nameKey, company, sources, unreachable } = prepared;
     const checked = resolveSources(brief, sources, unreachable);
     const expiresAt = new Date(Date.now() + TTL_DAYS * DAY_MS);
@@ -237,12 +218,9 @@ export class CompanyService {
       summary: brief.summary,
       pros: brief.pros,
       cons: brief.cons,
-      confidence:
-        CONFIDENCES[
-          confidenceOf(
-            checked.filter((s) => s.usedFor !== null).map((s) => s.url),
-          )
-        ],
+      confidence: confidenceOf(
+        checked.filter((s) => s.usedFor !== null).map((s) => s.url),
+      ),
       rating: brief.rating,
       reviewCount: brief.reviewCount,
       sources: checked,
@@ -254,6 +232,7 @@ export class CompanyService {
       where: { nameKey },
       create: { nameKey, ...data },
       update: data,
+      select: PUBLIC_BRIEF_SELECT,
     });
   }
 }

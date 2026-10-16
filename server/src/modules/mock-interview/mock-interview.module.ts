@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module';
-import { InterviewTurnService } from './service/interview-turn.service';
+import { InterviewTurnService } from './services/interview-turn.service';
 import { MockInterviewController } from './mock-interview.controller';
-import { MockInterviewService } from './service/mock-interview.service';
+import { MockInterviewService } from './services/mock-interview.service';
 
 @Module({
   imports: [AiModule],

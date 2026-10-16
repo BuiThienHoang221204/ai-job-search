@@ -18,7 +18,7 @@ export function scrubText(input: string): string {
 export const countForeign = (input: string): number =>
   (input.match(FOREIGN_SCRIPT) ?? []).join('').length;
 
-const RULES = [
+export const INTERVIEW_TURN_SYSTEM = [
   'Bạn là người phỏng vấn trong một buổi luyện tập. Chỉ nói phần của người phỏng vấn.',
   '',
   'MỖI lượt trả lời viết theo đúng thứ tự sau:',
@@ -37,8 +37,6 @@ const RULES = [
   '- KHÔNG nhắc tới file, thư mục hay lệnh gạch chéo. Đây là một buổi nói chuyện.',
   '- KHÔNG viết <tool_call>, <function> hay bất kỳ cú pháp gọi công cụ nào. Bạn không có công cụ nào cả, chỉ viết chữ.',
 ].join('\n');
-
-export const interviewTurnSystem = (): string => RULES;
 
 export function openingPrompt(dossier: string, question?: string): string {
   const opening = `Hãy bắt đầu buổi phỏng vấn. Đây là lượt đầu tiên, chưa có câu trả lời nào của ứng viên, nên BỎ QUA phần nhận xét, viết thẳng "${TURN_MARKER.next}" rồi xuống dòng rồi "${QUESTION_MARK}" rồi`;

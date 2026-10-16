@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { companyBriefSchema } from 'src/modules/companies/utils/company-brief.js';
+import {
+  briefViewOf,
+  companyBriefSchema,
+  FORCE_COOLDOWN_MS,
+  forceTooSoon,
+  type PublicBriefRow,
+} from 'src/modules/companies/utils/company-brief.js';
 
 const valid = {
   verdict: 'mixed',
@@ -113,5 +119,50 @@ describe('companyBriefSchema chịu được model viết quá tay', () => {
 
     expect(json.properties.summary.description).toContain('Tối đa 700 ký tự');
     expect(json.properties.pros.description).toContain('Điểm tốt');
+  });
+});
+
+describe('briefViewOf', () => {
+  const NOW = Date.parse('2026-10-16T10:00:00Z');
+  const row = (expiresAt: Date): PublicBriefRow => ({
+    verdict: 'MIXED',
+    summary: 'Ổn.',
+    pros: [],
+    cons: [],
+    confidence: 'LOW',
+    rating: null,
+    reviewCount: null,
+    sources: [],
+    expiresAt,
+    updatedAt: new Date(NOW - 1_000),
+  });
+
+  test('chưa có bản nào thì brief null, không cũ', () => {
+    expect(briefViewOf('A', null, NOW)).toEqual({
+      company: 'A',
+      researchable: true,
+      brief: null,
+      stale: false,
+    });
+  });
+
+  test('hạn dùng chỉ để suy ra "cũ", không trả ra ngoài', () => {
+    const view = briefViewOf('A', row(new Date(NOW - 1)), NOW);
+
+    expect(view.stale).toBe(true);
+    expect(view.brief).not.toHaveProperty('expiresAt');
+    expect(briefViewOf('A', row(new Date(NOW + 1)), NOW).stale).toBe(false);
+  });
+});
+
+describe('forceTooSoon', () => {
+  const NOW = Date.parse('2026-10-16T10:00:00Z');
+
+  test('trong cửa sổ chặn thì quá sớm', () => {
+    expect(forceTooSoon(new Date(NOW - FORCE_COOLDOWN_MS + 1), NOW)).toBe(true);
+  });
+
+  test('qua cửa sổ thì làm mới được', () => {
+    expect(forceTooSoon(new Date(NOW - FORCE_COOLDOWN_MS), NOW)).toBe(false);
   });
 });

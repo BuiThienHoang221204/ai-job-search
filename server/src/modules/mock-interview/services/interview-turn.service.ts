@@ -7,12 +7,13 @@ import {
 import type { ModelMessage } from 'ai';
 import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { messageOf } from '@/common/error-message';
 import { AiService } from '@/modules/ai/services/ai.service';
 import { MockInterviewService } from './mock-interview.service';
 import {
   countForeign,
   createStreamScrubber,
-  interviewTurnSystem,
+  INTERVIEW_TURN_SYSTEM,
   openingPrompt,
   QUESTION_MARK,
   splitTurnMarker,
@@ -41,11 +42,10 @@ export class InterviewTurnService {
     jobId: string,
     question?: string,
   ): Promise<{ runId: string; stream: AsyncGenerator<string> }> {
-    const job = await this.prisma.job.findUnique({
-      where: { id: jobId },
-      select: { id: true },
-    });
-    if (!job) throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+    const dossier = await this.sessions.buildContext(userId, jobId);
+    if (!dossier) {
+      throw new NotFoundException(`Không tìm thấy công việc: ${jobId}`);
+    }
 
     await this.sessions.assertNoRunInFlight(userId);
 
@@ -60,27 +60,32 @@ export class InterviewTurnService {
       },
     });
 
-    const dossier = await this.sessions.buildContext(userId, jobId);
-    if (!dossier) {
-      await this.prisma.agentRun.update({
-        where: { id: run.id },
-        data: { status: 'FAILED', error: 'Không dựng được bối cảnh' },
-      });
-      throw new BadRequestException('Không dựng được bối cảnh phỏng vấn');
-    }
-
     const startedAt = Date.now();
-    const { result } = await this.ai.streamText({
-      system: interviewTurnSystem(),
-      messages: [{ role: 'user', content: openingPrompt(dossier, question) }],
-      modelId: process.env.AI_FAST_MODEL_ID || undefined,
-      context: { purpose: 'interview.open', userId },
-    });
+    let textStream: AsyncIterable<string>;
+    try {
+      const { result } = await this.ai.streamText({
+        system: INTERVIEW_TURN_SYSTEM,
+        messages: [{ role: 'user', content: openingPrompt(dossier, question) }],
+        modelId: process.env.AI_FAST_MODEL_ID || undefined,
+        context: { purpose: 'interview.open', userId },
+      });
+      textStream = result.textStream;
+    } catch (error) {
+      await this.failRun(run.id, messageOf(error));
+      throw error;
+    }
 
     return {
       runId: run.id,
-      stream: this.openTurn(run.id, dossier, result.textStream, startedAt),
+      stream: this.openTurn(run.id, dossier, textStream, startedAt),
     };
+  }
+
+  private async failRun(runId: string, error: string): Promise<void> {
+    await this.prisma.agentRun.update({
+      where: { id: runId },
+      data: { status: 'FAILED', error },
+    });
   }
 
   private async *openTurn(
@@ -94,10 +99,7 @@ export class InterviewTurnService {
 
     const rawParts = splitTurnParts(turn.body);
     if (!rawParts.question) {
-      await this.prisma.agentRun.update({
-        where: { id: runId },
-        data: { status: 'FAILED', error: 'Model không trả về câu hỏi nào' },
-      });
+      await this.failRun(runId, 'Model không trả về câu hỏi nào');
       throw new BadRequestException('Model không trả về nội dung nào.');
     }
 
@@ -106,7 +108,6 @@ export class InterviewTurnService {
         `Mở buổi ${runId} model bịa feedback lượt đầu (${rawParts.feedback.length} ký tự), đã bỏ.`,
       );
     }
-    const parts: TurnParts = { feedback: '', question: rawParts.question };
 
     const messages: ModelMessage[] = [
       { role: 'user', content: dossier },
@@ -118,8 +119,8 @@ export class InterviewTurnService {
         data: {
           runId,
           index: 0,
-          text: parts.feedback,
-          ...askUserStep(parts.question),
+          text: '',
+          ...askUserStep(rawParts.question),
           durationMs: Date.now() - startedAt,
         },
       }),
@@ -127,7 +128,7 @@ export class InterviewTurnService {
         where: { id: runId },
         data: {
           status: turn.done ? 'DONE' : 'WAITING_USER',
-          question: turn.done ? null : parts.question,
+          question: turn.done ? null : rawParts.question,
           messages: messages as unknown as Prisma.InputJsonValue,
           startedAt: new Date(startedAt),
         },
@@ -165,38 +166,58 @@ export class InterviewTurnService {
       );
     }
 
+    const claimed = await this.prisma.agentRun.updateMany({
+      where: { id: runId, userId, status: 'WAITING_USER' },
+      data: { status: 'RUNNING' },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException(
+        'Câu trả lời trước của buổi luyện này đang được xử lý, không chờ câu trả lời nào.',
+      );
+    }
+
     const messages: ModelMessage[] = [
       ...previous,
       { role: 'user', content: answer },
     ];
 
-    const startedAt = Date.now();
-    const { result } = await this.ai.streamText({
-      system: interviewTurnSystem(),
-      messages,
-      modelId: process.env.AI_FAST_MODEL_ID || undefined,
-      context: { purpose: 'interview.turn', userId },
-    });
+    let persisted = false;
+    try {
+      const startedAt = Date.now();
+      const { result } = await this.ai.streamText({
+        system: INTERVIEW_TURN_SYSTEM,
+        messages,
+        modelId: process.env.AI_FAST_MODEL_ID || undefined,
+        context: { purpose: 'interview.turn', userId },
+      });
 
-    const turn: StreamedTurn = { body: '', done: false };
-    yield* this.pump(result.textStream, turn, false);
-    const { body, done } = turn;
+      const turn: StreamedTurn = { body: '', done: false };
+      yield* this.pump(result.textStream, turn, false);
+      const { body, done } = turn;
 
-    const parts = splitTurnParts(body);
-    if (!parts.question) {
-      throw new BadRequestException('Model không trả về nội dung nào.');
+      const parts = splitTurnParts(body);
+      if (!parts.question) {
+        throw new BadRequestException('Model không trả về nội dung nào.');
+      }
+
+      await this.persist(runId, answer, parts, done, Date.now() - startedAt, [
+        ...messages,
+        { role: 'assistant', content: body.trim() },
+      ]);
+      persisted = true;
+
+      this.logger.log(
+        `Lượt phỏng vấn ${runId} xong sau ${Date.now() - startedAt}ms, ${done ? 'kết thúc buổi' : 'còn hỏi tiếp'}`,
+      );
+      this.warnForeign(body);
+    } finally {
+      if (!persisted) {
+        await this.prisma.agentRun.updateMany({
+          where: { id: runId, status: 'RUNNING' },
+          data: { status: 'WAITING_USER' },
+        });
+      }
     }
-
-    await this.persist(runId, answer, parts, done, Date.now() - startedAt, [
-      ...messages,
-      { role: 'assistant', content: body.trim() },
-    ]);
-
-    this.logger.log(
-      `Lượt phỏng vấn ${runId} xong sau ${Date.now() - startedAt}ms, ${done ? 'kết thúc buổi' : 'còn hỏi tiếp'}`,
-    );
-
-    this.warnForeign(body);
   }
 
   private async *pump(

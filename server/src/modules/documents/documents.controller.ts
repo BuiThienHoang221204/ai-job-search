@@ -21,7 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { streamNdjson } from '@/common/ndjson';
-import { ThrottleAi } from '@/common/throttle';
+import { ThrottleAi, ThrottlePdf } from '@/common/throttle';
 import type { AuthUser } from '@/common/types/auth-user';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import {
@@ -39,7 +39,7 @@ import { DocumentGenerator } from './services/document-generator.service';
 import { DocumentsService } from './services/documents.service';
 import { JobFromUrlService } from './services/job-from-url.service';
 import { CV_TEMPLATES } from './templates/registry';
-import { withFailureKind, withFailureKinds } from '../ai/utils/failure-view';
+import { withFailureKind } from '@/common/ai/failure-view';
 
 @ApiTags('Documents')
 @ApiBearerAuth()
@@ -63,7 +63,7 @@ export class DocumentsController {
       query.jobId,
       query,
     );
-    return { ...page, items: withFailureKinds(page.items) };
+    return { ...page, items: page.items.map(withFailureKind) };
   }
 
   @ThrottleAi()
@@ -133,6 +133,7 @@ export class DocumentsController {
     return withFailureKind(await this.documents.updateCv(user.id, id, dto));
   }
 
+  @ThrottlePdf()
   @ApiOperation({ summary: 'Tải file PDF của tài liệu' })
   @ApiParam({ name: 'id', description: 'ID của tài liệu' })
   @Get(':id/pdf')

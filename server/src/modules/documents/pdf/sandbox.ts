@@ -110,7 +110,7 @@ export class SandboxPdfRenderer implements PdfRenderer {
         command: CHROMIUM_COMMAND,
         timeoutMs: RENDER_TIMEOUT_MS,
         artifacts: [HTML_PDF_NAME],
-        limits: { memoryMb: 1024 },
+        memoryMb: 1024,
       });
 
       const pdf = result.artifacts[HTML_PDF_NAME];

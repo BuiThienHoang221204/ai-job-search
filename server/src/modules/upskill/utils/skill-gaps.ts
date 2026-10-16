@@ -29,7 +29,6 @@ type Tally = {
   name: string;
   required: number;
   nice: number;
-  near: number;
   demandJobs: GapJob[];
   nearJobs: GapJob[];
 };
@@ -71,7 +70,6 @@ export function aggregateSkillGaps(
           name: names.get(key) ?? check.label,
           required: 0,
           nice: 0,
-          near: 0,
           demandJobs: [],
           nearJobs: [],
         };
@@ -81,10 +79,7 @@ export function aggregateSkillGaps(
       tally.demandJobs.push(job);
       if (check.kind === 'SKILL') tally.required += 1;
       else tally.nice += 1;
-      if (near) {
-        tally.near += 1;
-        tally.nearJobs.push(job);
-      }
+      if (near) tally.nearJobs.push(job);
     }
   }
 
@@ -98,7 +93,7 @@ export function aggregateSkillGaps(
       name: tally.name,
       kind: tally.required >= tally.nice ? 'REQUIRED' : 'NICE',
       demand,
-      near: tally.near,
+      near: tally.nearJobs.length,
       jobs: shown
         .slice(0, JOBS_PER_GAP)
         .map(({ id, title, company }) => ({ id, title, company })),

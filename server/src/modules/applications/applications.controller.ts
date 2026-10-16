@@ -15,6 +15,7 @@ import {
   UpdateStatusDto,
 } from './applications.dto';
 import { ApplicationsService } from './applications.service';
+import { ThrottleAi } from '@/common/throttle';
 
 @ApiTags('Applications')
 @ApiBearerAuth()
@@ -38,6 +39,7 @@ export class ApplicationsController {
     return this.applications.jobOptions(user.id, query.status);
   }
 
+  @ThrottleAi()
   @ApiOperation({ summary: 'Tạo đơn ứng tuyển mới cho một công việc' })
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateApplicationDto) {
@@ -52,13 +54,7 @@ export class ApplicationsController {
     @Param('id') id: string,
     @Body() dto: UpdateStatusDto,
   ) {
-    return this.applications.updateStatus(
-      user.id,
-      id,
-      dto.status,
-      dto.note,
-      'user',
-    );
+    return this.applications.updateStatus(user.id, id, dto.status, dto.note);
   }
 
   @ApiOperation({ summary: 'Ghi, đổi hoặc xoá (null) ngày phỏng vấn của đơn' })

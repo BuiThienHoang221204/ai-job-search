@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Document, Prisma } from '@/generated/prisma/client';
 import type { ModelStreamEvent } from '@/common/stream-event';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -7,8 +12,9 @@ import { mergeIdentity } from '../utils/identity';
 import { letterTarget, type DocumentParams } from '../utils/letter-target';
 import { DocumentComposer } from './document-composer.service';
 import { DocumentRenderer } from './document-renderer.service';
-import { streamFailureEvent } from '@/modules/ai/utils/failure-view';
+import { streamFailureEvent } from '@/common/ai/failure-view';
 import { messageOf } from '@/common/error-message';
+import { STUCK_AFTER_MS } from '@/common/duration';
 
 @Injectable()
 export class DocumentGenerator {
@@ -42,23 +48,34 @@ export class DocumentGenerator {
     const identity = mergeIdentity(fromProfile, document.identity);
 
     const params = (document.content ?? {}) as DocumentParams;
-    return { profile, target: letterTarget(job, params), params, identity };
+    return { profile, target: letterTarget(job, params), identity };
   }
 
-  /** Tìm tài liệu theo `userId` rồi giành chỗ RUNNING. */
-  private async claim(userId: string, documentId: string): Promise<Document> {
+  /** Giành chỗ RUNNING theo `userId`, chỉ khi tài liệu đang chờ, đã hỏng, hoặc RUNNING đã kẹt — bản DONE (có thể đã sửa tay) không bao giờ bị ghi đè. */
+  private async claim(
+    userId: string,
+    documentId: string,
+  ): Promise<{ document: Document; claimed: boolean }> {
+    const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS);
+    const claim = await this.prisma.document.updateMany({
+      where: {
+        id: documentId,
+        userId,
+        OR: [
+          { status: { in: ['PENDING', 'FAILED'] } },
+          { status: 'RUNNING', updatedAt: { lt: stuckBefore } },
+        ],
+      },
+      data: { status: 'RUNNING', error: null },
+    });
+
     const document = await this.prisma.document.findFirst({
       where: { id: documentId, userId },
     });
     if (!document)
       throw new NotFoundException(`Không tìm thấy tài liệu: ${documentId}`);
 
-    await this.prisma.document.update({
-      where: { id: documentId },
-      data: { status: 'RUNNING', error: null },
-    });
-
-    return document;
+    return { document, claimed: claim.count > 0 };
   }
 
   private finish(
@@ -80,38 +97,34 @@ export class DocumentGenerator {
     });
   }
 
-  /** Ghi lỗi vào bản ghi rồi trả câu lỗi để người gọi tự quyết cách báo. */
-  private async fail(
+  private fail(
     documentId: string,
     error: unknown,
     label: string,
-  ): Promise<{ document: Document; message: string }> {
+  ): Promise<Document> {
     const message = messageOf(error);
     this.logger.error(`${label} thất bại (${documentId}): ${message}`);
-    const document = await this.prisma.document.update({
+    return this.prisma.document.update({
       where: { id: documentId },
       data: { status: 'FAILED', error: message },
     });
-    return { document, message };
   }
 
   async *streamGenerate(
     userId: string,
     documentId: string,
   ): AsyncGenerator<ModelStreamEvent<Document>> {
-    const peek = await this.prisma.document.findFirst({
-      where: { id: documentId, userId },
-      select: { kind: true },
-    });
-    if (!peek)
-      throw new NotFoundException(`Không tìm thấy tài liệu: ${documentId}`);
-
-    if (peek.kind !== 'CV' && peek.kind !== 'COVER_LETTER') {
-      yield { type: 'done', result: await this.generate(userId, documentId) };
-      return;
+    const { document, claimed } = await this.claim(userId, documentId);
+    if (!claimed) {
+      throw new ConflictException(
+        `Tài liệu đang ở trạng thái ${document.status}, không sinh lại được. Muốn bản khác thì tạo tài liệu mới.`,
+      );
     }
 
-    const document = await this.claim(userId, documentId);
+    if (document.kind !== 'CV' && document.kind !== 'COVER_LETTER') {
+      yield { type: 'done', result: await this.compose(document) };
+      return;
+    }
 
     try {
       const { profile, target, identity } = await this.context(document);
@@ -143,12 +156,23 @@ export class DocumentGenerator {
   }
 
   async generate(userId: string, documentId: string): Promise<Document> {
-    const document = await this.claim(userId, documentId);
+    const { document, claimed } = await this.claim(userId, documentId);
+    if (!claimed) {
+      this.logger.debug(
+        `Bỏ qua tài liệu ${documentId}: đang ${document.status}`,
+      );
+      return document;
+    }
+    return this.compose(document);
+  }
+
+  private async compose(document: Document): Promise<Document> {
+    const documentId = document.id;
 
     try {
       const { profile, target, identity } = await this.context(document);
 
-      const { content, modelId } = await this.composer.compose({
+      const { object: content, modelId } = await this.composer.compose({
         document,
         profile,
         target,
@@ -164,12 +188,7 @@ export class DocumentGenerator {
 
       return await this.finish(documentId, content, modelId, storageKey);
     } catch (error) {
-      const { document: failed } = await this.fail(
-        documentId,
-        error,
-        'Sinh tài liệu',
-      );
-      return failed;
+      return this.fail(documentId, error, 'Sinh tài liệu');
     }
   }
 }

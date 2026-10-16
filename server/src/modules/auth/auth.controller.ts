@@ -99,5 +99,5 @@ export class AuthController {
 const issue = (response: Response, result: AuthResult) => {
   setAccessCookie(response, result.accessToken);
   setRefreshCookie(response, result.refreshToken);
-  return { accessToken: result.accessToken, user: result.user };
+  return { user: result.user };
 };

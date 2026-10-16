@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -18,7 +20,7 @@ import {
 } from '@/modules/storage/storage.interface';
 import { ProfileService } from '@/modules/profile/profile.service';
 import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source';
-import { parseEvidenceList, type Evidence } from '../utils/evidence';
+import type { Evidence } from '../utils/evidence';
 import type { ApplyDraftDto } from '../profile-draft.dto';
 import {
   safeFilename,
@@ -43,7 +45,12 @@ export class ProfileDraftService {
   ): Promise<{ draftId: string; evidence: Evidence[] }> {
     const evidence = await this.cvPdf.collect(input);
 
-    const key = userKey(userId, 'cv-uploads', safeFilename(input.filename));
+    const key = userKey(
+      userId,
+      'cv-uploads',
+      randomUUID(),
+      safeFilename(input.filename),
+    );
     await this.storage.write(key, input.data);
 
     const draft = await this.prisma.profileDraft.create({
@@ -96,19 +103,6 @@ export class ProfileDraftService {
     return draft;
   }
 
-  async requeue(userId: string, draftId: string): Promise<void> {
-    const draft = await this.prisma.profileDraft.findFirst({
-      where: { id: draftId, userId },
-    });
-    if (!draft || draft.status === 'DONE') return;
-
-    await this.prisma.profileDraft.update({
-      where: { id: draftId },
-      data: { status: 'PENDING', error: null },
-    });
-    await this.enqueue(userId, draftId);
-  }
-
   private enqueue(userId: string, draftId: string) {
     return this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
       userId,
@@ -129,21 +123,17 @@ export class ProfileDraftService {
       );
     }
 
-    if (parseEvidenceList(draft.evidence).length === 0) {
-      throw new BadRequestException(
-        'Bản nháp không có bằng chứng nào đọc được, chạy lại cũng hỏng như cũ. Hãy nộp lại file.',
-      );
-    }
-
-    const reset = await this.prisma.profileDraft.update({
-      where: { id: draftId },
+    const reset = await this.prisma.profileDraft.updateMany({
+      where: { id: draftId, userId, status: 'FAILED' },
       data: { status: 'PENDING', error: null },
-      omit: WITHOUT_EVIDENCE,
     });
+    if (reset.count === 0) {
+      throw new ConflictException('Bản nháp vừa được chạy lại ở nơi khác.');
+    }
 
     await this.enqueue(userId, draftId);
 
-    return reset;
+    return this.get(userId, draftId);
   }
 
   async apply(
@@ -171,7 +161,7 @@ export class ProfileDraftService {
     await this.profiles.save(userId, data);
 
     return this.prisma.profileDraft.update({
-      where: { id: draftId },
+      where: { id: draftId, userId },
       data: { appliedAt: new Date() },
       omit: WITHOUT_EVIDENCE,
     });

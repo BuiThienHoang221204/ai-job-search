@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { pageToText } from '@/common/web/html-text';
 import { fetchPage } from '@/common/web/http-get';
 import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
-import { fastModelChain } from '@/common/model-env';
-import { estimateTokens } from '@/modules/ai/utils/fast-model-scheduler';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
+import { estimateTokens } from '@/common/ai/token-estimate';
 import { AiService } from '@/modules/ai/services/ai.service';
 import {
   jobFromUrlPrompt,
@@ -19,6 +19,9 @@ import { messageOf } from '@/common/error-message';
 const THIN_PAGE = 800;
 
 const TEXT_LIMIT = 20_000;
+
+const FETCH_FAILED =
+  'Không tải được trang này: đường dẫn sai, trang không phản hồi, hoặc địa chỉ không được phép truy cập.';
 
 const PASTE_INSTEAD = 'Hãy copy nội dung tin rồi dán vào ô mô tả công việc.';
 
@@ -63,9 +66,8 @@ export class JobFromUrlService {
         maxBytes: this.web.fetchMaxBytes,
       });
     } catch (error) {
-      const message = messageOf(error);
-      this.logger.warn(`Không tải được ${url}: ${message}`);
-      throw new BadRequestException(`${message} ${PASTE_INSTEAD}`);
+      this.logger.warn(`Không tải được ${url}: ${messageOf(error)}`);
+      throw new BadRequestException(`${FETCH_FAILED} ${PASTE_INSTEAD}`);
     }
 
     if ([401, 403, 429].includes(page.status)) {

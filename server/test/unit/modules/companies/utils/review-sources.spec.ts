@@ -5,8 +5,8 @@ import {
   pickSnippetSources,
   stripChrome,
   trimToReviewText,
-  type SearchHit,
 } from 'src/modules/companies/utils/review-sources.js';
+import type { SearchHit } from 'src/common/web/serper.js';
 
 const hit = (url: string, title = 'x'): SearchHit => ({
   url,
@@ -270,12 +270,12 @@ describe('trimToReviewText ưu tiên theo mật độ', () => {
 
 describe('confidenceOf', () => {
   test('không đọc được nguồn nào thì thấp', () => {
-    expect(confidenceOf([])).toBe('low');
+    expect(confidenceOf([])).toBe('LOW');
   });
 
   test('một trang đánh giá chuyên là chưa đủ để lên cao', () => {
     expect(confidenceOf(['https://itviec.com/companies/fpt/review'])).toBe(
-      'medium',
+      'MEDIUM',
     );
   });
 
@@ -285,13 +285,13 @@ describe('confidenceOf', () => {
         'https://itviec.com/companies/fpt/review',
         'https://blog-nao-do.vn/fpt',
       ]),
-    ).toBe('high');
+    ).toBe('HIGH');
   });
 
   test('toàn nguồn lạ thì không bao giờ lên cao', () => {
-    expect(confidenceOf(['https://a.vn/x', 'https://b.vn/x'])).toBe('low');
+    expect(confidenceOf(['https://a.vn/x', 'https://b.vn/x'])).toBe('LOW');
     expect(
       confidenceOf(['https://a.vn/x', 'https://b.vn/x', 'https://c.vn/x']),
-    ).toBe('medium');
+    ).toBe('MEDIUM');
   });
 });

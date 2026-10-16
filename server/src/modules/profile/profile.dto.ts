@@ -11,7 +11,9 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import type { Prisma } from '@/generated/prisma/client';
 import { IsBoundedJson } from '@/common/validators/bounded-json';
+import { OCCUPATION_CODES } from '@/modules/jobs/taxonomy/occupations';
 
 const SHORT = 200;
 
@@ -127,11 +129,15 @@ export class UpdateProfileDto {
   @MaxLength(ITEM, { each: true })
   dealBreakers?: string[];
 
-  @IsOptional() @IsBoundedJson(JSON_BOUNDS) behavioralTraits?: unknown;
-  @IsOptional() @IsBoundedJson(JSON_BOUNDS) experiences?: unknown;
-  @IsOptional() @IsBoundedJson(JSON_BOUNDS) educations?: unknown;
-  @IsOptional() @IsBoundedJson(JSON_BOUNDS) certificates?: unknown;
-  @IsOptional() @IsBoundedJson(JSON_BOUNDS) projects?: unknown;
+  @IsOptional()
+  @IsBoundedJson(JSON_BOUNDS)
+  behavioralTraits?: Prisma.InputJsonValue;
+  @IsOptional() @IsBoundedJson(JSON_BOUNDS) experiences?: Prisma.InputJsonValue;
+  @IsOptional() @IsBoundedJson(JSON_BOUNDS) educations?: Prisma.InputJsonValue;
+  @IsOptional()
+  @IsBoundedJson(JSON_BOUNDS)
+  certificates?: Prisma.InputJsonValue;
+  @IsOptional() @IsBoundedJson(JSON_BOUNDS) projects?: Prisma.InputJsonValue;
 }
 
 export const EXPERIENCE_LEVELS = [
@@ -144,9 +150,12 @@ export const EXPERIENCE_LEVELS = [
 ] as const;
 
 export class QuickStartProfileDto {
-  @IsString() @MaxLength(SHORT) occupationCode!: string;
+  @IsIn(OCCUPATION_CODES, { message: 'Mã ngành nghề không hợp lệ' })
+  occupationCode!: string;
   @IsOptional() @IsString() @MaxLength(SHORT) subOccupationCode?: string;
-  @IsOptional() @IsIn(EXPERIENCE_LEVELS) experienceLevel?: string;
+  @IsOptional()
+  @IsIn(EXPERIENCE_LEVELS)
+  experienceLevel?: (typeof EXPERIENCE_LEVELS)[number];
 }
 
 export class AddSkillDto {

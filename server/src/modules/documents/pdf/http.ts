@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import {
   firstRenderError,
   firstTexError,
@@ -71,7 +71,6 @@ async function postToService(call: ServiceCall): Promise<ServiceResult> {
   return { pdf, response };
 }
 
-@Injectable()
 export class HttpLatexCompiler implements LatexCompiler {
   private readonly logger = new Logger(HttpLatexCompiler.name);
 
@@ -107,7 +106,6 @@ export class HttpLatexCompiler implements LatexCompiler {
   }
 }
 
-@Injectable()
 export class HttpPdfRenderer implements PdfRenderer {
   private readonly logger = new Logger(HttpPdfRenderer.name);
 

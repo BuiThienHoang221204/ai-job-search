@@ -1,7 +1,5 @@
 import type { ApplicationStatus } from '@/generated/prisma/enums';
 
-export type TransitionActor = 'user' | 'system';
-
 export const FINAL_STATUSES = [
   'WITHDRAWN',
 ] as const satisfies readonly ApplicationStatus[];
@@ -18,31 +16,6 @@ export const ALL_STATUSES = [
   ...OPEN_STATUSES,
   ...FINAL_STATUSES,
 ] as const satisfies readonly ApplicationStatus[];
-
-export type TransitionRequest = {
-  from: ApplicationStatus;
-  to: ApplicationStatus;
-  actor: TransitionActor;
-};
-
-export type TransitionResult = { ok: true } | { ok: false; reason: string };
-
-export function checkTransition(request: TransitionRequest): TransitionResult {
-  const { from, to, actor } = request;
-
-  if (from === to) {
-    return { ok: false, reason: `Đơn đã ở trạng thái ${to}` };
-  }
-
-  if (isFinal(from) && actor !== 'user') {
-    return {
-      ok: false,
-      reason: `Đơn đã đóng ở trạng thái ${from}; chỉ người dùng mới mở lại được`,
-    };
-  }
-
-  return { ok: true };
-}
 
 export function timestampsFor(
   to: ApplicationStatus,

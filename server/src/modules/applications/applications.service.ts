@@ -11,12 +11,7 @@ import { isUniqueViolation } from '@/prisma/prisma-errors';
 import { PrismaService } from '@/prisma/prisma.service';
 import { DocumentsService } from '../documents/services/documents.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
-import {
-  checkTransition,
-  isFinal,
-  timestampsFor,
-  type TransitionActor,
-} from './transitions';
+import { isFinal, timestampsFor } from './transitions';
 
 const APPLICATION_JOB = {
   id: true,
@@ -26,6 +21,16 @@ const APPLICATION_JOB = {
   location: true,
   salaryRaw: true,
   url: true,
+} as const;
+
+const APPLICATION_DOCUMENT = {
+  id: true,
+  jobId: true,
+  kind: true,
+  title: true,
+  status: true,
+  templateId: true,
+  generatedAt: true,
 } as const;
 
 @Injectable()
@@ -39,7 +44,14 @@ export class ApplicationsService {
   async create(userId: string, jobId: string, skipDocuments = false) {
     const match = await this.prisma.jobMatch.findUnique({
       where: { userId_jobId: { userId, jobId } },
-      include: { job: true },
+      select: {
+        status: true,
+        eligibility: true,
+        eligibilityNote: true,
+        overallScore: true,
+        verdict: true,
+        job: { select: { title: true, company: true } },
+      },
     });
 
     if (!skipDocuments) {
@@ -154,64 +166,28 @@ export class ApplicationsService {
         where,
         orderBy: { updatedAt: 'desc' },
         ...pageArgs(query),
-        include: { job: { select: APPLICATION_JOB } },
+        include: {
+          job: {
+            select: {
+              ...APPLICATION_JOB,
+              documents: {
+                where: { userId, kind: 'CV' },
+                select: APPLICATION_DOCUMENT,
+                orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+              },
+            },
+          },
+        },
       }),
       this.prisma.application.count({ where }),
     ]);
 
-    const jobIds = [...new Set(items.map((item) => item.jobId))];
-    const documents = await this.prisma.document.findMany({
-      where: { userId, jobId: { in: jobIds }, kind: 'CV' },
-      select: {
-        id: true,
-        jobId: true,
-        kind: true,
-        title: true,
-        status: true,
-        templateId: true,
-        generatedAt: true,
-      },
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-    });
-
-    const docsByJob = new Map<string, typeof documents>();
-    for (const doc of documents) {
-      if (!doc.jobId) continue;
-      const list = docsByJob.get(doc.jobId) ?? [];
-      list.push(doc);
-      docsByJob.set(doc.jobId, list);
-    }
-
-    const itemsWithDocs = items.map((item) => ({
+    const rows = items.map(({ job: { documents, ...job }, ...item }) => ({
       ...item,
-      documents: docsByJob.get(item.jobId) ?? [],
+      job,
+      documents,
     }));
-
-    return pageOf(itemsWithDocs, total, query);
-  }
-
-  async get(userId: string, id: string) {
-    const application = await this.prisma.application.findFirst({
-      where: { id, userId },
-      include: {
-        job: true,
-        events: { orderBy: { createdAt: 'asc' } },
-      },
-    });
-    if (!application)
-      throw new NotFoundException('Không tìm thấy đơn ứng tuyển');
-
-    const [documents, interviewPrep] = await Promise.all([
-      this.prisma.document.findMany({
-        where: { userId, jobId: application.jobId },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.interviewPrep.findUnique({
-        where: { userId_jobId: { userId, jobId: application.jobId } },
-      }),
-    ]);
-
-    return { ...application, documents, interviewPrep };
+    return pageOf(rows, total, query);
   }
 
   async updateStatus(
@@ -219,7 +195,6 @@ export class ApplicationsService {
     id: string,
     to: ApplicationStatus,
     note?: string,
-    actor: TransitionActor = 'user',
   ) {
     const application = await this.prisma.application.findFirst({
       where: { id, userId },
@@ -227,12 +202,9 @@ export class ApplicationsService {
     if (!application)
       throw new NotFoundException('Không tìm thấy đơn ứng tuyển');
 
-    const check = checkTransition({
-      from: application.status,
-      to,
-      actor,
-    });
-    if (!check.ok) throw new BadRequestException(check.reason);
+    if (application.status === to) {
+      throw new BadRequestException(`Đơn đã ở trạng thái ${to}`);
+    }
 
     const stamps = timestampsFor(
       to,
@@ -240,19 +212,31 @@ export class ApplicationsService {
       new Date(),
     );
 
-    const updated = await this.prisma.application.update({
-      where: { id },
-      data: {
-        status: to,
-        ...stamps,
-        events: {
-          create: { fromStatus: application.status, toStatus: to, note },
-        },
-      },
-      include: { job: { select: APPLICATION_JOB } },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.application.updateMany({
+        where: { id, userId, status: application.status },
+        data: { status: to, ...stamps },
+      });
+      if (count === 0) {
+        throw new ConflictException(
+          'Trạng thái đơn vừa được đổi ở nơi khác. Hãy tải lại rồi thử lại.',
+        );
+      }
 
-    return updated;
+      await tx.applicationEvent.create({
+        data: {
+          applicationId: id,
+          fromStatus: application.status,
+          toStatus: to,
+          note,
+        },
+      });
+
+      return tx.application.findUniqueOrThrow({
+        where: { id },
+        include: { job: { select: APPLICATION_JOB } },
+      });
+    });
   }
 
   async setInterviewDate(userId: string, id: string, interviewAt: Date | null) {
@@ -269,13 +253,17 @@ export class ApplicationsService {
   }
 
   async countsFor(userId: string): Promise<{ total: number; active: number }> {
-    const rows = await this.prisma.application.findMany({
+    const groups = await this.prisma.application.groupBy({
+      by: ['status'],
       where: { userId },
-      select: { status: true },
+      _count: { _all: true },
     });
-    return {
-      total: rows.length,
-      active: rows.filter((row) => !isFinal(row.status)).length,
-    };
+    let total = 0;
+    let active = 0;
+    for (const group of groups) {
+      total += group._count._all;
+      if (!isFinal(group.status)) active += group._count._all;
+    }
+    return { total, active };
   }
 }

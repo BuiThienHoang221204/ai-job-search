@@ -28,7 +28,7 @@ import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { withFailureKind } from '../ai/utils/failure-view';
+import { withFailureKind } from '@/common/ai/failure-view';
 import { cvPdfErrorMessage } from './cv-pdf.source';
 import { MAX_PDF_BYTES } from './utils/pdf-text';
 import { ProfileDraftService } from './services/profile-draft.service';
@@ -147,14 +147,11 @@ export class ProfileDraftController {
     @Param('id') id: string,
     @Res() response: Response,
   ): Promise<void> {
-    await this.drafts.get(user.id, id);
-
     await streamNdjson({
       response,
       logger: this.logger,
       label: `đọc CV ${id}`,
-      events: this.synthesizer.streamSynthesize(id),
-      onAbandon: () => void this.drafts.requeue(user.id, id),
+      events: this.synthesizer.streamSynthesize(user.id, id),
     });
   }
 

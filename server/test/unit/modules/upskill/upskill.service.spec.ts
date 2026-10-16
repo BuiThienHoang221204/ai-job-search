@@ -8,6 +8,7 @@
 jest.mock('ai', () => ({}));
 jest.mock('@ai-sdk/openai-compatible', () => ({}));
 
+import { ConflictException } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Profile } from 'src/generated/prisma/client.js';
@@ -113,12 +114,15 @@ function build(options: {
   mode?: 'AGGREGATE' | 'TARGETED';
   profile?: Profile | null;
   matches?: ReturnType<typeof matchOf>[];
+  claimable?: boolean;
+  status?: string;
 }) {
   const report = {
     id: 'report-1',
     userId: 'user-1',
     mode: options.mode ?? 'AGGREGATE',
     jobId: options.mode === 'TARGETED' ? 'job-1' : null,
+    status: options.status ?? 'PENDING',
   };
   const matches = options.matches ?? [
     matchOf('DevOps Engineer', 40),
@@ -127,8 +131,13 @@ function build(options: {
   ];
 
   const updates: UpdateCall[] = [];
+  const claims: UpdateCall[] = [];
   const prisma = {
     upskillReport: {
+      updateMany: (call: UpdateCall) => {
+        claims.push(call);
+        return Promise.resolve({ count: options.claimable === false ? 0 : 1 });
+      },
       findUnique: () => Promise.resolve(report),
       update: (call: UpdateCall) => {
         updates.push(call);
@@ -161,7 +170,7 @@ function build(options: {
   /** Lần ghi cuối cùng — lần đặt trạng thái kết thúc. */
   const finalUpdate = () => updates[updates.length - 1].data;
 
-  return { service, ai, updates, finalUpdate };
+  return { service, ai, updates, claims, finalUpdate };
 }
 
 describe('UpskillService.generate - tách làm hai lời gọi', () => {
@@ -319,5 +328,51 @@ describe('UpskillService.generate - khung phân tích chia đôi', () => {
     expect(system).toContain('Step 6');
     expect(system).toContain('Step 7');
     expect(system).not.toContain('Step 3');
+  });
+});
+
+describe('UpskillService - giành chỗ có điều kiện', () => {
+  test('chỉ giành chỗ báo cáo PENDING/FAILED hoặc RUNNING đã kẹt, không bao giờ DONE', async () => {
+    const { service, ai, claims } = build({});
+    ai.willReturn(GAPS, PLAN);
+
+    await service.generate('report-1');
+
+    expect(claims).toHaveLength(1);
+    const where = claims[0].where as unknown as {
+      id: string;
+      OR: Array<{ status: unknown; createdAt?: { lt: Date } }>;
+    };
+    expect(where.id).toBe('report-1');
+    expect(where.OR[0].status).toEqual({ in: ['PENDING', 'FAILED'] });
+    expect(where.OR[1].status).toBe('RUNNING');
+    expect(where.OR[1].createdAt?.lt).toBeInstanceOf(Date);
+    expect(claims[0].data).toEqual({ status: 'RUNNING', error: null });
+  });
+
+  test('worker gặp báo cáo đã DONE thì bỏ qua: không gọi model, không ghi gì', async () => {
+    const { service, ai, updates } = build({
+      claimable: false,
+      status: 'DONE',
+    });
+
+    const result = await service.generate('report-1');
+
+    expect(result.status).toBe('DONE');
+    expect(ai.calls).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  test('stream gặp báo cáo không giành được thì ném 409 trước khi gọi model', async () => {
+    const { service, ai, updates } = build({
+      claimable: false,
+      status: 'RUNNING',
+    });
+
+    const events = service.streamGenerate('report-1');
+
+    await expect(events.next()).rejects.toBeInstanceOf(ConflictException);
+    expect(ai.calls).toHaveLength(0);
+    expect(updates).toHaveLength(0);
   });
 });

@@ -81,6 +81,18 @@ describe('InterviewService.enqueue', () => {
     expect(upserts).toEqual([{ status: 'PENDING', error: null }]);
   });
 
+  it.each(['RUNNING', 'PENDING'] as const)(
+    'soạn lại khi bản ghi đang %s thì không hạ trạng thái, chỉ xếp hàng chung khoá',
+    async (status) => {
+      const { service, upserts, send } = fakes({ status });
+
+      await service.enqueue('user-1', 'job-1', true);
+
+      expect(upserts).toEqual([]);
+      expect(send).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('bản ghi hỏng lần trước được đặt lại PENDING dù không ép', async () => {
     const { service, upserts } = fakes({ status: 'FAILED' });
 

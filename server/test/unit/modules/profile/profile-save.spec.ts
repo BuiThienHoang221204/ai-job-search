@@ -70,16 +70,6 @@ describe('ProfileService.save — ba việc đi liền lần ghi', () => {
     });
   });
 
-  it('update() đi qua đúng save(), không tự viết lại ba việc đó', async () => {
-    const { service, updates, send } = build();
-
-    await service.update('u1', { headline: 'Kế toán' });
-
-    expect(updates[0]).toHaveProperty('completion');
-    expect(updates[0]).toHaveProperty('occupationCode');
-    expect(send).toHaveBeenCalledTimes(1);
-  });
-
   it('KHÔNG suy lại ngành khi lần lưu không đụng chức danh hay kỹ năng chính', async () => {
     const { service, updates } = build();
 

@@ -36,15 +36,19 @@ const draft = (over: Partial<ProfileDraft> = {}): ProfileDraft =>
   }) as unknown as ProfileDraft;
 
 function build(found: ProfileDraft | null) {
-  const update = jest.fn<Promise<ProfileDraft>, [unknown]>(() =>
-    Promise.resolve(draft({ status: 'PENDING', error: null })),
+  const updateMany = jest.fn<Promise<{ count: number }>, [unknown]>(() =>
+    Promise.resolve({ count: 1 }),
   );
+  const findFirst = jest
+    .fn<Promise<ProfileDraft | null>, [unknown]>()
+    .mockResolvedValueOnce(found)
+    .mockResolvedValue(draft({ status: 'PENDING', error: null }));
   const send = jest.fn<Promise<string | null>, [string, object]>(() =>
     Promise.resolve('job-1'),
   );
 
   const prisma = {
-    profileDraft: { findFirst: () => Promise.resolve(found), update },
+    profileDraft: { findFirst, updateMany },
   } as unknown as PrismaService;
 
   const service = new ProfileDraftService(
@@ -55,7 +59,7 @@ function build(found: ProfileDraft | null) {
     {} as unknown as Storage,
   );
 
-  return { service, update, send };
+  return { service, updateMany, send };
 }
 
 describe('ProfileDraftService.retry', () => {
@@ -79,24 +83,14 @@ describe('ProfileDraftService.retry', () => {
     }
   });
 
-  test('không có bằng chứng thì từ chối, không xếp hàng', async () => {
-    const { service, send } = build(draft({ evidence: [] }));
-
-    await expect(service.retry('user-1', 'draft-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    expect(send).not.toHaveBeenCalled();
-  });
-
   test('FAILED có bằng chứng: về PENDING, xoá lỗi cũ, xếp đúng payload', async () => {
-    const { service, update, send } = build(draft());
+    const { service, updateMany, send } = build(draft());
 
     const result = await service.retry('user-1', 'draft-1');
 
-    expect(update).toHaveBeenCalledWith({
-      where: { id: 'draft-1' },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: 'draft-1', userId: 'user-1', status: 'FAILED' },
       data: { status: 'PENDING', error: null },
-      omit: { evidence: true },
     });
     expect(send).toHaveBeenCalledWith(QUEUE.PROFILE_SYNTHESIZE, {
       userId: 'user-1',

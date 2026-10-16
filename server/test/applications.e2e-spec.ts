@@ -120,6 +120,29 @@ describe('Vòng đời đơn ứng tuyển', () => {
     });
   });
 
+  /// Hai lần đổi cùng lúc từng cùng đọc VIEWED rồi cùng ghi sự kiện
+  /// `fromStatus: VIEWED`, nên nhật ký nói đơn đi hai nhánh từ một chỗ. Nay
+  /// người đến sau hoặc nhận 409, hoặc đổi từ trạng thái người trước để lại.
+  test('hai lần đổi trạng thái cùng lúc không ghi hai sự kiện từ cùng một trạng thái', async () => {
+    const id = await seedApplication('VIEWED');
+
+    const responses = await Promise.all([
+      patchStatus(id, 'APPLIED'),
+      patchStatus(id, 'WITHDRAWN'),
+    ]);
+    const codes = responses.map((response) => response.status);
+
+    for (const code of codes) expect([200, 409]).toContain(code);
+    expect(codes).toContain(200);
+
+    const events = await harness.prisma.applicationEvent.findMany({
+      where: { applicationId: id, fromStatus: { not: null } },
+    });
+    expect(events).toHaveLength(codes.filter((code) => code === 200).length);
+    const froms = events.map((event) => event.fromStatus);
+    expect(new Set(froms).size).toBe(froms.length);
+  });
+
   describe('ba quy tắc mà backend thực sự chặn', () => {
     test('đổi sang chính trạng thái đang có bị từ chối', async () => {
       const id = await seedApplication('APPLIED');
@@ -160,6 +183,37 @@ describe('Vòng đời đơn ứng tuyển', () => {
         where: { id },
       });
       expect(stored.status).toBe('APPLIED');
+    });
+
+    test('danh sách đơn chỉ kèm CV của chính mình, dù cùng một tin', async () => {
+      const other = await harness.signUp();
+      await seedApplication('APPLIED');
+      await seedApplication('APPLIED', other);
+      for (const owner of [user, other]) {
+        await harness.prisma.document.create({
+          data: {
+            userId: owner.id,
+            jobId,
+            kind: 'CV',
+            title: `CV của ${owner.id}`,
+          },
+        });
+      }
+
+      const response = await request(harness.server)
+        .get('/api/applications')
+        .set(auth(user.token))
+        .expect(200);
+
+      const items = (
+        response.body as {
+          items: Array<{ documents: Array<{ title: string }> }>;
+        }
+      ).items;
+      expect(items).toHaveLength(1);
+      expect(items[0].documents.map((doc) => doc.title)).toEqual([
+        `CV của ${user.id}`,
+      ]);
     });
 
     test('chưa đăng nhập thì không đổi được gì', async () => {

@@ -100,8 +100,30 @@ describe('JobFromUrlService.extract', () => {
 
     await expect(
       build().service.extract('u1', 'https://x.test'),
-    ).rejects.toThrow(/curl.*dán vào ô mô tả công việc/s);
+    ).rejects.toThrow(/Không tải được trang này.*dán vào ô mô tả công việc/s);
   });
+
+  it.each([
+    'Không tải được trang: curl: (7) Failed to connect to 203.0.113.9 port 443',
+    'Từ chối tải intranet.local: địa chỉ này nằm trong mạng nội bộ của máy chủ',
+    'Không phân giải được tên miền: db.internal',
+  ])(
+    'lỗi tải nào cũng thành MỘT câu chung, không lộ IP hay tên máy nội bộ: %s',
+    async (raw) => {
+      fetchPage.mockRejectedValue(new Error(raw));
+
+      const error = await build()
+        .service.extract('u1', 'https://x.test')
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      const message = (error as BadRequestException).message;
+      expect(message).not.toContain('203.0.113.9');
+      expect(message).not.toContain('intranet.local');
+      expect(message).not.toContain('db.internal');
+      expect(message).not.toContain('mạng nội bộ');
+    },
+  );
 
   it('model không tìm ra tin nào thì báo lỗi chứ không trả ô rỗng', async () => {
     fetchPage.mockResolvedValue({

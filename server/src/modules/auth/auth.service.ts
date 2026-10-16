@@ -117,7 +117,7 @@ export class AuthService {
     try {
       payload = this.jwt.verify(token);
     } catch {
-      // Chữ ký sai hoặc hết hạn: rơi xuống cùng một câu báo bên dưới.
+      payload = null;
     }
     if (!isRefreshPayload(payload)) {
       throw new UnauthorizedException('Refresh token không hợp lệ');

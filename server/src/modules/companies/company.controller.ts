@@ -21,7 +21,7 @@ import { justDone, streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import { RefreshBriefDto } from './company.dto';
-import { CompanyService } from './service/company.service';
+import { CompanyService } from './services/company.service';
 
 @ApiTags('Companies')
 @ApiBearerAuth()
@@ -88,7 +88,6 @@ export class CompanyController {
       logger: this.logger,
       label: `tìm hiểu ${jobId}`,
       events: this.companies.streamBuild(payload.company),
-      onAbandon: () => void this.queue.send(QUEUE.COMPANY_BRIEF, payload),
     });
   }
 }

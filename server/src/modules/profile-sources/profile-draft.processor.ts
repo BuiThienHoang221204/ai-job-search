@@ -20,7 +20,7 @@ export class ProfileDraftProcessor implements OnModuleInit {
       QUEUE.PROFILE_SYNTHESIZE,
       async (data) => {
         this.logger.log(`Đọc hồ sơ từ bản nháp ${data.draftId}`);
-        await this.synthesizer.synthesize(data.draftId);
+        await this.synthesizer.synthesize(data.userId, data.draftId);
       },
     );
   }

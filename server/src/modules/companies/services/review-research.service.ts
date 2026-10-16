@@ -4,7 +4,7 @@ import { pageToText } from '@/common/web/html-text';
 import { fetchPage } from '@/common/web/http-get';
 import { parseSerper } from '@/common/web/serper';
 import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
-import type { SearchHit } from '../utils/review-sources';
+import type { SearchHit } from '@/common/web/serper';
 import { messageOf } from '@/common/error-message';
 
 @Injectable()

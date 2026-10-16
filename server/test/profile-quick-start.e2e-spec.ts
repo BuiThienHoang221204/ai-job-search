@@ -63,6 +63,16 @@ describe('POST /api/profile/quick-start', () => {
     expect(body.occupationCode).toBe('FINANCE');
   });
 
+  test('occupationCode không có trong danh mục ngành bị từ chối', async () => {
+    await quickStart({ occupationCode: 'KHONG_TON_TAI' }).expect(400);
+    await quickStart({ occupationCode: 'IT_BACKEND' }).expect(400);
+
+    const response = await getProfile().expect(200);
+    expect(
+      (response.body as { occupationCode: string | null }).occupationCode,
+    ).not.toBe('KHONG_TON_TAI');
+  });
+
   test('experienceLevel sai giá trị bị từ chối', async () => {
     await quickStart({
       occupationCode: 'IT',

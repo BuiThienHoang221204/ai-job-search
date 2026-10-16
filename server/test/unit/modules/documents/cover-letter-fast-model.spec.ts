@@ -107,7 +107,13 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       document: doc,
       profile: null,
       target,
-      identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
+      identity: {
+        name: 'Nguyễn Văn A',
+        email: 'a@example.com',
+        phone: null,
+        location: null,
+        title: null,
+      },
     });
 
     expect(generateObject).toHaveBeenCalledTimes(1);
@@ -183,7 +189,13 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
         document: { ...doc, kind } as unknown as Document,
         profile: null,
         target,
-        identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
+        identity: {
+          name: 'Nguyễn Văn A',
+          email: 'a@example.com',
+          phone: null,
+          location: null,
+          title: null,
+        },
       });
 
       const options = generateObject.mock.calls[0][0];
@@ -195,7 +207,7 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
     },
   );
 
-  test('loại FORM_ANSWER cũ không còn sinh được và không gọi model', () => {
+  test('loại FORM_ANSWER cũ không còn sinh được và không gọi model', async () => {
     const generateObject = jest.fn<
       Promise<{ object: Record<string, unknown>; modelId: string }>,
       [GenerateObjectOptionsMock]
@@ -208,14 +220,20 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       mockPrompts,
     );
 
-    expect(() =>
+    await expect(
       composer.compose({
         document: { ...doc, kind: 'FORM_ANSWER' } as unknown as Document,
         profile: null,
         target,
-        identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
+        identity: {
+          name: 'Nguyễn Văn A',
+          email: 'a@example.com',
+          phone: null,
+          location: null,
+          title: null,
+        },
       }),
-    ).toThrow('FORM_ANSWER');
+    ).rejects.toThrow('FORM_ANSWER');
     expect(generateObject).not.toHaveBeenCalled();
   });
 
@@ -244,7 +262,13 @@ describe('DocumentComposer — thư xin việc, mail ứng tuyển, trả lời 
       document: doc,
       profile: null,
       target,
-      identity: { name: 'Nguyễn Văn A', email: 'a@example.com' },
+      identity: {
+        name: 'Nguyễn Văn A',
+        email: 'a@example.com',
+        phone: null,
+        location: null,
+        title: null,
+      },
     });
 
     const options = generateObject.mock.calls[0][0];

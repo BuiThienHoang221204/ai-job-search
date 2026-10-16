@@ -7,17 +7,18 @@ import {
   IsString,
   Length,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { ANSWER_KINDS, type AnswerKindParam } from './utils/interview-answers';
 
 export class PrepDto {
-  @IsString() jobId!: string;
+  @IsString() @MaxLength(40) jobId!: string;
   @IsOptional() @IsBoolean() force?: boolean;
 }
 
 export class AnswerParamsDto {
-  @IsString() jobId!: string;
+  @IsString() @MaxLength(40) jobId!: string;
 
   @IsIn(ANSWER_KINDS, { message: 'Loại câu hỏi không hợp lệ' })
   kind!: AnswerKindParam;
