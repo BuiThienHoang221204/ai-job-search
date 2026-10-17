@@ -77,7 +77,10 @@ export class ScraperService {
     }
 
     try {
-      const planned = await this.planFor(run);
+      const portal = this.portals
+        .describePortals()
+        .find((p) => p.key === run.portal);
+      const planned = await this.planFor(run, portal?.occupations ?? null);
       if ('skip' in planned) {
         return await this.prisma.scrapeRun.update({
           where: { id: runId },
@@ -92,9 +95,6 @@ export class ScraperService {
         });
       }
       const { plan, modelId, clusterCodes } = planned;
-      const portalMaxJobs = this.portals
-        .describePortals()
-        .find((p) => p.key === run.portal)?.maxJobs;
 
       if (!plan.queries.length) {
         throw new Error(
@@ -115,7 +115,7 @@ export class ScraperService {
           log: (message) => this.logger.log(message),
           limits: {
             ...this.limits,
-            maxJobsPerPortal: portalMaxJobs ?? this.limits.maxJobsPerPortal,
+            maxJobsPerPortal: portal?.maxJobs ?? this.limits.maxJobsPerPortal,
           },
         },
         run.portal,
@@ -160,7 +160,10 @@ export class ScraperService {
     }
   }
 
-  private async planFor(run: ScrapeRun): Promise<
+  private async planFor(
+    run: ScrapeRun,
+    occupations: string[] | null,
+  ): Promise<
     | { skip: string }
     | {
         plan: SearchPlan;
@@ -168,10 +171,6 @@ export class ScraperService {
         clusterCodes: string[] | null;
       }
   > {
-    const occupations =
-      this.portals.describePortals().find((p) => p.key === run.portal)
-        ?.occupations ?? null;
-
     if (!run.userId) {
       const system = await this.planner.forSystem(run.portal, occupations);
       return {
