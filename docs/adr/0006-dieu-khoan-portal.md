@@ -22,6 +22,7 @@
 | `vieclam24h` | — | Không thấy | Điều 6 chỉ nói nội dung người dùng + nhãn hiệu. Chưa đọc được trọn văn (trang chặn WebFetch) |
 | `123job` | Có (*"Thu thập, khai thác hoặc sử dụng dữ liệu từ hệ thống trái phép"*) | Có (dữ liệu *"thuộc quyền sở hữu của 123job"*) | Không nhắc đích danh bot; robots.txt chỉ chặn `/ajax`, `/apply`. Thêm 2026-10-13 theo cùng quyết định giai đoạn đồ án |
 | `topdev` | — (robots.txt cho phép) | Có | *"không được quyền thay đổi, sao chép, mô phỏng, truyền, phân phối, công bố, tạo ra các sản phẩm phái sinh, hiển thị hoặc chuyển giao, hoặc khai thác nhằm mục đích thương mại"*. Thêm 2026-10-13 theo cùng quyết định giai đoạn đồ án |
+| `timviec` (timviec.ai, Công ty CP Fiza trên Zalo) | — (không có `robots.txt`) | Có | Điều khoản ứng viên `Fiza_TC_ver_2.3_0825.pdf` mục 5.2: *"không được sửa chữa, cắt xén, chỉnh sửa, cập nhật, nâng cấp xuất bản, phân phối, truyền đi, phát, bán, cấp phép hoặc khai thác Nội Dung Fiza"*. Gọi API JSON công khai `/api/candidates`. Thêm 2026-10-17 theo cùng quyết định giai đoạn đồ án |
 
 **Đã xét và KHÔNG thêm:** `x-interview.com` (cấm đích danh *"trích xuất… tin tuyển dụng bằng công cụ tự động (crawler, bot, scraping)"*, và là đối thủ trực tiếp — nền tảng tìm việc + luyện phỏng vấn AI), `jobsgo` (Cloudflare). Glints, Việc Làm Tốt, Indeed VN, JobStreet, MyWork, Timviec365 trả 403 cho IP máy chủ. **Muốn thêm portal mới: đọc Điều khoản TRƯỚC khi viết CLI** — robots.txt cho phép không đủ.
 

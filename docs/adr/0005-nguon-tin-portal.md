@@ -22,7 +22,7 @@
 
 `ScraperService` KHÔNG biết một nguồn được lấy bằng cách nào — nó hỏi `JobSourceRouter`. Hiện chỉ có một adapter:
 
-- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bảy portal Việt (ITviec, TopCV, VietnamWorks, CareerLink, Vieclam24h, CareerViet, JobOKO) cùng LinkedIn nằm ở đây.
+- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bảy portal Việt (ITviec, TopCV, VietnamWorks, CareerLink, Vieclam24h, CareerViet, JobOKO) cùng LinkedIn nằm ở đây; sau đó thêm 123job, TopDev (2026-10-13) và timviec.ai (2026-10-17, mạnh ở việc ngoài IT, đặc điểm API ở `SKILL.md` của nó).
 
 Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn mới mà `ScraperService` không phải biết.
 
