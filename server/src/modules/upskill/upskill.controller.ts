@@ -39,6 +39,15 @@ export class UpskillController {
     return this.upskill.latest(user.id);
   }
 
+  @ApiOperation({
+    summary:
+      'Lượt phân tích đang chạy (null nếu không có), để nối lại sau khi rời trang',
+  })
+  @Get('in-flight')
+  inFlight(@CurrentUser() user: AuthUser) {
+    return this.upskill.inFlight(user.id);
+  }
+
   @ApiOperation({ summary: 'Lấy chi tiết một báo cáo upskill theo ID' })
   @ApiParam({ name: 'id', description: 'ID của báo cáo upskill' })
   @Get(':id')

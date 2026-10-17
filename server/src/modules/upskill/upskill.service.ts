@@ -307,6 +307,19 @@ export class UpskillService {
     return withFailureKind(report);
   }
 
+  /** Lượt đang chạy để giao diện nối lại sau khi người dùng rời trang; lượt kẹt quá `STUCK_AFTER_MS` bỏ qua. */
+  inFlight(userId: string) {
+    return this.prisma.upskillReport.findFirst({
+      where: {
+        userId,
+        status: { in: ['PENDING', 'RUNNING'] },
+        createdAt: { gt: new Date(Date.now() - STUCK_AFTER_MS) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true, jobsAnalysed: true },
+    });
+  }
+
   async get(userId: string, id: string) {
     const report = await this.prisma.upskillReport.findFirst({
       where: { id, userId },

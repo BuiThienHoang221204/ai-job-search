@@ -170,7 +170,7 @@ export class DashboardService {
           ...eligible,
           job: { applications: { none: { userId, status: 'APPLIED' } } },
         },
-        orderBy: { overallScore: 'desc' },
+        orderBy: { evaluatedAt: { sort: 'desc', nulls: 'last' } },
         take: 4,
         select: {
           jobId: true,

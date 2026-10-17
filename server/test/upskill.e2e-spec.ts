@@ -111,3 +111,51 @@ describe('Hợp đồng GET /api/upskill', () => {
       .expect(404);
   });
 });
+
+describe('GET /api/upskill/in-flight', () => {
+  let harness: TestApp;
+  let user: TestUser;
+
+  beforeAll(async () => {
+    harness = await createTestApp();
+  });
+
+  afterAll(async () => {
+    await harness.close();
+  });
+
+  beforeEach(async () => {
+    await harness.reset();
+    user = await harness.signUp();
+  });
+
+  const inFlight = (token: string) =>
+    request(harness.server)
+      .get('/api/upskill/in-flight')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+  test('trả lượt đang chạy của chính mình, bỏ qua lượt kẹt quá lâu và lượt của người khác', async () => {
+    const other = await harness.signUp();
+    const running = await harness.prisma.upskillReport.create({
+      data: { userId: user.id, mode: 'AGGREGATE', status: 'RUNNING' },
+    });
+    await harness.prisma.upskillReport.createMany({
+      data: [
+        {
+          userId: user.id,
+          mode: 'AGGREGATE',
+          status: 'RUNNING',
+          createdAt: new Date(Date.now() - 60 * 60 * 1000),
+        },
+        { userId: other.id, mode: 'AGGREGATE', status: 'RUNNING' },
+      ],
+    });
+
+    const mine = await inFlight(user.token);
+    expect((mine.body as { id: string }).id).toBe(running.id);
+
+    const fresh = await harness.signUp();
+    expect((await inFlight(fresh.token)).body).toEqual({});
+  });
+});

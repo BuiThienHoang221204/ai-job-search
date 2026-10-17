@@ -127,4 +127,36 @@ describe('GET /dashboard/skill-gaps', () => {
     ]);
     expect(match.job).toMatchObject({ id: job.id, saved: false });
   });
+
+  test('việc đang chờ xếp theo lần chấm mới nhất, không theo điểm', async () => {
+    await seedItJobs([['GraphQL'], ['GraphQL']]);
+    const [first, second] = await harness.prisma.job.findMany({
+      orderBy: { externalId: 'asc' },
+    });
+    for (const [job, overallScore, evaluatedAt] of [
+      [first, 90, '2026-10-01T00:00:00Z'],
+      [second, 60, '2026-10-15T00:00:00Z'],
+    ] as const) {
+      await harness.prisma.jobMatch.create({
+        data: {
+          userId: user.id,
+          jobId: job.id,
+          status: 'DONE',
+          eligibility: 'PASS',
+          overallScore,
+          evaluatedAt: new Date(evaluatedAt),
+          promptHash: `hash-${job.id}`,
+        },
+      });
+    }
+
+    const overview = await request(harness.server)
+      .get('/api/dashboard')
+      .set({ Authorization: `Bearer ${user.token}` })
+      .expect(200);
+    const pending = (overview.body as { pendingMatches: { jobId: string }[] })
+      .pendingMatches;
+
+    expect(pending.map((match) => match.jobId)).toEqual([second.id, first.id]);
+  });
 });
