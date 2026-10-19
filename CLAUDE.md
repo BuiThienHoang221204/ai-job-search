@@ -113,7 +113,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 - **Thứ tự timeout:** timeout MỘT lời gọi model < `AI_CHAIN_BUDGET_MS` 4 phút < `server.setTimeout` 5 phút (`main.ts`) < `STUCK_AFTER_MS` 10 phút (reconcile). Nới một mốc thì xem lại ba mốc kia — lý do ở ADR 0011.
 - **Schema output của model CẮT chứ không từ chối:** trần độ dài/số lượng là `.transform()` qua `common/model-output.ts`; giữ nghiêm ngặt cho thứ cắt bừa sẽ sai nghĩa (điểm số, enum Eligibility). Schema nhận input NGƯỜI DÙNG thì vẫn `.max()` trả 400 — ADR 0017.
-- **Lỗi schema không đi tiếp chuỗi dự phòng; 429/401/403/5xx/model đã rút thì đi tiếp** — ADR 0012.
+- **Chuỗi dự phòng đi tiếp khi gặp 429/401/403/5xx/model đã rút/timeout/sai schema**; riêng "prompt vượt trần token" không cộng cầu dao — ADR 0012 (schema và timeout thêm từ 2026-10-05).
 - **Không gọi model trực tiếp trong lúc demo** — hạn mức gateway free cạn sau khoảng 30 lượt; chuẩn bị dữ liệu trước.
 
 ## Quyết định theo chủ đề — `docs/adr/`

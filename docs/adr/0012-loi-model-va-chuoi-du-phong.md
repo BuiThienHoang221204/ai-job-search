@@ -48,6 +48,8 @@ Chuỗi dự phòng đi xuyên lõi qua chuỗi `lõi/model`, tách ở dấu `/
 
 **Chuỗi đi tiếp trong đúng NĂM trường hợp**: hết hạn mức, `ModelUnavailableError` (thiếu key, lõi không phục vụ, bị chặn vì trả tiền, đã đo là hỏng schema), gateway đã rút model (`isModelRetired`), **lõi từ chối khoá hoặc model** (`isAccessDenied` — 401/403), hoặc **lõi trả 5xx** (`isTransientUpstream`).
 
+> **Đã thay bởi quyết định 2026-10-05 (commit `c1a2613`):** thêm **TIMEOUT** và **SCHEMA** vào danh sách đi tiếp, thành bảy trường hợp, cộng "prompt vượt trần token" (`isTooLargeForModel`). Đo 6 giờ `job.requirements`: 126 lượt hỏng / 23 lượt xong, 100% lỗi dồn vào một model (mimo) vì không mắt xích nào khác trong chuỗi 9 model được thử. TIMEOUT chỉ nói mắt xích đang chậm, không mang tín hiệu "model yếu". SCHEMA thì có mang tín hiệu đó, nhưng lỗi thật quan sát được (trả mảng thay cho object) là đọc sai hẳn chứ không phải trường hợp sát nút; từ 2026-10-19 cầu dao cách ly model sai schema 2 lần liên tiếp nên tín hiệu không bị giấu — model đó rơi khỏi chuỗi và hiện ở trang sức khoẻ AI.
+
 `isAccessDenied` thêm ngày 2026-09-17 sau khi cả 30 lượt `match.evaluate` của một
 lượt phát suất hỏng sạch mà **không mắt xích dự phòng nào được thử**. Hai hình
 dạng lỗi trượt cả bốn điều kiện cũ: `[403] free tier can only be used from within
@@ -64,7 +66,7 @@ agent là trả tiền lại cho những bước đã xong.
 → `oc/hy3-free` (401, 0,8s) → `opencode/mimo-v2.5-free` (403, 0,4s) →
 `opencode/hy3-free` (catalog) → `kilo/tencent/hy3:free` (thiếu key) →
 **`openrouter/nvidia/nemotron-3-super-120b-a12b:free` XONG sau 19,1 giây**.
-Tổng phí mắt xích chết khoảng 5,4 giây. Lỗi schema vẫn ném ngay như cũ — đổi model khi model trả sai định dạng sẽ giấu mất tín hiệu "model này quá yếu cho tác vụ".
+Tổng phí mắt xích chết khoảng 5,4 giây. Lỗi schema lúc đó vẫn ném ngay — đổi lại từ 2026-10-05, xem ghi chú ngay dưới danh sách năm trường hợp.
 
 **Vì sao 5xx nằm trong danh sách đổi mắt xích:** lý do nằm ở một lượt hỏng thật ngày 2026-08-22: `agent.reviewer` nhận HTTP 500 hai lần liên tiếp (96 giây, payload chỉ 8,4KB) và cả tác vụ hỏng, trong khi **không một model dự phòng nào được thử** vì 5xx không nằm trong danh sách lý do đổi mắt xích.
 
