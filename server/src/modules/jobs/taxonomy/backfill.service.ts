@@ -33,6 +33,7 @@ export class TaxonomyBackfillService {
           location: true,
           tags: true,
           categories: true,
+          salaryRaw: true,
         },
       });
       if (!batch.length) break;
@@ -46,6 +47,7 @@ export class TaxonomyBackfillService {
             job.location,
             job.tags,
             job.categories,
+            job.salaryRaw,
           ),
         });
       }

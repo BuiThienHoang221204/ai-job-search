@@ -132,6 +132,26 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       }
     });
 
+    test('lọc lương giữ cả tin chỉ ghi mức dưới ("Từ 25 triệu")', async () => {
+      const job = await harness.prisma.job.create({
+        data: {
+          source: 'test',
+          externalId: 'tu-25-trieu',
+          url: 'https://example.test/tu-25-trieu',
+          title: 'Kế toán trưởng',
+          company: 'Công ty Lương Sàn',
+          description: 'Mô tả đủ dài để qua được kiểm tra đầu vào của DTO.',
+          salaryRaw: 'Từ 25 triệu',
+          salaryMin: 25_000_000,
+          searchText: 'ke toan truong cong ty luong san',
+        },
+      });
+
+      const page = await pageOf({ salaryMin: 20_000_000, limit: 100 });
+
+      expect(page.items.map((item) => item.id)).toContain(job.id);
+    });
+
     test('lọc rỗng thì trả về danh sách rỗng, không phải toàn bộ bảng', async () => {
       const page = await pageOf({ province: 'CM' });
 

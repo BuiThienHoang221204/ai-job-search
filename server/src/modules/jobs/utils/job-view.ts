@@ -195,7 +195,14 @@ export function whereFrom(
     ...(needle ? { searchText: { contains: needle } } : {}),
     ...(query.province?.length ? { provinceCode: { in: query.province } } : {}),
     ...(query.workMode?.length ? { workMode: { in: query.workMode } } : {}),
-    ...(query.salaryMin ? { salaryMax: { gte: query.salaryMin } } : {}),
+    ...(query.salaryMin
+      ? {
+          OR: [
+            { salaryMax: { gte: query.salaryMin } },
+            { salaryMax: null, salaryMin: { gte: query.salaryMin } },
+          ],
+        }
+      : {}),
     ...(since ? { postedAt: { gte: since } } : {}),
     ...(query.saved && userId ? { saves: { some: { userId } } } : {}),
     ...(query.applied && userId ? { applications: { some: { userId } } } : {}),

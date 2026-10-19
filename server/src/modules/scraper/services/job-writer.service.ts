@@ -109,6 +109,7 @@ export class JobWriter {
       card.location,
       card.tags,
       categories,
+      card.salary,
     );
     const duplicateOfId = await this.findOriginal(derived.dedupeKey);
 

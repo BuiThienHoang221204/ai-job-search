@@ -3,6 +3,7 @@ import { dedupeKeyOf } from './dedupe';
 import { OCCUPATIONS, OTHER_CODE } from './occupations';
 import { PORTAL_CATEGORY_OCCUPATION } from './portal-categories';
 import { PROVINCES, REMOTE_CODE } from './provinces';
+import { parseSalary, type ParsedSalary } from './salary';
 import { SUB_OCCUPATIONS } from './sub-occupations';
 
 const padded = (value: string) => ` ${value} `;
@@ -134,7 +135,8 @@ export function derivedFields(
   location: string | null | undefined,
   tags: string[],
   categories: string[] = [],
-): {
+  salaryRaw: string | null = null,
+): ParsedSalary & {
   provinceCode: string | null;
   occupationCode: string;
   subOccupationCode: string | null;
@@ -153,5 +155,6 @@ export function derivedFields(
     ]),
     searchText: buildSearchText(title, company, tags),
     dedupeKey: dedupeKeyOf(title, company, provinceCode),
+    ...parseSalary(salaryRaw),
   };
 }
