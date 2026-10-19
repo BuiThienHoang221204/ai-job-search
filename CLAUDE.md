@@ -14,6 +14,8 @@ cd server
 pnpm lint && pnpm test && pnpm test:e2e
 ```
 
+**Đổi hành vi thì cập nhật `docs/business-flows/` trong cùng thay đổi.** Hành vi gồm: endpoint, quyền, quy tắc, validation, thông điệp lỗi, trạng thái, bảng/cột, hàng đợi/cron, tích hợp. Sửa file module ứng với vùng code đó (`docs/business-flows/modules/<module>.md`; dòng `Phạm vi` đầu mỗi file ghi nó phủ thư mục nào). Sau đó chạy `python docs/business-flows/_gen.py --write`. Thứ tự cập nhật, cách đánh dấu ngày, cách chuyển rủi ro sang `✅ Đã sửa` và những file hệ thống cần sửa tay: [`docs/business-flows/README.md` §7](docs/business-flows/README.md#7-bảo-trì-tài-liệu). Refactor giữ nguyên hành vi thì không cần.
+
 `pnpm test:e2e` **cần Postgres đang chạy** (`pnpm db:up`) và biến `TEST_DATABASE_URL` trỏ tới database có tên kết thúc bằng `_test`. Nó tự tạo database đó và tự chạy migration.
 
 ### Tài khoản dùng cho bộ test
