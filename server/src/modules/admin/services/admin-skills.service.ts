@@ -161,6 +161,7 @@ export class AdminSkillsService {
   }
 
   async rematchAll() {
+    await this.prisma.jobRequirementMatch.updateMany({ data: { hash: '' } });
     const queueJobId = await this.queue.send(QUEUE.REQUIREMENT_MATCH, {});
     return { queued: queueJobId !== null, queueJobId };
   }

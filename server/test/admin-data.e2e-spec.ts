@@ -288,6 +288,36 @@ describe('API dữ liệu của màn quản trị', () => {
       await as(admin).post('/admin/skills/rematch').expect(202);
       expect(harness.queue.sentTo('match.requirements')).toEqual([{}]);
     });
+
+    test('đối chiếu lại toàn kho xoá dấu đã tính để cặp cũ được tính lại theo danh bạ mới', async () => {
+      const job = await harness.prisma.job.create({
+        data: {
+          source: 'itviec',
+          url: 'https://x/rematch',
+          title: 'Frontend',
+          company: 'A',
+          description: 'd',
+        },
+      });
+      await harness.prisma.jobRequirementMatch.create({
+        data: {
+          userId: admin.id,
+          jobId: job.id,
+          met: 1,
+          total: 2,
+          percent: 50,
+          hash: 'v3:cu:2026-10-01:d3',
+        },
+      });
+
+      await as(admin).post('/admin/skills/rematch').expect(202);
+
+      const after = await harness.prisma.jobRequirementMatch.findUniqueOrThrow({
+        where: { userId_jobId: { userId: admin.id, jobId: job.id } },
+      });
+      expect(after.hash).toBe('');
+      expect(after.percent).toBe(50);
+    });
   });
 
   describe('tin tuyển dụng', () => {
