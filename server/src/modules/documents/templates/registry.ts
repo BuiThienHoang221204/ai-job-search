@@ -1,7 +1,8 @@
-import type { CvContent, Identity } from '../content.types';
+import type { CoverLetterContent, CvContent, Identity } from '../content.types';
 import { buildCvHeader, buildCvSections } from './body';
 import { resolveLayout, type DocumentLanguage } from './cv-layout';
 import { htmlDocument } from './html';
+import { buildLetterBody, letterCss } from './letter';
 import { CV_THEMES, type CvTemplateMeta, type CvTheme } from './themes';
 import {
   resolveTypography,
@@ -68,5 +69,27 @@ export const renderCvHtml = (
     title: `${identity.name} - CV`,
     css: theme.css(options.accent) + typographyCss(options, theme.fontPt),
     body,
+  });
+};
+
+export const renderLetterHtml = (
+  identity: Identity,
+  company: string,
+  role: string,
+  content: CoverLetterContent,
+  templateId: string | null | undefined = DEFAULT_TEMPLATE_ID,
+  rawOptions: unknown = null,
+  now: Date = new Date(),
+): string => {
+  const theme = findTheme(templateId);
+  const options = resolveTemplateOptions(templateId, rawOptions);
+
+  return htmlDocument({
+    title: `${identity.name} - Thư xin việc`,
+    css:
+      theme.css(options.accent) +
+      letterCss(options.accent) +
+      typographyCss(options, theme.fontPt),
+    body: buildLetterBody(identity, company, role, content, now),
   });
 };

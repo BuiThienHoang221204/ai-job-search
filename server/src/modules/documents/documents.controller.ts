@@ -30,7 +30,6 @@ import {
   CreateCvDto,
   JobFromUrlDto,
   ListDocumentsDto,
-  PdfQueryDto,
   PreviewBodyDto,
   SetTemplateDto,
   UpdateCvDto,
@@ -86,14 +85,6 @@ export class DocumentsController {
     return withFailureKind(await this.documents.get(user.id, id));
   }
 
-  @ApiOperation({ summary: 'Lấy mã nguồn LaTeX (.tex) của tài liệu' })
-  @ApiParam({ name: 'id', description: 'ID của tài liệu' })
-  @Get(':id/source')
-  @Header('Content-Type', 'text/plain; charset=utf-8')
-  source(@CurrentUser() user: AuthUser, @Param('id') id: string) {
-    return this.documents.source(user.id, id);
-  }
-
   @ApiOperation({ summary: 'Cập nhật mẫu trình bày (template) cho CV' })
   @ApiParam({ name: 'id', description: 'ID của CV' })
   @Put(':id/template')
@@ -140,9 +131,8 @@ export class DocumentsController {
   async pdf(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Query() query: PdfQueryDto,
   ): Promise<StreamableFile> {
-    const pdf = await this.documents.pdf(user.id, id, query.engine ?? 'latex');
+    const pdf = await this.documents.pdf(user.id, id);
     return new StreamableFile(pdf, {
       type: 'application/pdf',
       disposition: 'inline; filename="document.pdf"',

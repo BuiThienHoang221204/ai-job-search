@@ -131,7 +131,7 @@ describe('firstRenderError - log cua Chromium', () => {
     const noise =
       '[0822/1] ERROR:gpu_init.cc(486) Passthrough is not supported';
 
-    expect(firstRenderError(noise)).toBe('Không tạo được PDF từ mẫu CV này.');
+    expect(firstRenderError(noise)).toBe('Không tạo được PDF từ mẫu này.');
   });
 });
 

@@ -140,19 +140,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Bốn dịch vụ phụ cũng đẩy lên registry: trước 24/09 chúng build TRÊN SERVER
+      # Ba dịch vụ phụ cũng đẩy lên registry: trước 24/09 chúng build TRÊN SERVER
       # trong phiên SSH, và build omniroute 338 giây đã làm bước deploy chết giữa chừng.
-      - name: Build and push sidecar images
-        uses: docker/build-push-action@v6
-        with:
-          context: ./latex-service
-          push: true
-          tags: |
-            ghcr.io/${{ env.IMAGE_NAME }}/latex:${{ github.ref_name }}
-            ghcr.io/${{ env.IMAGE_NAME }}/latex:latest
-          cache-from: type=gha,scope=latex
-          cache-to: type=gha,mode=max,scope=latex
-
       - name: Build and push PDF image
         uses: docker/build-push-action@v6
         with:
@@ -245,8 +234,7 @@ jobs:
             fi
             # KHÔNG build gì ở đây: mọi image do job docker-build đẩy lên ghcr.
             docker compose pull
-            # `SandboxLatexCompiler`/`SandboxPdfRenderer` chạy `docker run aijob-latex` với `--pull never`.
-            docker tag "ghcr.io/$IMAGE_NAME/latex:$IMAGE_TAG" aijob-latex
+            # `SandboxPdfRenderer` chạy `docker run aijob-pdf` với `--pull never`.
             docker tag "ghcr.io/$IMAGE_NAME/pdf:$IMAGE_TAG" aijob-pdf
             docker compose --profile migrate run --rm migrate
             docker compose up -d --remove-orphans

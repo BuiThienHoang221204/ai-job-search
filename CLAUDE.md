@@ -121,9 +121,9 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 Mỗi ADR giữ nguyên văn số đo, lý do và bẫy đã sập của một chủ đề. **Mở đúng ADR trước khi sửa vùng code tương ứng**; đổi một quyết định thì sửa ADR đó (hoặc thêm ADR mới thay thế) trong cùng thay đổi. Mẫu viết ADR mới: `docs/adr/README.md`.
 
 - **Sửa luồng đọc CV, `ProfileDraft`, `profile-proposal.schema.ts` hoặc `PUT /profile-drafts/:id/apply`** → `docs/adr/0001-doc-cv-agent-1.md` (Đọc CV (Agent 1): ProfileDraft, trường cấm đề xuất, trường mô tả cho phép rỗng)
-- **Sửa đường in CV, `pdf-service`, kho mẫu (`templates/themes.ts`, `typography.ts`) hoặc đổi mẫu** → `docs/adr/0002-cv-html-va-kho-mau.md` (CV in bằng HTML/Chromium, kho mẫu CV và thiết kế (font, cỡ chữ))
+- **Sửa đường in PDF (CV và thư xin việc), `pdf-service`, kho mẫu (`templates/themes.ts`, `typography.ts`, `letter.ts`) hoặc đổi mẫu** → `docs/adr/0002-cv-html-va-kho-mau.md` (Mọi tài liệu in bằng HTML/Chromium, kho mẫu CV và thiết kế (font, cỡ chữ), thư mượn mẫu của CV)
 - **Sửa `PUT /documents/:id/cv`, `POST :id/preview`, chế độ `editing`, phần đầu CV, tên mục, hoặc khung xem trước iframe** → `docs/adr/0003-nguoi-dung-sua-cv.md` (Người dùng sửa CV: content/layout tách cột, sửa thẳng trên trang, iframe sandbox)
-- **Sửa `latex-service`, `LatexCompiler`, template `.tex` hoặc thư xin việc** → `docs/adr/0004-xuat-pdf-latex.md` (Xuất PDF bằng LaTeX: dịch vụ riêng, thư xin việc dùng moderncv)
+- **Muốn đưa LaTeX trở lại** → `docs/adr/0004-xuat-pdf-latex.md` (Đã thay thế 2026-10-19: LaTeX đã gỡ; giữ lại các bài học về TeX Live, moderncv và font tiếng Việt)
 - **Sửa scraper, thêm/bỏ portal, xử lý `BLOCKED`, nhịp quét hoặc mô tả tin** → `docs/adr/0005-nguon-tin-portal.md` (Nguồn tin (SEAM 5): portal CLI, thêm portal, chặn IP, mô tả bị cắt)
 - **Thêm portal mới, hiển thị nội dung tin ra ngoài, hoặc bàn thương mại hoá** → `docs/adr/0006-dieu-khoan-portal.md` (Điều khoản sử dụng của các portal và quyết định giai đoạn đồ án)
 - **Sửa `QueryPlanner`, `job.requirements`, cụm nghề, `occupationGate` hoặc trang "Việc làm phù hợp"** → `docs/adr/0007-quet-tin-da-nganh.md` (Quét tin đa ngành: từ khoá theo ngành, gộp lô job.requirements, cụm nghề, việc làm phù hợp)

@@ -706,7 +706,7 @@ Test e2e vẫn ở `test/*.e2e-spec.ts`, chạy riêng bằng `pnpm test:e2e`.
 | File (trong `test/unit/`) | Bảo vệ điều gì |
 |---|---|
 | `modules/matching/evaluation.schema.spec.ts` | Trọng số 30/25/15/30 và ngưỡng verdict 75/60/45/30 đúng như `04-job-evaluation.md`. Schema chặn điểm âm, điểm vượt 100, điểm thập phân |
-| `modules/documents/latex.spec.ts` | `escapeLatex` vô hiệu `\input`, `\write18`, bom `\def\x{\x\x}`. Dấu cách và tiếng Việt không bị biến dạng. Lời chào lặp bị cắt |
+| `modules/documents/letter.spec.ts` | Thư xin việc HTML: lời chào lặp ở đầu đoạn mở bị cắt (cả bản không dấu), có người nhận, ngày tiếng Việt, dòng chủ đề; chữ từ tin và từ model được escape; dùng chung phần đầu và màu nhấn với mẫu CV |
 | `modules/skills/prompt-builder.service.spec.ts` | `keepSections` BỎ được mục `## Output Format`. Placeholder không có ánh xạ vẫn bị thay, không để lại nguyên văn trong prompt |
 | `modules/storage/local.storage.spec.ts` | Chặn path traversal 6 dạng. Khoá của người dùng này không đọc được workspace của người khác |
 | `modules/dashboard/suggestions.spec.ts` | Ngưỡng hiện từng thẻ gợi ý, và không bao giờ trả quá 4 thẻ |
@@ -795,12 +795,12 @@ docker run -d --name ai-job-server --network <mạng-có-postgres> \
 - **Node >= 22.12 là yêu cầu cứng**, đã khai trong `engines`. `ai` và `@ai-sdk/openai-compatible` là ESM thuần không có bản CommonJS, còn `nest build` xuất ra CommonJS — ứng dụng chạy được nhờ Node cho phép `require()` một module ESM, tính năng chỉ có từ 22.12. Image cũ hơn chết lúc khởi động với thông báo không liên quan gì tới nguyên nhân.
 - **bun và curl đều được cài** vì portal CLI cần chúng: cả bốn CLI chạy bằng bun, và TopCV chặn TLS fingerprint của bun nên CLI của nó gọi qua curl. Thiếu chúng thì việc quét hỏng *lúc chạy*, không phải lúc build.
 - **Đường dẫn khai tường minh** bằng `SKILLS_DIR`, `PORTALS_DIR`, `STORAGE_LOCAL_ROOT`. Mặc định trong `configuration.ts` là tương đối theo `process.cwd()` — đúng khi chạy `pnpm start` từ `server/`, nhưng đó là giả định ngầm về vị trí tiến trình, và nếu sai thì scraper im lặng không tìm thấy portal nào.
-- **`workspaces/` phải gắn volume.** Đó là nơi ghi file `.tex` của người dùng; không gắn thì dữ liệu mất theo container.
+- **`workspaces/` phải gắn volume.** Đó là nơi ghi file của người dùng khi chạy storage cục bộ; không gắn thì dữ liệu mất theo container.
 - **`dotenv` nằm ở `dependencies`, không phải `devDependencies`**, vì `main.ts` import nó lúc chạy và image cài bằng `pnpm install --prod`.
 
 ### Gateway `omniroute` — service riêng, KHÔNG cài vào `package.json`
 
-Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `LATEX_SERVICE_URL`. Dockerfile của nó nằm ở `omniroute-service/Dockerfile` ngang hàng `latex-service/` và `pdf-service/`, **không** nằm trong `server/` — build context vì thế chỉ có đúng một file thay vì cả thư mục `server/`.
+Cùng khuôn với `pdf`: một container riêng, app gọi qua HTTP, địa chỉ khai bằng biến. `OMNIROUTE_BASE_URL` là cùng loại với `PDF_SERVICE_URL`. Dockerfile của nó nằm ở `omniroute-service/Dockerfile` ngang hàng `pdf-service/`, **không** nằm trong `server/` — build context vì thế chỉ có đúng một file thay vì cả thư mục `server/`.
 
 **Đừng `pnpm add omniroute`.** Gói đó là một app Next.js đầy đủ — **792MB giải nén, 21.765 file, 74 dependency** — mà cài vào rồi nó **vẫn** phải chạy như tiến trình riêng nghe cổng riêng. Trả toàn bộ cái giá, không nhận lại gì. Ảnh Docker chính thức là 483MB nén.
 
@@ -811,7 +811,7 @@ Cùng khuôn với `latex` và `pdf`: một container riêng, app gọi qua HTTP
 
 **Healthcheck dùng `/v1/models`** vì đó là endpoint duy nhất trả 200 mà không cần đăng nhập — `/api/health` của nó trả 401.
 
-**Cố ý KHÔNG có `depends_on` từ `app`**, cùng lý do với `latex` và `pdf`: gateway chết thì `catalogFor()` ném `ModelUnavailableError`, và đó đúng là một trong bốn lý do `ModelChain` bỏ qua mắt xích để đi tiếp. Nên miễn là chuỗi dự phòng còn giữ vài mắt xích `opencode/...` gọi thẳng, gateway sập **không** kéo app sập. Đừng buộc app chờ nó khoẻ mới khởi động.
+**Cố ý KHÔNG có `depends_on` từ `app`**, cùng lý do với `pdf`: gateway chết thì `catalogFor()` ném `ModelUnavailableError`, và đó đúng là một trong bốn lý do `ModelChain` bỏ qua mắt xích để đi tiếp. Nên miễn là chuỗi dự phòng còn giữ vài mắt xích `opencode/...` gọi thẳng, gateway sập **không** kéo app sập. Đừng buộc app chờ nó khoẻ mới khởi động.
 
 Ba biến `OMNIROUTE_JWT_SECRET`, `OMNIROUTE_KEY_SECRET`, `OMNIROUTE_PASSWORD` **không đi vào container app**. Chúng là giá trị thay thế `${...}` lúc đọc `docker-compose.yml`. Compose tự đọc file `.env` nằm cạnh `docker-compose.yml` để nội suy, nên cùng một file `.env` phục vụ cả hai việc và không cần `--env-file`. Sinh lại bằng `openssl rand -base64 48` và `openssl rand -hex 32`; `INITIAL_PASSWORD` mặc định của image là `CHANGEME`.
 

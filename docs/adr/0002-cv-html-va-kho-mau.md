@@ -4,7 +4,9 @@
 - **Đọc khi:** Sửa đường in CV, `pdf-service`, kho mẫu (`templates/themes.ts`, `typography.ts`) hoặc đổi mẫu
 - **Nguồn:** tách nguyên văn từ `CLAUDE.md` ngày 2026-10-16; ngày đo và lý do ghi trong từng đoạn.
 
-### CV đi đường HTML, thư xin việc vẫn đi đường LaTeX
+### CV và thư xin việc đều đi đường HTML
+
+> **Cập nhật 2026-10-19:** chỉ còn MỘT bộ máy in là `pdf-service` (Chromium). LaTeX đã gỡ hẳn (ADR 0004 chuyển sang "đã thay thế"). Thư xin việc in bằng `templates/letter.ts`, dùng chung CSS mẫu, phần đầu và tuỳ chọn font/cỡ chữ của CV; thư **mượn `templateId`/`templateOptions` của CV đã DONE sửa gần nhất cho cùng tin** (`DocumentsService.styleOf`), không có thì dùng `classic`. Thư chưa có nút chọn mẫu riêng — làm khi có nhu cầu, cột `templateId` của thư đã có sẵn. Hai đoạn ngay dưới (hai bộ máy, tham số `engine`) là lịch sử.
 
 **Hai bộ máy sinh PDF, không phải một.** `latex-service/` in `.tex`, `pdf-service/` in HTML bằng Chromium. Chọn bằng `LATEX_SERVICE_URL` và `PDF_SERVICE_URL`, mỗi cái có bản `docker run` dự phòng cho máy phát triển.
 
@@ -20,7 +22,7 @@ docker build -t aijob-pdf -f pdf-service/Dockerfile pdf-service
 
 Đo ngày 2026-08-22, cùng một CV tiếng Việt 1 trang: **aijob-latex 3,27GB / 3,59 giây** so với **aijob-pdf 1,20GB / 0,61–0,70 giây**.
 
-**Đối chiếu hai bản PDF bằng `GET /api/documents/:id/pdf?engine=html`.** Tham số `engine` là tạm thời, có mặt để đặt hai bản cạnh nhau trong lúc chuyển đổi; mặc định vẫn là `latex`. Kết quả đối chiếu trên CV thật: 284 từ (LaTeX) so với 282 (HTML), **không mất mục nào**. Toàn bộ khác biệt là tiêu đề mục viết hoa, và **12 token rác chỉ có ở bản LaTeX**: `MOBILE-ANDROID-ALT`, `🖂`, tám ký tự bullet `🟤`. Đó chính là thứ ATS đọc phải — bản HTML sạch hơn ở đúng chỗ quan trọng nhất.
+*(Đã gỡ 2026-10-19.)* **Đối chiếu hai bản PDF bằng `GET /api/documents/:id/pdf?engine=html`.** Tham số `engine` là tạm thời, có mặt để đặt hai bản cạnh nhau trong lúc chuyển đổi; mặc định vẫn là `latex`. Kết quả đối chiếu trên CV thật: 284 từ (LaTeX) so với 282 (HTML), **không mất mục nào**. Toàn bộ khác biệt là tiêu đề mục viết hoa, và **12 token rác chỉ có ở bản LaTeX**: `MOBILE-ANDROID-ALT`, `🖂`, tám ký tự bullet `🟤`. Đó chính là thứ ATS đọc phải — bản HTML sạch hơn ở đúng chỗ quan trọng nhất.
 
 **`python3-minimal` KHÔNG có thư viện chuẩn.** Đã làm build đỏ: `import json` báo `ModuleNotFoundError: No module named 'json'`, và `http.server` cũng vắng. Phải là `python3`.
 

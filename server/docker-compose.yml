@@ -4,7 +4,7 @@
 #
 #   docker compose up -d
 #
-# `latex`, `pdf`, `omniroute` và `opencode` có `build:` cho máy dev, nhưng `image:`
+# `pdf`, `omniroute` và `opencode` có `build:` cho máy dev, nhưng `image:`
 # trỏ ghcr vì CI đã build và đẩy sẵn - server chỉ `pull`, KHÔNG build. Đổi ngược
 # lại là dựng lại đúng sự cố 24/09: build omniroute mất 338 giây ngay trong phiên
 # SSH và bước deploy chết giữa chừng. Mỗi dịch vụ một thư mục ngang hàng `server/`.
@@ -107,20 +107,6 @@ services:
       resources:
         limits:
           memory: 3G
-
-  latex:
-    image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/latex:${IMAGE_TAG:-latest}
-    build:
-      context: ../latex-service
-    container_name: aijob-latex
-    restart: unless-stopped
-    expose:
-      - "8080"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "1"
 
   pdf:
     image: ghcr.io/${GITHUB_REPOSITORY:-buithienhoang221204/ai-job-search}/pdf:${IMAGE_TAG:-latest}

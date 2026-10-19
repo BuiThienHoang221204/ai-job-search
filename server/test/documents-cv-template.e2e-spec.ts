@@ -4,6 +4,7 @@ import {
   type TestApp,
   type TestUser,
 } from './support/app-harness.js';
+import { PDF_IMAGE } from 'src/modules/documents/pdf/sandbox.js';
 
 /**
  * Kho mẫu CV: xem trước, đổi mẫu, và ghim thứ tự route.
@@ -60,7 +61,6 @@ describe('Kho mẫu CV', () => {
         title: 'CV tổng quát',
         status: 'DONE',
         content: CV_CONTENT,
-        storageKey: `${user.id}/cv/main_tong-quat.tex`,
         modelId: 'deepseek-v4-flash-free',
         generatedAt: new Date('2026-08-01T00:00:00.000Z'),
       },
@@ -287,5 +287,106 @@ describe('Kho mẫu CV', () => {
       .set(auth())
       .send({ templateId: 'modern' })
       .expect(422);
+  });
+
+  describe('thư xin việc in cùng mẫu với CV của tin đó', () => {
+    const LETTER_CONTENT = {
+      salutation: 'Kính gửi Bộ phận Tuyển dụng,',
+      opening: 'Tôi ứng tuyển vị trí Kế toán tổng hợp.',
+      bodyParagraphs: ['Tôi hạch toán 400 chứng từ mỗi tháng.'],
+      motivation: 'Công ty đang mở rộng nhà máy.',
+      closing: 'Mong được trao đổi thêm.',
+    };
+
+    const seedJobWithLetter = async () => {
+      const job = await harness.prisma.job.create({
+        data: {
+          source: 'test',
+          url: 'https://example.test/ke-toan',
+          title: 'Kế toán tổng hợp',
+          company: 'Công ty Thép Miền Trung',
+          description: 'Mô tả đủ dài cho một tin tuyển dụng kế toán.',
+        },
+      });
+      const letter = await harness.prisma.document.create({
+        data: {
+          userId: user.id,
+          jobId: job.id,
+          kind: 'COVER_LETTER',
+          title: 'Thư xin việc',
+          status: 'DONE',
+          content: LETTER_CONTENT,
+        },
+      });
+      return { job, letter };
+    };
+
+    const previewOf = (id: string) =>
+      request(harness.server)
+        .post(`/api/documents/${id}/preview`)
+        .set(auth())
+        .expect(200);
+
+    test('mượn mẫu và màu của CV cho cùng tin', async () => {
+      const { job, letter } = await seedJobWithLetter();
+      await harness.prisma.document.create({
+        data: {
+          userId: user.id,
+          jobId: job.id,
+          kind: 'CV',
+          title: '',
+          status: 'DONE',
+          content: CV_CONTENT,
+          templateId: 'trang-trong',
+          templateOptions: { accent: '#123456' },
+        },
+      });
+
+      const html = (await previewOf(letter.id)).text;
+
+      expect(html).toContain('Noto Serif');
+      expect(html).toContain('Công ty Thép Miền Trung');
+      expect(html).toContain('Về việc: Ứng tuyển vị trí Kế toán tổng hợp');
+    });
+
+    test('không có CV cho tin đó thì dùng mẫu mặc định', async () => {
+      const { letter } = await seedJobWithLetter();
+
+      const html = (await previewOf(letter.id)).text;
+
+      expect(html).toContain('#3873b3');
+    });
+
+    test('không mượn mẫu CV của người khác', async () => {
+      const { job, letter } = await seedJobWithLetter();
+      const other = await harness.signUp();
+      await harness.prisma.document.create({
+        data: {
+          userId: other.id,
+          jobId: job.id,
+          kind: 'CV',
+          title: '',
+          status: 'DONE',
+          content: CV_CONTENT,
+          templateId: 'trang-trong',
+        },
+      });
+
+      const html = (await previewOf(letter.id)).text;
+
+      expect(html).not.toContain('Noto Serif');
+    });
+
+    test('tải PDF thư in bằng HTML', async () => {
+      const { letter } = await seedJobWithLetter();
+
+      await request(harness.server)
+        .get(`/api/documents/${letter.id}/pdf`)
+        .set(auth());
+
+      expect(harness.sandbox.calls.map((call) => call.image)).toEqual([
+        PDF_IMAGE,
+      ]);
+    });
   });
 });

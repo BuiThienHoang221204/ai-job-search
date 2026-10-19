@@ -88,7 +88,6 @@ describe('Mail ứng tuyển từ JD dán tay', () => {
       status: string;
       jobId: string | null;
       title: string;
-      storageKey: string | null;
       content: { subject: string; paragraphs: string[] };
     };
 
@@ -99,9 +98,8 @@ describe('Mail ứng tuyển từ JD dán tay', () => {
       'Mail ứng tuyển: Kế toán tổng hợp - Công ty TNHH Sáng Tạo',
     );
 
-    // JD dán tay không gắn với tin nào, và mail không bao giờ đi qua LaTeX.
+    // JD dán tay không gắn với tin nào.
     expect(record.jobId).toBeNull();
-    expect(record.storageKey).toBeNull();
 
     // Phép khẳng định trung tâm: kho việc làm dùng chung vẫn sạch.
     expect(await harness.prisma.job.count()).toBe(0);

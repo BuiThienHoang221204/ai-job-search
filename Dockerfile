@@ -95,7 +95,7 @@ ENV SKILLS_DIR=/app/.claude/skills \
     TEMPLATES_ROOT=/app \
     STORAGE_LOCAL_ROOT=/app/workspaces
 
-# workspaces là nơi ghi file .tex của người dùng - gắn volume vào đây khi chạy
+# workspaces là nơi ghi file của người dùng - gắn volume vào đây khi chạy
 # thật, nếu không dữ liệu mất theo container.
 RUN mkdir -p /app/workspaces && chown -R node:node /app/workspaces
 USER node

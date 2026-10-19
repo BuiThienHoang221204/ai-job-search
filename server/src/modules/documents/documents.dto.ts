@@ -13,7 +13,6 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
-import type { PdfEngine } from './services/documents.service';
 import {
   CV_FONTS,
   FONT_SCALES,
@@ -52,10 +51,6 @@ export class CreateCvDto {
   @IsString({ message: 'Thiếu tên vị trí ứng tuyển' })
   @Length(1, 300, { message: 'Tên vị trí phải từ 1 tới 300 ký tự' })
   title?: string;
-}
-
-export class PdfQueryDto {
-  @IsOptional() @IsIn(['latex', 'html']) engine?: PdfEngine;
 }
 
 export class UpdateCvDto {

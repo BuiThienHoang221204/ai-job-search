@@ -7,26 +7,14 @@ import {
 import {
   countPages,
   firstRenderError,
-  firstTexError,
-  missingGlyphs,
   sandboxReason,
-  type LatexCompiler,
-  type LatexCompileResult,
   type PdfRenderer,
   type PdfRenderResult,
 } from './seam';
 
-export const LATEX_IMAGE = process.env.LATEX_IMAGE ?? 'aijob-latex';
-
 export const PDF_IMAGE = process.env.PDF_IMAGE ?? 'aijob-pdf';
 
-const COMPILE_TIMEOUT_MS = 60_000;
-
 const RENDER_TIMEOUT_MS = 45_000;
-
-const TEX_NAME = 'main.tex';
-const TEX_PDF_NAME = 'main.pdf';
-const LOG_NAME = 'main.log';
 
 const WORK = '/work';
 
@@ -47,54 +35,6 @@ const CHROMIUM_COMMAND = [
   `--print-to-pdf=${WORK}/${HTML_PDF_NAME}`,
   `file://${WORK}/${HTML_NAME}`,
 ];
-
-@Injectable()
-export class SandboxLatexCompiler implements LatexCompiler {
-  private readonly logger = new Logger(SandboxLatexCompiler.name);
-
-  constructor(@Inject(SANDBOX) private readonly sandbox: SandboxRunner) {}
-
-  async compile(tex: string): Promise<LatexCompileResult> {
-    try {
-      const result = await this.sandbox.run({
-        image: LATEX_IMAGE,
-        files: { [TEX_NAME]: tex },
-        command: [
-          'lualatex',
-          '-no-shell-escape',
-          '-interaction=nonstopmode',
-          TEX_NAME,
-        ],
-        timeoutMs: COMPILE_TIMEOUT_MS,
-        artifacts: [TEX_PDF_NAME, LOG_NAME],
-      });
-
-      const log = result.artifacts[LOG_NAME]?.toString() ?? result.stdout;
-      const pdf = result.artifacts[TEX_PDF_NAME];
-
-      if (!pdf || pdf.byteLength === 0) {
-        return { ok: false, reason: firstTexError(log), log };
-      }
-
-      return { ok: true, pdf, warnings: missingGlyphs(log) };
-    } catch (error) {
-      if (error instanceof SandboxError) {
-        this.logger.error(
-          `Compile PDF thất bại (${error.kind}): ${error.message}`,
-        );
-        return {
-          ok: false,
-          reason: sandboxReason(
-            error,
-            'Máy chủ chưa có bộ công cụ LaTeX. Người vận hành cần tải ảnh TeX Live trước.',
-          ),
-          log: error.message,
-        };
-      }
-      throw error;
-    }
-  }
-}
 
 @Injectable()
 export class SandboxPdfRenderer implements PdfRenderer {
@@ -126,10 +66,7 @@ export class SandboxPdfRenderer implements PdfRenderer {
         this.logger.error(`In PDF thất bại (${error.kind}): ${error.message}`);
         return {
           ok: false,
-          reason: sandboxReason(
-            error,
-            'Máy chủ chưa có bộ công cụ in PDF. Người vận hành cần build ảnh aijob-pdf trước.',
-          ),
+          reason: sandboxReason(error),
           log: error.message,
         };
       }

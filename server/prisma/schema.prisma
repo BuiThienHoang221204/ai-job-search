@@ -753,11 +753,7 @@ model Document {
   agentRunId String?
   agentRun   AgentRun? @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
 
-  /// Khóa trong Storage, dạng "<userId>/cv/main_fpt_senior-frontend.tex".
-  /// Không lưu nội dung file vào DB: lên S3 sau này chỉ cần đổi driver.
-  storageKey String?
-
-  /// Mẫu trình bày đang chọn. Chỉ có nghĩa với `kind = CV`.
+  /// Mẫu trình bày đang chọn. CV dùng trực tiếp; thư xin việc mượn mẫu của CV cùng tin.
   ///
   /// CỘT RIÊNG chứ không nhét vào `content`, và đây là ranh giới quan trọng nhất
   /// của tính năng chọn mẫu: `content` là output của model đã qua zod, còn cái này

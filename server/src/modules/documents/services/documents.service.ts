@@ -30,8 +30,6 @@ import type {
   UpdateCvDto,
 } from '../documents.dto';
 
-export type PdfEngine = 'latex' | 'html';
-
 const JOB_SUMMARY = {
   id: true,
   title: true,
@@ -46,24 +44,6 @@ export class DocumentsService {
     private readonly generator: DocumentGenerator,
     private readonly renderer: DocumentRenderer,
   ) {}
-
-  /** Vẽ lại file nguồn từ `content` rồi ghi `storageKey` — quên bước này thì PDF LaTeX còn chữ cũ. */
-  private async writeSource(
-    document: Document,
-    content: unknown,
-  ): Promise<Document> {
-    const { target, identity } = await this.generator.context(document);
-    const storageKey = await this.renderer.render(
-      document,
-      target,
-      content,
-      identity,
-    );
-    return this.prisma.document.update({
-      where: { id: document.id },
-      data: { storageKey },
-    });
-  }
 
   private async requireJob(jobId: string) {
     const job = await this.prisma.job.findUnique({
@@ -173,7 +153,6 @@ export class DocumentsService {
           kind: true,
           status: true,
           title: true,
-          storageKey: true,
           templateId: true,
           templateOptions: true,
           language: true,
@@ -197,14 +176,6 @@ export class DocumentsService {
     if (!document)
       throw new NotFoundException(`Không tìm thấy tài liệu: ${id}`);
     return document;
-  }
-
-  async source(userId: string, id: string): Promise<string> {
-    const document = await this.get(userId, id);
-    if (!document.storageKey) {
-      throw new NotFoundException('Tài liệu này không có file nguồn');
-    }
-    return this.renderer.readSource(document.storageKey);
   }
 
   async setTemplate(
@@ -270,12 +241,10 @@ export class DocumentsService {
       data.identity = parseIdentityEdit(input.identity);
     }
 
-    const updated = await this.prisma.document.update({
+    return this.prisma.document.update({
       where: { id, userId },
       data,
     });
-
-    return this.writeSource(updated, content);
   }
 
   /** HTML cho khung xem trước; `override` cho thử mẫu khác mà không ghi database. */
@@ -292,9 +261,10 @@ export class DocumentsService {
       );
     }
 
+    const style = await this.styleOf(document);
     const previewed = {
       ...document,
-      templateId: override?.templateId ?? document.templateId,
+      templateId: override?.templateId ?? style.templateId,
       templateOptions: override?.templateId
         ? {
             accent: override.accent,
@@ -302,14 +272,14 @@ export class DocumentsService {
             size: override.size,
             lineHeight: override.lineHeight,
           }
-        : document.templateOptions,
+        : style.templateOptions,
       layout: override?.layout ?? document.layout,
       identity:
         override?.identity === undefined
           ? document.identity
           : parseIdentityEdit(override.identity),
     };
-    const { identity } = await this.generator.context(previewed);
+    const { identity, target } = await this.generator.context(previewed);
 
     const content =
       override?.content === undefined
@@ -318,7 +288,13 @@ export class DocumentsService {
     const editing =
       override?.editing === true && override.content !== undefined;
 
-    const html = this.renderer.toHtml(previewed, content, identity, editing);
+    const html = this.renderer.toHtml(
+      previewed,
+      content,
+      identity,
+      target,
+      editing,
+    );
 
     if (!html) {
       throw new UnprocessableEntityException(
@@ -329,13 +305,25 @@ export class DocumentsService {
     return html;
   }
 
-  async pdf(userId: string, id: string, engine: PdfEngine = 'latex') {
-    if (engine === 'html') {
-      const html = await this.previewHtml(userId, id);
-      return this.renderer.htmlToPdf(html, id);
-    }
+  async pdf(userId: string, id: string) {
+    const html = await this.previewHtml(userId, id);
+    return this.renderer.htmlToPdf(html, id);
+  }
 
-    const tex = await this.source(userId, id);
-    return this.renderer.toPdf(tex, id);
+  private async styleOf(
+    document: Document,
+  ): Promise<Pick<Document, 'templateId' | 'templateOptions'>> {
+    if (document.kind !== 'COVER_LETTER' || !document.jobId) return document;
+    const cv = await this.prisma.document.findFirst({
+      where: {
+        userId: document.userId,
+        jobId: document.jobId,
+        kind: 'CV',
+        status: 'DONE',
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { templateId: true, templateOptions: true },
+    });
+    return cv ?? document;
   }
 }

@@ -6,23 +6,14 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Document } from '@/generated/prisma/client';
-import {
-  STORAGE,
-  userKey,
-  type Storage,
-} from '@/modules/storage/storage.interface';
-import type { CvContent, Identity } from '../content.types';
-import type { CoverLetterResult } from '../schemas/document.schema';
-import { renderCoverLetter, renderCv, slugify } from '../templates/latex';
+import type { CoverLetterContent, CvContent, Identity } from '../content.types';
 import type { LetterTarget } from '../utils/letter-target';
 import {
   EXPECTED_MAX_PAGES,
-  LATEX_COMPILER,
   PDF_RENDERER,
-  type LatexCompiler,
   type PdfRenderer,
 } from '../pdf/seam';
-import { renderCvHtml } from '../templates/registry';
+import { renderCvHtml, renderLetterHtml } from '../templates/registry';
 import { cvContent, renderLanguage } from '../utils/cv-content';
 
 @Injectable()
@@ -30,85 +21,32 @@ export class DocumentRenderer {
   private readonly logger = new Logger(DocumentRenderer.name);
 
   constructor(
-    @Inject(STORAGE) private readonly storage: Storage,
-    @Inject(LATEX_COMPILER) private readonly latex: LatexCompiler,
     @Inject(PDF_RENDERER) private readonly pdfRenderer: PdfRenderer,
   ) {}
 
-  /** Trả `null` với loại không in được chứ không ném — đường sinh gọi hàm này cho mọi loại. */
-  async render(
+  toHtml(
     document: Document,
-    target: LetterTarget | null,
     content: unknown,
     identity: Identity,
-  ): Promise<string | null> {
-    if (document.kind === 'CV') {
-      const tex = renderCv(
-        identity,
-        cvContent(content),
-        renderLanguage(document),
-      );
-
-      const key = userKey(
-        document.userId,
-        'cv',
-        `main_${slugify(target ? `${target.company}_${target.title}` : 'tong-quat')}.tex`,
-      );
-      await this.storage.write(key, tex);
-      return key;
-    }
-
+    target: LetterTarget | null,
+    editing = false,
+  ): string | null {
     if (document.kind === 'COVER_LETTER') {
       if (!target) {
         throw new NotFoundException(
           'Thư xin việc bắt buộc phải gắn với một công việc',
         );
       }
-      const tex = renderCoverLetter(
+      return renderLetterHtml(
         identity,
         target.company,
         target.title,
-        content as CoverLetterResult,
-      );
-
-      const key = userKey(
-        document.userId,
-        'cover_letters',
-        `cover_${slugify(`${target.company}_${target.title}`)}.tex`,
-      );
-      await this.storage.write(key, tex);
-      return key;
-    }
-
-    return null;
-  }
-
-  async readSource(storageKey: string): Promise<string> {
-    return (await this.storage.read(storageKey)).toString('utf8');
-  }
-
-  async toPdf(tex: string, label: string): Promise<Buffer> {
-    const result = await this.latex.compile(tex);
-
-    if (!result.ok) {
-      throw new UnprocessableEntityException(result.reason);
-    }
-
-    if (result.warnings.length > 0) {
-      this.logger.warn(
-        `PDF ${label} thiếu ${result.warnings.length} ký tự font: ${result.warnings.join(', ')}`,
+        content as CoverLetterContent,
+        document.templateId,
+        document.templateOptions,
       );
     }
 
-    return result.pdf;
-  }
-
-  toHtml(
-    document: Document,
-    content: unknown,
-    identity: Identity,
-    editing = false,
-  ): string | null {
     if (document.kind !== 'CV') return null;
     return renderCvHtml(
       identity,

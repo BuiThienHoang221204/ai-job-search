@@ -47,9 +47,7 @@ export class R2Storage implements Storage {
         Body: body,
         ContentType: key.endsWith('.pdf')
           ? 'application/pdf'
-          : key.endsWith('.tex')
-            ? 'application/x-tex'
-            : 'application/octet-stream',
+          : 'application/octet-stream',
       }),
     );
     this.logger.debug(`Wrote ${key} (${body.length} bytes)`);

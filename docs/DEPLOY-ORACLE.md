@@ -1,5 +1,7 @@
 # Deploy lên Oracle Cloud Always Free
 
+> **Cập nhật 2026-10-19:** LaTeX đã gỡ (ADR 0004). Bỏ qua mọi bước về `latex`, `aijob-latex`, `LATEX_SERVICE_URL` và TeX Live bên dưới; chỉ còn `pdf` (Chromium).
+
 Runbook dựng toàn bộ `ai-job-search` (app + postgres/pgvector + latex + pdf) trên
 một máy ảo ARM miễn phí vĩnh viễn của Oracle.
 

@@ -28,6 +28,10 @@ process.env.AI_HEALTHCHECK_ENABLED = 'false';
 // kiểu test chập chờn mà không ai tìm ra nguyên nhân.
 process.env.RECONCILE_CRON_ENABLED = 'false';
 
+// In PDF phải đi qua `FakeSandbox` của harness. `.env` máy dev hay đặt
+// `PDF_SERVICE_URL` trỏ container, và khi đó test gọi mạng thật.
+process.env.PDF_SERVICE_URL = '';
+
 // JwtModule cần khoá để ký. Bộ khung không đi qua `main.ts` nên không có bước
 // kiểm tra JWT_SECRET ở đó; đặt sẵn một khoá test nếu môi trường chưa có.
 process.env.JWT_SECRET ??= 'khoa-chi-danh-cho-test-khong-dung-o-dau-khac';

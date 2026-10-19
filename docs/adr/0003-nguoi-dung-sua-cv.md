@@ -14,7 +14,7 @@
 
 **`cvEditSchema` tách khỏi `cvSchema`, và đừng gộp lại.** `cvSchema` ép MODEL viết đủ (tối thiểu 3 năng lực, mỗi kinh nghiệm ít nhất 1 gạch đầu dòng); `cvEditSchema` cho NGƯỜI DÙNG xoá tới rỗng. Dùng chung một schema thì thao tác xoá dòng cuối cùng bị từ chối mà người dùng không hiểu vì sao. Trần độ dài thì giữ nguyên ở cả hai — chữ này đi thẳng vào PDF và database.
 
-**Sửa `content` xong PHẢI render lại `.tex`.** Không thì file đã lưu thành cũ, trong khi nút "Xem mã .tex" và đường PDF LaTeX vẫn đọc đúng file đó — người dùng thấy chữ cũ trong bản tải về dù màn hình đã hiện chữ mới. `updateCv` gọi `renderer.render()`; không tốn lượt gọi model nào.
+*(Hết hiệu lực 2026-10-19: không còn file `.tex`; PDF in thẳng từ `content` qua HTML nên luôn khớp chữ đang lưu.)* **Sửa `content` xong PHẢI render lại `.tex`.** Không thì file đã lưu thành cũ, trong khi nút "Xem mã .tex" và đường PDF LaTeX vẫn đọc đúng file đó — người dùng thấy chữ cũ trong bản tải về dù màn hình đã hiện chữ mới. `updateCv` gọi `renderer.render()`; không tốn lượt gọi model nào.
 
 **Sinh lại KHÔNG bao giờ đè lên bản đã sửa.** `POST /documents/cv` tạo một `Document` MỚI mỗi lần bấm, nên công sửa tay nằm nguyên ở bản cũ. Đừng "tối ưu" thành cập nhật tại chỗ.
 

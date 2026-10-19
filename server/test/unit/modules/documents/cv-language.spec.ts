@@ -5,7 +5,6 @@ import type {
   CvContent,
   Identity,
 } from 'src/modules/documents/content.types.js';
-import { renderCv } from 'src/modules/documents/templates/latex.js';
 import { renderCvHtml } from 'src/modules/documents/templates/registry.js';
 import { SECTION_TITLES } from 'src/modules/documents/templates/cv-layout.js';
 import { DocumentRenderer } from 'src/modules/documents/services/document-renderer.service.js';
@@ -92,46 +91,31 @@ describe('tiêu đề mục đổi theo ngôn ngữ', () => {
     );
   });
 
-  test('bản LaTeX', () => {
-    const vi = renderCv(identity, content, 'vi');
-    const en = renderCv(identity, content, 'en');
-
-    expect(vi).toContain(`\\section{${SECTION_TITLES.vi.education}}`);
-    expect(en).toContain(`\\section{${SECTION_TITLES.en.education}}`);
-    expect(en).not.toContain(`\\section{${SECTION_TITLES.vi.education}}`);
-  });
-
-  test('hai bộ trình bày dùng cùng một bảng tiêu đề', () => {
-    const html = renderCvHtml(identity, content, 'classic', null, null, 'en');
-    const tex = renderCv(identity, content, 'en');
-
-    for (const title of Object.values(SECTION_TITLES.en)) {
-      expect(html).toContain(title);
-      expect(tex).toContain(title);
-    }
-  });
-
   test('nhãn công cụ của dự án cũng đổi theo', () => {
-    expect(renderCv(identity, content, 'vi')).toContain('Công cụ: NestJS');
-    expect(renderCv(identity, content, 'en')).toContain('Tools: NestJS');
+    const html = (language: 'vi' | 'en') =>
+      renderCvHtml(identity, content, 'classic', null, null, language);
+
+    expect(html('vi')).toContain('Công cụ:');
+    expect(html('en')).toContain('Tools:');
   });
 });
 
 describe('tài liệu lưu trước khi có cột language', () => {
-  const renderer = new DocumentRenderer(
-    null as never,
-    null as never,
-    null as never,
-  );
+  const renderer = new DocumentRenderer(null as never);
 
   test('thiếu language thì render bằng tiếng Việt, không vỡ', () => {
-    const html = renderer.toHtml(documentOf(undefined), content, identity);
+    const html = renderer.toHtml(
+      documentOf(undefined),
+      content,
+      identity,
+      null,
+    );
 
     expect(html).toContain(SECTION_TITLES.vi.experience);
   });
 
   test('language EN thì đổi tiêu đề', () => {
-    const html = renderer.toHtml(documentOf('EN'), content, identity);
+    const html = renderer.toHtml(documentOf('EN'), content, identity, null);
 
     expect(html).toContain(SECTION_TITLES.en.experience);
   });

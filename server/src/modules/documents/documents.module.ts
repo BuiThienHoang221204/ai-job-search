@@ -11,34 +11,9 @@ import { DocumentsProcessor } from './documents.processor';
 import { DocumentGenerator } from './services/document-generator.service';
 import { DocumentsService } from './services/documents.service';
 import { JobFromUrlService } from './services/job-from-url.service';
-import { HttpLatexCompiler, HttpPdfRenderer } from './pdf/http';
-import { SandboxLatexCompiler, SandboxPdfRenderer } from './pdf/sandbox';
-import {
-  LATEX_COMPILER,
-  PDF_RENDERER,
-  type LatexCompiler,
-  type PdfRenderer,
-} from './pdf/seam';
-
-const latexCompilerProvider = {
-  provide: LATEX_COMPILER,
-  inject: [ConfigService, SANDBOX],
-  useFactory: (
-    config: ConfigService,
-    sandbox: SandboxRunner,
-  ): LatexCompiler => {
-    const logger = new Logger('LatexCompiler');
-    const serviceUrl = config.get<string | null>('latex.serviceUrl');
-
-    if (serviceUrl) {
-      logger.log(`Tạo PDF qua dịch vụ HTTP: ${serviceUrl}`);
-      return new HttpLatexCompiler(serviceUrl);
-    }
-
-    logger.log('Tạo PDF bằng docker run (không có LATEX_SERVICE_URL)');
-    return new SandboxLatexCompiler(sandbox);
-  },
-};
+import { HttpPdfRenderer } from './pdf/http';
+import { SandboxPdfRenderer } from './pdf/sandbox';
+import { PDF_RENDERER, type PdfRenderer } from './pdf/seam';
 
 const pdfRendererProvider = {
   provide: PDF_RENDERER,
@@ -67,7 +42,6 @@ const pdfRendererProvider = {
     DocumentRenderer,
     DocumentsProcessor,
     JobFromUrlService,
-    latexCompilerProvider,
     pdfRendererProvider,
   ],
   exports: [DocumentsService],

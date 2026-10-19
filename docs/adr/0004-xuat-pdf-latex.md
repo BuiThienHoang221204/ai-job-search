@@ -1,6 +1,6 @@
 # ADR 0004: Xuất PDF bằng LaTeX: dịch vụ riêng, thư xin việc dùng moderncv
 
-- **Trạng thái:** Đã chấp nhận
+- **Trạng thái:** Đã thay thế ngày 2026-10-19 — `latex-service`, `LatexCompiler`, `templates/latex.ts`, route `GET /documents/:id/source` và tham số `engine` đã gỡ; CV và thư xin việc đều in bằng HTML/Chromium (ADR 0002). Lý do: CV đã chuyển sang HTML từ trước để có xem trước và kho mẫu, LaTeX chỉ còn giữ thư xin việc trong khi tốn một image 3,27GB, in chậm hơn 5 lần và sinh ra hai lỗi "in ra khác màn hình" (`documents#R1`, `#R2` trong `docs/business-flows`). Phần dưới giữ nguyên làm lịch sử.
 - **Đọc khi:** Sửa `latex-service`, `LatexCompiler`, template `.tex` hoặc thư xin việc
 - **Nguồn:** tách nguyên văn từ `CLAUDE.md` ngày 2026-10-16; ngày đo và lý do ghi trong từng đoạn.
 

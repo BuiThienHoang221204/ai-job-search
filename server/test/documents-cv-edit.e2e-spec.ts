@@ -5,6 +5,7 @@ import {
   type TestUser,
 } from './support/app-harness.js';
 import { SECTION_KEYS } from 'src/modules/documents/templates/cv-layout.js';
+import { PDF_IMAGE } from 'src/modules/documents/pdf/sandbox.js';
 
 /**
  * Người dùng sửa CV: chữ, thứ tự mục, mục bị ẩn.
@@ -60,7 +61,6 @@ describe('Sửa CV', () => {
         title: 'CV tổng quát',
         status: 'DONE',
         content: CV_CONTENT,
-        storageKey: `${user.id}/cv/main_tong-quat.tex`,
         modelId: 'deepseek-v4-flash-free',
         generatedAt: new Date('2026-08-01T00:00:00.000Z'),
       },
@@ -92,28 +92,16 @@ describe('Sửa CV', () => {
     expect(after.modelId).toBe('deepseek-v4-flash-free');
   });
 
-  test('file .tex được render lại sau khi sửa', async () => {
-    /*
-     * Không render lại thì `.tex` đã lưu thành cũ, trong khi nút "Xem mã .tex" và
-     * đường PDF LaTeX vẫn đọc đúng file đó - người dùng thấy chữ cũ trong bản tải về
-     * dù màn hình đã hiện chữ mới.
-     */
+  test('tải PDF CV in bằng HTML để giữ mẫu và bố cục', async () => {
     const document = await seedDoneCv();
 
     await request(harness.server)
-      .put(`/api/documents/${document.id}/cv`)
-      .set(auth())
-      .send({
-        content: { ...CV_CONTENT, profileStatement: 'CHU-MOI-TRONG-TEX' },
-      })
-      .expect(200);
+      .get(`/api/documents/${document.id}/pdf`)
+      .set(auth());
 
-    const tex = await request(harness.server)
-      .get(`/api/documents/${document.id}/source`)
-      .set(auth())
-      .expect(200);
-
-    expect(tex.text).toContain('CHU-MOI-TRONG-TEX');
+    expect(harness.sandbox.calls.map((call) => call.image)).toEqual([
+      PDF_IMAGE,
+    ]);
   });
 
   test('xoá bớt tới rỗng vẫn được chấp nhận', async () => {

@@ -157,10 +157,6 @@ const configuration = () => ({
     disabled: process.env.THROTTLE_DISABLED === 'true',
   },
 
-  latex: {
-    serviceUrl: process.env.LATEX_SERVICE_URL?.replace(/\/$/, '') ?? null,
-  },
-
   pdf: {
     serviceUrl: process.env.PDF_SERVICE_URL?.replace(/\/$/, '') ?? null,
   },

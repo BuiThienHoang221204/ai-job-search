@@ -157,7 +157,6 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       const documentId = await createCvFor(owner);
 
       await get(`/api/documents/${documentId}`, attacker).expect(404);
-      await get(`/api/documents/${documentId}/source`, attacker).expect(404);
     });
 
     test('không sinh lại được tài liệu của người khác', async () => {

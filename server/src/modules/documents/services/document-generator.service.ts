@@ -11,7 +11,6 @@ import type { Identity } from '../content.types';
 import { mergeIdentity } from '../utils/identity';
 import { letterTarget, type DocumentParams } from '../utils/letter-target';
 import { DocumentComposer } from './document-composer.service';
-import { DocumentRenderer } from './document-renderer.service';
 import { streamFailureEvent } from '@/common/ai/failure-view';
 import { messageOf } from '@/common/error-message';
 import { STUCK_AFTER_MS } from '@/common/duration';
@@ -23,7 +22,6 @@ export class DocumentGenerator {
   constructor(
     private readonly prisma: PrismaService,
     private readonly composer: DocumentComposer,
-    private readonly renderer: DocumentRenderer,
   ) {}
 
   async context(document: Document) {
@@ -82,14 +80,12 @@ export class DocumentGenerator {
     documentId: string,
     content: unknown,
     modelId: string,
-    storageKey: string | null,
   ): Promise<Document> {
     return this.prisma.document.update({
       where: { id: documentId },
       data: {
         status: 'DONE',
         content: content as Prisma.InputJsonValue,
-        storageKey,
         modelId,
         generatedAt: new Date(),
         error: null,
@@ -127,7 +123,7 @@ export class DocumentGenerator {
     }
 
     try {
-      const { profile, target, identity } = await this.context(document);
+      const { profile, target } = await this.context(document);
       const { partials, object, modelId } =
         document.kind === 'CV'
           ? await this.composer.streamCv(document, profile, target)
@@ -138,16 +134,10 @@ export class DocumentGenerator {
       }
 
       const content = await object;
-      const storageKey = await this.renderer.render(
-        document,
-        target,
-        content,
-        identity,
-      );
 
       yield {
         type: 'done',
-        result: await this.finish(documentId, content, modelId, storageKey),
+        result: await this.finish(documentId, content, modelId),
       };
     } catch (error) {
       await this.fail(documentId, error, 'Sinh tài liệu (stream)');
@@ -179,14 +169,7 @@ export class DocumentGenerator {
         identity,
       });
 
-      const storageKey = await this.renderer.render(
-        document,
-        target,
-        content,
-        identity,
-      );
-
-      return await this.finish(documentId, content, modelId, storageKey);
+      return await this.finish(documentId, content, modelId);
     } catch (error) {
       return this.fail(documentId, error, 'Sinh tài liệu');
     }

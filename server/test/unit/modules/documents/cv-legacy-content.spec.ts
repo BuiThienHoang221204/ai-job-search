@@ -34,24 +34,22 @@ const document = {
 } as unknown as Document;
 
 describe('CV lưu từ trước khi có mục Dự án', () => {
-  const renderer = new DocumentRenderer(
-    null as never,
-    null as never,
-    null as never,
-  );
+  const renderer = new DocumentRenderer(null as never);
 
   test('vẫn dựng được HTML', () => {
-    expect(() => renderer.toHtml(document, legacyCv, identity)).not.toThrow();
+    expect(() =>
+      renderer.toHtml(document, legacyCv, identity, null),
+    ).not.toThrow();
   });
 
   test('nội dung cũ còn nguyên', () => {
-    const html = renderer.toHtml(document, legacyCv, identity);
+    const html = renderer.toHtml(document, legacyCv, identity, null);
 
     expect(html).toContain('Giảm thời gian tải trang 40%');
   });
 
   test('không sinh mục Dự án rỗng', () => {
-    const html = renderer.toHtml(document, legacyCv, identity);
+    const html = renderer.toHtml(document, legacyCv, identity, null);
     const body = html!.slice(html!.indexOf('<body>'));
 
     expect(body).not.toContain('Dự án');
