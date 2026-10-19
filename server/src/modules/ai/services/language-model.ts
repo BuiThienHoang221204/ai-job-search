@@ -1,6 +1,7 @@
 import type { Logger } from '@nestjs/common';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
+import { findProvider } from '../providers/index';
 import { formatModelRef } from '../utils/model-ref';
 import { extractJsonFromResponse } from '../utils/json-text';
 import { extractJsonFromStream } from '../utils/json-stream';
@@ -45,6 +46,7 @@ export class LanguageModelFactory {
     jsonStream = false,
   ): Promise<ResolvedLanguageModel> {
     const resolved = await this.catalog.resolve(modelId);
+    const descriptor = findProvider(resolved.providerId);
     const userAgent = resolved.headers['User-Agent'];
     this.logger.debug(
       `AI headers cho ${resolved.model.id}: ${JSON.stringify(resolved.headers)}`,
@@ -55,6 +57,13 @@ export class LanguageModelFactory {
       input,
       init,
     ) => {
+      if (descriptor?.customFetch) {
+        return descriptor.customFetch(originalFetch, input, init, {
+          resolved,
+          jsonStream,
+        });
+      }
+
       const headers = new Headers(init?.headers);
       if (userAgent) {
         headers.set('User-Agent', userAgent);

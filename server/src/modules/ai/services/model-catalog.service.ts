@@ -103,6 +103,9 @@ export class ModelCatalogService {
 
     const models: CatalogProvider['models'] = {};
     for (const [id, entry] of live) {
+      if (descriptor.filterModel && !descriptor.filterModel(id)) {
+        continue;
+      }
       models[id] = {
         id,
         name: typeof entry.name === 'string' ? entry.name : id,

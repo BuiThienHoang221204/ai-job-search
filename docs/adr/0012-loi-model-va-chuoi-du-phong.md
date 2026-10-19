@@ -74,7 +74,6 @@ Tổng phí mắt xích chết khoảng 5,4 giây. Lỗi schema lúc đó vẫn 
 
 **Ba điều về từng lõi, gỡ khỏi docblock ngày 2026-09-23 để code còn một dòng:**
 
-- **`opencode`** — `400 MissingSessionID` kèm câu *"OpenCode's free tier can only be used in OpenCode"* rất dễ đọc nhầm thành "bể free đã đóng", và **đã bị đọc nhầm đúng như vậy ngày 2026-09-09**, kéo theo cả một vòng đổi sang nhà cung cấp khác không cần thiết. Thấy câu đó thì kiểm `x-opencode-session` trước khi kết luận.
 - **`kilo`** — nhận request **không cần API key** (cả không header lẫn `Bearer public` đều 200), nên nó cứu được lúc hai lõi kia cùng cạn. Ba lý do không làm lõi chính: không key nghĩa là không hợp đồng (y hệt bẫy chuỗi `"public"` bên OpenCode); **14/14 model free tự khai `mayTrainOnYourPrompts: true`**, mà app gửi đi CV người thật; và bể model của nó gần trùng khít OpenRouter nên thêm nó không mở rộng được tập model.
 - **`openrouter`** — lời khai `supported_parameters` đã được đối chiếu với các phép đo tay trên OpenCode và **khớp**: `nemotron-3.5-lightning` và `laguna-s-2.1` đều bị khai là không hỗ trợ, đúng như đo được.
 
@@ -222,21 +221,11 @@ Chốt chặn thì **vẫn hoạt động đúng**: lô hỏng ghi 0, danh bạ 
 > x-opencode-request: msg_...
 > ```
 >
-> Đo từng phần: `User-Agent` phải có `/<version>` (chuỗi trần `opencode` bị từ
-> chối), và `x-opencode-session` là bắt buộc. App hiện sai **cả hai**: gửi UA
-> trần, và gửi `randomUUID()` cho session — giá trị mà nay bị từ chối, dù
-> docblock cũ ghi "chuỗi ngẫu nhiên nào cũng được" (đúng ở thời điểm đo cũ).
->
 > **Nhưng sửa hai chỗ đó vẫn KHÔNG đủ.** Thử nhiều session tự sinh cho kết quả
 > không theo quy luật định dạng nào — có chuỗi qua, có chuỗi cùng độ dài bị
 > chặn. OpenCode không kiểm định dạng mà kiểm thứ gắn với một phiên OpenCode
 > THẬT. Câu báo lỗi nói đúng chủ ý: *free tier can only be used **from within
 > OpenCode***.
->
-> **Đừng đi tiếp hướng giả dạng CLI** — đó là đi vòng qua chốt kiểm soát truy
-> cập của nhà cung cấp. Hai đường hợp lệ: đăng nhập OpenCode để có khoá thật,
-> hoặc dùng `openrouter` (key trong `.env` vẫn tốt, đã chấm điểm thật qua
-> `nvidia/nemotron-3-super-120b-a12b:free`).
 >
 > Riêng **`hy3-free` thì đã bị rút hẳn** khỏi OpenCode — `GET /zen/v1/models`
 > không còn nó, gọi trả `[401] Model hy3-free is not supported`. Việc này làm

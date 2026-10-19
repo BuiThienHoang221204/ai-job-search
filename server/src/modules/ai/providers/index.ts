@@ -2,12 +2,14 @@ import { gemini } from './gemini';
 import { groq } from './groq';
 import { kilo } from './kilo';
 import { opencode } from './opencode';
+import { opencodeDirect } from './opencode-direct';
 import { omniroute } from './omniroute';
 import { openrouter } from './openrouter';
 import { unorouter } from './unorouter';
 import type { ProviderDescriptor } from './types';
 
 export const PROVIDERS: readonly ProviderDescriptor[] = [
+  opencodeDirect,
   opencode,
   openrouter,
   omniroute,

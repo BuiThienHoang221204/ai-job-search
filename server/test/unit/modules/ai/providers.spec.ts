@@ -8,6 +8,7 @@ import { gemini } from 'src/modules/ai/providers/gemini.js';
 import { groq } from 'src/modules/ai/providers/groq.js';
 import { kilo } from 'src/modules/ai/providers/kilo.js';
 import { opencode } from 'src/modules/ai/providers/opencode.js';
+import { opencodeDirect } from 'src/modules/ai/providers/opencode-direct.js';
 import { omniroute } from 'src/modules/ai/providers/omniroute.js';
 import { openrouter } from 'src/modules/ai/providers/openrouter.js';
 import { unorouter } from 'src/modules/ai/providers/unorouter.js';
@@ -116,6 +117,18 @@ describe('Lõi opencode — mù về capability', () => {
     expect(opencode.knownNoStructuredOutput).not.toContain(
       'deepseek-v4-flash-free',
     );
+  });
+});
+
+describe('Lõi opencode-direct — gọi thẳng gateway không qua container', () => {
+  test('streamsJson là all', () => {
+    expect(streamsJsonFor(opencodeDirect, 'mimo-v2.6-flash-free')).toBe(true);
+  });
+
+  test('filterModel chỉ nhận model free hoặc big-pickle', () => {
+    expect(opencodeDirect.filterModel!('mimo-v2.6-flash-free')).toBe(true);
+    expect(opencodeDirect.filterModel!('big-pickle')).toBe(true);
+    expect(opencodeDirect.filterModel!('gpt-4o')).toBe(false);
   });
 });
 

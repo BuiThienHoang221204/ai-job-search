@@ -1,3 +1,10 @@
+import type { ResolvedModel } from '../ai.types';
+
+export type CustomFetchContext = {
+  resolved: ResolvedModel;
+  jsonStream: boolean;
+};
+
 export type ProviderDescriptor = {
   id: string;
   label: string;
@@ -12,6 +19,13 @@ export type ProviderDescriptor = {
   knownNoStructuredOutput?: readonly string[];
   streamsJson?: readonly string[] | 'all';
   rateLimitFor?: (modelId: string) => readonly RateLimitSpec[] | undefined;
+  filterModel?: (id: string) => boolean;
+  customFetch?: (
+    originalFetch: typeof fetch,
+    input: RequestInfo | URL,
+    init: RequestInit | undefined,
+    context: CustomFetchContext,
+  ) => Promise<Response>;
 };
 
 export type RateLimitSpec = {

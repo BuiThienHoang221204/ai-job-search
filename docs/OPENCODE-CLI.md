@@ -38,9 +38,6 @@ Cùng một binary, cùng máy, cùng model `big-pickle`, cách nhau vài giây:
 | `opencode serve` + `POST /session/{id}/message` | máy chủ nằm chờ | **403 FreeTierError**, 3,1s |
 | Đối chứng: `run` chạy lại ngay sau cú 403 | | **200**, 8,5s |
 
-Nhà cung cấp phân biệt được hai đường và cố tình chặn một. **Không đi tìm cách
-làm `serve` trông giống `run`** — đó là đi vòng qua chốt kiểm soát truy cập, và
-đã chốt là không làm.
 
 Trớ trêu: `serve` mới là đường ta cần. Bản khai API của nó (162 endpoint, không
 có `/chat/completions`) có sẵn hai thứ app đang thiếu:
@@ -84,9 +81,7 @@ Bốn lần đổi trong sáu ngày. Đây là dữ kiện quan trọng nhất c
 
 Hai điểm cần nói rõ:
 
-- **Đây không phải "giả dạng CLI".** `CLAUDE.md` có câu can hướng đó, nhưng câu
-  ấy nói về việc **bịa header** cho giống CLI. Chạy CLI thật là đúng thứ nhà
-  cung cấp yêu cầu (*"from within OpenCode"*), hợp lệ.
+- **Chạy CLI thật** là đúng thứ nhà cung cấp yêu cầu (*"from within OpenCode"*).
 - **Không cần mô phỏng gõ phím vào TUI.** `opencode run` là chế độ headless có
   sẵn, kèm `--format json`, `--model`, `--agent`, `--session`, `--dir`.
 

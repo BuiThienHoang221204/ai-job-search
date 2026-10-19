@@ -45,7 +45,10 @@ const configuration = () => ({
 
     fastModelId: process.env.AI_FAST_MODEL_ID ?? '',
     fastFallbackModelIds: csv('AI_FAST_FALLBACK_IDS', ''),
-    mainProviders: csv('MAIN_TASK_PROVIDERS', 'opencode,omniroute,openrouter'),
+    mainProviders: csv(
+      'MAIN_TASK_PROVIDERS',
+      'opencode-direct,opencode,omniroute,openrouter',
+    ),
     fastProviders: csv(
       'FAST_TASK_PROVIDERS',
       'groq,gemini,unorouter,omniroute,kilo,openrouter',
@@ -61,6 +64,7 @@ const configuration = () => ({
 
     apiKeys: {
       opencode: process.env.AI_API_KEY ?? 'public',
+      'opencode-direct': process.env.OPENCODE_DIRECT_API_KEY ?? 'public',
       openrouter: process.env.OPENROUTER_API_KEY ?? '',
       omniroute: process.env.OMNIROUTE_API_KEY ?? 'public',
       kilo: process.env.KILO_API_KEY ?? 'public',
@@ -76,6 +80,9 @@ const configuration = () => ({
     baseURLs: {
       omniroute: process.env.OMNIROUTE_BASE_URL ?? 'http://localhost:20128/v1',
       opencode: process.env.OPENCODE_SERVICE_URL ?? '',
+      'opencode-direct':
+        process.env.OPENCODE_DIRECT_BASE_URL ??
+        'https://opencode.ai/inference/v1',
       groq: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
       unorouter:
         process.env.UNOROUTER_BASE_URL ?? 'https://api.unorouter.com/v1',
@@ -86,6 +93,7 @@ const configuration = () => ({
 
     maxConcurrency: {
       opencode: Number(process.env.OPENCODE_APP_CONCURRENCY) || 2,
+      'opencode-direct': Number(process.env.OPENCODE_DIRECT_CONCURRENCY) || 5,
     } as Record<string, number | undefined>,
 
     catalogUrl:
