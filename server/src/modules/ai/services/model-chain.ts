@@ -13,12 +13,20 @@ import { providerIds } from '../providers/index';
 
 export const DEFAULT_CHAIN_BUDGET_MS = 240_000;
 
+export type ModelHealthTracker = {
+  mainChain(): string[];
+  isCoolingDown(modelId: string): boolean;
+  recordSuccess(modelId: string): void;
+  recordFailure(modelId: string, reason: string): void;
+};
+
 export type ModelChainOptions = {
   defaultModelId: string;
   defaultProviderId: string;
   fallbackModelIds: string[];
   budgetMs?: number;
   logger: Logger;
+  pool?: ModelHealthTracker;
 };
 
 function skipReason(error: unknown): string | null {
@@ -43,24 +51,36 @@ export class ModelChain {
     );
   }
 
-  /** So trùng theo dạng ĐẦY ĐỦ `lõi/model`; `fallbackOverride` thay hẳn `MODEL_FALLBACK_IDS`. */
+  /** Khoá `lõi/model` của một mắt xích; `undefined` là model mặc định. */
+  private keyOf(modelId: string | undefined): string {
+    return this.canonical(modelId ?? this.options.defaultModelId);
+  }
+
+  /** So trùng theo dạng ĐẦY ĐỦ `lõi/model`; `fallbackOverride` thay hẳn chuỗi chung; model đang bị cách ly bị bỏ ra trừ khi cả chuỗi đều đang bị cách ly. */
   links(
     requested?: string,
     fallbackOverride?: string[],
   ): Array<string | undefined> {
-    const first = requested ?? (this.options.defaultModelId || undefined);
+    const pooled = this.options.pool?.mainChain() ?? [];
+    const fallbacks =
+      fallbackOverride ??
+      (pooled.length ? pooled : this.options.fallbackModelIds);
+    const first =
+      requested ?? pooled[0] ?? (this.options.defaultModelId || undefined);
     const chain: Array<string | undefined> = [first];
-    const seen = new Set([
-      this.canonical(first ?? this.options.defaultModelId),
-    ]);
+    const seen = new Set([this.keyOf(first)]);
 
-    for (const id of fallbackOverride ?? this.options.fallbackModelIds) {
+    for (const id of fallbacks) {
       const key = this.canonical(id);
       if (seen.has(key)) continue;
       seen.add(key);
       chain.push(id);
     }
-    return chain;
+
+    const pool = this.options.pool;
+    if (!pool) return chain;
+    const open = chain.filter((id) => !pool.isCoolingDown(this.keyOf(id)));
+    return open.length ? open : chain;
   }
 
   /** Lỗi thuộc về model thì đi tiếp mắt xích (xem `skipReason`), lỗi của tác vụ thì ném ngay. */
@@ -84,10 +104,15 @@ export class ModelChain {
       }
 
       try {
-        return await attempt(modelId);
+        const result = await attempt(modelId);
+        this.options.pool?.recordSuccess(this.keyOf(modelId));
+        return result;
       } catch (error) {
         const reason = skipReason(error);
         if (reason === null) throw error;
+        if (!isTooLargeForModel(error)) {
+          this.options.pool?.recordFailure(this.keyOf(modelId), reason);
+        }
 
         lastSkipped = error;
         const next = chain[index + 1];

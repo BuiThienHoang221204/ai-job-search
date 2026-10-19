@@ -1,6 +1,6 @@
 export const SHORTLIST = 5;
 
-export const BATCH = 20;
+export const BATCH = 10;
 
 export const SYSTEM = [
   'Bạn phân loại KỸ NĂNG NGHỀ NGHIỆP. Với mỗi chuỗi, chọn ứng viên chỉ CÙNG MỘT kỹ năng với nó.',
@@ -17,6 +17,7 @@ export const SYSTEM = [
   '- Ứng viên nào ghi "mã này đã gồm: ..." thì chuỗi của bạn phải cùng một kỹ năng với TẤT CẢ những cái đó, không riêng cái đứng đầu.',
   '- Không chắc thì trả 0. Tách nhầm chỉ làm danh bạ dài thêm; gộp nhầm làm hỏng kết quả của mọi người dùng.',
   '- Mỗi chuỗi trong đề bài phải có đúng một dòng trả lời.',
+  '- QUAN TRỌNG: TUYỆT ĐỐI KHÔNG suy nghĩ, KHÔNG giải thích, KHÔNG viết lại đề bài. Chỉ trả về duy nhất một đối tượng JSON hợp lệ bắt đầu bằng "{" và kết thúc bằng "}".',
 ].join('\n');
 
 export type MergeQuestion = {

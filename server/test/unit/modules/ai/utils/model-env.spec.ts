@@ -1,6 +1,7 @@
 import {
   fastModelChain,
   modelIdsFrom,
+  setFastPoolResolver,
 } from 'src/modules/ai/utils/model-env.js';
 
 describe('modelIdsFrom', () => {
@@ -61,5 +62,36 @@ describe('fastModelChain', () => {
       'gemini/models/gemini-3.5-flash-lite',
       'unorouter/m1:free',
     ]);
+  });
+
+  it('có bể fast thì lấy chuỗi từ bể thay cho biến môi trường', () => {
+    process.env.AI_FAST_MODEL_ID = 'groq/openai/gpt-oss-120b';
+    process.env.AI_FAST_FALLBACK_IDS = 'unorouter/m1:free';
+    setFastPoolResolver(() => [
+      'groq/qwen/qwen3.8-27b',
+      'gemini/models/gemini-3.5-flash-lite',
+    ]);
+    try {
+      const chain = fastModelChain(100);
+      expect(chain.modelId).toBe('groq/qwen/qwen3.8-27b');
+      expect(chain.fallbackModelIds).toEqual([
+        'groq/qwen/qwen3.8-27b',
+        'gemini/models/gemini-3.5-flash-lite',
+      ]);
+    } finally {
+      setFastPoolResolver(undefined);
+    }
+  });
+
+  it('bể chỉ có một model thì trả undefined để không xoá lưới mặc định', () => {
+    delete process.env.AI_FAST_FALLBACK_IDS;
+    setFastPoolResolver(() => ['groq/qwen/qwen3.8-27b']);
+    try {
+      const chain = fastModelChain(100);
+      expect(chain.modelId).toBe('groq/qwen/qwen3.8-27b');
+      expect(chain.fallbackModelIds).toBeUndefined();
+    } finally {
+      setFastPoolResolver(undefined);
+    }
   });
 });

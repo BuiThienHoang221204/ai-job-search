@@ -12,6 +12,13 @@ function int(name: string, fallback: number): number {
   return value;
 }
 
+function csv(name: string, fallback: string): string[] {
+  return (process.env[name] ?? fallback)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 // eslint-disable-next-line complexity
 const configuration = () => ({
   port: int('PORT', 4_000),
@@ -30,17 +37,27 @@ const configuration = () => ({
 
   ai: {
     provider: process.env.MODEL_PROVIDER ?? 'omniroute',
-    modelId: process.env.MODEL_ID ?? 'kc/openrouter/free',
+    modelId: process.env.MODEL_ID ?? '',
 
     chainBudgetMs: int('AI_CHAIN_BUDGET_MS', 240_000),
 
-    fallbackModelIds: (
-      process.env.MODEL_FALLBACK_IDS ??
-      'auto/fast,auto/best-chat,openrouter/nex-agi/nex-n2.5-pro:free'
-    )
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean),
+    fallbackModelIds: csv('MODEL_FALLBACK_IDS', ''),
+
+    fastModelId: process.env.AI_FAST_MODEL_ID ?? '',
+    fastFallbackModelIds: csv('AI_FAST_FALLBACK_IDS', ''),
+    mainProviders: csv('MAIN_TASK_PROVIDERS', 'opencode,omniroute,openrouter'),
+    fastProviders: csv(
+      'FAST_TASK_PROVIDERS',
+      'groq,gemini,unorouter,omniroute,kilo,openrouter',
+    ),
+
+    healthcheck: {
+      enabled: process.env.AI_HEALTHCHECK_ENABLED !== 'false',
+      schedule: process.env.AI_HEALTHCHECK_SCHEDULE ?? '35 23 * * *',
+      probeTimeoutMs: int('AI_PROBE_TIMEOUT_MS', 6_000),
+      circuitBreakerThreshold: int('AI_CIRCUIT_BREAKER_THRESHOLD', 2),
+      circuitBreakerCooldownMs: int('AI_CIRCUIT_BREAKER_COOLDOWN_MS', 900_000),
+    },
 
     apiKeys: {
       opencode: process.env.AI_API_KEY ?? 'public',

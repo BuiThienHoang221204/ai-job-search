@@ -18,6 +18,11 @@ process.env.DATABASE_URL = testDatabaseUrl();
 // vừa chậm, vừa là cách nhanh nhất để bị chặn IP.
 process.env.SCRAPE_CRON_ENABLED = 'false';
 
+// Kiểm tra model chạy ngay lúc app khởi động: quét `/models` thật của các lõi rồi
+// probe từng model. Không tắt thì mỗi lần dựng app trong e2e là một loạt request
+// mạng thật, và stub `ai` ném lỗi làm mọi model trong bể thành "trượt probe".
+process.env.AI_HEALTHCHECK_ENABLED = 'false';
+
 // Cron nhặt việc rơi cũng phải tắt. Nó chạy 10 phút một lần và sẽ xếp lại việc mà
 // một test khác đang dựng dở, làm số lượt gọi model không còn đoán được - đúng
 // kiểu test chập chờn mà không ai tìm ra nguyên nhân.

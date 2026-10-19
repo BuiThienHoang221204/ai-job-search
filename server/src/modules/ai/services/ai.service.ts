@@ -26,6 +26,7 @@ import { ConcurrencyGate } from '../utils/concurrency-gate';
 import { LanguageModelFactory } from './language-model';
 import { ModelCatalogService } from './model-catalog.service';
 import { ModelChain } from './model-chain';
+import { ModelPoolService } from './model-pool.service';
 import type {
   Ai,
   AiCallContext,
@@ -68,6 +69,7 @@ export class AiService implements Ai {
     catalog: ModelCatalogService,
     prisma: PrismaService,
     config: ConfigService,
+    private readonly pool: ModelPoolService,
   ) {
     this.structuredOutputsDefault =
       config.get<boolean>('ai.structuredOutputs') ?? false;
@@ -77,6 +79,7 @@ export class AiService implements Ai {
       fallbackModelIds: config.get<string[]>('ai.fallbackModelIds') ?? [],
       budgetMs: config.get<number>('ai.chainBudgetMs'),
       logger: this.logger,
+      pool,
     });
     this.callLog = new AiCallLog(prisma, this.logger);
     this.models = new LanguageModelFactory(catalog, this.logger);
@@ -86,9 +89,15 @@ export class AiService implements Ai {
     routeSdkWarnings(this.logger);
   }
 
+  /** Lời gọi không chỉ định model thì đợi lượt kiểm tra model đầu tiên, để bể có model mà chọn. */
+  private async readyFor(modelId: string | undefined): Promise<void> {
+    if (!modelId) await this.pool.waitForModels();
+  }
+
   async generateObject<T>(
     options: GenerateObjectOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
+    await this.readyFor(options.modelId);
     return this.chain.run(
       options.modelId,
       (modelId) => this.withFormatFallback({ ...options, modelId }),
@@ -270,6 +279,7 @@ export class AiService implements Ai {
   async streamObject<T>(
     options: StreamObjectOptions<T>,
   ): Promise<StreamObjectResult<T>> {
+    await this.readyFor(options.modelId);
     return this.chain.run(
       options.modelId,
       (modelId) => this.streamOnce({ ...options, modelId }),
@@ -395,8 +405,9 @@ export class AiService implements Ai {
   async streamText(
     options: StreamTextOptions,
   ): Promise<{ modelId: string; result: StreamTextResult }> {
+    await this.readyFor(options.modelId);
     const { model, id, provider, release, startedAt } = await this.open(
-      options.modelId,
+      options.modelId ?? this.chain.links()[0],
       false,
       false,
       estimateTokens(options.system, JSON.stringify(options.messages)),

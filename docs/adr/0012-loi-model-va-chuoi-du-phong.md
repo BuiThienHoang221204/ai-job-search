@@ -258,3 +258,30 @@ May là **OmniRoute CHUYỂN TIẾP User-Agent của client lên nhà cung cấp
 **Đừng kết luận "gateway trung tính về hạn mức" từ một mẫu.** Đã sai đúng như vậy: thấy cả hai đường cùng trả 200 một lần rồi kết luận chung bể. Thật ra nó tệ hơn hẳn cho tới khi UA được đặt đúng.
 
 Cổng 20128: đường **`/v1/*` không kiểm tra key** ở bản chạy tại chỗ (không header, `Bearer public`, chuỗi bừa — đều 200), trong khi API quản trị `/api/*` thì trả 401. Nghĩa là phần TIÊU hạn mức là phần không có cổng chặn. Lên VPS thì để `expose`, đừng `ports`, nếu không là mở một gateway model công khai cho cả internet.
+
+#### Cập nhật 2026-10-19 — bể model động, probe trước giờ crawl, cầu dao
+
+**Vấn đề đo được:** tên model hardcode trong `.env` sống không quá một tuần (`hy3-free` bị rút → 401, cline cạn credit, `nex-n2.5-pro:free` bị rút). Khi 2–3 mắt xích đầu đã chết, mỗi request chờ timeout từng con mới tới model sống — 45–60 giây — và 29/09 đợt crawl đêm dồn ứ tới mức `opencode-service` treo (`running: 2, queued: 21`). Request sau vẫn đâm vào đúng model request trước vừa hỏng.
+
+**Ba mảnh, mỗi mảnh một việc:**
+
+1. **Cầu dao trong `ModelChain`** (`ModelPoolService` giữ trạng thái). Luật duy nhất: **lỗi nào làm chuỗi đi tiếp mắt xích sau (`skipReason`) thì cộng bộ đếm** — 429, 5xx, model đã rút, từ chối khoá, **timeout**, **sai schema**. Riêng "prompt vượt trần token" không cộng: đó là lỗi của prompt, model khác vẫn nhận. Đủ `AI_CIRCUIT_BREAKER_THRESHOLD` (2) lần liên tiếp thì `links()` bỏ model đó ra trong `AI_CIRCUIT_BREAKER_COOLDOWN_MS` (15 phút), **kể cả khi caller chỉ định nó làm mắt đầu**; cả chuỗi đều đang bị cách ly thì giữ nguyên chuỗi thay vì trả rỗng. Một lần gọi thành công (kể cả probe) đặt lại bộ đếm và mở cầu dao.
+2. **`ModelHealthService`** — lúc boot và theo `AI_HEALTHCHECK_SCHEDULE` (23:35), ở **mọi** tiến trình (api lẫn worker đều cần bể để gọi model). Hỏi `/models` của từng lõi trong `MAIN_TASK_PROVIDERS` / `FAST_TASK_PROVIDERS`, lọc bằng `isProbeCandidate` (một danh sách từ chung: embed/whisper/tts/image/vision/diffusion/guard/beam…, lõi trả phí chỉ lấy bản `free`), lấy tối đa 5 model mới mỗi lõi, rồi probe tuần tự từng model bằng micro-prompt `{ok, echo}` **đi qua `AiService.generateObject`** với `fallbackModelIds: []`. Nhờ vậy probe dùng lại nguyên đường structured→prompt của ADR 0013, đi qua `ConcurrencyGate`, ghi `ai_calls` với `purpose = 'model.probe'`, và lỗi probe tự cộng vào cầu dao. Mỗi lượt khoảng 30–60 lời gọi.
+3. **`rankModels`** (`utils/model-pool.ts`) xếp chuỗi theo bốn khoá: model trượt probe xuống cuối → model ghim trong `.env` trước model quét được → thứ tự lõi → độ trễ probe.
+
+**Không ghim model nào là mặc định.** `MODEL_ID`, `MODEL_FALLBACK_IDS`, `AI_FAST_MODEL_ID`, `AI_FAST_FALLBACK_IDS` mặc định rỗng: nhà cung cấp đổi tên hoặc rút model bất cứ lúc nào, nên tên viết cứng ở `.env` hay ở `configuration.ts` đều là thứ hỏng tiếp theo. Biến vẫn đọc được để ghim tạm (vd. trước buổi demo); model ghim xếp trước model quét được nhưng vẫn qua probe và cầu dao.
+
+**Rủi ro đã chấp nhận:** probe `{ok, echo}` chỉ chứng minh model trả được JSON ngắn, không chứng minh chất lượng. Không ghim thì model đứng đầu bể main là model nhanh nhất qua probe — có thể là model nhỏ — và nó chạy cả `match.evaluate`. Model kiểu `beam-free` (suy luận lan man rồi hết token) vẫn qua probe; nó chỉ bị cách ly sau 2 lần sai schema khi chạy thật.
+
+**Lúc vừa boot bể còn trống:** `AiService` cho lời gọi không chỉ định model đợi lượt kiểm tra đầu tiên (`ModelPoolService.waitForModels`); probe luôn chỉ định model nên không tự chờ chính nó. Kiểm tra bị tắt hoặc không model nào qua thì `ModelCatalogService.resolve()` ném `ModelUnavailableError` "Bể model đang trống" thay vì đoán một model.
+
+`AI_FAST_FALLBACK_IDS` giờ là model ghim của bể fast như `MODEL_FALLBACK_IDS` với bể main, không còn thay hẳn. Bể fast luôn có (từ `FAST_TASK_PROVIDERS`); bể mới có một model thì `fastModelChain` trả `fallbackModelIds: undefined` để `??` của `ModelChain` giữ lưới chung. `fastModelChain` đọc bể qua `setFastPoolResolver` mà `ModelPoolService` đăng ký lúc khởi động, nên 7 điểm gọi AI_FAST_* không phải tiêm thêm service.
+
+Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/health-check` (chạy nền, trả trạng thái ngay — proxy Next.js cắt request sau 30 giây).
+
+**Giới hạn đã chấp nhận:**
+
+- Trạng thái cầu dao và kết quả probe **nằm trong RAM của từng tiến trình**, mất khi restart. Tách `APP_ROLE=api`/`worker` thì mỗi tiến trình tự probe và giữ bể riêng (tốn gấp đôi lượt probe), còn route admin chỉ thấy bể của tiến trình api. Chạy một tiến trình `all` như hiện nay thì không vướng.
+- Lịch 23:35 chỉ đúng "trước giờ crawl" khi `SCRAPE_CRON_SCHEDULE` sau đó; mặc định của `SCRAPE_CRON_SCHEDULE` trong code là `0 23 * * *`.
+- Mỗi lần boot tốn một lượt probe ở mỗi tiến trình. Đặt `AI_HEALTHCHECK_ENABLED=false` thì phải ghim `MODEL_ID`, nếu không mọi lời gọi AI báo bể trống. e2e tắt sẵn trong `test/support/e2e-env.ts` (e2e thay `AiService` bằng bản giả nên không cần bể).
+- `interview.open`/`interview.turn` đi `streamText`: lấy model đầu bể fast qua `fastModelChain`, nhưng vẫn không có chuỗi dự phòng và lỗi của nó không cộng vào cầu dao.

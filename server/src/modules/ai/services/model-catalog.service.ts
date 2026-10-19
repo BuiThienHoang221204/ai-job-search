@@ -169,11 +169,13 @@ export class ModelCatalogService {
 
   /** KHÔNG bao giờ tự thay model khác khi không tìm thấy: gõ sai `.env` không được thành hoá đơn. */
   async resolve(ref?: string): Promise<ResolvedModel> {
-    const target = parseModelRef(
-      ref ?? this.defaultModelId,
-      providerIds(),
-      this.defaultProviderId,
-    );
+    const raw = ref ?? this.defaultModelId;
+    if (!raw) {
+      throw new ModelUnavailableError(
+        'Bể model đang trống: chưa lượt kiểm tra nào tìm được model khoẻ. Bấm "Kiểm tra ngay" ở trang Sức khoẻ AI.',
+      );
+    }
+    const target = parseModelRef(raw, providerIds(), this.defaultProviderId);
     const descriptor = findProvider(target.providerId);
     if (!descriptor) {
       throw new ModelUnavailableError(
@@ -234,5 +236,34 @@ export class ModelCatalogService {
         `Lõi ${descriptor.label} khai model "${modelId}" không hỗ trợ structured output.`,
       );
     }
+  }
+
+  /** Danh sách model của một lõi dạng `lõi/model`; lõi lạ, thiếu key hoặc gọi lỗi thì trả `[]`. */
+  async discoverModelsFor(providerId: string): Promise<string[]> {
+    const descriptor = findProvider(providerId);
+    if (!descriptor) return [];
+
+    let apiKey = '';
+    try {
+      apiKey = this.apiKeyFor(descriptor);
+    } catch {
+      return [];
+    }
+
+    const headers = this.headersFor(descriptor);
+    let catalogProvider: CatalogProvider | undefined;
+    try {
+      catalogProvider = await this.catalogFor(descriptor, apiKey, headers);
+    } catch (error) {
+      this.logger.debug(
+        `Không thể tự động lấy danh sách model cho lõi ${descriptor.label}: ${messageOf(
+          error,
+        )}`,
+      );
+      return [];
+    }
+
+    const models = Object.keys(catalogProvider.models ?? {});
+    return models.map((id) => `${providerId}/${id}`);
   }
 }

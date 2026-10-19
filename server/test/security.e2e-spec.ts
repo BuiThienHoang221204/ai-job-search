@@ -54,6 +54,14 @@ describe('Phân quyền và cách ly dữ liệu', () => {
     test('/api/admin/ai-health trả 401', async () => {
       await get('/api/admin/ai-health').expect(401);
     });
+
+    test.each([
+      ['GET', '/api/admin/ai/models/health'],
+      ['POST', '/api/admin/ai/models/health-check'],
+    ])('%s %s trả 401 khi chưa đăng nhập', async (method, path) => {
+      const call = method === 'GET' ? get(path) : post(path);
+      await call.expect(401);
+    });
   });
 
   describe('đăng nhập nhưng không phải ADMIN', () => {
@@ -77,6 +85,15 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       const user = await harness.signUp();
       await get('/api/admin/ai-health', user).expect(403);
     });
+
+    test.each([
+      ['GET', '/api/admin/ai/models/health'],
+      ['POST', '/api/admin/ai/models/health-check'],
+    ])('%s %s trả 403', async (method, path) => {
+      const user = await harness.signUp();
+      const call = method === 'GET' ? get(path, user) : post(path, user);
+      await call.expect(403);
+    });
   });
 
   describe('ADMIN', () => {
@@ -92,6 +109,18 @@ describe('Phân quyền và cách ly dữ liệu', () => {
       await harness.promoteToAdmin(admin.id);
 
       await get('/api/queue/stats', admin).expect(200);
+    });
+
+    test('đọc được /api/admin/ai/models/health', async () => {
+      const admin = await harness.signUp();
+      await harness.promoteToAdmin(admin.id);
+
+      const response = await get('/api/admin/ai/models/health', admin).expect(
+        200,
+      );
+      expect(response.body).toHaveProperty('mainPool');
+      expect(response.body).toHaveProperty('fastPool');
+      expect(response.body).toHaveProperty('models');
     });
 
     /// Vai trò được đọc tươi từ DB mỗi request, không lấy từ claim trong token.

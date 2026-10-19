@@ -8,7 +8,9 @@ import type { ModelMessage } from 'ai';
 import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { messageOf } from '@/common/error-message';
+import { estimateTokens } from '@/common/ai/token-estimate';
 import { AiService } from '@/modules/ai/services/ai.service';
+import { fastModelChain } from '@/modules/ai/utils/model-env';
 import { MockInterviewService } from './mock-interview.service';
 import {
   countForeign,
@@ -63,10 +65,12 @@ export class InterviewTurnService {
     const startedAt = Date.now();
     let textStream: AsyncIterable<string>;
     try {
+      const prompt = openingPrompt(dossier, question);
       const { result } = await this.ai.streamText({
         system: INTERVIEW_TURN_SYSTEM,
-        messages: [{ role: 'user', content: openingPrompt(dossier, question) }],
-        modelId: process.env.AI_FAST_MODEL_ID || undefined,
+        messages: [{ role: 'user', content: prompt }],
+        modelId: fastModelChain(estimateTokens(INTERVIEW_TURN_SYSTEM, prompt))
+          .modelId,
         context: { purpose: 'interview.open', userId },
       });
       textStream = result.textStream;
@@ -187,7 +191,9 @@ export class InterviewTurnService {
       const { result } = await this.ai.streamText({
         system: INTERVIEW_TURN_SYSTEM,
         messages,
-        modelId: process.env.AI_FAST_MODEL_ID || undefined,
+        modelId: fastModelChain(
+          estimateTokens(INTERVIEW_TURN_SYSTEM, JSON.stringify(messages)),
+        ).modelId,
         context: { purpose: 'interview.turn', userId },
       });
 

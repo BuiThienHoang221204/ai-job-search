@@ -64,6 +64,7 @@ import { z } from 'zod';
 import { AiService } from 'src/modules/ai/services/ai.service.js';
 import { ModelUnavailableError } from 'src/common/ai/failure-kind.js';
 import type { ModelCatalogService } from 'src/modules/ai/services/model-catalog.service.js';
+import type { ModelPoolService } from 'src/modules/ai/services/model-pool.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import { Logger } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
@@ -200,7 +201,15 @@ function build(options?: {
     },
   } as unknown as ConfigService;
 
-  return { service: new AiService(catalog, prisma, config), recorded };
+  const pool = {
+    mainChain: () => [],
+    waitForModels: () => Promise.resolve(),
+    isCoolingDown: () => false,
+    recordSuccess: () => undefined,
+    recordFailure: () => undefined,
+  } as unknown as ModelPoolService;
+
+  return { service: new AiService(catalog, prisma, config, pool), recorded };
 }
 
 /// Tham số `generateObject` của lần gọi thứ n.
