@@ -54,6 +54,7 @@ export type CatalogModel = {
   id: string;
   name: string;
   provider?: { npm?: string; api?: string };
+  structured_output?: boolean;
 };
 
 export type CatalogProvider = {

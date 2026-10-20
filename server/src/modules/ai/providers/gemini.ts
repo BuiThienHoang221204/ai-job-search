@@ -40,5 +40,7 @@ export const gemini: ProviderDescriptor = {
   label: 'Gemini API',
   apiKeyEnv: 'GOOGLE_GEMINI_API_KEY',
   baseURLEnv: 'GOOGLE_GEMINI_BASE_URL',
+  catalogId: 'google',
+  catalogModelId: (id) => id.replace(/^models\//, ''),
   rateLimitFor: (modelId) => LIMITS.get(modelId),
 };

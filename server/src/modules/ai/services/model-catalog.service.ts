@@ -266,7 +266,27 @@ export class ModelCatalogService {
       return [];
     }
 
-    const models = Object.keys(catalogProvider.models ?? {});
+    const models = await this.declaringStructuredOutput(
+      descriptor,
+      Object.keys(catalogProvider.models ?? {}),
+    );
     return models.map((id) => `${providerId}/${id}`);
+  }
+
+  private async declaringStructuredOutput(
+    descriptor: ProviderDescriptor,
+    ids: string[],
+  ): Promise<string[]> {
+    let entries: CatalogProvider['models'];
+    try {
+      const catalog = await this.loadCatalog();
+      entries = catalog[descriptor.catalogId ?? descriptor.id]?.models ?? {};
+    } catch {
+      return ids;
+    }
+    return ids.filter((id) => {
+      const entry = entries[descriptor.catalogModelId?.(id) ?? id];
+      return !entry || entry.structured_output === true;
+    });
   }
 }

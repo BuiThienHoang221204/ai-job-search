@@ -276,3 +276,33 @@ Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/healt
 - Lịch 23:35 chỉ đúng "trước giờ crawl" khi `SCRAPE_CRON_SCHEDULE` sau đó; mặc định của `SCRAPE_CRON_SCHEDULE` trong code là `0 23 * * *`.
 - Mỗi lần boot tốn một lượt probe ở mỗi tiến trình. Đặt `AI_HEALTHCHECK_ENABLED=false` thì phải ghim `MODEL_ID`, nếu không mọi lời gọi AI báo bể trống. e2e tắt sẵn trong `test/support/e2e-env.ts` (e2e thay `AiService` bằng bản giả nên không cần bể).
 - `interview.open`/`interview.turn` đi `streamText`: lấy model đầu bể fast qua `fastModelChain`, nhưng vẫn không có chuỗi dự phòng và lỗi của nó không cộng vào cầu dao.
+
+#### Cập nhật 2026-10-20 — lọc model OmniRoute theo mẫu, loại bỏ `auto/*` và router alias, opencode-direct
+
+**1. Bẫy timeout họ `omniroute/auto/*` khi probe:**
+- Khi chạy probe tự động lúc khởi động và định kỳ (`AI_PROBE_TIMEOUT_MS = 6000`), cả 5 combo `auto/*` của OmniRoute (`auto/fast`, `auto/best-chat`, `auto/cheap`, `auto/smart`, `auto/coding:free`) đều hết giờ (đo thực tế chúng mất từ 35s đến 84s hoặc treo luôn). Hậu quả: mọi lượt probe đều ghi nhận chúng trượt probe, kéo dài thời gian kiểm tra của hệ thống một cách vô ích.
+- `isProbeCandidate` (`utils/model-pool.ts`) nay **chặn toàn bộ họ `auto/*`** (`omniroute/auto/` và `auto/`).
+- `MODEL_FALLBACK_IDS` trong `.env.example` chuyển sang model thực tế ổn định, độ trễ thấp (< 2,5s): `omniroute/ddgw/mistral-small-2603,omniroute/ddgw/gpt-5.4-mini`.
+
+**2. Lọc kênh hỏng của OmniRoute bằng bộ lọc mẫu (`filterModel`):**
+- Gateway OmniRoute khai >660 model, nhưng phần lớn đi vào các kênh không dùng được trên máy chủ phát triển:
+  - `oc/`: đòi header session giả lập của OpenCode cũ.
+  - `dva/`: lỗi sandbox bridge Devin (`DEVIN_AGENTIC_HOME must be an absolute path inside the bridge sandbox`).
+  - `aug/`: đòi CLI `auggie` cài ngoài.
+  - `zc/`: `spawn ENOENT`.
+  - `cxa/`: Codex app-server transport chưa cấu hình.
+  - `tllm/`: 403 bị Vercel chặn IP máy chủ.
+  - `cl/`, `cline/`: cạn credit kết nối (`All 1 connection(s) credits exhausted`).
+  - `claude-haiku`: 401/402 đòi token Anthropic.
+- Thay vì ghim cứng danh sách model, `providers/omniroute.ts` áp dụng hàm `filterModel`:
+  - Loại bỏ các tiền tố hỏng trên và `claude-haiku`.
+  - Chỉ giữ lại các model thuộc họ `ddgw/*` (DuckDuckGo Web: miễn phí 100%, phản hồi < 2,5s, probe đạt 100%), `cfp/*`, hoặc bất kỳ model tương lai nào có chữ `free` trong tên.
+- Mọi lõi giữ nguyên hạn mức quét đồng đều **5 model** (`DISCOVER_PER_PROVIDER = 5`), không tạo ngoại lệ riêng cho bất kỳ provider nào.
+
+**3. Bẫy router alias (`…/openrouter/free`, `…/openrouter/auto`) trên tác vụ sinh văn bản dài:**
+- Đo thực tế trên luồng sinh CV (tác vụ dài ~3.400 token): model `omniroute/kc/openrouter/free` treo 130 giây rồi trả về `responseText: "User Safety: safe"` (`SCHEMA` failure do không ra JSON). Luồng người dùng treo gần 3 phút trước khi chuỗi chuyển sang fallback model (`openrouter/dots-studio/dots-3-note-preview:free`, hoàn thành sau 48s).
+- Nguyên nhân: Các router alias (`openrouter/free`, `openrouter/auto`, `…/openrouter/free`) định tuyến ngẫu nhiên tới các model backend không xác định; chúng có thể vượt qua micro-prompt `{ok, echo}` của probe (vốn chỉ vài token), nhưng lập tức sập hoặc vi phạm schema khi gặp prompt dài.
+- Do đó, `isProbeCandidate` **loại bỏ các router alias** có đuôi `openrouter/free` và `openrouter/auto`.
+
+**4. Bổ sung lõi `opencode-direct`:**
+- Thêm `providers/opencode-direct.ts` gọi trực tiếp OpenCode Zen API kèm giả lập vân tay CLI v2 (`x-opencode-client`, `x-opencode-project`, `x-opencode-session`), không cần qua container `opencode-service`. Khai báo `catalogId: 'opencode'` để liên kết và lọc theo catalog `models.opencode.ai`.

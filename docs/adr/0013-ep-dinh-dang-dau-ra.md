@@ -65,3 +65,16 @@ Nên `bench-models.mjs` kiểm thêm hai thứ schema không bắt được: **c
 **Bẫy đo lường đã sập một lần, đừng sập lại:** `hy3-free` và `nemotron` là model **reasoning** — chúng tiêu 700–2300 token vào `reasoning_content` TRƯỚC khi sinh `content`. Thử với `max_tokens: 8` thì `content` ra rỗng và trông y như model không làm được việc; tôi đã kết luận sai đúng như vậy. `AiService` cố ý KHÔNG đặt `maxOutputTokens`.
 
 **Chuỗi dự phòng KHÔNG cứu được tier free cho app này.** Đã chạy thật: chuỗi đổi model đúng cơ chế (deepseek → mimo → nemotron, ghi log và ghi `ai_calls` từng lượt), nhưng nemotron hết giờ trên cả `upskill.report` (240s) lẫn `match.evaluate` (90s) vì prompt thật mang theo cả khung đánh giá từ file skill. Chuỗi vẫn đáng giữ — nó đúng, rẻ, và sẽ có tác dụng khi một model nhanh còn hạn mức — nhưng **nó không thay thế được hạn mức**.
+
+#### Cập nhật 2026-10-20 — lọc model quét mới theo `structured_output` của catalog
+
+**Vấn đề đo được:** Catalog `models.opencode.ai/api.json` có trường boolean `structured_output`. Trong 7 ngày đo đạc tới 2026-10-20, các model không khai `structured_output: true` (hoặc khai `false`) — điển hình như `mimo-v2.6-flash-free`, `nemotron-3.5-super-vl-free`, `nemotron-3-ultra-free` — là nhóm chiếm tỷ lệ lỗi `SCHEMA` và `TIMEOUT` cao nhất khi chạy tác vụ có cấu trúc của app.
+
+**Giải pháp lọc ở khâu quét model (`ModelCatalogService.declaringStructuredOutput`):**
+1. Khi `ModelCatalogService` quét model động (`discoverModelsFor`), nó đối chiếu danh sách id với catalog `models.opencode.ai`.
+2. Model nào có mặt trong catalog nhưng không khai `structured_output: true` sẽ bị loại ngay từ khâu quét, không đưa vào danh sách ứng viên probe.
+3. Nếu lõi hoặc model không có trong catalog (như `omniroute`, hoặc model mới chưa kịp lên catalog), hoặc khi việc tải catalog thất bại, hệ thống giữ nguyên danh sách (không loại bừa).
+4. Các lõi có định danh hoặc id model khác với catalog khai báo `catalogId` và `catalogModelId` trong descriptor:
+   - `gemini`: khai `catalogId: 'google'` và `catalogModelId: (id) => id.replace(/^models\//, '')`.
+   - `opencode-direct`: khai `catalogId: 'opencode'`.
+5. Model được ghim trực tiếp trong biến môi trường (`MODEL_ID`, `MODEL_FALLBACK_IDS`...) không bị bộ lọc này chặn — người dùng ghim model nào thì hệ thống tôn trọng model đó.

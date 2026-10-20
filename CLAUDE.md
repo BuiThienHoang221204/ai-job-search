@@ -38,7 +38,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 
 ## Ràng buộc cứng — đừng "sửa" chúng
 
-- **Node >= 22.12.** `ai` và `@ai-sdk/openai-compatible` là ESM thuần không có bản CommonJS, còn `nest build` xuất CommonJS; chạy được là nhờ Node cho phép `require()` một module ESM. Gặp lỗi ESM thì **đừng** hạ cấp package hay đổi `module` trong tsconfig chính.
+- **Node >= 24.9 (khuyến nghị v24.22.0 LTS; tối thiểu runtime >= 22.12).** `ai` và `@ai-sdk/openai-compatible` là ESM thuần không có bản CommonJS, còn `nest build` xuất CommonJS; chạy được là nhờ Node cho phép `require()` một module ESM. Bộ test đơn vị chạy Jest 30 với `--experimental-vm-modules` đòi hỏi Node >= 24.9 cho các API VM module đồng bộ (`SourceTextModule.prototype.hasAsyncGraph`). Gặp lỗi ESM thì **đừng** hạ cấp package hay đổi `module` trong tsconfig chính.
 - **e2e chạy qua `node test/run-e2e.mjs`**, không phải `jest --config` trực tiếp: nó cần cờ Node `--experimental-vm-modules` vì Prisma 7 nạp WASM query compiler bằng `import()` động. `test/tsconfig.e2e.json` dùng `module: node16` để `import()` không bị hạ cấp thành `require()`.
 - **Thứ tự tắt: hàng đợi dừng ở `beforeApplicationShutdown`, Prisma ngắt ở `onApplicationShutdown`.** Nest gọi `onModuleDestroy` TRƯỚC khi đóng HTTP và trước mọi hook tắt khác; ngắt database ở đó thì request và job đang chạy mất kết nối giữa chừng rồi nằm `RUNNING`.
 - **Test nằm ở `test/unit/**` phản chiếu cây `src/**`**, không đặt cạnh source. e2e là `test/*.e2e-spec.ts`. Trong test dùng alias `src/...` thay cho đường dẫn tương đối.

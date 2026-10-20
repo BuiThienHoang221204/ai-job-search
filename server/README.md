@@ -726,7 +726,7 @@ CI duyệt qua mọi thư mục CLI thay vì liệt kê từng cái, nên portal
 
 ## Nhiều lõi model (SEAM: `modules/ai/providers/`)
 
-Một "lõi" là một gateway phục vụ model. Hiện có ba: `opencode`, `openrouter` và `kilo`, mỗi cái **một file** trong `src/modules/ai/providers/`.
+Một "lõi" là một gateway phục vụ model: `opencode`, `opencode-direct`, `openrouter`, `omniroute`, `kilo`, `groq`, `unorouter`, `gemini`, mỗi cái **một file** trong `src/modules/ai/providers/`.
 
 **Thêm lõi mới = thêm một file rồi thêm một dòng trong `providers/index.ts`.** Không có class nào phải viết, không đăng ký gì với Nest. Lý do cố ý là dữ liệu chứ không phải class: trong 185 provider của catalog, **146 cái dùng chung đúng một adapter** (`@ai-sdk/openai-compatible`), nên giữa chúng chỉ khác nhau baseURL, tên biến chứa key, và cách biết một model làm được gì.
 

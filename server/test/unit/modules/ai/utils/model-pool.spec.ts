@@ -25,6 +25,20 @@ describe('isProbeCandidate', () => {
     expect(isProbeCandidate('openrouter/qwen/qwen3-coder')).toBe(false);
     expect(isProbeCandidate('openrouter/qwen/qwen3-coder:free')).toBe(true);
   });
+
+  test('bỏ model ảo auto/* của omniroute', () => {
+    expect(isProbeCandidate('omniroute/auto/fast')).toBe(false);
+    expect(isProbeCandidate('omniroute/auto/best-chat')).toBe(false);
+    expect(isProbeCandidate('auto/coding:free')).toBe(false);
+    expect(isProbeCandidate('omniroute/ddgw/mistral-small-2603')).toBe(true);
+  });
+
+  test('bỏ bộ định tuyến tự chọn model hộ: mỗi lượt một model khác nên điểm probe vô nghĩa', () => {
+    expect(isProbeCandidate('openrouter/openrouter/free')).toBe(false);
+    expect(isProbeCandidate('omniroute/kc/openrouter/free')).toBe(false);
+    expect(isProbeCandidate('kilo/openrouter/auto')).toBe(false);
+    expect(isProbeCandidate('openrouter/qwen/qwen3-coder:free')).toBe(true);
+  });
 });
 
 describe('rankModels', () => {

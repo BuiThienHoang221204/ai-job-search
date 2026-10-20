@@ -601,7 +601,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AI-24 | *(2026-10-19, chưa commit)* Không ghim model nào mặc định: `MODEL_ID`, `MODEL_FALLBACK_IDS`, `AI_FAST_MODEL_ID`, `AI_FAST_FALLBACK_IDS` mặc định rỗng; model ghim xếp trước model quét được nhưng vẫn qua probe và cầu dao | SV | ✅ |
 | BR-AI-25 | *(2026-10-19, chưa commit)* Bể rỗng và không chỉ định model → lỗi "Bể model đang trống…" thay vì đoán model | SV | ✅ |
 | BR-AI-26 | *(2026-10-19, chưa commit)* Lời gọi không chỉ định model đợi lượt kiểm tra model đầu tiên sau khi khởi động | SV | ✅ |
-| BR-AI-27 | *(2026-10-19, chưa commit)* Quét tối đa 5 model mới mỗi lõi; bỏ model không phải chat; lõi trả phí (openrouter, unorouter, kilo) chỉ lấy model có chữ `free` | SV | ✅ |
+| BR-AI-27 | *(2026-10-19, chưa commit)* Quét tối đa 5 model mới mỗi lõi (đồng đều mọi lõi); bỏ model không phải chat; bỏ họ `auto/*` và router alias (`…/openrouter/free`, `…/openrouter/auto`); lõi trả phí (openrouter, unorouter, kilo) chỉ lấy model có chữ `free`; omniroute lọc theo `filterModel` *(2026-10-20)* | SV | ✅ |
 | BR-AI-28 | *(2026-10-19, chưa commit)* Probe: một lượt `generateObject` `{ok, echo}` không dự phòng, không thử lại, timeout 6 s; khoẻ khi `ok=true` và `echo=123`; probe tuần tự | SV | ✅ |
 | BR-AI-29 | *(2026-10-19, chưa commit)* Xếp hạng bể: trượt probe xuống cuối → ghim trước quét → thứ tự lõi trong `*_TASK_PROVIDERS` → độ trễ probe tăng dần | SV | ✅ |
 | BR-AI-30 | *(2026-10-19, chưa commit)* Cầu dao: lỗi thuộc `skipReason` (trừ prompt quá lớn) cộng bộ đếm; đủ 2 lần liên tiếp thì cách ly 15 phút, kể cả khi caller chỉ định model đó; cả chuỗi cách ly thì giữ nguyên chuỗi; thành công (kể cả probe) mở lại | SV | ✅ |
@@ -614,6 +614,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AI-37 | Schema output của model CẮT chứ không từ chối: chuỗi trim + cắt độ dài, mảng bỏ rỗng + cắt số lượng, enum lạ → giá trị dự phòng, số nguyên kẹp trong khoảng, số năm ngoài khoảng → null; chỉ `requiredCappedText*` từ chối chuỗi rỗng | SV (zod) | ✅ |
 | BR-AI-38 | Sửa thân request theo lõi: omniroute thêm `stream:false` nếu thiếu; groq bỏ `response_format: json_object`; omniroute gửi header tắt nén/tắt bộ nhớ | SV | ✅ |
 | BR-AI-39 | Cảnh báo SDK về `responseFormat` (đã xử lý chủ ý) bị lọc khỏi log; cảnh báo khác ghi `warn` | SV | ✅ |
+| BR-AI-40 | Quét model mới của **mọi lõi** chỉ nhận model mà catalog `models.opencode.ai` khai `structured_output: true`; model hoặc lõi catalog không biết thì giữ (`omniroute`, `opencode-direct`), model ghim trong `.env` không bị lọc. Lõi mang tên khác trong catalog khai `catalogId`/`catalogModelId` (`gemini` → `google`, bỏ tiền tố `models/`). Đo 7 ngày tới 2026-10-20: model không khai — `mimo-v2.6-flash-free`, `nemotron-3.5-super-vl-free`, `nemotron-3-ultra-free` — là nhóm hỏng SCHEMA/TIMEOUT nhiều nhất *(2026-10-20)* | SV | ✅ |
 
 ### Platform Operations — Vận hành nền tảng (hàng đợi, nhặt việc rơi, sức khoẻ, sandbox, lưu trữ, xử lý lỗi) — [modules/platform-operations.md](./modules/platform-operations.md#7-business-rules)
 

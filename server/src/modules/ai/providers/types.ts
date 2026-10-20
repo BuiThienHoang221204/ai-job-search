@@ -17,6 +17,8 @@ export type ProviderDescriptor = {
   dropJsonMode?: boolean;
   declaresStructuredOutput?: (entry: Record<string, unknown>) => boolean;
   knownNoStructuredOutput?: readonly string[];
+  catalogId?: string;
+  catalogModelId?: (id: string) => string;
   streamsJson?: readonly string[] | 'all';
   rateLimitFor?: (modelId: string) => readonly RateLimitSpec[] | undefined;
   filterModel?: (id: string) => boolean;

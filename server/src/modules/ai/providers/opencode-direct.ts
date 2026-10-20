@@ -104,6 +104,7 @@ function transformBody(bodyText: string): {
 export const opencodeDirect: ProviderDescriptor = {
   id: 'opencode-direct',
   label: 'OpenCode Direct',
+  catalogId: 'opencode',
   apiKeyEnv: 'OPENCODE_DIRECT_API_KEY',
   baseURLEnv: 'OPENCODE_DIRECT_BASE_URL',
   honorsResponseFormat: false,
