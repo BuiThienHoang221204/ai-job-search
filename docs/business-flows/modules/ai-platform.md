@@ -98,7 +98,7 @@
 
 **Alternative Flow:** không phát được mảnh nào (`NoObjectGeneratedError`): lõi hai chế độ → thử lại một lần ở chế độ kia; lõi một chế độ → rơi về đường không-stream.
 
-**Failure Flow:** hỏng **sau** mảnh đầu → hỏng hẳn (không đổi model); `object` reject cho caller. Lỗi trước mảnh đầu → đi theo `skipReason` của `ModelChain`.
+**Failure Flow:** hỏng **sau** mảnh đầu → hỏng hẳn (không đổi model); `object` reject cho caller. Lỗi trước mảnh đầu → đi theo `skipReason` của `ModelChain`. Provider từ chối ngay khi mở stream (429 sau hết lượt thử lại) thì SDK chỉ báo qua `onError`, `result.object` không bao giờ xong; `beginStream` ghép `onError` vào `object` nên lượt đó vẫn nhả cổng, ghi `ai_calls` và chuyển mắt xích *(2026-10-20)*.
 
 **Postconditions:** như Luồng A.
 
@@ -584,7 +584,7 @@ Không có thông báo tới người dùng. Kênh duy nhất là log ứng dụ
 - Bằng chứng: [.env.example:226](../../../server/.env.example#L226), [.env.example:209](../../../server/.env.example#L209), [company-brief.prompt.ts:66](../../../server/src/modules/companies/utils/company-brief.prompt.ts#L66).
 - Đề xuất: cập nhật chú thích.
 
-> Chưa kiểm chứng (không đưa vào rủi ro): `streamText`/`streamObject` nhả cổng song song trong `onFinish`/`onError`; chưa đọc mã SDK `ai@7.0.58` để chắc rằng một lượt bị huỷ (abort) luôn gọi một trong hai callback. Nếu không, lõi `opencode` có thể rò chỗ trong `ConcurrencyGate` ([ai.service.ts:427](../../../server/src/modules/ai/services/ai.service.ts#L427)).
+> ✅ **Đã sửa 2026-10-20** — đã đọc mã SDK `ai@7.0.58`: lỗi khi mở stream đi ra dạng chunk `error` → `onError`, KHÔNG gọi `onFinish` và KHÔNG kết thúc `result.object`. `streamObject` trước đó không khai `onError` nên treo vĩnh viễn và rò một chỗ trong `ConcurrencyGate` (gặp thật: `upskill.gaps` nằm `RUNNING` sau khi OpenRouter trả 429, 2026-10-19). Nay `beginStream` khai `onError` như `streamText` ([ai.service.ts:355](../../../server/src/modules/ai/services/ai.service.ts#L355)).
 
 ## 18. Source References
 

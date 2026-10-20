@@ -347,12 +347,29 @@ export class AiService implements Ai {
       estimateTokens(options.system, options.prompt),
     );
 
+    let failStream: (error: unknown) => void = () => undefined;
+    const streamFailed = new Promise<never>((_, reject) => {
+      failStream = reject;
+    });
+
     const result = streamObject({
       model,
       schema: options.schema,
       system: this.systemFor(options, structuredOutputs),
       prompt: options.prompt,
       abortSignal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      onError: ({ error }) => {
+        release();
+        void this.callLog.record({
+          context: options.context,
+          provider,
+          modelId: id,
+          ok: false,
+          durationMs: Date.now() - startedAt,
+          ...failureFields(error, []),
+        });
+        failStream(error);
+      },
       onFinish: ({ usage, error }) => {
         release();
         const empty = NoObjectGeneratedError.isInstance(error)
@@ -379,7 +396,7 @@ export class AiService implements Ai {
       },
     });
 
-    const object = result.object;
+    const object = Promise.race([result.object, streamFailed]);
     void object.catch(() => undefined);
 
     const partials = result.partialObjectStream[Symbol.asyncIterator]();

@@ -31,6 +31,7 @@ const generateObjectMock = jest.fn<Promise<unknown>, [GenerateObjectArgs]>();
 type StreamObjectArgs = {
   model: { id: string };
   system: string;
+  onError: (event: { error: unknown }) => void;
 };
 
 type FakeStream = {
@@ -710,6 +711,24 @@ describe('AiService.streamObject - chuỗi dự phòng', () => {
 
     expect(stream.modelId).toBe('b-free');
     await expect(stream.object).resolves.toEqual({ diem: 8 });
+  });
+
+  test('provider từ chối ngay từ đầu thì vẫn đổi model, dù SDK để `object` treo mãi', async () => {
+    // SDK thật (ai@7) chỉ báo lỗi qua onError, `object` không bao giờ xong - đã treo upskill.gaps 2026-10-19.
+    streamObjectMock
+      .mockImplementationOnce((args) => {
+        args.onError({ error: rateLimit('a-free') });
+        return fakeStream([], new Promise(() => undefined));
+      })
+      .mockReturnValueOnce(
+        fakeStream([{ diem: 7 }], Promise.resolve({ diem: 7 })),
+      );
+
+    const { service } = build({ fallbackModelIds: ['b-free'] });
+    const stream = await service.streamObject(call('a-free'));
+
+    expect(stream.modelId).toBe('b-free');
+    await expect(stream.object).resolves.toEqual({ diem: 7 });
   });
 
   test('lỗi schema thì ĐỔI MODEL dự phòng (chốt 2026-10-05)', async () => {
