@@ -16,8 +16,6 @@ import { ModelPoolService, type ModelPoolStatus } from './model-pool.service';
 
 const JOB_NAME = 'ai.healthcheck';
 
-const DISCOVER_PER_PROVIDER = 5;
-
 const ProbeSchema = z.object({ ok: z.boolean(), echo: z.number() });
 
 export type ModelHealthStatus = ModelPoolStatus & {
@@ -125,7 +123,7 @@ export class ModelHealthService
       const fresh = refs.filter(
         (ref) => isProbeCandidate(ref) && !seeds.includes(ref),
       );
-      found.push(...fresh.slice(0, DISCOVER_PER_PROVIDER));
+      found.push(...fresh);
     }
     return found;
   }

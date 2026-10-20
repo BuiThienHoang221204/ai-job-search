@@ -103,9 +103,6 @@ export class ModelCatalogService {
 
     const models: CatalogProvider['models'] = {};
     for (const [id, entry] of live) {
-      if (descriptor.filterModel && !descriptor.filterModel(id)) {
-        continue;
-      }
       models[id] = {
         id,
         name: typeof entry.name === 'string' ? entry.name : id,
@@ -266,9 +263,14 @@ export class ModelCatalogService {
       return [];
     }
 
+    const rawIds = Object.keys(catalogProvider.models ?? {});
+    const candidateIds = descriptor.filterModel
+      ? rawIds.filter((id) => descriptor.filterModel!(id))
+      : rawIds;
+
     const models = await this.declaringStructuredOutput(
       descriptor,
-      Object.keys(catalogProvider.models ?? {}),
+      candidateIds,
     );
     return models.map((id) => `${providerId}/${id}`);
   }

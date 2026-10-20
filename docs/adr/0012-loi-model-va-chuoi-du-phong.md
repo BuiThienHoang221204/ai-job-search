@@ -294,10 +294,16 @@ Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/healt
   - `tllm/`: 403 bị Vercel chặn IP máy chủ.
   - `cl/`, `cline/`: cạn credit kết nối (`All 1 connection(s) credits exhausted`).
   - `claude-haiku`: 401/402 đòi token Anthropic.
-- Thay vì ghim cứng danh sách model, `providers/omniroute.ts` áp dụng hàm `filterModel`:
-  - Loại bỏ các tiền tố hỏng trên và `claude-haiku`.
-  - Chỉ giữ lại các model thuộc họ `ddgw/*` (DuckDuckGo Web: miễn phí 100%, phản hồi < 2,5s, probe đạt 100%), `cfp/*`, hoặc bất kỳ model tương lai nào có chữ `free` trong tên.
-- Mọi lõi giữ nguyên hạn mức quét đồng đều **5 model** (`DISCOVER_PER_PROVIDER = 5`), không tạo ngoại lệ riêng cho bất kỳ provider nào.
+- Thay vì ghim cứng danh sách model, `providers/omniroute.ts` áp dụng hàm `filterModel` khi quét:
+  - Loại bỏ các tiền tố hỏng trên (`auto/`, `oc/`, `dva/`, `aug/`, `zc/`, `cxa/`, `tllm/`, `cl/`, `cline/`, `antigravity/gemini-3.7`, `antigravity/gemini-pro-agent`, `antigravity/gemini-3.1-pro`), router alias (`…/openrouter/free`, `…/openrouter/auto`) và `claude-haiku`.
+  - Chỉ giữ lại các model thuộc họ `ddgw/*` (DuckDuckGo Web: miễn phí 100%, phản hồi < 2,5s, probe đạt 100%), `cfp/*`, `antigravity/*` (kênh Antigravity tích hợp vào OmniRoute), hoặc bất kỳ model tương lai nào có chữ `free` trong tên (Phương án 2: tự động nhặt model free mới).
+  - `filterModel` chỉ áp dụng ở bước phát hiện tự động (`discoverModelsFor`); hàm phân giải model (`resolve`) không lọc bằng `filterModel` để người quản trị có thể chủ động ghim bất kỳ model nào mà gateway đang phục vụ.
+- Bỏ giới hạn trần 5 model mỗi lõi: Quét toàn bộ model hợp lệ của từng lõi. Các lõi áp dụng bộ lọc chuyên biệt:
+  - `gemini`: Lấy toàn bộ 33 model chat (loại bỏ embedding, vision, audio).
+  - `groq`: 3 model chat khai báo structured output (`gpt-oss-120b`, `gpt-oss-20b`, `qwen3.8-27b`).
+  - `unorouter`: Bộ lọc `filterModel` loại bỏ toàn bộ checkpoint vẽ ảnh Stable Diffusion/SDXL (`absolutereality`, `albedobase`, `pony`, `dreamshaper`...), chỉ giữ model chat thật sự.
+  - `openrouter` & `kilo`: Lấy toàn bộ model `:free` (5 model mỗi lõi), loại bỏ router alias.
+  - `opencode` & `opencode-direct`: Chỉ lấy các model `free` ổn định (8 model), loại bỏ model thử nghiệm (`preview`, `alpha`, `beta`, `test`, `exp`).
 
 **3. Bẫy router alias (`…/openrouter/free`, `…/openrouter/auto`) trên tác vụ sinh văn bản dài:**
 - Đo thực tế trên luồng sinh CV (tác vụ dài ~3.400 token): model `omniroute/kc/openrouter/free` treo 130 giây rồi trả về `responseText: "User Safety: safe"` (`SCHEMA` failure do không ra JSON). Luồng người dùng treo gần 3 phút trước khi chuỗi chuyển sang fallback model (`openrouter/dots-studio/dots-3-note-preview:free`, hoàn thành sau 48s).

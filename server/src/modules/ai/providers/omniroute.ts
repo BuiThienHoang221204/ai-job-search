@@ -10,6 +10,9 @@ const BROKEN_PREFIXES = [
   'tllm/',
   'cl/',
   'cline/',
+  'antigravity/gemini-3.7',
+  'antigravity/gemini-pro-agent',
+  'antigravity/gemini-3.1-pro',
 ];
 
 export const omniroute: ProviderDescriptor = {
@@ -26,9 +29,15 @@ export const omniroute: ProviderDescriptor = {
   explicitStreamFlag: true,
   filterModel: (id) => {
     if (BROKEN_PREFIXES.some((p) => id.startsWith(p))) return false;
+    if (id.endsWith('openrouter/free') || id.endsWith('openrouter/auto')) {
+      return false;
+    }
     if (id.includes('claude-haiku')) return false;
     return (
-      id.startsWith('ddgw/') || id.startsWith('cfp/') || id.includes('free')
+      id.startsWith('ddgw/') ||
+      id.startsWith('cfp/') ||
+      id.startsWith('antigravity/') ||
+      id.includes('free')
     );
   },
 };

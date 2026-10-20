@@ -44,7 +44,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
 
       - name: Check workspace setup
@@ -77,12 +77,13 @@ jobs:
           done
           test "$found" -eq 1 || { echo "::error::Không tìm thấy portal CLI nào."; exit 1; }
 
-      - name: Backend - build and lint
+      - name: Backend - test, build and lint
         working-directory: server
         run: |
           pnpm install --frozen-lockfile
           pnpm exec prisma generate
           pnpm run lint
+          pnpm run test
           pnpm run build
 
   security-scan:

@@ -24,10 +24,18 @@ const NOT_IN_CATALOG: ProviderDescriptor = {
   baseURLEnv: 'OTHER_BASE_URL',
 };
 
+const WITH_FILTER: ProviderDescriptor = {
+  id: 'filtered',
+  label: 'Filtered',
+  apiKeyEnv: 'FILTERED_API_KEY',
+  baseURLEnv: 'FILTERED_BASE_URL',
+  filterModel: (id) => id.startsWith('allowed-'),
+};
+
 jest.mock('src/modules/ai/providers/index.js', () => ({
-  providerIds: () => ['zen', 'gem', 'other'],
+  providerIds: () => ['zen', 'gem', 'other', 'filtered'],
   findProvider: (id: string) =>
-    [SAME_NAME, RENAMED, NOT_IN_CATALOG].find((p) => p.id === id),
+    [SAME_NAME, RENAMED, NOT_IN_CATALOG, WITH_FILTER].find((p) => p.id === id),
 }));
 
 import { ModelCatalogService } from 'src/modules/ai/services/model-catalog.service.js';
@@ -51,12 +59,18 @@ const config = {
       'ai.catalogUrl': 'https://catalog.example/api.json',
       'ai.provider': 'zen',
       'ai.modelId': 'json-ok',
-      'ai.apiKeys': { zen: 'token', gem: 'token', other: 'token' },
+      'ai.apiKeys': {
+        zen: 'token',
+        gem: 'token',
+        other: 'token',
+        filtered: 'token',
+      },
       'ai.userAgents': {},
       'ai.baseURLs': {
         zen: 'https://zen.example/v1',
         gem: 'https://gem.example/v1',
         other: 'https://other.example/v1',
+        filtered: 'https://filtered.example/v1',
       },
     })[key],
 } as unknown as ConfigService;
@@ -65,6 +79,14 @@ function serve(catalogOk: boolean) {
   global.fetch = jest
     .fn<Promise<unknown>, [string]>()
     .mockImplementation((url) => {
+      if (url.startsWith('https://filtered.example')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => ({
+            data: [{ id: 'allowed-model' }, { id: 'blocked-model' }],
+          }),
+        });
+      }
       if (url.startsWith('https://gem.example')) {
         return Promise.resolve({
           ok: true,
@@ -124,5 +146,15 @@ describe('ModelCatalogService.discoverModelsFor — lọc theo structured_output
       'zen',
     );
     expect(found).toEqual(LIVE.map((id) => `zen/${id}`));
+  });
+
+  test('filterModel chỉ áp dụng khi quét (discoverModelsFor), không chặn model ghim (resolve)', async () => {
+    serve(true);
+    const service = new ModelCatalogService(config);
+    const found = await service.discoverModelsFor('filtered');
+    expect(found).toEqual(['filtered/allowed-model']);
+
+    const resolved = await service.resolve('filtered/blocked-model');
+    expect(resolved.model.id).toBe('blocked-model');
   });
 });

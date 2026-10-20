@@ -101,6 +101,8 @@ function transformBody(bodyText: string): {
   return { body: JSON.stringify(parsed), isClientStreaming };
 }
 
+const EXPERIMENTAL_WORDS = ['preview', 'alpha', 'beta', 'test', 'exp'];
+
 export const opencodeDirect: ProviderDescriptor = {
   id: 'opencode-direct',
   label: 'OpenCode Direct',
@@ -110,7 +112,13 @@ export const opencodeDirect: ProviderDescriptor = {
   honorsResponseFormat: false,
   streamsJson: 'all',
   knownNoStructuredOutput: ['laguna-s-2.1-free', 'ling-3.0-tiny-free'],
-  filterModel: (id) => id.endsWith('-free') || id === 'big-pickle',
+  filterModel: (id) => {
+    const lower = id.toLowerCase();
+    if (!lower.endsWith('-free') && !lower.includes('free') && lower !== 'big-pickle') {
+      return false;
+    }
+    return !EXPERIMENTAL_WORDS.some((w) => lower.includes(w));
+  },
   customFetch: async (originalFetch, input, init, context) => {
     const headers = new Headers(init?.headers);
     const session = getOrCreateSessionId(context.resolved.model.id);

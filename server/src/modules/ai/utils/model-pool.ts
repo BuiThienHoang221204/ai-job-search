@@ -26,7 +26,7 @@ const NOT_CHAT_WORDS = [
 
 const ROUTER_MODELS = ['openrouter/free', 'openrouter/auto'];
 
-const PAID_PROVIDERS = ['openrouter', 'unorouter', 'kilo'];
+const PAID_PROVIDERS = ['openrouter', 'unorouter', 'kilo', 'opencode'];
 
 const UNMEASURED_MS = Number.MAX_SAFE_INTEGER;
 
@@ -44,9 +44,6 @@ function providerRank(ref: string, providers: string[]): number {
 export function isProbeCandidate(ref: string): boolean {
   const lower = ref.toLowerCase();
   if (NOT_CHAT_WORDS.some((word) => lower.includes(word))) return false;
-  if (lower.startsWith('omniroute/auto/') || lower.startsWith('auto/')) {
-    return false;
-  }
   if (ROUTER_MODELS.some((suffix) => lower.endsWith(suffix))) return false;
 
   if (PAID_PROVIDERS.includes(providerOf(lower))) return lower.includes('free');

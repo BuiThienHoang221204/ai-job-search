@@ -111,12 +111,11 @@ describe('Lõi opencode — mù về capability', () => {
     expect(opencode.knownNoStructuredOutput).toContain('ling-3.0-tiny-free');
   });
 
-  test('danh sách đó là danh sách CHẶN, không phải danh sách cho phép', () => {
-    // Model chính vẫn phải chạy được. Nếu ai đó biến chỗ này thành danh sách
-    // cho phép thì mọi model chưa kịp đo sẽ bị khoá ra ngoài.
-    expect(opencode.knownNoStructuredOutput).not.toContain(
-      'deepseek-v4-flash-free',
-    );
+  test('filterModel: chỉ nhận model free ổn định, bỏ model thử nghiệm (preview, alpha) và model tính phí', () => {
+    expect(opencode.filterModel!('deepseek-v4.1-flash-free')).toBe(true);
+    expect(opencode.filterModel!('step-5-preview-free')).toBe(false);
+    expect(opencode.filterModel!('ll-alpha-free')).toBe(false);
+    expect(opencode.filterModel!('gpt-4o')).toBe(false);
   });
 });
 
@@ -125,9 +124,11 @@ describe('Lõi opencode-direct — gọi thẳng gateway không qua container', 
     expect(streamsJsonFor(opencodeDirect, 'mimo-v2.6-flash-free')).toBe(true);
   });
 
-  test('filterModel chỉ nhận model free hoặc big-pickle', () => {
+  test('filterModel chỉ nhận model free ổn định hoặc big-pickle, bỏ model thử nghiệm', () => {
     expect(opencodeDirect.filterModel!('mimo-v2.6-flash-free')).toBe(true);
     expect(opencodeDirect.filterModel!('big-pickle')).toBe(true);
+    expect(opencodeDirect.filterModel!('step-5-preview-free')).toBe(false);
+    expect(opencodeDirect.filterModel!('ll-alpha-free')).toBe(false);
     expect(opencodeDirect.filterModel!('gpt-4o')).toBe(false);
   });
 });
@@ -152,20 +153,24 @@ describe('Lõi omniroute — gateway không ép được response_format', () =>
     expect(opencode.baseURLEnv).toBe('OPENCODE_SERVICE_URL');
   });
 
-  test('filterModel: nhận ddgw (trừ claude), cfp và các model free; loại bỏ auto/*, oc/* và CLI khác', () => {
+  test('filterModel: nhận ddgw (trừ claude), cfp, antigravity và các model free; loại bỏ auto/*, oc/*, router alias và CLI khác', () => {
     const filter = omniroute.filterModel!;
     expect(filter('ddgw/mistral-small-2603')).toBe(true);
     expect(filter('ddgw/gpt-5.4-mini')).toBe(true);
-    expect(filter('kc/openrouter/free')).toBe(true);
     expect(filter('cfp/zai-org/glm-5.2')).toBe(true);
+    expect(filter('antigravity/claude-sonnet-4-6')).toBe(true);
     expect(filter('any-provider/qwen-free')).toBe(true);
     expect(filter('ddgw/claude-haiku-4-5')).toBe(false);
+    expect(filter('kc/openrouter/free')).toBe(false);
+    expect(filter('other/openrouter/auto')).toBe(false);
     expect(filter('auto/fast')).toBe(false);
     expect(filter('auto/coding:free')).toBe(false);
     expect(filter('oc/big-pickle')).toBe(false);
     expect(filter('dva/swe-1-7')).toBe(false);
     expect(filter('aug/sonnet4.6')).toBe(false);
     expect(filter('tllm/GPT_5_4')).toBe(false);
+    expect(filter('antigravity/gemini-3.7-flash-high')).toBe(false);
+    expect(filter('antigravity/gemini-pro-agent')).toBe(false);
   });
 });
 
@@ -202,11 +207,23 @@ describe('Lõi groq — LPU suy luận nhanh, không phải catalog opencode.ai'
   });
 });
 
-describe('Lõi unorouter — rateLimitFor', () => {
+describe('Lõi unorouter — rateLimitFor và filterModel', () => {
   test('đúng 1 lượt/phút/model, đo trực tiếp 2026-10-04', () => {
     expect(unorouter.rateLimitFor?.('bất-kỳ-model-nào:free')).toEqual([
       { kind: 'count', windowMs: 60_000, limit: 1 },
     ]);
+  });
+
+  test('filterModel: loại bỏ các checkpoint vẽ ảnh nghệ thuật, giữ model chat', () => {
+    const filter = unorouter.filterModel!;
+    expect(filter('qwen2.5-coder-32b:free')).toBe(true);
+    expect(filter('deepseek-v4-pro:free')).toBe(true);
+    expect(filter('gemini-2.5-flash-lite:free')).toBe(true);
+    expect(filter('absolutereality:free')).toBe(false);
+    expect(filter('albedobase-xl-31:free')).toBe(false);
+    expect(filter('cyberrealistic-pony:free')).toBe(false);
+    expect(filter('anything-v5:free')).toBe(false);
+    expect(filter('dreamshaper:free')).toBe(false);
   });
 });
 

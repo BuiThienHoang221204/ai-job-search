@@ -24,13 +24,8 @@ describe('isProbeCandidate', () => {
   test('lõi trả phí chỉ lấy bản free', () => {
     expect(isProbeCandidate('openrouter/qwen/qwen3-coder')).toBe(false);
     expect(isProbeCandidate('openrouter/qwen/qwen3-coder:free')).toBe(true);
-  });
-
-  test('bỏ model ảo auto/* của omniroute', () => {
-    expect(isProbeCandidate('omniroute/auto/fast')).toBe(false);
-    expect(isProbeCandidate('omniroute/auto/best-chat')).toBe(false);
-    expect(isProbeCandidate('auto/coding:free')).toBe(false);
-    expect(isProbeCandidate('omniroute/ddgw/mistral-small-2603')).toBe(true);
+    expect(isProbeCandidate('opencode/gpt-4o')).toBe(false);
+    expect(isProbeCandidate('opencode/deepseek-v4.1-flash-free')).toBe(true);
   });
 
   test('bỏ bộ định tuyến tự chọn model hộ: mỗi lượt một model khác nên điểm probe vô nghĩa', () => {
