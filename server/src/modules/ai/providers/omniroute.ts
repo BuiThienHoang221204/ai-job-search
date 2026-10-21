@@ -13,6 +13,13 @@ const BROKEN_PREFIXES = [
   'antigravity/gemini-3.7',
   'antigravity/gemini-pro-agent',
   'antigravity/gemini-3.1-pro',
+  'agy/gemini-3.7',
+  'agy/gemini-pro-agent',
+  'agy/gemini-3.1-pro',
+  'agy/gemini-3.6',
+  'agy/gemini-4-argon',
+  'agy/claude-opus-4-6-thinking-',
+  'agy/claude-sonnet-4-6-',
 ];
 
 export const omniroute: ProviderDescriptor = {
@@ -37,6 +44,7 @@ export const omniroute: ProviderDescriptor = {
       id.startsWith('ddgw/') ||
       id.startsWith('cfp/') ||
       id.startsWith('antigravity/') ||
+      id.startsWith('agy/') ||
       id.includes('free')
     );
   },
