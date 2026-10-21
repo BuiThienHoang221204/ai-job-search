@@ -16,7 +16,6 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { QUEUE, QueueService } from '../queue/queue.service';
 import { GenerateUpskillDto } from './upskill.dto';
 import { UpskillService } from './upskill.service';
 import { streamNdjson } from '@/common/ndjson';
@@ -28,10 +27,7 @@ import { ThrottleAi } from '@/common/throttle';
 export class UpskillController {
   private readonly logger = new Logger(UpskillController.name);
 
-  constructor(
-    private readonly upskill: UpskillService,
-    private readonly queue: QueueService,
-  ) {}
+  constructor(private readonly upskill: UpskillService) {}
 
   @ApiOperation({ summary: 'Lấy báo cáo upskill mới nhất đã hoàn thành' })
   @Get()
@@ -60,16 +56,8 @@ export class UpskillController {
     summary: 'Tạo báo cáo gợi ý nâng cao kỹ năng và đưa vào hàng đợi xử lý',
   })
   @Post('generate')
-  async enqueue(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: GenerateUpskillDto,
-  ) {
-    const report = await this.upskill.create(user.id, dto.jobId);
-    await this.queue.send(QUEUE.UPSKILL_REPORT, {
-      userId: user.id,
-      reportId: report.id,
-    });
-    return { queued: true, reportId: report.id, mode: report.mode };
+  enqueue(@CurrentUser() user: AuthUser, @Body() dto: GenerateUpskillDto) {
+    return this.upskill.enqueue(user.id, dto.jobId);
   }
 
   @ThrottleAi()

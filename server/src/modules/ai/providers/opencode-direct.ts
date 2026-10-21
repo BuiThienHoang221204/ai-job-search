@@ -114,7 +114,11 @@ export const opencodeDirect: ProviderDescriptor = {
   knownNoStructuredOutput: ['laguna-s-2.1-free', 'ling-3.0-tiny-free'],
   filterModel: (id) => {
     const lower = id.toLowerCase();
-    if (!lower.endsWith('-free') && !lower.includes('free') && lower !== 'big-pickle') {
+    if (
+      !lower.endsWith('-free') &&
+      !lower.includes('free') &&
+      lower !== 'big-pickle'
+    ) {
       return false;
     }
     return !EXPERIMENTAL_WORDS.some((w) => lower.includes(w));

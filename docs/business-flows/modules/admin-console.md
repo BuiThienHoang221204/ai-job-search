@@ -56,6 +56,7 @@
 | F15 | Quản lý người dùng | ADMIN | `GET /api/admin/users`, `GET /api/admin/users/:id` |
 | F16 | Đổi vai trò | ADMIN | `PUT /api/admin/users/:id/role` |
 | F17 | Đăng nhập app quản trị + cổng ADMIN ở FE | ADMIN | `POST /api/auth/login` + `GET /api/auth/me` (module auth), `AdminGate` |
+| F18 | Rút lại yêu cầu cho nhiều tin *(2026-10-21)* | ADMIN | `POST /api/admin/jobs/re-extract` → hàng đợi `extract.requirements` |
 
 ## 4. Business Flow
 
@@ -141,6 +142,14 @@
   3. `GET /api/admin/jobs/:id`: trả JD đầy đủ, lương, `dedupeKey`, `requirements` (kỹ năng bắt buộc/ưu tiên, số năm, seniority, `error`…), tin gốc (`duplicateOf`) và tối đa **20** tin trùng mới nhất.
 - **Failure Flow:** `requirement` ngoài `NONE|PENDING|RUNNING|DONE|FAILED`, `q` > 200, `source` > 100, ngày sai → 400; `:id` không tồn tại → 404 `Không tìm thấy tin: <id>`.
 - **Postconditions:** chỉ đọc. Nút "Rút lại" ở màn chi tiết gọi `POST /api/matches/requirements/:jobId?force=true` (module matching, có gọi model).
+
+### Luồng J2 — Rút lại yêu cầu cho nhiều tin (F18) *(2026-10-21)*
+- **Main Flow:** `POST /api/admin/jobs/re-extract` body `{ jobIds }` (1–100 chuỗi) → `AdminJobsService.reExtract` ([admin-jobs.service.ts:148](../../../server/src/modules/admin/services/admin-jobs.service.ts#L148)):
+  1. Khử trùng `jobIds`, giữ những id có thật trong `Job`.
+  2. Một transaction: `createMany(skipDuplicates)` tạo `JobRequirement` `PENDING` cho tin chưa có; `updateMany` đưa mọi dòng **không đang `RUNNING`** về `PENDING`, xoá `error` và `sourceHash` để lượt rút sau không bị coi là "chưa đổi".
+  3. `queue.sendMany('extract.requirements', requirementBatches(ids))` → **202** `{ queued: <số tin>, message }`.
+- **Failure Flow:** không id nào tồn tại → 404 `Không tìm thấy tin hợp lệ để rút.`; mảng rỗng hoặc > 100 phần tử → 400 (DTO). Đẩy hàng đợi ném lỗi → các dòng còn `PENDING` thành `FAILED` với `Không thể đưa vào hàng đợi: <lỗi>`, request nhận 500.
+- **Postconditions:** dòng đang `RUNNING` giữ nguyên, lượt đang chạy tự ghi kết quả. Có gọi model, nhưng ở worker (module matching), không trong request.
 
 ### Luồng K — Theo dõi portal và lượt quét (F11)
 - **Main Flow:**
@@ -361,6 +370,7 @@ sequenceDiagram
 | BR-ADM-49 | Chỉ tài khoản ADMIN được vào app quản trị; tài khoản USER đăng nhập được nhưng bị chặn ở màn hình, không bị đăng xuất | FE | ⚠️ | [login/page.tsx:34](../../../../ui-admin-job-search/app/login/page.tsx#L34), [admin-gate.tsx:30](../../../../ui-admin-job-search/components/shell/admin-gate.tsx#L30) |
 | BR-ADM-50 | Nút "Hạ quyền" bị vô hiệu với chính mình trên giao diện | FE | ⚠️ (backend vẫn chặn bằng BR-ADM-04) | [user-detail-view.tsx:237](../../../../ui-admin-job-search/app/%28console%29/users/%5Bid%5D/user-detail-view.tsx#L237) |
 | BR-ADM-51 | Mọi thao tác ghi trên màn Bảo trì, Danh bạ, Người dùng đều qua hộp xác nhận | FE | ⚠️ | [confirm-action.tsx](../../../../ui-admin-job-search/components/admin/confirm-action.tsx), [maintenance-view.tsx:38](../../../../ui-admin-job-search/app/%28console%29/maintenance/maintenance-view.tsx#L38) |
+| BR-ADM-52 | Rút lại yêu cầu hàng loạt không đụng dòng `JobRequirement` đang `RUNNING`; dòng khác về `PENDING` và mất `sourceHash` *(2026-10-21)* | SV | ✅ | [admin-jobs.service.ts:160](../../../server/src/modules/admin/services/admin-jobs.service.ts#L160) |
 
 > **Possible Business Rule:** sau khi gộp/chuyển một đợt kỹ năng, admin **phải** bấm "Đối chiếu lại toàn kho" để điểm khớp kỹ năng của người dùng phản ánh danh bạ mới (FE chỉ nhắc, không ép). Cần chủ dự án xác nhận đây là chủ ý thay vì tự xếp rematch sau mỗi lần gộp.
 
@@ -460,6 +470,7 @@ Tiền tố `/api`. Role = ADMIN cho mọi dòng. Throttle: chỉ global (120/60
 | GET | /api/admin/jobs | ADMIN | Danh sách tin trong kho | AdminJobsController#list | AdminJobsService.list | AdminJobsQueryDto | 200 Page |
 | GET | /api/admin/jobs/sources | ADMIN | Nguồn tin + số tin | AdminJobsController#sources | AdminJobsService.sources | JobSourcesQueryDto | 200 Page\<\{source,count\}> |
 | GET | /api/admin/jobs/:id | ADMIN | Chi tiết tin, yêu cầu, tin trùng | AdminJobsController#detail | AdminJobsService.detail | — | 200 / 404 |
+| POST | /api/admin/jobs/re-extract | ADMIN | Xếp rút lại yêu cầu cho nhiều tin *(2026-10-21)* | AdminJobsController#reExtract | AdminJobsService.reExtract | ReExtractJobsDto | 202 `{queued, message}` / 404 |
 | GET | /api/admin/scrape/portals | ADMIN | Tình trạng từng portal | AdminScrapeController#portals | AdminScrapeService.portals | ScrapePortalsQueryDto | 200 `{cap, ...Page<PortalStats>}` |
 | GET | /api/admin/scrape/batches | ADMIN | Lịch sử quét gom theo lượt | AdminScrapeController#batches | AdminScrapeService.batches | ScrapeBatchesQueryDto | 200 Page\<Batch\> |
 | GET | /api/admin/skills/summary | ADMIN | Đếm kỹ năng và alias theo nguồn | AdminSkillsController#summary | AdminSkillsService.summary | — | 200 |
@@ -627,6 +638,8 @@ stateDiagram-v2
 | Hạ quyền admin cuối cùng | 400 | `Đây là quản trị viên cuối cùng; hạ quyền sẽ không còn ai vào được trang quản trị.` | [role-change.ts:16](../../../server/src/modules/admin/utils/role-change.ts#L16) |
 | Quét ngay khi không có portal / lượt trước đang chạy | 202 (không phải lỗi) | `Không có portal nào được đăng ký, hoặc lượt quét trước còn đang chạy.` | [admin.controller.ts:108](../../../server/src/modules/admin/controllers/admin.controller.ts#L108) |
 | Đối chiếu lại khi đã có lượt `all` đang chờ | 202 | `{ queued: false, queueJobId: null }` | [admin-skills.service.ts:165](../../../server/src/modules/admin/services/admin-skills.service.ts#L165) |
+| Rút lại hàng loạt mà không id nào tồn tại *(2026-10-21)* | 404 | `Không tìm thấy tin hợp lệ để rút.` | [admin-jobs.service.ts:157](../../../server/src/modules/admin/services/admin-jobs.service.ts#L157) |
+| Rút lại hàng loạt, đẩy hàng đợi lỗi *(2026-10-21)* | 500 | Dòng `PENDING` ghi `Không thể đưa vào hàng đợi: <lỗi>` | [admin-jobs.service.ts:176](../../../server/src/modules/admin/services/admin-jobs.service.ts#L176) |
 | Lỗi DB khác / `serial` sai kiểu | 500 | (InternalServerError) | [prisma-exception.filter.ts:39](../../../server/src/common/filters/prisma-exception.filter.ts#L39) |
 
 ## 14. Notifications

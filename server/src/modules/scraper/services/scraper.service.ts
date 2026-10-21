@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ScrapeRun } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -57,6 +62,44 @@ export class ScraperService {
       throw new NotFoundException(`Portal chưa được đăng ký: ${portal}`);
     }
     return this.prisma.scrapeRun.create({ data: { userId, portal } });
+  }
+
+  private async markFailed(id: string, error: string): Promise<void> {
+    await this.prisma.scrapeRun.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'FAILED', error, finishedAt: new Date() },
+    });
+  }
+
+  async start(userId: string, portalKey?: string) {
+    const available = this.portals.listPortals();
+    const portal = portalKey ?? available[0];
+
+    if (!portal) {
+      throw new BadRequestException(
+        'Chưa có portal nào được đăng ký. Kiểm tra thư mục .agents/skills/.',
+      );
+    }
+    if (!this.portals.has(portal)) {
+      throw new BadRequestException(
+        `Portal chưa được hỗ trợ: ${portal}. Đang có: ${available.join(', ')}`,
+      );
+    }
+
+    const run = await this.create(userId, portal);
+    try {
+      await this.queue.send(QUEUE.SCRAPE_RUN, {
+        userId,
+        runId: run.id,
+      });
+      return { queued: true, runId: run.id, portal: run.portal };
+    } catch (queueError) {
+      await this.markFailed(
+        run.id,
+        `Không thể đưa vào hàng đợi: ${messageOf(queueError)}`,
+      );
+      throw queueError;
+    }
   }
 
   async run(runId: string): Promise<ScrapeRun> {

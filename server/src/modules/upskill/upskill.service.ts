@@ -8,6 +8,8 @@ import {
 import type { Profile, UpskillReport } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '../ai/services/ai.service';
+import { QUEUE, QueueService } from '../queue/queue.service';
+import { messageOf } from '@/common/error-message';
 import { withFailureKind, streamFailureEvent } from '@/common/ai/failure-view';
 import { PromptBuilderService } from '../skills/services/prompt-builder.service';
 import { SkillRegistryService } from '../skills/services/skill-registry.service';
@@ -26,7 +28,6 @@ import {
   PLAN_SECTIONS,
   type ScoredJob,
 } from './utils/upskill.prompt';
-import { messageOf } from '@/common/error-message';
 import { STUCK_AFTER_MS } from '@/common/duration';
 
 const SKILL_NAME = 'upskill';
@@ -57,7 +58,22 @@ export class UpskillService {
     private readonly ai: AiService,
     private readonly skills: SkillRegistryService,
     private readonly prompts: PromptBuilderService,
+    private readonly queue: QueueService,
   ) {}
+
+  async enqueue(userId: string, jobId?: string) {
+    const report = await this.create(userId, jobId);
+    try {
+      await this.queue.send(QUEUE.UPSKILL_REPORT, {
+        userId,
+        reportId: report.id,
+      });
+      return { queued: true, reportId: report.id, mode: report.mode };
+    } catch (queueError) {
+      await this.fail(report.id, queueError, 'Đưa vào hàng đợi');
+      throw queueError;
+    }
+  }
 
   private async collectJobs(userId: string, jobId?: string) {
     const include = { job: { include: { requirements: true } } };

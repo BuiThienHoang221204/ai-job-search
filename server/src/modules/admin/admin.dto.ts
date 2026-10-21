@@ -1,5 +1,8 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -210,4 +213,12 @@ export class FailureFacetsQueryDto {
   @IsOptional()
   @IsISO8601()
   to?: string;
+}
+
+export class ReExtractJobsDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  jobIds: string[];
 }

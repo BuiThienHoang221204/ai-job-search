@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { messageOf } from '@/common/error-message';
 import {
   BadRequestException,
   ConflictException,
@@ -103,11 +104,25 @@ export class ProfileDraftService {
     return draft;
   }
 
-  private enqueue(userId: string, draftId: string) {
-    return this.queue.send<ProfileSynthesizePayload>(QUEUE.PROFILE_SYNTHESIZE, {
-      userId,
-      draftId,
-    });
+  private async enqueue(userId: string, draftId: string) {
+    try {
+      return await this.queue.send<ProfileSynthesizePayload>(
+        QUEUE.PROFILE_SYNTHESIZE,
+        {
+          userId,
+          draftId,
+        },
+      );
+    } catch (queueError) {
+      await this.prisma.profileDraft.updateMany({
+        where: { id: draftId, userId, status: 'PENDING' },
+        data: {
+          status: 'FAILED',
+          error: `Không thể đưa vào hàng đợi: ${messageOf(queueError)}`,
+        },
+      });
+      throw queueError;
+    }
   }
 
   async retry(userId: string, draftId: string): Promise<DraftView> {

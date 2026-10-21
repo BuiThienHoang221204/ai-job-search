@@ -23,7 +23,6 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi, ThrottlePdf } from '@/common/throttle';
 import type { AuthUser } from '@/common/types/auth-user';
-import { QUEUE, QueueService } from '../queue/queue.service';
 import {
   CreateApplicationEmailDto,
   CreateCoverLetterDto,
@@ -49,7 +48,6 @@ export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
     private readonly generator: DocumentGenerator,
-    private readonly queue: QueueService,
     private readonly jobFromUrl: JobFromUrlService,
   ) {}
 
@@ -201,9 +199,8 @@ export class DocumentsController {
     return this.handOff(user.id, document.id);
   }
 
-  private async handOff(userId: string, documentId: string, stream?: boolean) {
+  private handOff(userId: string, documentId: string, stream?: boolean) {
     if (stream) return { queued: false, documentId };
-    await this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId });
-    return { queued: true, documentId };
+    return this.documents.enqueue(userId, documentId);
   }
 }

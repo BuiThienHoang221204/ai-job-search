@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Phiên bản** | 1.5 |
+| **Phiên bản** | 1.6 |
 | **Ngày phát hành** | 2026-10-19 |
-| **Ngày cập nhật** | 2026-10-20 (1.1: đã sửa 8 vấn đề gốc mức 🟠; 1.2: gỡ LaTeX, mọi PDF in từ HTML; 1.3: `streamObject` không còn treo khi provider từ chối ngay; 1.4: mọi lõi lọc model theo `structured_output` của catalog; 1.5: lọc omniroute theo mẫu, loại bỏ `auto/*` và router alias, thêm `opencode-direct`) |
-| **Phạm vi** | Backend `server/` (NestJS, 25 module, 110 endpoint, 27 bảng), frontend người dùng `ui-ai-job-search`, frontend quản trị `ui-admin-job-search`, dịch vụ phụ (`pdf-service`, `omniroute-service`, `opencode-service`), CLI portal `.agents/skills/`. Gồm cả thay đổi **chưa commit** ở `modules/ai` (bể model, model health) trên nhánh `dev` tại ngày phát hành, đánh dấu `*(2026-10-19, chưa commit)*` |
+| **Ngày cập nhật** | 2026-10-21 (1.6: thêm `POST /admin/jobs/re-extract`; lỗi đẩy hàng đợi ghi bản ghi `FAILED`, xếp việc chuyển từ controller vào service; 1.1: đã sửa 8 vấn đề gốc mức 🟠; 1.2: gỡ LaTeX, mọi PDF in từ HTML; 1.3: `streamObject` không còn treo khi provider từ chối ngay; 1.4: mọi lõi lọc model theo `structured_output` của catalog; 1.5: lọc omniroute theo mẫu, loại bỏ `auto/*` và router alias, thêm `opencode-direct`) |
+| **Phạm vi** | Backend `server/` (NestJS, 25 module, 111 endpoint, 27 bảng), frontend người dùng `ui-ai-job-search`, frontend quản trị `ui-admin-job-search`, dịch vụ phụ (`pdf-service`, `omniroute-service`, `opencode-service`), CLI portal `.agents/skills/`. Gồm cả thay đổi **chưa commit** ở `modules/ai` (bể model, model health) trên nhánh `dev` tại ngày phát hành, đánh dấu `*(2026-10-19, chưa commit)*` |
 | **Phương pháp** | Reverse engineering từ mã nguồn: lần từng endpoint controller → service → Prisma → side effect (hàng đợi, tích hợp), đối chiếu e2e và ADR. Code là nguồn sự thật duy nhất |
 
 ## 1. Bộ tài liệu này là gì
@@ -48,7 +48,7 @@ Mỗi luồng nghiệp vụ có 5 phần: **Preconditions · Main Flow · Altern
 | [03-authentication.md](./03-authentication.md) | JWT trong cookie httpOnly, refresh, Google, vô hiệu phiên, lỗi, đánh giá bảo mật |
 | [04-permission.md](./04-permission.md) | Các lớp kiểm soát, ma trận quyền **từng endpoint**, cách ly dữ liệu, rủi ro, checklist QA |
 | [05-database-overview.md](./05-database-overview.md) | 27 bảng, ER, unique, enum, chiến lược xoá, toàn vẹn, seed/migration |
-| [06-api-overview.md](./06-api-overview.md) | Quy ước, bản đồ API, bảng tra cứu 110 endpoint, kịch bản gọi API end-to-end |
+| [06-api-overview.md](./06-api-overview.md) | Quy ước, bản đồ API, bảng tra cứu 111 endpoint, kịch bản gọi API end-to-end |
 | [07-integrations.md](./07-integrations.md) | 11 tích hợp ngoài đang dùng (LaTeX đã gỡ), xử lý lỗi, bảng suy giảm khi dịch vụ chết |
 | [08-background-jobs.md](./08-background-jobs.md) | 3 cron, 11 hàng đợi, reconcile, rủi ro nhiều instance, giám sát |
 | [09-notifications.md](./09-notifications.md) | Kết luận: không có kênh thông báo đẩy; cơ chế kéo thay thế |

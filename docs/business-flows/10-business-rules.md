@@ -570,6 +570,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-ADM-49 | Chỉ tài khoản ADMIN được vào app quản trị; tài khoản USER đăng nhập được nhưng bị chặn ở màn hình, không bị đăng xuất | FE | ⚠️ |
 | BR-ADM-50 | Nút "Hạ quyền" bị vô hiệu với chính mình trên giao diện | FE | ⚠️ (backend vẫn chặn bằng BR-ADM-04) |
 | BR-ADM-51 | Mọi thao tác ghi trên màn Bảo trì, Danh bạ, Người dùng đều qua hộp xác nhận | FE | ⚠️ |
+| BR-ADM-52 | Rút lại yêu cầu hàng loạt không đụng dòng `JobRequirement` đang `RUNNING`; dòng khác về `PENDING` và mất `sourceHash` *(2026-10-21)* | SV | ✅ |
 
 ### AI Platform — Nền tảng gọi model AI và khung prompt — [modules/ai-platform.md](./modules/ai-platform.md#7-business-rules)
 
@@ -656,6 +657,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-OPS-34 | File người dùng trên R2 đặt dưới tiền tố `<userId>/`. | SV | ✅ |
 | BR-OPS-35 | Log request: ≥ 500 → error, ≥ 1000ms → warn "(chậm)", ≥ 400 → warn. | GD | ✅ |
 | BR-OPS-36 | Kết nối Postgres của Prisma hết hạn sau 10 giây nếu không lập được. | SV | ✅ |
+| BR-OPS-37 | Xếp việc do người dùng/admin bấm đi qua method `enqueue`/`start` của service, không từ controller. Ghi bản ghi `PENDING` rồi `queue.send` ném lỗi → bản ghi thành `FAILED` (`Không thể đưa vào hàng đợi: …` hoặc lỗi gốc) và lỗi đi tiếp ra request; không còn bản ghi `PENDING` không có việc. `send` trả `null` vì trùng `singletonKey` không phải lỗi. *(2026-10-21)* | SV | ✅ |
 
 [//]: # (/GEN:BR)
 

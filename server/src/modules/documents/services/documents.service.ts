@@ -23,6 +23,8 @@ import {
   requirePastedJob,
 } from '../utils/document-input';
 import { isTemplateId, resolveTemplateOptions } from '../templates/registry';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
+import { messageOf } from '@/common/error-message';
 import type {
   CreateApplicationEmailDto,
   PreviewBodyDto,
@@ -43,7 +45,22 @@ export class DocumentsService {
     private readonly prisma: PrismaService,
     private readonly generator: DocumentGenerator,
     private readonly renderer: DocumentRenderer,
+    private readonly queue: QueueService,
   ) {}
+
+  async enqueue(userId: string, documentId: string) {
+    try {
+      await this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId });
+      return { queued: true, documentId };
+    } catch (queueError) {
+      await this.markFailed(
+        [documentId],
+        userId,
+        `Không thể đưa vào hàng đợi: ${messageOf(queueError)}`,
+      );
+      throw queueError;
+    }
+  }
 
   private async requireJob(jobId: string) {
     const job = await this.prisma.job.findUnique({
@@ -127,6 +144,17 @@ export class DocumentsService {
         content: params ?? undefined,
         language,
       },
+    });
+  }
+
+  async markFailed(
+    ids: string[],
+    userId: string,
+    error: string,
+  ): Promise<void> {
+    await this.prisma.document.updateMany({
+      where: { id: { in: ids }, userId, status: 'PENDING' },
+      data: { status: 'FAILED', error },
     });
   }
 

@@ -12,6 +12,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { DocumentsService } from '../documents/services/documents.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import { isFinal, timestampsFor } from './transitions';
+import { messageOf } from '@/common/error-message';
 
 const APPLICATION_JOB = {
   id: true,
@@ -128,13 +129,22 @@ export class ApplicationsService {
       ),
     ]);
 
-    await Promise.all([
-      this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId: cv.id }),
-      this.queue.send(QUEUE.GENERATE_DOCUMENT, {
+    try {
+      await Promise.all([
+        this.queue.send(QUEUE.GENERATE_DOCUMENT, { userId, documentId: cv.id }),
+        this.queue.send(QUEUE.GENERATE_DOCUMENT, {
+          userId,
+          documentId: coverLetter.id,
+        }),
+      ]);
+    } catch (queueError) {
+      await this.documents.markFailed(
+        [cv.id, coverLetter.id],
         userId,
-        documentId: coverLetter.id,
-      }),
-    ]);
+        `Không thể đưa vào hàng đợi: ${messageOf(queueError)}`,
+      );
+      throw queueError;
+    }
   }
 
   async jobOptions(userId: string, status?: ApplicationStatus) {

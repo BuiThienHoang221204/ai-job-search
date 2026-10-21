@@ -111,14 +111,15 @@ export class JobRequirementsService {
   }
 
   async extractMany(jobIds: string[]): Promise<JobRequirement[]> {
-    if (jobIds.length <= 1) {
-      return jobIds.length ? [await this.extract(jobIds[0])] : [];
+    const uniqueIds = Array.from(new Set(jobIds));
+    if (uniqueIds.length <= 1) {
+      return uniqueIds.length ? [await this.extract(uniqueIds[0])] : [];
     }
 
     const [jobs, existing] = await Promise.all([
-      this.prisma.job.findMany({ where: { id: { in: jobIds } } }),
+      this.prisma.job.findMany({ where: { id: { in: uniqueIds } } }),
       this.prisma.jobRequirement.findMany({
-        where: { jobId: { in: jobIds } },
+        where: { jobId: { in: uniqueIds } },
       }),
     ]);
     const byJobId = new Map(existing.map((row) => [row.jobId, row]));

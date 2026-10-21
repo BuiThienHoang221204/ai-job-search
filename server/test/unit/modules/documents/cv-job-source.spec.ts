@@ -3,6 +3,7 @@ import { DocumentsService } from 'src/modules/documents/services/documents.servi
 import { letterTarget } from 'src/modules/documents/utils/letter-target.js';
 import type { DocumentGenerator } from 'src/modules/documents/services/document-generator.service.js';
 import type { DocumentRenderer } from 'src/modules/documents/services/document-renderer.service.js';
+import type { QueueService } from 'src/modules/queue/queue.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { Job } from 'src/generated/prisma/client.js';
 
@@ -29,6 +30,7 @@ const build = (options: { jobExists?: boolean } = {}) => {
     prisma,
     {} as DocumentGenerator,
     {} as DocumentRenderer,
+    {} as QueueService,
   );
 
   return { service, created };

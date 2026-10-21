@@ -70,6 +70,7 @@ describe('API dữ liệu của màn quản trị', () => {
     ['get', '/admin/scrape/batches'],
     ['get', '/admin/ai-failures/facets'],
     ['post', '/admin/skills/rematch'],
+    ['post', '/admin/jobs/re-extract'],
   ] as const)('tài khoản thường gọi %s %s nhận 403', async (method, path) => {
     await as(user)[method](path).expect(403);
   });
@@ -367,6 +368,20 @@ describe('API dữ liệu của màn quản trị', () => {
       expect(
         json<{ requirements: { status: string } }>(detail).requirements.status,
       ).toBe('DONE');
+
+      const reExtract = await as(admin)
+        .post('/admin/jobs/re-extract')
+        .send({ jobIds: [first.id] })
+        .expect(202);
+      expect(json<{ queued: number }>(reExtract).queued).toBe(1);
+
+      const afterReExtract = await as(admin)
+        .get(`/admin/jobs/${first.id}`)
+        .expect(200);
+      expect(
+        json<{ requirements: { status: string } }>(afterReExtract).requirements
+          .status,
+      ).toBe('PENDING');
     });
   });
 

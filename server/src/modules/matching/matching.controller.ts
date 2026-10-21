@@ -61,22 +61,8 @@ export class MatchingController {
     summary: 'Đưa yêu cầu đánh giá độ tương thích công việc vào hàng đợi',
   })
   @Post('evaluate')
-  async enqueue(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
-    const force = dto.force ?? false;
-
-    if (!force) {
-      const done = await this.matching.findDoneScore(user.id, dto.jobId);
-      if (done) return { queued: false, alreadyScored: true, ...done };
-    }
-
-    await this.matching.markPending(user.id, dto.jobId);
-
-    const id = await this.queue.send(QUEUE.EVALUATE_MATCH, {
-      userId: user.id,
-      jobId: dto.jobId,
-      force,
-    });
-    return { queued: true, alreadyScored: false, queueJobId: id };
+  enqueue(@CurrentUser() user: AuthUser, @Body() dto: EvaluateJobDto) {
+    return this.matching.enqueue(user.id, dto.jobId, dto.force ?? false);
   }
 
   @Roles('ADMIN')

@@ -16,6 +16,7 @@ import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
 import type { SkillRegistryService } from 'src/modules/skills/services/skill-registry.service.js';
+import type { QueueService } from 'src/modules/queue/queue.service.js';
 import { UpskillService } from 'src/modules/upskill/upskill.service.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 
@@ -165,6 +166,7 @@ function build(options: {
     ai as unknown as AiService,
     skills,
     new PromptBuilderService(),
+    {} as QueueService,
   );
 
   /** Lần ghi cuối cùng — lần đặt trạng thái kết thúc. */

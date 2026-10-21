@@ -1,9 +1,8 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { Roles } from '@/common/decorators/roles.decorator';
-import { QUEUE, QueueService } from '../queue/queue.service';
 import { JobSourceRouter } from './services/job-source.router';
 import { ScraperService } from './services/scraper.service';
 import { ThrottleScrape } from '@/common/throttle';
@@ -16,7 +15,6 @@ export class ScraperController {
   constructor(
     private readonly scraper: ScraperService,
     private readonly portals: JobSourceRouter,
-    private readonly queue: QueueService,
   ) {}
 
   @ApiOperation({
@@ -36,23 +34,7 @@ export class ScraperController {
   })
   @Post()
   @Roles('ADMIN')
-  async start(@CurrentUser() user: AuthUser, @Body() dto: StartScrapeDto) {
-    const available = this.portals.listPortals();
-    const portal = dto.portal ?? available[0];
-
-    if (!portal) {
-      throw new BadRequestException(
-        'Chưa có portal nào được đăng ký. Kiểm tra thư mục .agents/skills/.',
-      );
-    }
-    if (!this.portals.has(portal)) {
-      throw new BadRequestException(
-        `Portal chưa được hỗ trợ: ${portal}. Đang có: ${available.join(', ')}`,
-      );
-    }
-
-    const run = await this.scraper.create(user.id, portal);
-    await this.queue.send(QUEUE.SCRAPE_RUN, { userId: user.id, runId: run.id });
-    return { queued: true, runId: run.id, portal: run.portal };
+  start(@CurrentUser() user: AuthUser, @Body() dto: StartScrapeDto) {
+    return this.scraper.start(user.id, dto.portal);
   }
 }

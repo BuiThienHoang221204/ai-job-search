@@ -35,6 +35,7 @@ import { streamFailureEvent, withFailureKind } from '@/common/ai/failure-view';
 import { fastModelChain } from '@/modules/ai/utils/model-env';
 import { estimateTokens } from '@/common/ai/token-estimate';
 import { messageOf } from '@/common/error-message';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 
 const SKILL_NAME = 'job-application-assistant';
 const REFERENCE_FILE = '04-job-evaluation.md';
@@ -53,7 +54,29 @@ export class MatchingService {
     private readonly ai: AiService,
     private readonly skills: SkillRegistryService,
     private readonly prompts: PromptBuilderService,
+    private readonly queue: QueueService,
   ) {}
+
+  async enqueue(userId: string, jobId: string, force: boolean) {
+    if (!force) {
+      const done = await this.findDoneScore(userId, jobId);
+      if (done) return { queued: false, alreadyScored: true, ...done };
+    }
+
+    await this.markPending(userId, jobId);
+
+    try {
+      const id = await this.queue.send(QUEUE.EVALUATE_MATCH, {
+        userId,
+        jobId,
+        force,
+      });
+      return { queued: true, alreadyScored: false, queueJobId: id };
+    } catch (queueError) {
+      await this.fail(userId, jobId, queueError, 'Đưa vào hàng đợi');
+      throw queueError;
+    }
+  }
 
   private buildPrompt(profile: Profile | null, job: Job) {
     const skill = this.skills.get(SKILL_NAME);
