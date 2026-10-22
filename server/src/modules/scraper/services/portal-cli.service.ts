@@ -44,6 +44,7 @@ export function evaluateCandidate(input: {
     jobAge?: unknown;
     delayMs?: unknown;
     maxJobs?: unknown;
+    queryLimit?: unknown;
     occupations?: unknown;
     description?: unknown;
   };
@@ -62,6 +63,7 @@ export function evaluateCandidate(input: {
       supportsJobAge: input.frontmatter.jobAge === true,
       delayMs: positiveIntFrom(input.frontmatter.delayMs),
       maxJobs: positiveIntFrom(input.frontmatter.maxJobs),
+      queryLimit: positiveIntFrom(input.frontmatter.queryLimit),
       occupations: occupationsFrom(input.frontmatter.occupations),
       description:
         typeof input.frontmatter.description === 'string'

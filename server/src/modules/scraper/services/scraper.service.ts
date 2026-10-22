@@ -123,7 +123,11 @@ export class ScraperService {
       const portal = this.portals
         .describePortals()
         .find((p) => p.key === run.portal);
-      const planned = await this.planFor(run, portal?.occupations ?? null);
+      const planned = await this.planFor(
+        run,
+        portal?.occupations ?? null,
+        portal?.queryLimit ?? null,
+      );
       if ('skip' in planned) {
         return await this.prisma.scrapeRun.update({
           where: { id: runId },
@@ -206,6 +210,7 @@ export class ScraperService {
   private async planFor(
     run: ScrapeRun,
     occupations: string[] | null,
+    queryLimit: number | null,
   ): Promise<
     | { skip: string }
     | {
@@ -215,7 +220,11 @@ export class ScraperService {
       }
   > {
     if (!run.userId) {
-      const system = await this.planner.forSystem(run.portal, occupations);
+      const system = await this.planner.forSystem(
+        run.portal,
+        occupations,
+        queryLimit,
+      );
       return {
         plan: system.plan,
         modelId: null,

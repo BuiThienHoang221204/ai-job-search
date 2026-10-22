@@ -9,6 +9,8 @@ description: >
   TopCV, tim viec lam Viet Nam, job search Vietnam, TopCV jobs.
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
+maxJobs: 50  # trần tin riêng mỗi lượt quét (50 tin đa ngành, đồng bộ với các portal khác)
+queryLimit: 5  # trần số từ khoá riêng cho TopCV (5 ngành x 10 tin = 50 tin, tối ưu credit ZenRows)
 allowed-tools: Bash(bun run .agents/skills/topcv-search/cli/src/cli.ts *)
 ---
 

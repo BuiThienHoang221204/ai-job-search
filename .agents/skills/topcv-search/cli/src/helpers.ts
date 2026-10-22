@@ -104,6 +104,48 @@ export function fetchVerdict(status: number, body: string): FetchVerdict {
   return "fail"
 }
 
+export async function zenrowsFetch(url: string, apiKey: string): Promise<string> {
+  const endpoint = new URL("https://api.zenrows.com/v1/")
+  endpoint.searchParams.set("apikey", apiKey)
+  endpoint.searchParams.set("url", url)
+  endpoint.searchParams.set("premium_proxy", "true")
+
+  try {
+    const res = await fetch(endpoint.toString())
+    if (res.status === 404 || res.status === 422) {
+      return ""
+    }
+    if (!res.ok) {
+      throw new BlockedError(`ZenRows trả về ${res.status}: không thể vượt Cloudflare TopCV`)
+    }
+    const html = await res.text()
+    if (isBlockedPage(html)) {
+      throw new BlockedError("TopCV chặn (Cloudflare challenge qua ZenRows); tạm dừng quét portal này")
+    }
+    return html
+  } catch (err) {
+    if (err instanceof BlockedError) throw err
+    throw new BlockedError(`ZenRows fetch thất bại: ${(err as Error).message}`)
+  }
+}
+
+function getZenrowsApiKey(): string | undefined {
+  if (process.env.ZENROWS_API_KEY) return process.env.ZENROWS_API_KEY
+  try {
+    const fs = require("node:fs")
+    const path = require("node:path")
+    for (const rel of ["server/.env", "../server/.env", "../../server/.env", "../../../server/.env"]) {
+      const p = path.resolve(process.cwd(), rel)
+      if (fs.existsSync(p)) {
+        const content = fs.readFileSync(p, "utf8")
+        const match = content.match(/^ZENROWS_API_KEY=(.+)$/m)
+        if (match && match[1]?.trim()) return match[1].trim()
+      }
+    }
+  } catch {}
+  return undefined
+}
+
 export async function htmlFetch(url: string): Promise<string> {
   const maxRetries = 4
   let delay = 2_000
@@ -115,6 +157,10 @@ export async function htmlFetch(url: string): Promise<string> {
     if (verdict === "not-found") return ""
     if (verdict === "ok") return body
     if (verdict === "blocked") {
+      const zenrowsKey = getZenrowsApiKey()
+      if (zenrowsKey) {
+        return await zenrowsFetch(url, zenrowsKey)
+      }
       throw new BlockedError(`TopCV chặn (${status}, Cloudflare); tạm dừng quét portal này`)
     }
 

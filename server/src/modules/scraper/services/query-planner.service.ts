@@ -67,6 +67,7 @@ export class QueryPlanner {
   async forSystem(
     portal: string,
     occupations: string[] | null,
+    queryLimit: number | null,
   ): Promise<{ plan: SearchPlan; clusterCodes: string[] }> {
     const profiles = await this.prisma.profile.findMany({
       where: { completion: { gte: MIN_COMPLETION_TO_SCORE } },
@@ -102,7 +103,7 @@ export class QueryPlanner {
           (crawledAt.get(a.clusterCode) ?? 0) -
             (crawledAt.get(b.clusterCode) ?? 0) || b.size - a.size,
       )
-      .slice(0, this.systemQueryLimit);
+      .slice(0, queryLimit ?? this.systemQueryLimit);
 
     return {
       plan: { queries: picked.map(clusterQuery) },

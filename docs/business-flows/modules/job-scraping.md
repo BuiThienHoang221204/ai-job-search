@@ -97,7 +97,7 @@ Phiên bản 1.0 — 2026-10-19.
 2. Đọc thư mục `scraper.portalsDir` (mặc định `../.agents/skills` tính từ `server/`).
 3. Với mỗi thư mục con: cần `SKILL.md` và `cli/src/cli.ts`; đọc frontmatter → `evaluateCandidate` ([portal-cli.service.ts:38-75](../../../server/src/modules/scraper/services/portal-cli.service.ts#L38)):
    - `key` = tên thư mục bỏ hậu tố `-search|-jobs|-portal`;
-   - `enabled` (≠ `false`), `jobAge` (`true` thì truyền `--jobage`), `delayMs`, `maxJobs` (số nguyên dương, sai kiểu thì bỏ qua), `occupations` (mảng chuỗi không rỗng), `description` (≤ 200 ký tự).
+   - `enabled` (≠ `false`), `jobAge` (`true` thì truyền `--jobage`), `delayMs`, `maxJobs`, `queryLimit` (số nguyên dương, sai kiểu thì bỏ qua), `occupations` (mảng chuỗi không rỗng), `description` (≤ 200 ký tự).
 4. Portal `enabled: false` bị bỏ khỏi danh sách (log "Portal \<key\> đang tắt").
 5. THAY TOÀN BỘ bản đồ portal trong bộ nhớ; trả **201** `{ portals: PortalEntry[] }`.
 
@@ -113,7 +113,7 @@ Phiên bản 1.0 — 2026-10-19.
 1. `ScraperProcessor` nhận việc, log "Bắt đầu quét \<runId\>", gọi `run(runId)` ([scraper.processor.ts:18-23](../../../server/src/modules/scraper/scraper.processor.ts#L18)).
 2. Đọc `ScrapeRun`; không có → ném `NotFoundException` `Không tìm thấy lần quét: <runId>`.
 3. **Giành chỗ:** `updateMany({ id, status: 'PENDING' } → RUNNING, startedAt = now, error = null)`; `count = 0` → log "Bỏ qua lần quét … không còn PENDING" và dừng (không gọi portal, không gọi AI).
-4. Lấy `PortalEntry` của portal; `planFor(run, occupations)` (Luồng E).
+4. Lấy `PortalEntry` của portal; `planFor(run, occupations, queryLimit)` (Luồng E).
 5. Kế hoạch trả `skip` → cập nhật `DONE`, `jobsFound/jobsNew/jobsQueued = 0`, `error = <lý do>`, `finishedAt`; kết thúc.
 6. `plan.queries` rỗng → ném lỗi (lượt người dùng: `Hồ sơ chưa có chức danh hay kỹ năng nào để tìm việc. Hãy điền hồ sơ rồi quét lại.`; lượt hệ thống: `Chưa có hồ sơ nào đủ dữ liệu để quét chung.`).
 7. Ghi `queries` và `modelId` vào `ScrapeRun`.
@@ -137,7 +137,7 @@ Phiên bản 1.0 — 2026-10-19.
 2. `clusterProfiles`: mã cụm = nghề con suy từ headline + kỹ năng chính (`resolveSubOccupation`), lùi về `occupationCode`; hồ sơ không có ngành bị bỏ. Từ khoá cụm = headline phổ biến nhất, không có thì kỹ năng phổ biến nhất (4 kỹ năng đầu mỗi hồ sơ), chuẩn hoá ≤ 60 ký tự ([query-plan.ts:101-131](../../../server/src/modules/scraper/utils/query-plan.ts#L101)).
 3. Gộp `taxonomyBaseline()`: mỗi nghề trong `SUB_OCCUPATIONS` chưa có cụm thật thành một cụm `size: 0`; từ khoá nhóm `IT`/`DATA_AI` = từ khoá tiếng Anh đầu tiên, nhóm khác = tên nghề tiếng Việt (ưu tiên nửa có dấu khi tên chứa `/`) ([query-plan.ts:133-166](../../../server/src/modules/scraper/utils/query-plan.ts#L133)).
 4. Portal khai `occupations` → chỉ giữ cụm thuộc các nhóm đó, LỌC TRƯỚC khi xoay vòng.
-5. Đọc `OccupationCrawl` của portal; sắp cụm theo `lastCrawledAt` tăng dần (chưa quét = 0 đứng đầu), hoà thì cụm đông hồ sơ trước; cắt `SCRAPER_SYSTEM_QUERY_LIMIT` (mặc định 30).
+5. Đọc `OccupationCrawl` của portal; sắp cụm theo `lastCrawledAt` tăng dần (chưa quét = 0 đứng đầu), hoà thì cụm đông hồ sơ trước; cắt theo `queryLimit` của portal nếu có, ngược lại `SCRAPER_SYSTEM_QUERY_LIMIT` (mặc định 30).
 6. Mỗi cụm thành một truy vấn `location: ''` (cả nước). Không gọi AI (`modelId = null`).
 
 **E2. Lượt người dùng** (`run.userId` có giá trị) — [scraper.service.ts:183-197](../../../server/src/modules/scraper/services/scraper.service.ts#L183), [query-planner.service.ts:35-65](../../../server/src/modules/scraper/services/query-planner.service.ts#L35):
@@ -216,7 +216,7 @@ flowchart TD
     W --> CL{"updateMany PENDING→RUNNING count=1?"}
     CL -- Không --> SK["Bỏ qua, không gọi portal"]
     CL -- Có --> PL{"userId?"}
-    PL -- "null" --> SYS["forSystem: cụm hồ sơ + taxonomyBaseline, lọc occupations, xoay vòng OccupationCrawl, ≤30 truy vấn"]
+    PL -- "null" --> SYS["forSystem: cụm hồ sơ + taxonomyBaseline, lọc occupations, xoay vòng OccupationCrawl, ≤queryLimit hoặc ≤30 truy vấn"]
     PL -- "có" --> GATE{"Portal phục vụ ngành hồ sơ?"}
     GATE -- Không --> DSK["DONE, jobsFound=0, error giải thích"]
     GATE -- Có --> USR["forUser: planFromProfile → AI scrape.plan (lỗi thì tất định)"]
@@ -254,7 +254,7 @@ sequenceDiagram
     Q->>P: việc kế tiếp (tuần tự)
     P->>SS: run(runId)
     SS->>DB: updateMany PENDING→RUNNING
-    SS->>QP: forSystem(portal, occupations)
+    SS->>QP: forSystem(portal, occupations, queryLimit)
     QP->>DB: profile completion≥ngưỡng, occupationCrawl
     QP-->>SS: queries + clusterCodes
     SS->>DB: update queries
@@ -307,7 +307,7 @@ sequenceDiagram
 | BR-SCR-06 | `POST /api/scrape` giới hạn 3 lượt/giờ mỗi tài khoản. | GD | ✅ | [scraper.controller.ts:32](../../../server/src/modules/scraper/scraper.controller.ts#L32), [throttle.ts:12-13](../../../server/src/common/throttle.ts#L12) |
 | BR-SCR-07 | Không chỉ định portal thì quét portal đầu tiên đã nạp; portal không có trong danh sách → 400. | SV | ✅ | [scraper.controller.ts:40-52](../../../server/src/modules/scraper/scraper.controller.ts#L40) |
 | BR-SCR-08 | Portal hợp lệ = thư mục có `SKILL.md` + `cli/src/cli.ts` và frontmatter không `enabled: false`; khoá portal = tên thư mục bỏ `-search/-jobs/-portal`. | SV | ✅ | [portal-cli.service.ts:34-75](../../../server/src/modules/scraper/services/portal-cli.service.ts#L34), [portal-cli.service.ts:116-147](../../../server/src/modules/scraper/services/portal-cli.service.ts#L116) |
-| BR-SCR-09 | Frontmatter `delayMs`, `maxJobs` chỉ nhận số nguyên dương, `occupations` chỉ nhận mảng chuỗi không rỗng; sai kiểu thì dùng giá trị chung. | SV | ✅ | [portal-cli.service.ts:24-32](../../../server/src/modules/scraper/services/portal-cli.service.ts#L24) |
+| BR-SCR-09 | Frontmatter `delayMs`, `maxJobs`, `queryLimit` chỉ nhận số nguyên dương, `occupations` chỉ nhận mảng chuỗi không rỗng; sai kiểu thì dùng giá trị chung (hoặc null). | SV | ✅ | [portal-cli.service.ts:24-32](../../../server/src/modules/scraper/services/portal-cli.service.ts#L24) |
 | BR-SCR-10 | Hàng đợi `scrape.run` buộc tuần tự (concurrency 1, `serial: true`), khoá chặn trùng = `runId`. | SV | ✅ | [queue.defaults.ts:19](../../../server/src/modules/queue/queue.defaults.ts#L19), [queue-key.ts:67-68](../../../server/src/modules/queue/queue-key.ts#L67) |
 | BR-SCR-11 | Lượt quét chỉ chạy khi giành được chỗ `PENDING → RUNNING`; worker thua thì bỏ qua, không gọi portal/AI. | SV | ✅ | [scraper.service.ts:68-77](../../../server/src/modules/scraper/services/scraper.service.ts#L68) |
 | BR-SCR-12 | Lỗi bất kỳ trong lượt → `FAILED` + `error` + `finishedAt`; `FAILED` không tự xếp lại. | SV | ✅ | [scraper.service.ts:153-160](../../../server/src/modules/scraper/services/scraper.service.ts#L153) |
@@ -317,7 +317,7 @@ sequenceDiagram
 | BR-SCR-16 | Từ khoá lượt người dùng: chức danh trước, chức danh + lĩnh vực mục tiêu, rồi ≤ 4 kỹ năng chính, lùi về nghề "Chọn nhanh"; tối đa 5 truy vấn, ≤ 60 ký tự. | SV | ✅ | [query-plan.ts:15-70](../../../server/src/modules/scraper/utils/query-plan.ts#L15) |
 | BR-SCR-17 | AI chỉ TINH CHỈNH từ khoá lượt người dùng (timeout 30s, không thử lại); lỗi → dùng bản tất định. | SV | ✅ | [query-planner.service.ts:47-64](../../../server/src/modules/scraper/services/query-planner.service.ts#L47), [search-plan.prompt.ts:1](../../../server/src/modules/scraper/planning/search-plan.prompt.ts#L1) |
 | BR-SCR-18 | Output model: 2–6 truy vấn (thừa thì cắt), `query` ≥ 2 ký tự cắt 60, `location` cắt 40, `rationale` cắt 200; ngành IT/kỹ thuật từ khoá tiếng Anh, ngành khác tiếng Việt có dấu. | SV | ✅ | [search-plan.schema.ts:3-32](../../../server/src/modules/scraper/planning/search-plan.schema.ts#L3), [search-plan.prompt.ts:3-13](../../../server/src/modules/scraper/planning/search-plan.prompt.ts#L3) |
-| BR-SCR-19 | Lượt hệ thống: cụm theo NGHỀ con (lùi về nhóm) của hồ sơ đủ dữ liệu + sàn phủ mọi nghề; lọc theo `occupations` của portal TRƯỚC khi xoay vòng; chọn ≤ `SCRAPER_SYSTEM_QUERY_LIMIT` (30) cụm quét lâu nhất, hoà thì cụm đông trước; quét cả nước. | SV | ✅ | [query-planner.service.ts:67-111](../../../server/src/modules/scraper/services/query-planner.service.ts#L67), [query-plan.ts:88-185](../../../server/src/modules/scraper/utils/query-plan.ts#L88) |
+| BR-SCR-19 | Lượt hệ thống: cụm theo NGHỀ con (lùi về nhóm) của hồ sơ đủ dữ liệu + sàn phủ mọi nghề; lọc theo `occupations` của portal TRƯỚC khi xoay vòng; chọn số cụm quét lâu nhất không vượt quá `queryLimit` của portal (nếu có) hoặc `SCRAPER_SYSTEM_QUERY_LIMIT` (30), hoà thì cụm đông trước; quét cả nước. | SV | ✅ | [query-planner.service.ts:67-111](../../../server/src/modules/scraper/services/query-planner.service.ts#L67), [query-plan.ts:88-185](../../../server/src/modules/scraper/utils/query-plan.ts#L88) |
 | BR-SCR-20 | Chỉ nghề đã thật sự gửi được request mới được đóng dấu `OccupationCrawl.lastCrawledAt`. | SV | ✅ | [scraper.service.ts:136-141](../../../server/src/modules/scraper/services/scraper.service.ts#L136), [collect-cards.ts:77-79](../../../server/src/modules/scraper/utils/collect-cards.ts#L77) |
 | BR-SCR-21 | Trần tin mỗi portal mỗi lượt = `maxJobs` của portal hoặc `SCRAPER_MAX_JOBS_PER_PORTAL` (100); hạn ngạch mỗi truy vấn `floor(trần / số truy vấn)`, vòng hai lấp chỗ trống. *(2026-10-16 nâng 50 → 100)* | SV | ✅ | [scraper.service.ts:116-119](../../../server/src/modules/scraper/services/scraper.service.ts#L116), [collect-cards.ts:34-39](../../../server/src/modules/scraper/utils/collect-cards.ts#L34) |
 | BR-SCR-22 | Mỗi truy vấn tối đa `SCRAPER_MAX_PAGES` (5) trang × 25 tin/trang. | SV | ✅ | [collect-cards.ts:11](../../../server/src/modules/scraper/utils/collect-cards.ts#L11), [collect-cards.ts:48](../../../server/src/modules/scraper/utils/collect-cards.ts#L48) |
@@ -370,7 +370,7 @@ sequenceDiagram
 |---|---|---|---|
 | `enabled` | khác `false` thì bật | `evaluateCandidate` | — |
 | `jobAge` | đúng `true` mới bật | `evaluateCandidate` | coi như `false` |
-| `delayMs`, `maxJobs` | số nguyên dương | `positiveIntFrom` | dùng giá trị chung |
+| `delayMs`, `maxJobs`, `queryLimit` | số nguyên dương | `positiveIntFrom` | dùng giá trị chung (`queryLimit`: null = theo trần chung) |
 | `occupations` | mảng chuỗi không rỗng | `occupationsFrom` | `null` = phục vụ mọi ngành |
 | `description` | chuỗi, gộp khoảng trắng, cắt 200 | `evaluateCandidate` | `''` |
 

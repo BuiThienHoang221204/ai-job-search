@@ -13,6 +13,8 @@ import {
   parseJobDescription,
   searchUrl,
   splitJobCards,
+  zenrowsFetch,
+  BlockedError,
 } from "../src/helpers.ts"
 
 const fixture = (name: string) =>
@@ -277,5 +279,54 @@ describe("fetchVerdict - chặn thì báo BLOCKED, không thử lại", () => {
     expect(fetchVerdict(502, "")).toBe("retry")
     expect(fetchVerdict(404, "")).toBe("not-found")
     expect(fetchVerdict(400, "")).toBe("fail")
+  })
+})
+
+describe("zenrowsFetch", () => {
+  const origFetch = globalThis.fetch
+
+  test("gọi ZenRows với đầy đủ tham số premium_proxy", async () => {
+    let calledUrl = ""
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calledUrl = String(input)
+      return new Response(searchHtml, { status: 200 })
+    }) as typeof fetch
+
+    try {
+      const html = await zenrowsFetch("https://www.topcv.vn/tim-viec-lam-reactjs", "test-api-key")
+      expect(calledUrl).toContain("https://api.zenrows.com/v1/")
+      expect(calledUrl).toContain("apikey=test-api-key")
+      expect(calledUrl).toContain("premium_proxy=true")
+      expect(html).toContain("job-item-search-result")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  test("trả về rỗng khi ZenRows trả về 404 hoặc 422 (không tìm thấy trang)", async () => {
+    globalThis.fetch = (async () => new Response("Not found", { status: 404 })) as typeof fetch
+    try {
+      const html404 = await zenrowsFetch("https://www.topcv.vn/viec-lam/abc/123.html", "test-key")
+      expect(html404).toBe("")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+
+    globalThis.fetch = (async () => new Response("Unprocessable", { status: 422 })) as typeof fetch
+    try {
+      const html422 = await zenrowsFetch("https://www.topcv.vn/viec-lam/abc/123.html", "test-key")
+      expect(html422).toBe("")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  test("báo lỗi BlockedError khi ZenRows trả lỗi mạng hoặc trang thử thách", async () => {
+    globalThis.fetch = (async () => new Response("Forbidden", { status: 500 })) as typeof fetch
+    try {
+      expect(zenrowsFetch("https://www.topcv.vn/tim-viec-lam", "test-key")).rejects.toThrow(BlockedError)
+    } finally {
+      globalThis.fetch = origFetch
+    }
   })
 })
