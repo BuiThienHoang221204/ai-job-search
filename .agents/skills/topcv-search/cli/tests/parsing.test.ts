@@ -304,7 +304,7 @@ describe("zenrowsFetch", () => {
   })
 
   test("trả về rỗng khi ZenRows trả về 404 hoặc 422 (không tìm thấy trang)", async () => {
-    globalThis.fetch = (async () => new Response("Not found", { status: 404 })) as typeof fetch
+    globalThis.fetch = (async () => new Response("Not found", { status: 404 })) as unknown as typeof fetch
     try {
       const html404 = await zenrowsFetch("https://www.topcv.vn/viec-lam/abc/123.html", "test-key")
       expect(html404).toBe("")
@@ -312,7 +312,7 @@ describe("zenrowsFetch", () => {
       globalThis.fetch = origFetch
     }
 
-    globalThis.fetch = (async () => new Response("Unprocessable", { status: 422 })) as typeof fetch
+    globalThis.fetch = (async () => new Response("Unprocessable", { status: 422 })) as unknown as typeof fetch
     try {
       const html422 = await zenrowsFetch("https://www.topcv.vn/viec-lam/abc/123.html", "test-key")
       expect(html422).toBe("")
@@ -322,7 +322,7 @@ describe("zenrowsFetch", () => {
   })
 
   test("báo lỗi BlockedError khi ZenRows trả lỗi mạng hoặc trang thử thách", async () => {
-    globalThis.fetch = (async () => new Response("Forbidden", { status: 500 })) as typeof fetch
+    globalThis.fetch = (async () => new Response("Forbidden", { status: 500 })) as unknown as typeof fetch
     try {
       expect(zenrowsFetch("https://www.topcv.vn/tim-viec-lam", "test-key")).rejects.toThrow(BlockedError)
     } finally {
