@@ -83,9 +83,10 @@ async function main() {
     const content = await page.content()
     const status = response ? response.status() : 200
 
-    // Gửi kết quả JSON chuẩn qua stdout
-    process.stdout.write(JSON.stringify({ status, body: content }))
-    process.exit(0)
+    // Gửi kết quả JSON chuẩn qua stdout và đợi flush hoàn tất
+    await new Promise((resolve) =>
+      process.stdout.write(JSON.stringify({ status, body: content }), resolve),
+    )
   } catch (err) {
     process.stderr.write(
       `[browser-worker] Thất bại: ${err instanceof Error ? err.stack || err.message : String(err)}\n`,
