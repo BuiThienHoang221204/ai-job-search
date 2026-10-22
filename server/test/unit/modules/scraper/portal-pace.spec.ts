@@ -87,15 +87,15 @@ describe('PortalCliService.pace', () => {
 
   test('portal khai delayMs riêng thì dùng nhịp đó thay cho nhịp chung', async () => {
     const service = paced();
-    service.portals.set('careerlink', { delayMs: 10_000 });
-    service.lastCallAt.set('careerlink', Date.now());
+    service.portals.set('vieclam24h', { delayMs: 10_000 });
+    service.lastCallAt.set('vieclam24h', Date.now());
 
-    expect(await waitedMs(service, 'careerlink')).toBe(10_000);
+    expect(await waitedMs(service, 'vieclam24h')).toBe(10_000);
   });
 
   test('delayMs riêng của portal này KHÔNG đổi nhịp portal kia', async () => {
     const service = paced();
-    service.portals.set('careerlink', { delayMs: 10_000 });
+    service.portals.set('vieclam24h', { delayMs: 10_000 });
     service.lastCallAt.set('topcv', Date.now());
 
     expect(await waitedMs(service, 'topcv')).toBe(3_000);

@@ -18,7 +18,7 @@
 | `vietnamworks` | — | Có | Cấm *"sao chép… hiển thị… khai thác nhằm mục đích thương mại"*, VÀ cấm riêng việc vận hành dịch vụ tuyển dụng tương tự / *"cung cấp sản phẩm… cạnh tranh với VietnamWorks"*. CLI gọi API nội bộ `ms.vietnamworks.com` |
 | `careerviet` | — (robots.txt chặn GPTBot/ClaudeBot/CCBot) | Có | *"Cách dùng nội dung trang web này trên bất cứ trang web nào khác… vì bất cứ mục đích nào đều bị ngăn cấm"* |
 | `topcv` | — | Có | *"không được sao chép… chuẩn bị các sản phẩm phái sinh… hiển thị, xuất bản, phân phối… hoặc khai thác Nội dung TopCV"* |
-| `careerlink` | — | Có (thương mại) | *"Nghiêm cấm sao chép, sửa đổi, phân phối, khai thác thương mại khi chưa có sự đồng ý bằng văn bản"* |
+| `careerlink` (đã gỡ 2026-10-22) | — | Có (thương mại) | *"Nghiêm cấm sao chép, sửa đổi, phân phối, khai thác thương mại khi chưa có sự đồng ý bằng văn bản"* |
 | `vieclam24h` | — | Không thấy | Điều 6 chỉ nói nội dung người dùng + nhãn hiệu. Chưa đọc được trọn văn (trang chặn WebFetch) |
 | `123job` | Có (*"Thu thập, khai thác hoặc sử dụng dữ liệu từ hệ thống trái phép"*) | Có (dữ liệu *"thuộc quyền sở hữu của 123job"*) | Không nhắc đích danh bot; robots.txt chỉ chặn `/ajax`, `/apply`. Thêm 2026-10-13 theo cùng quyết định giai đoạn đồ án |
 | `topdev` | — (robots.txt cho phép) | Có | *"không được quyền thay đổi, sao chép, mô phỏng, truyền, phân phối, công bố, tạo ra các sản phẩm phái sinh, hiển thị hoặc chuyển giao, hoặc khai thác nhằm mục đích thương mại"*. Thêm 2026-10-13 theo cùng quyết định giai đoạn đồ án |

@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Phiên bản** | 1.7 |
+| **Phiên bản** | 1.8 |
 | **Ngày phát hành** | 2026-10-19 |
-| **Ngày cập nhật** | 2026-10-22 (1.7: tìm hiểu công ty dùng Tavily làm nguồn tìm kiếm chính, Serper dự phòng; 1.6: thêm `POST /admin/jobs/re-extract`; lỗi đẩy hàng đợi ghi bản ghi `FAILED`, xếp việc chuyển từ controller vào service; 1.1: đã sửa 8 vấn đề gốc mức 🟠; 1.2: gỡ LaTeX, mọi PDF in từ HTML; 1.3: `streamObject` không còn treo khi provider từ chối ngay; 1.4: mọi lõi lọc model theo `structured_output` của catalog; 1.5: lọc omniroute theo mẫu, loại bỏ `auto/*` và router alias, thêm `opencode-direct`) |
+| **Ngày cập nhật** | 2026-10-22 (1.8: gỡ portal CareerLink; 1.7: tìm hiểu công ty dùng Tavily làm nguồn tìm kiếm chính, Serper dự phòng; 1.6: thêm `POST /admin/jobs/re-extract`; lỗi đẩy hàng đợi ghi bản ghi `FAILED`, xếp việc chuyển từ controller vào service; 1.1: đã sửa 8 vấn đề gốc mức 🟠; 1.2: gỡ LaTeX, mọi PDF in từ HTML; 1.3: `streamObject` không còn treo khi provider từ chối ngay; 1.4: mọi lõi lọc model theo `structured_output` của catalog; 1.5: lọc omniroute theo mẫu, loại bỏ `auto/*` và router alias, thêm `opencode-direct`) |
 | **Phạm vi** | Backend `server/` (NestJS, 25 module, 111 endpoint, 27 bảng), frontend người dùng `ui-ai-job-search`, frontend quản trị `ui-admin-job-search`, dịch vụ phụ (`pdf-service`, `omniroute-service`, `opencode-service`), CLI portal `.agents/skills/`. Gồm cả thay đổi **chưa commit** ở `modules/ai` (bể model, model health) trên nhánh `dev` tại ngày phát hành, đánh dấu `*(2026-10-19, chưa commit)*` |
 | **Phương pháp** | Reverse engineering từ mã nguồn: lần từng endpoint controller → service → Prisma → side effect (hàng đợi, tích hợp), đối chiếu e2e và ADR. Code là nguồn sự thật duy nhất |
 
@@ -64,7 +64,7 @@ Mỗi luồng nghiệp vụ có 5 phần: **Preconditions · Main Flow · Altern
 | [profile](./modules/profile.md) | BR-PRF | Hồ sơ ứng viên, Chọn nhanh, mức hoàn thiện, suy ngành |
 | [cv-import](./modules/cv-import.md) | BR-CVI | Đọc CV PDF → bản nháp → người dùng áp dụng |
 | [jobs](./modules/jobs.md) | BR-JOB | Kho tin, bộ lọc, "Việc làm phù hợp", tin công khai, lưu tin, taxonomy |
-| [job-scraping](./modules/job-scraping.md) | BR-SCR | Quét 11 portal hằng đêm, lập truy vấn, chống trùng |
+| [job-scraping](./modules/job-scraping.md) | BR-SCR | Quét 10 portal hằng đêm, lập truy vấn, chống trùng |
 | [matching](./modules/matching.md) | BR-MAT | Rút yêu cầu tin, danh bạ kỹ năng, đối chiếu bằng code, chấm điểm AI |
 | [applications](./modules/applications.md) | BR-APP | Đơn ứng tuyển và trạng thái |
 | [documents](./modules/documents.md) | BR-DOC | CV, thư xin việc, mail ứng tuyển, mẫu, xuất PDF |
@@ -88,7 +88,7 @@ flowchart TD
   CV -->|có| IMP["Đọc CV → bản nháp → áp dụng<br/>(cv-import)"]
   CV -->|không| PRF["Điền hồ sơ<br/>(profile)"]
   IMP --> PRF
-  CRON["Cron 23:00 quét 11 portal<br/>(job-scraping)"] --> JOBS[("Kho tin dùng chung<br/>(jobs)")]
+  CRON["Cron 23:00 quét 10 portal<br/>(job-scraping)"] --> JOBS[("Kho tin dùng chung<br/>(jobs)")]
   JOBS --> REQ["Rút yêu cầu tin bằng AI, 1 lần/tin<br/>(matching)"]
   PRF --> RM["Đối chiếu bằng code: Khớp x/y<br/>(matching)"]
   REQ --> RM

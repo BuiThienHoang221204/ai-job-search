@@ -59,57 +59,57 @@ afterEach(() => jest.useRealTimers());
 
 describe('PortalCliService · cầu dao BLOCKED', () => {
   test('CLI báo BLOCKED thì lần gọi sau ném ngay, KHÔNG chạy CLI nữa', async () => {
-    const service = serviceWith('careerlink');
+    const service = serviceWith('vieclam24h');
     failWith('BLOCKED');
 
     await expect(
-      service.search('careerlink', { query: 'kế toán' }),
+      service.search('vieclam24h', { query: 'kế toán' }),
     ).rejects.toThrow('trang captcha');
     expect(execFile).toHaveBeenCalledTimes(1);
 
-    await expect(service.detail('careerlink', 'x/1')).rejects.toThrow(
+    await expect(service.detail('vieclam24h', 'x/1')).rejects.toThrow(
       'đang tạm ngừng',
     );
     await expect(
-      service.search('careerlink', { query: 'java' }),
+      service.search('vieclam24h', { query: 'java' }),
     ).rejects.toThrow('đang tạm ngừng');
     expect(execFile).toHaveBeenCalledTimes(1);
   });
 
   test('hết thời gian tạm ngừng thì gọi lại được', async () => {
-    const service = serviceWith('careerlink');
+    const service = serviceWith('vieclam24h');
     failWith('BLOCKED');
-    await expect(service.search('careerlink', {})).rejects.toThrow();
+    await expect(service.search('vieclam24h', {})).rejects.toThrow();
 
     jest.setSystemTime(Date.now() + BLOCKED_COOLDOWN_MS + 1);
     execFile.mockImplementation((_cmd, _args, _options, callback) =>
       callback(null, { stdout: '[]', stderr: '' }),
     );
 
-    await expect(service.search('careerlink', {})).resolves.toEqual([]);
+    await expect(service.search('vieclam24h', {})).resolves.toEqual([]);
     expect(execFile).toHaveBeenCalledTimes(2);
   });
 
   test('lỗi thường (mạng, 5xx) KHÔNG bật cầu dao', async () => {
-    const service = serviceWith('careerlink');
+    const service = serviceWith('vieclam24h');
     failWith('FETCH_FAILED');
 
-    await expect(service.search('careerlink', {})).rejects.toThrow();
-    await expect(service.search('careerlink', {})).rejects.toThrow(
+    await expect(service.search('vieclam24h', {})).rejects.toThrow();
+    await expect(service.search('vieclam24h', {})).rejects.toThrow(
       'trang captcha',
     );
     expect(execFile).toHaveBeenCalledTimes(2);
   });
 
   test('portal này bị chặn KHÔNG ảnh hưởng portal kia', async () => {
-    const service = serviceWith('careerlink');
+    const service = serviceWith('vieclam24h');
     (service as unknown as Internals).portals.set('topcv', {
       key: 'topcv',
       cliPath: 'x',
       delayMs: 0,
     });
     failWith('BLOCKED');
-    await expect(service.search('careerlink', {})).rejects.toThrow();
+    await expect(service.search('vieclam24h', {})).rejects.toThrow();
 
     execFile.mockImplementation((_cmd, _args, _options, callback) =>
       callback(null, { stdout: '[]', stderr: '' }),

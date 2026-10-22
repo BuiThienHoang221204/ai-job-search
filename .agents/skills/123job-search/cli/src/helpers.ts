@@ -21,7 +21,7 @@ const CHALLENGE = /hcaptcha\.com|g-recaptcha|challenges\.cloudflare\.com|<title>
 /** Có nội dung thật: thẻ tin hoặc JSON-LD của một tin. */
 const HAS_CONTENT = /js-item-job|"JobPosting"/
 
-/** Trang chặn = có dấu hiệu thử thách VÀ không có nội dung thật; trang chặn thường vẫn là HTTP 200 (xem careerlink-search). */
+/** Trang chặn = có dấu hiệu thử thách VÀ không có nội dung thật; trang chặn thường vẫn là HTTP 200 (xem ADR 0005). */
 export const isBlockedPage = (html: string): boolean => CHALLENGE.test(html) && !HAS_CONTENT.test(html)
 
 /** 403 là BLOCKED NGAY, không thử lại - cùng bài học của topcv-search và vieclam24h-search. */

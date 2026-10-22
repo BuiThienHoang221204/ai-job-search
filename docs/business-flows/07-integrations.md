@@ -8,7 +8,7 @@
 | # | Dịch vụ | Mục đích nghiệp vụ | Chiều | Module | Cấu hình |
 |---|---|---|---|---|---|
 | 1 | Gateway model (7 lõi OpenAI-compatible) | Mọi tác vụ AI: chấm điểm, rút yêu cầu, viết tài liệu, đọc CV, phỏng vấn, upskill, tìm hiểu công ty, phân loại kỹ năng | Đi | [ai-platform](./modules/ai-platform.md#15-integrations) | `MODEL_*`, `AI_*`, khoá từng lõi |
-| 2 | 11 portal tuyển dụng (qua CLI Bun) | Nguồn tin tuyển dụng | Đi | [job-scraping](./modules/job-scraping.md#15-integrations) | `PORTALS_DIR`, `SCRAPER_*` |
+| 2 | 10 portal tuyển dụng (qua CLI Bun) | Nguồn tin tuyển dụng | Đi | [job-scraping](./modules/job-scraping.md#15-integrations) | `PORTALS_DIR`, `SCRAPER_*` |
 | 3 | Serper (Google Search API) | Tìm trang review công ty | Đi | [company-research](./modules/company-research.md#15-integrations) | `SERPER_API_KEY`, `SERPER_URL`, `SERPER_MAX_RESULTS` |
 | 4 | Web công khai (fetch HTML) | Đọc trang review công ty; bóc tin từ URL người dùng dán | Đi | [company-research](./modules/company-research.md), [documents](./modules/documents.md#15-integrations) | `AGENT_FETCH_TIMEOUT_MS`, `AGENT_FETCH_MAX_BYTES` |
 | 5 | Google Identity | Đăng nhập Google (kiểm ID token) | Đi | [auth](./modules/auth.md#15-integrations) | `GOOGLE_CLIENT_ID` (+ `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ở FE) |
@@ -40,7 +40,7 @@ Cơ chế: `ModelChain` thử lần lượt các mắt xích trong ngân sách `
 
 ### 2.2 Portal tuyển dụng
 
-11 portal, mỗi portal là thư mục `.agents/skills/<key>-search/` có `SKILL.md` + `cli/src/cli.ts`, quét động lúc khởi động: `123job`, `careerlink`, `careerviet`, `itviec`, `joboko`, `linkedin`, `timviec`, `topcv`, `topdev`, `vieclam24h`, `vietnamworks`. Gọi bằng `bun run … search|detail`, timeout 60 s, stdout ≤ 8 MB; nhịp ≥ 3 s giữa hai lần gọi cùng portal; portal trả `BLOCKED` bị tạm dừng 30 phút. Tắt portal bằng `enabled: false` trong `SKILL.md`. Điều khoản sử dụng: [ADR 0006](../adr/0006-dieu-khoan-portal.md). Chi tiết: [job-scraping.md](./modules/job-scraping.md).
+10 portal, mỗi portal là thư mục `.agents/skills/<key>-search/` có `SKILL.md` + `cli/src/cli.ts`, quét động lúc khởi động: `123job`, `careerviet`, `itviec`, `joboko`, `linkedin`, `timviec`, `topcv`, `topdev`, `vieclam24h`, `vietnamworks`. Gọi bằng `bun run … search|detail`, timeout 60 s, stdout ≤ 8 MB; nhịp ≥ 3 s giữa hai lần gọi cùng portal; portal trả `BLOCKED` bị tạm dừng 30 phút. Tắt portal bằng `enabled: false` trong `SKILL.md`. Điều khoản sử dụng: [ADR 0006](../adr/0006-dieu-khoan-portal.md). Chi tiết: [job-scraping.md](./modules/job-scraping.md).
 
 ### 2.3 Serper và web công khai
 

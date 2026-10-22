@@ -33,7 +33,6 @@ const SOURCES = [
   'careerviet',
   'joboko',
   'itviec',
-  'careerlink',
 ];
 
 const argv = process.argv.slice(2);

@@ -22,7 +22,7 @@
 
 `ScraperService` KHÔNG biết một nguồn được lấy bằng cách nào — nó hỏi `JobSourceRouter`. Hiện chỉ có một adapter:
 
-- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bảy portal Việt (ITviec, TopCV, VietnamWorks, CareerLink, Vieclam24h, CareerViet, JobOKO) cùng LinkedIn nằm ở đây; sau đó thêm 123job, TopDev (2026-10-13) và timviec.ai (2026-10-17, mạnh ở việc ngoài IT, đặc điểm API ở `SKILL.md` của nó).
+- `PortalCliService` — chạy CLI skill trong `.agents/skills/`, phải giữ nhịp chống chặn IP. Bảy portal Việt (ITviec, TopCV, VietnamWorks, CareerLink, Vieclam24h, CareerViet, JobOKO) cùng LinkedIn nằm ở đây; sau đó thêm 123job, TopDev (2026-10-13) và timviec.ai (2026-10-17, mạnh ở việc ngoài IT, đặc điểm API ở `SKILL.md` của nó). **CareerLink đã gỡ 2026-10-22** (xoá cả thư mục `careerlink-search/`): bị Cloudflare Turnstile chặn trên máy chủ từ lượt đầu, chưa từng mang về tin nào trên production.
 
 Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn mới mà `ScraperService` không phải biết.
 
@@ -32,7 +32,7 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 
 | Portal | Trạng thái | Ghi chú |
 |---|---|---|
-| `careerlink` | **ĐÃ THÊM** | HTML thường, `?keyword=`; JSON-LD `JobPosting` ở trang chi tiết; tên công ty trả NFD; hCaptcha → `delayMs: 10000` |
+| `careerlink` | **ĐÃ GỠ** 2026-10-22 | HTML thường, `?keyword=`; JSON-LD `JobPosting` ở trang chi tiết; tên công ty trả NFD; hCaptcha → `delayMs: 10000` |
 | `vieclam24h` | **ĐÃ THÊM** | KHÔNG tìm theo từ khoá tự do được: tham số thật `q` bị robots.txt chặn, còn `?keyword=` bị trang BỎ QUA (0/30 tin liên quan — ghi nhầm trong bản khảo sát đầu). Đi qua trang **ngành con** tra từ sitemap (~29.000 trang, đệm đĩa 24h), lùi về ngành cha. `?page=` không đổi nội dung phía server → `page > 1` trả `[]`. `delayMs: 8000` |
 | `careerviet` | **ĐÃ THÊM** | Tìm theo từ khoá THẬT `/viec-lam/<slug>-k-vi.html`, trang N `-k-trang-N-vi.html` (50 tin/trang). JSON-LD đặt NGƯỢC chuẩn: `addressRegion` là QUẬN, `addressLocality` mới là tỉnh. Trang ~1,5MB → `delayMs: 8000`. robots.txt chặn GPTBot/ClaudeBot/CCBot |
 | `joboko` | **ĐÃ THÊM** | robots.txt chặn `/jobs?*` và `/viec-lam-theo-khoa?*`, không có sitemap → KHÔNG tìm theo từ khoá tự do. Thử trang từ khoá biên tập sẵn `/tim-viec-lam-<cụm>` (tối đa 2 lần, hụt là 404), lùi về 111 trang ngành `?p=N`. Thẻ tin KHÔNG có ngày đăng (ngày trên thẻ là HẠN NỘP) → `postedAt: null`. `delayMs: 8000` |
@@ -54,7 +54,7 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 |---|---|---|---|
 | `topcv` | 403 | Cloudflare | 2026-09-09, mọi đêm |
 | `vieclam24h` | 403, kể cả `robots.txt` | tường lửa AWS (`server: awselb/2.0`) | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được trên production |
-| `careerlink` | 200 nhưng là **Cloudflare Turnstile** ở trang tìm kiếm (trang chủ vẫn 200 có tin) | Cloudflare | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được |
+| `careerlink` | 200 nhưng là **Cloudflare Turnstile** ở trang tìm kiếm (trang chủ vẫn 200 có tin) | Cloudflare | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được; đã gỡ 2026-10-22 |
 
 Portal vẫn để BẬT: hết bị chặn thì tự chạy lại. Máy chủ ARM mới trên Oracle nhiều khả năng bị đối xử y hệt (vẫn là IP datacenter).
 
@@ -68,7 +68,7 @@ Portal vẫn để BẬT: hết bị chặn thì tự chạy lại. Máy chủ A
 
 **Trần từ khoá riêng từng portal: `queryLimit` trong frontmatter `SKILL.md`** (số nguyên dương), ghi đè `SCRAPER_SYSTEM_QUERY_LIMIT` cho lượt quét hệ thống của riêng portal đó; vắng thì dùng giá trị chung (30). Thêm 2026-10-22 để tối ưu hạn mức ZenRows cho TopCV: TopCV dùng `queryLimit: 5` và `maxJobs: 50` để quét đúng 5 ngành đa dạng mỗi đêm (IT, Kế toán, Marketing, Bán hàng, Nhân sự) với ~10 tin/ngành, thay vì hỏi 30 từ khoá chia mỏng tin và tiêu cạn 5.000 credits/tháng. Các portal miễn phí khác vẫn dùng trần chung 30.
 
-**Nhãn ngành của portal đi vào `Job.categories`, KHÔNG vào `tags`** (thêm 2026-10-13). `tags` của VietnamWorks là kỹ năng; trộn hai thứ thì không biết chữ nào là nghề. Nguồn nhãn: VietnamWorks `jobFunction` (nghề con trước, nhóm cha sau — có ngay trong API tìm kiếm, và trong HTML chi tiết thì là tham chiếu lồng `$39` → `children: "$3a"` → `["$3b"]`, giải bằng `resolveFlightRefs`), CareerViet/JobOKO/CareerLink JSON-LD `industry`, ITviec "Job Expertise" (KHÔNG lấy "Job Domain" — đó là lĩnh vực công ty). LinkedIn không có: trang khách chỉ còn "Industries" của CÔNG TY. Nhãn chỉ lấy từ trang đã mở sẵn để đọc mô tả — **không mở trang chi tiết chỉ vì nhãn**.
+**Nhãn ngành của portal đi vào `Job.categories`, KHÔNG vào `tags`** (thêm 2026-10-13). `tags` của VietnamWorks là kỹ năng; trộn hai thứ thì không biết chữ nào là nghề. Nguồn nhãn: VietnamWorks `jobFunction` (nghề con trước, nhóm cha sau — có ngay trong API tìm kiếm, và trong HTML chi tiết thì là tham chiếu lồng `$39` → `children: "$3a"` → `["$3b"]`, giải bằng `resolveFlightRefs`), CareerViet/JobOKO JSON-LD `industry`, ITviec "Job Expertise" (KHÔNG lấy "Job Domain" — đó là lĩnh vực công ty). LinkedIn không có: trang khách chỉ còn "Industries" của CÔNG TY. Nhãn chỉ lấy từ trang đã mở sẵn để đọc mô tả — **không mở trang chi tiết chỉ vì nhãn**.
 
 **Thứ tự xếp ngành: từ khoá CHÍNH trong tiêu đề → nhãn portal → từ khoá DỰ PHÒNG → thẻ.** Nhãn KHÔNG đứng đầu, vì đo trên CareerViet nhà tuyển dụng hay chọn kèm ngành của công ty: "Marketing Officer" ở công ty thẩm mỹ mang nhãn "Y tế / Chăm sóc sức khỏe". Nhãn thắng ở chỗ tiêu đề mơ hồ ("Chuyên viên cao cấp") hoặc chỉ có từ dự phòng ("Kỹ sư quản lý chất lượng" + nhãn "Xây Dựng"). `fallbackKeywords` (`ai`, `it`, `cntt`, `chat luong`, `brand`, `f b`…) là chữ hay chỉ ngành của công ty hơn là nghề — đừng chuyển chúng lên `keywords`. "thương mại điện tử" được đổi thành `ecommerce` trước khi so (`occupationHaystack`): từ khoá `dien tu` của Sản xuất từng khớp ngay bên trong cụm đó, và 8 tin vận hành sàn TMĐT trên production nằm ở Sản xuất. Nhãn đổi sang mã ngành qua `portal-categories.ts` (dựng từ từ vựng THẬT: 30 nhóm/150 nghề VietnamWorks), nhãn lạ thì chạy bộ từ khoá trên chính nhãn; giá trị `null` = nhãn không mang thông tin ngành ("Quản Lý Cấp Cao", "Khác"), xét tiếp nhãn sau. Tin cũ: `node scripts/backfill-portal-categories.mjs` (mặc định chỉ tin `OTHER`, `--all`, `--limit`, `--dry-run`); tin VietnamWorks đã biết còn tự gắn nhãn dần qua `refreshKnownCards` khi lượt quét gặp lại.
 

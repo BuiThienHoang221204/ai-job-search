@@ -5,7 +5,7 @@
 
 ## 1. Bài toán
 
-Người tìm việc ở Việt Nam phải tự lục hàng chục portal tuyển dụng, đọc từng tin để đoán mình có hợp không, rồi viết CV/thư riêng cho từng nơi và tự ôn phỏng vấn. Hệ thống gom tin từ 11 portal mỗi đêm, đối chiếu từng tin với hồ sơ của từng người, và dùng mô hình ngôn ngữ để chấm độ phù hợp, viết tài liệu ứng tuyển, soạn bộ câu hỏi phỏng vấn, luyện phỏng vấn thử và chỉ ra kỹ năng nên học.
+Người tìm việc ở Việt Nam phải tự lục hàng chục portal tuyển dụng, đọc từng tin để đoán mình có hợp không, rồi viết CV/thư riêng cho từng nơi và tự ôn phỏng vấn. Hệ thống gom tin từ 10 portal mỗi đêm, đối chiếu từng tin với hồ sơ của từng người, và dùng mô hình ngôn ngữ để chấm độ phù hợp, viết tài liệu ứng tuyển, soạn bộ câu hỏi phỏng vấn, luyện phỏng vấn thử và chỉ ra kỹ năng nên học.
 
 | Mục tiêu | Diễn giải |
 |---|---|
@@ -22,7 +22,7 @@ Người tìm việc ở Việt Nam phải tự lục hàng chục portal tuyể
 ```mermaid
 flowchart LR
   subgraph "Nguồn tin"
-    P["11 portal (CLI)"] --> SCR["Quét tin (job-scraping)"]
+    P["10 portal (CLI)"] --> SCR["Quét tin (job-scraping)"]
   end
   SCR --> J[("jobs")]
   J --> REQ["Rút yêu cầu tin (AI, 1 lần/tin)"]
@@ -61,7 +61,7 @@ flowchart TB
   end
   API --> PG[("Postgres 17 + pgvector<br/>schema public + pgboss")]
   W --> PG
-  W -->|"bun run cli.ts"| PORT["11 portal tuyển dụng"]
+  W -->|"bun run cli.ts"| PORT["10 portal tuyển dụng"]
   API & W -->|"OpenAI-compatible"| GW["Lõi model: omniroute, opencode,<br/>openrouter, groq, gemini, kilo, unorouter"]
   API & W --> PDF["pdf-service (Chromium)"]
   API & W --> R2["Cloudflare R2"]
