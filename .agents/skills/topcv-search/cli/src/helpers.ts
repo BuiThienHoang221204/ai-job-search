@@ -1,3 +1,5 @@
+import { browserFetch } from "./browser-fetch"
+
 // Nguồn dữ liệu: trang tìm việc công khai của TopCV.
 //
 // robots.txt của topcv.vn chỉ chặn các đường dẫn liên quan tới CV cá nhân
@@ -77,7 +79,7 @@ async function curlFetch(url: string): Promise<{ status: number; body: string }>
  * Mốc lùi ban đầu dài hơn hẳn itviec-search (2 giây so với 0,7 giây) vì
  * Cloudflare cần nghỉ lâu hơn mới thả.
  */
-/** Portal chặn IP. Backend nhận mã BLOCKED và tạm ngừng gọi TopCV 30 phút - KHÔNG tìm cách vượt Cloudflare. */
+/** Portal chặn IP. Backend nhận mã BLOCKED và tạm ngừng gọi TopCV 30 phút khi cả curl lẫn browser fallback đều không tải được trang. */
 export class BlockedError extends Error {}
 
 /** Dấu hiệu trang thử thách của Cloudflare. Một widget reCAPTCHA trong form KHÔNG đủ - bẫy đã sập ở joboko-search. */
@@ -115,6 +117,19 @@ export async function htmlFetch(url: string): Promise<string> {
     if (verdict === "not-found") return ""
     if (verdict === "ok") return body
     if (verdict === "blocked") {
+      try {
+        const browserRes = await browserFetch(url)
+        if (fetchVerdict(browserRes.status, browserRes.body) === "ok") {
+          return browserRes.body
+        }
+        process.stderr.write(
+          `[topcv-search] browserFetch không vượt qua thẩm định: status=${browserRes.status}\n`,
+        )
+      } catch (browserErr) {
+        process.stderr.write(
+          `[topcv-search] browserFetch thất bại: ${browserErr instanceof Error ? browserErr.message : String(browserErr)}\n`,
+        )
+      }
       throw new BlockedError(`TopCV chặn (${status}, Cloudflare); tạm dừng quét portal này`)
     }
 

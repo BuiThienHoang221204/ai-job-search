@@ -46,9 +46,12 @@ FROM node:22-slim AS runtime
 #   Nay tool `fetch_url` của agent cũng đi qua curl vì đúng lý do đó (xem
 #   `agent/utils/http-get.ts`), nên gỡ curl ra sẽ làm hỏng HAI tính năng.
 # ca-certificates: cần cho mọi request HTTPS ra portal và ra gateway model.
+# chromium: hỗ trợ cào cây DOM tự động hoá cho TopCV khi Cloudflare bật thử thách Turnstile.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends curl ca-certificates \
+ && apt-get install -y --no-install-recommends curl ca-certificates chromium \
  && rm -rf /var/lib/apt/lists/*
+
+ENV CHROMIUM_PATH=/usr/bin/chromium
 
 # bun: mọi portal CLI chạy bằng bun (xem PortalCliService). Lấy binary từ image
 # chính thức thay vì chạy script cài: không thêm một lần tải qua mạng, và phiên
@@ -82,6 +85,9 @@ COPY server/prisma.config.ts ./prisma.config.ts
 COPY .claude/skills /app/.claude/skills
 COPY .agents/skills /app/.agents/skills
 COPY .claude/commands /app/.claude/commands
+
+# Cài đặt phụ thuộc riêng cho portal CLI topcv-search (playwright-core)
+RUN cd /app/.agents/skills/topcv-search/cli && bun install --production
 COPY cv /app/cv
 COPY cover_letters /app/cover_letters
 
