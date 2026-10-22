@@ -46,7 +46,7 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 
 **Cầu dao `BLOCKED` nằm trong `PortalCliService.invoke`** (áp cho MỌI portal): gặp mã đó thì ngừng gọi portal ấy `BLOCKED_COOLDOWN_MS` (30 phút) và ném ngay không chạy CLI. Trước đó `JobWriter` vẫn gọi `detail` cho từng tin còn lại — mỗi lần một request vào đúng trang đang chặn mình, kéo dài lượt chặn. Portal mới nào có trang chặn riêng thì CLI của nó phải báo `BLOCKED`; `test/unit/modules/scraper/portal-blocked.spec.ts` canh cầu dao.
 
-**TopCV: 403 kích hoạt browser fallback trước khi ngắt `BLOCKED`** (`helpers.ts`). Khi `curl` gặp 403 do Cloudflare Turnstile, CLI kích hoạt một headless browser worker cục bộ để kết xuất cây DOM. Nếu browser fallback lấy được DOM sạch, lượt quét tiếp tục; nếu vẫn bị chặn hoặc browser lỗi, CLI ném ngay `BLOCKED` để bật cầu dao ngắt 30 phút, không thử lại liên tiếp bằng HTTP thường. Trước đó CLI báo `FETCH_FAILED` nên cầu dao không bật. Hồi 08–09/2026 Cloudflare của TopCV chặn THEO ĐỢT (chạy lại vài giờ sau vẫn ra tin), nhưng **từ 2026-09-09 IP máy chủ Oracle bị chặn LIÊN TỤC** — xem đoạn dưới.
+**TopCV: 403 là `BLOCKED` NGAY, không thử lại** (`fetchVerdict` trong `topcv-search/cli/src/helpers.ts`). Hai lượt hỏng 28/09 và 30/09 nhận 403 đủ 5/5 lần trong 30s lùi dần — thử lại chưa cứu được lượt nào, chỉ gửi thêm 4 request đúng lúc đang bị chặn. Trước đó CLI báo `FETCH_FAILED` nên cầu dao không bật. Hồi 08–09/2026 Cloudflare của TopCV chặn THEO ĐỢT (chạy lại vài giờ sau vẫn ra tin), nhưng **từ 2026-09-09 IP máy chủ Oracle bị chặn LIÊN TỤC** — xem đoạn dưới.
 
 **Ba portal chặn THEO IP máy chủ, không phải lỗi code — đo 2026-10-13.** Cùng URL, cùng User-Agent: từ máy cá nhân trả 200 kèm tin, từ máy chủ Oracle (168.107.87.28, Singapore) thì:
 
@@ -56,7 +56,7 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 | `vieclam24h` | 403, kể cả `robots.txt` | tường lửa AWS (`server: awselb/2.0`) | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được trên production |
 | `careerlink` | 200 nhưng là **Cloudflare Turnstile** ở trang tìm kiếm (trang chủ vẫn 200 có tin) | Cloudflare | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được |
 
-Với portal gặp thử thách Cloudflare/Turnstile (như TopCV), hệ thống hỗ trợ cơ chế fallback qua trình duyệt headless (browser worker) để kết xuất cây DOM. Trường hợp trình duyệt vẫn không tải được trang thật (hoặc lớp chặn AWS WAF trả 403 cứng như Vieclam24h), cầu dao `BLOCKED` sẽ ngắt 30 phút và tự chạy lại sau. Máy chủ ARM mới trên Oracle nhiều khả năng bị đối xử y hệt (vẫn là IP datacenter).
+Portal vẫn để BẬT: hết bị chặn thì tự chạy lại. Máy chủ ARM mới trên Oracle nhiều khả năng bị đối xử y hệt (vẫn là IP datacenter).
 
 **Lỗi im lặng đã sửa cùng đợt:** CareerLink chỉ dò hCaptcha/reCAPTCHA nên coi trang Turnstile là "0 kết quả" — **14 đêm liền `DONE` với `jobsFound: 0`** mà không cảnh báo nào. Nay `isBlockedPage` dò cả `challenges.cloudflare.com/turnstile`, kèm điều kiện "không có thẻ tin, không có JSON-LD" (trang thật KHÔNG nhúng Turnstile, đã kiểm). Vieclam24h thì thử lại 403 bốn lần rồi báo `FETCH_FAILED` nên cầu dao không bật — nay 403 là `BLOCKED` ngay (`errorForStatus`), và `loadSubPages` ném tiếp `BlockedError` thay vì nuốt rồi gọi tiếp vào portal đang chặn. **Một lượt quét `DONE` với 0 tin nhiều đêm liền là dấu hiệu bị chặn, không phải portal hết tin** — kiểm `scrape_runs` theo portal khi thấy vậy.
 
