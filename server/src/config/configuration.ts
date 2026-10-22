@@ -110,9 +110,15 @@ const configuration = () => ({
     fetchMaxBytes: int('AGENT_FETCH_MAX_BYTES', 2_000_000),
     fetchTimeoutMs: int('AGENT_FETCH_TIMEOUT_MS', 20_000),
     search: {
-      apiKey: process.env.SERPER_API_KEY ?? '',
-      url: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
       maxResults: int('SERPER_MAX_RESULTS', 5),
+      tavily: {
+        apiKey: process.env.TAVILY_API_KEY ?? '',
+        url: process.env.TAVILY_URL ?? 'https://api.tavily.com/search',
+      },
+      serper: {
+        apiKey: process.env.SERPER_API_KEY ?? '',
+        url: process.env.SERPER_URL ?? 'https://google.serper.dev/search',
+      },
     },
   },
 

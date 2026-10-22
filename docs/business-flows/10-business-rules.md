@@ -466,6 +466,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-CMP-23 | Lỗi khi dựng bản không để lại trạng thái lỗi trong DB; bản cũ (nếu có) giữ nguyên | SV | ✅ |
 | BR-CMP-24 | Đọc công khai: throttle 60 lượt/phút; làm mới: `ThrottleAi` 10 lượt/phút | GD | ✅ |
 | BR-CMP-25 | FE chỉ hiện thẻ "Về công ty này" khi `researchable = true` và không lỗi; khách bấm "Tìm hiểu" bị chuyển sang đăng nhập | FE | ⚠️ |
+| BR-CMP-26 | Tìm kiếm nguồn: Tavily là nguồn chính, Serper chỉ được gọi khi Tavily không có key hoặc lời gọi Tavily hỏng (HTTP lỗi, hết hạn mức tháng, timeout); Tavily trả 200 với 0 kết quả thì KHÔNG gọi Serper *(2026-10-22)* | SV | ✅ |
 
 ### Salary — Tra cứu lương & khung đàm phán lương — [modules/salary.md](./modules/salary.md#7-business-rules)
 

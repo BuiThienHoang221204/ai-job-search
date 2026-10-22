@@ -20,6 +20,8 @@ Người dùng trước đây phải: nộp đơn xong → mở Google → gõ "
 
 **Biến môi trường tìm kiếm là `SERPER_*`, không phải `WEB_SEARCH_*`.** `configuration.ts` từng đọc `WEB_SEARCH_API_KEY` trong khi `.env` và `.env.example` đều khai `SERPER_API_KEY`, nên `searchApiKey` luôn rỗng và `searchUrl` mặc định trỏ sang Tavily trong khi `parseSerper` đọc định dạng Serper — tool `web_search` của agent chưa từng chạy. Sửa 2026-08-24.
 
+**Tavily là nguồn tìm kiếm chính, Serper là dự phòng — chốt 2026-10-22.** Serper cho 2.500 lượt miễn phí **một lần**, còn Tavily cho 1.000 lượt **mỗi tháng** (làm mới ngày 1), nên đặt Tavily trước để hạn mức tự hồi; Tavily hết hạn mức tháng (HTTP 432) hay lỗi bất kỳ thì `ReviewResearchService.search` gọi Serper cho đúng truy vấn đó. Tavily trả 200 với 0 kết quả thì KHÔNG gọi Serper — không có kết quả là dữ kiện, không phải lỗi, và gọi thêm chỉ tốn lượt. Đo một lượt thật ("review công ty FPT Software", `country=vietnam`): 5/5 kết quả là trang đánh giá (ITviec, VOZ, Reddit, nhóm Facebook). Không bật `include_raw_content` — trang vẫn đọc bằng `fetchPage` như cũ.
+
 #### Bốn điều đã đo được từ lượt chạy thật đầu tiên (2026-08-24)
 
 Chạy trên "Công ty TNHH Smartbooks" — công ty nhỏ, và đó là ca đáng học chứ không phải ca hỏng.

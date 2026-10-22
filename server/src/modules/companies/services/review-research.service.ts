@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { pageToText } from '@/common/web/html-text';
 import { fetchPage } from '@/common/web/http-get';
 import { parseSerper } from '@/common/web/serper';
+import { parseTavily } from '@/common/web/tavily';
 import { webLimitsFrom, type WebLimits } from '@/common/web/web-limits';
 import type { SearchHit } from '@/common/web/serper';
 import { messageOf } from '@/common/error-message';
@@ -18,35 +19,58 @@ export class ReviewResearchService {
   }
 
   get enabled(): boolean {
-    return this.web.search.apiKey !== '';
+    const { tavily, serper } = this.web.search;
+    return tavily.apiKey !== '' || serper.apiKey !== '';
   }
 
   async search(query: string): Promise<SearchHit[]> {
-    try {
-      const response = await fetch(this.web.search.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.web.search.apiKey,
+    const { tavily, serper, maxResults } = this.web.search;
+
+    if (tavily.apiKey !== '') {
+      const body = await this.post(
+        tavily.url,
+        { Authorization: `Bearer ${tavily.apiKey}` },
+        {
+          query,
+          max_results: maxResults,
+          search_depth: 'basic',
+          country: 'vietnam',
         },
-        body: JSON.stringify({
-          q: query,
-          num: this.web.search.maxResults,
-          gl: 'vn',
-          hl: 'vi',
-        }),
+      );
+      if (body !== null) return parseTavily(body);
+    }
+
+    if (serper.apiKey === '') return [];
+    const body = await this.post(
+      serper.url,
+      { 'X-API-KEY': serper.apiKey },
+      { q: query, num: maxResults, gl: 'vn', hl: 'vi' },
+    );
+    return body === null ? [] : parseSerper(body);
+  }
+
+  private async post(
+    url: string,
+    headers: Record<string, string>,
+    payload: object,
+  ): Promise<unknown> {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(this.web.fetchTimeoutMs),
       });
 
       if (!response.ok) {
-        this.logger.warn(`Tìm kiếm trả về HTTP ${response.status}: ${query}`);
-        return [];
+        this.logger.warn(`Tìm kiếm ${url} trả về HTTP ${response.status}`);
+        return null;
       }
 
-      return parseSerper(await response.json());
+      return (await response.json()) as unknown;
     } catch (error) {
-      this.logger.warn(`Tìm kiếm hỏng (${query}): ${messageOf(error)}`);
-      return [];
+      this.logger.warn(`Tìm kiếm ${url} hỏng: ${messageOf(error)}`);
+      return null;
     }
   }
 

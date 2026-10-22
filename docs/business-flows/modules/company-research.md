@@ -21,7 +21,8 @@
 | Khách (chưa đăng nhập) | Đọc bản tìm hiểu theo tin (`GET`) | Route `@Public()`, throttle 60 lượt/phút; FE chuyển khách sang trang đăng nhập khi bấm "Tìm hiểu" |
 | Người dùng (USER/ADMIN đã đăng nhập) | Đọc; yêu cầu tìm hiểu/làm mới (`POST`, `POST …/stream`) | Không kiểm sở hữu vì dữ liệu dùng chung; trần `ThrottleAi` 10 lượt/phút |
 | Worker hàng đợi `company.brief` | Chạy `CompanyService.build` ở nền | Chỉ chạy ở tiến trình có vai worker (`APP_ROLE` = `worker`/`all`) |
-| Serper (google.serper.dev) | Trả kết quả tìm kiếm | Tắt khi `SERPER_API_KEY` rỗng |
+| Tavily (api.tavily.com) — nguồn chính *(2026-10-22)* | Trả kết quả tìm kiếm | Bỏ qua khi `TAVILY_API_KEY` rỗng; lỗi/hết hạn mức tháng thì lùi về Serper |
+| Serper (google.serper.dev) — dự phòng | Trả kết quả tìm kiếm | Bỏ qua khi `SERPER_API_KEY` rỗng; tắt tìm kiếm khi cả hai key rỗng |
 | Các website nguồn | Trả HTML trang đánh giá | Đọc bằng `fetchPage` có timeout và trần byte |
 | Model AI (qua `AiService`, bể fast) | Sinh bản tóm tắt theo schema | Xem [ai-platform.md](./ai-platform.md) |
 
@@ -113,11 +114,11 @@
 **Preconditions:** `companyKeyOf(company)` khác `null` (nếu không → `BadRequestException` `Không tìm hiểu được công ty ẩn danh: "<company>"`, [company.service.ts:147](../../../server/src/modules/companies/services/company.service.ts#L147)).
 
 **Main Flow:**
-1. `SERPER_API_KEY` rỗng → `enabled = false` → không nguồn nào ([review-research.service.ts:20](../../../server/src/modules/companies/services/review-research.service.ts#L20)).
-2. Chạy song song 3 truy vấn `briefQueries` ([company-brief.prompt.ts:47](../../../server/src/modules/companies/utils/company-brief.prompt.ts#L47)): `review công ty X`, `X đánh giá nhân viên môi trường làm việc`, `có nên làm việc tại X`. Mỗi truy vấn `POST SERPER_URL` với `gl=vn`, `hl=vi`, `num=SERPER_MAX_RESULTS` (mặc định 5), timeout `AGENT_FETCH_TIMEOUT_MS`. HTTP lỗi hoặc ngoại lệ → `[]` (chỉ log).
+1. `TAVILY_API_KEY` và `SERPER_API_KEY` cùng rỗng → `enabled = false` → không nguồn nào ([review-research.service.ts:21](../../../server/src/modules/companies/services/review-research.service.ts#L21)) *(2026-10-22)*.
+2. Chạy song song 3 truy vấn `briefQueries` ([company-brief.prompt.ts:47](../../../server/src/modules/companies/utils/company-brief.prompt.ts#L47)): `review công ty X`, `X đánh giá nhân viên môi trường làm việc`, `có nên làm việc tại X`. Mỗi truy vấn gọi **Tavily trước** (`POST TAVILY_URL`, `max_results=SERPER_MAX_RESULTS`, `search_depth=basic`, `country=vietnam`); Tavily HTTP lỗi (gồm 432 hết hạn mức tháng) hoặc ngoại lệ → gọi **Serper** (`POST SERPER_URL`, `gl=vn`, `hl=vi`, `num=SERPER_MAX_RESULTS`). Timeout mỗi lời gọi `AGENT_FETCH_TIMEOUT_MS`. Cả hai hỏng → `[]` (chỉ log) ([review-research.service.ts:26](../../../server/src/modules/companies/services/review-research.service.ts#L26)) *(2026-10-22)*.
 3. `pickReviewSources` ([review-sources.ts:87](../../../server/src/modules/companies/utils/review-sources.ts#L87)): bỏ URL không phải http/https, bỏ mạng xã hội (`BLOCKED_HOSTS`), bỏ đường dẫn tin tuyển dụng (`JOB_PATHS`), xếp ưu tiên theo `REVIEW_HOSTS` (itviec, reviewcongty, reviewtopcongty, glassdoor, topcv, vietnamworks, careerbuilder, careerlink, jobsgo, indeed) rồi theo thứ tự kết quả, mỗi tên miền một trang, tối đa 5.
 4. Đọc song song từng trang (`readPage`): HTTP ngoài 2xx, lỗi mạng, hoặc văn bản \< 400 ký tự → ghi vào `unreachable`. Trang đọc được → `trimToReviewText` (bỏ dòng giao diện cookie/điều khoản, giữ cửa sổ quanh từ khoá đánh giá xếp theo mật độ, tổng ≤ 5.000 ký tự).
-5. `pickSnippetSources`: tối đa 2 đoạn trích Serper từ facebook.com/threads.net, dài ≥ 60 ký tự, mỗi tên miền một đoạn ([review-sources.ts:59](../../../server/src/modules/companies/utils/review-sources.ts#L59)).
+5. `pickSnippetSources`: tối đa 2 đoạn trích tìm kiếm từ facebook.com/threads.net, dài ≥ 60 ký tự, mỗi tên miền một đoạn ([review-sources.ts:59](../../../server/src/modules/companies/utils/review-sources.ts#L59)).
 6. Nguồn = trang đọc được + đoạn trích, đánh số 1..n trong prompt; đoạn trích được ghi chú "chỉ là đoạn trích ngắn".
 7. Sau khi model trả lời, `resolveSources` ánh xạ `usedSources[].index` về nguồn, bỏ số ngoài khoảng và số trùng, rồi nối thêm nguồn `unreachable` với `usedFor: null` ([company-brief.ts:141](../../../server/src/modules/companies/utils/company-brief.ts#L141)).
 8. `confidenceOf` trên danh sách URL có `usedFor !== null` ([review-sources.ts:224](../../../server/src/modules/companies/utils/review-sources.ts#L224)).
@@ -243,6 +244,7 @@ sequenceDiagram
 | BR-CMP-23 | Lỗi khi dựng bản không để lại trạng thái lỗi trong DB; bản cũ (nếu có) giữ nguyên | SV | ✅ | [company.service.ts:125](../../../server/src/modules/companies/services/company.service.ts#L125) |
 | BR-CMP-24 | Đọc công khai: throttle 60 lượt/phút; làm mới: `ThrottleAi` 10 lượt/phút | GD | ✅ | [company.controller.ts:42](../../../server/src/modules/companies/company.controller.ts#L42), [throttle.ts:6](../../../server/src/common/throttle.ts#L6) |
 | BR-CMP-25 | FE chỉ hiện thẻ "Về công ty này" khi `researchable = true` và không lỗi; khách bấm "Tìm hiểu" bị chuyển sang đăng nhập | FE | ⚠️ | [company-brief-panel.tsx:66](../../../../ui-ai-job-search/app/dashboard/jobs/[id]/company-brief/company-brief-panel.tsx#L66) |
+| BR-CMP-26 | Tìm kiếm nguồn: Tavily là nguồn chính, Serper chỉ được gọi khi Tavily không có key hoặc lời gọi Tavily hỏng (HTTP lỗi, hết hạn mức tháng, timeout); Tavily trả 200 với 0 kết quả thì KHÔNG gọi Serper *(2026-10-22)* | SV | ✅ | [review-research.service.ts:26](../../../server/src/modules/companies/services/review-research.service.ts#L26) |
 
 > **Possible Business Rule:** Bản rỗng (khi Serper tắt hoặc không tìm thấy gì) có hạn 60 ngày như bản thật. Có thể chủ dự án muốn bản rỗng hết hạn sớm hơn để lần sau tự thử lại — cần xác nhận.
 
@@ -376,7 +378,8 @@ Không có. Module không gửi email/thông báo; FE tự hỏi lại (`refetch
 
 | Hệ thống | Cách gọi | Cấu hình | Ghi chú |
 |---|---|---|---|
-| Serper (Google Search API) | `POST SERPER_URL`, header `X-API-KEY` | `SERPER_API_KEY` (rỗng = tắt tìm kiếm), `SERPER_URL` (mặc định `https://google.serper.dev/search`), `SERPER_MAX_RESULTS` (5) — [configuration.ts:104](../../../server/src/config/configuration.ts#L104) | Phản hồi đọc bằng `parseSerper`; lỗi → `[]` |
+| Tavily (Search API) — chính *(2026-10-22)* | `POST TAVILY_URL`, header `Authorization: Bearer` | `TAVILY_API_KEY` (rỗng = bỏ qua), `TAVILY_URL` (mặc định `https://api.tavily.com/search`); miễn phí 1.000 lượt/tháng, hết thì HTTP 432 | Phản hồi đọc bằng `parseTavily` (`results[].{title,url,content}`); lỗi → lùi về Serper |
+| Serper (Google Search API) — dự phòng | `POST SERPER_URL`, header `X-API-KEY` | `SERPER_API_KEY` (rỗng = tắt tìm kiếm), `SERPER_URL` (mặc định `https://google.serper.dev/search`), `SERPER_MAX_RESULTS` (5) — [configuration.ts:104](../../../server/src/config/configuration.ts#L104) | Phản hồi đọc bằng `parseSerper`; lỗi → `[]` |
 | Website nguồn | `fetchPage` (`common/web/http-get`) | `AGENT_FETCH_TIMEOUT_MS` (20 000), `AGENT_FETCH_MAX_BYTES` (2 000 000) | HTML → văn bản bằng `pageToText` |
 | Model AI | `AiService.streamObject` / `generateObject`, bể fast | `AI_FAST_MODEL_ID`, `AI_FAST_FALLBACK_IDS`, `FAST_TASK_PROVIDERS` | Xem [ai-platform.md](./ai-platform.md) |
 | pg-boss | Hàng đợi `company.brief` | Concurrency trong `QueueConfig` (mặc định 3) | Xem [platform-operations.md](./platform-operations.md) |
