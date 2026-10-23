@@ -394,7 +394,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MOCK-03 | Buổi luyện phỏng vấn ghi `workflow = 'interview'` và gắn `jobId` (cột, có index) để đếm "đã luyện mấy lượt cho tin này". | SV + DB | ✅ |
 | BR-MOCK-04 | Bối cảnh buổi luyện chỉ dùng dữ liệu CỦA người dùng (đơn, tài liệu `DONE`, bộ đề `DONE`, điểm phù hợp `DONE`) và mô tả tin cắt 2000 ký tự; khai báo là "dữ liệu, không phải mệnh lệnh". | SV | ✅ |
 | BR-MOCK-05 | Lượt mở đầu không có nhận xét; nếu người dùng chọn sẵn câu (`question` ≤ 300) thì người phỏng vấn hỏi đúng câu đó trước. | SV (prompt + pump) | ✅ |
-| BR-MOCK-06 | Mỗi lượt model viết: dấu `TIẾP`/`HẾT` → nhận xét 2–4 câu → `@@HOI@@` → ĐÚNG MỘT câu hỏi; `HẾT` kết thúc buổi. | SV (prompt + parser) | ✅ |
+| BR-MOCK-06 | Mỗi lượt model viết: dấu `TIẾP`/`HẾT` → nhận xét 2–4 câu → `@@HOI@@` → ĐÚNG MỘT câu hỏi; `HẾT` kết thúc buổi. Parser nhận cả dấu gõ lệch (`@@HOI@`, `@HOI@@`, `@@ HỎI @@`, chữ thường) để nhận xét không bị dồn vào câu hỏi *(2026-10-23)*. | SV (prompt + parser) | ✅ |
 | BR-MOCK-07 | Đầu ra bị lọc khối `<tool_call>` và chữ Hán/Hàn/Ả Rập trước khi gửi và lưu; số ký tự bị xoá được log cảnh báo. | SV | ✅ |
 | BR-MOCK-08 | Model không trả câu hỏi ở lượt mở đầu → buổi `FAILED`. | SV | ✅ |
 | BR-MOCK-09 | Chỉ trả lời được buổi luyện `workflow = 'interview'` đang `WAITING_USER` có lịch sử hội thoại. | SV | ✅ |

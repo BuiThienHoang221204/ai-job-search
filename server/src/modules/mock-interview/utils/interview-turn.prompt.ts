@@ -2,6 +2,17 @@ export const TURN_MARKER = { next: 'TIẾP', done: 'HẾT' } as const;
 
 export const QUESTION_MARK = '@@HOI@@';
 
+const QUESTION_MARK_LOOSE = /@{1,3}\s*H[OÔỎ]I\s*@{1,3}/i;
+
+/** Vị trí dấu ngăn câu hỏi, nhận cả bản model gõ lệch như `@@HOI@` hay `@HOI@@`. */
+export function findQuestionMark(
+  text: string,
+): { at: number; end: number } | null {
+  const match = QUESTION_MARK_LOOSE.exec(text);
+  if (!match) return null;
+  return { at: match.index, end: match.index + match[0].length };
+}
+
 const TOOL_CALL_BLOCK = /<tool_call>[\s\S]*?<\/tool_call>/g;
 
 const FOREIGN_SCRIPT =
@@ -9,7 +20,7 @@ const FOREIGN_SCRIPT =
 
 export function scrubText(input: string): string {
   return input
-    .split(QUESTION_MARK)
+    .split(QUESTION_MARK_LOOSE)
     .join('\n\n')
     .replace(TOOL_CALL_BLOCK, '')
     .replace(FOREIGN_SCRIPT, '');
@@ -74,13 +85,13 @@ export function splitTurnParts(body: string): TurnParts {
     .replace(TOOL_CALL_BLOCK, '')
     .replace(FOREIGN_SCRIPT, '')
     .trim();
-  const at = clean.indexOf(QUESTION_MARK);
+  const mark = findQuestionMark(clean);
 
-  if (at === -1) return { feedback: '', question: clean };
+  if (!mark) return { feedback: '', question: clean };
 
   return {
-    feedback: clean.slice(0, at).trim(),
-    question: clean.slice(at + QUESTION_MARK.length).trim(),
+    feedback: clean.slice(0, mark.at).trim(),
+    question: clean.slice(mark.end).trim(),
   };
 }
 

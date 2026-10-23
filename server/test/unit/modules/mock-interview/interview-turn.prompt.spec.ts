@@ -119,6 +119,19 @@ describe('splitTurnParts', () => {
 
     expect(splitTurnParts(raw)).toEqual({ feedback: '', question: raw });
   });
+
+  /// Đã gặp thật: model viết `@@HOI@`, cả nhận xét lẫn dấu ngăn lọt vào câu hỏi.
+  it.each(['@@HOI@', '@HOI@@', '@@ HỎI @@', '@@hoi@@'])(
+    'nhận vạch ngăn gõ lệch %s',
+    (mark) => {
+      expect(
+        splitTurnParts(`Trình bày rõ ràng.\n\n${mark}\n\nBạn dùng Azure chưa?`),
+      ).toEqual({
+        feedback: 'Trình bày rõ ràng.',
+        question: 'Bạn dùng Azure chưa?',
+      });
+    },
+  );
 });
 
 describe('createStreamScrubber', () => {

@@ -16,8 +16,8 @@ import {
   countForeign,
   createStreamScrubber,
   INTERVIEW_TURN_SYSTEM,
+  findQuestionMark,
   openingPrompt,
-  QUESTION_MARK,
   splitTurnMarker,
   splitTurnParts,
   type TurnParts,
@@ -242,11 +242,11 @@ export class InterviewTurnService {
       if (markerSeen) return scrub.push(raw);
 
       pending += raw;
-      const at = pending.indexOf(QUESTION_MARK);
-      if (at === -1) return '';
+      const mark = findQuestionMark(pending);
+      if (!mark) return '';
 
       markerSeen = true;
-      return scrub.push(pending.slice(at + QUESTION_MARK.length));
+      return scrub.push(pending.slice(mark.end));
     };
 
     for await (const piece of textStream) {
