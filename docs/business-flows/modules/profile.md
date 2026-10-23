@@ -23,7 +23,7 @@
 | Người dùng (`USER`/`ADMIN`) | Đọc/ghi **hồ sơ của chính mình** | `userId` luôn lấy từ token, không có tham số id |
 | Hệ thống — `AuthService` | Tạo `Profile` rỗng khi tạo tài khoản | Module auth |
 | Hệ thống — `ProfileDraftService` | Ghi giá trị người dùng đã duyệt từ CV qua `save` | Module cv-import |
-| Hệ thống — `LearningService` | Thêm kỹ năng khi một mục học chuyển `DONE` qua `addSkill` | Module upskill ([learning.service.ts:67](../../../server/src/modules/upskill/learning.service.ts#L67)) |
+| Hệ thống — `LearningService` | Thêm kỹ năng khi một mục học chuyển `DONE` qua `addSkill` | Module upskill ([learning.service.ts:67](../../../server/src/modules/upskill/services/learning.service.ts#L67)) |
 | Hệ thống — worker `skill.canonicalize` | Đọc kỹ năng hồ sơ, chuẩn hoá vào danh bạ rồi xếp `match.requirements` | Module matching |
 | Hệ thống — scraper / AI shortlist | Ghi `lastFanOutAt` (không qua `save`) | Module job-scraping, matching |
 
@@ -80,7 +80,7 @@
 **Preconditions:** đã đăng nhập.
 
 **Main Flow:**
-1. FE (trang Kỹ năng cần học, khi đánh dấu đã học) gọi `POST /api/profile/skills { skill }` ([use-learning.ts:51](../../../../ui-ai-job-search/hooks/use-learning.ts#L51)); backend `PUT /api/learning/:key` với trạng thái `DONE` cũng gọi `ProfileService.addSkill` ([learning.service.ts:67](../../../server/src/modules/upskill/learning.service.ts#L67)).
+1. FE (trang Kỹ năng cần học, khi đánh dấu đã học) gọi `POST /api/profile/skills { skill }` ([use-learning.ts:51](../../../../ui-ai-job-search/hooks/use-learning.ts#L51)); backend `PUT /api/learning/:key` với trạng thái `DONE` cũng gọi `ProfileService.addSkill` ([learning.service.ts:67](../../../server/src/modules/upskill/services/learning.service.ts#L67)).
 2. `AddSkillDto`: chuỗi 1–80 ký tự ([profile.dto.ts:161](../../../server/src/modules/profile/profile.dto.ts#L161)).
 3. `addSkill`: đọc (hoặc tạo) hồ sơ; so `foldTerm(skill)` (bỏ dấu, chữ thường) với mọi `primarySkills` + `secondarySkills` ([profile.service.ts:24](../../../server/src/modules/profile/profile.service.ts#L24)).
 4. Chưa có → `save` với `secondarySkills = [...cũ, skill.trim()]` (chạy đủ bước của Luồng B, gồm xếp `skill.canonicalize`).
@@ -338,7 +338,7 @@ Không gọi dịch vụ bên ngoài trực tiếp.
 **R1 — `subOccupationCode` không được kiểm và có thể lệch với `occupationCode`.** ✅ **Đã sửa 2026-10-23**: cột thành `subOccupationCodes`, `ProfileService.quickStart` từ chối nghề không thuộc ngành, `save` xoá danh sách nghề khi ngành đổi.
 - Mô tả: DTO chỉ kiểm `subOccupationCode` là chuỗi ≤ 200, không đối chiếu danh mục nghề con hay việc nó thuộc `occupationCode`. Đổi ngành ở đầu trang hồ sơ gửi quick-start **không kèm** `subOccupationCode`, và việc suy lại ngành từ headline chỉ đổi `occupationCode` — nghề con cũ ở lại.
 - Bằng chứng: [profile.dto.ts:155](../../../server/src/modules/profile/profile.dto.ts#L155); [profile-summary.tsx:101](../../../../ui-ai-job-search/app/dashboard/profile/profile-summary.tsx#L101); [occupation.ts:25](../../../server/src/modules/profile/utils/occupation.ts#L25)-33.
-- Tác động: hồ sơ kiểu `occupationCode = FINANCE`, `subOccupationCode = IT_BACKEND`; nghề con được dùng làm từ khoá dự phòng khi quét tin ([query-plan.ts:59](../../../server/src/modules/scraper/utils/query-plan.ts#L59)) và lọc tin cho skill gap ([skill-gap.service.ts:78](../../../server/src/modules/upskill/skill-gap.service.ts#L78)) ⇒ quét/so sai nghề.
+- Tác động: hồ sơ kiểu `occupationCode = FINANCE`, `subOccupationCode = IT_BACKEND`; nghề con được dùng làm từ khoá dự phòng khi quét tin ([query-plan.ts:59](../../../server/src/modules/scraper/utils/query-plan.ts#L59)) và lọc tin cho skill gap ([skill-gap.service.ts:78](../../../server/src/modules/upskill/services/skill-gap.service.ts#L78)) ⇒ quét/so sai nghề.
 - Đề xuất: kiểm `subOccupationCode` thuộc ngành đã chọn; xoá nó khi `occupationCode` đổi.
 
 **R2 — `save` gồm hai lệnh ghi rời, không transaction.** Mức đề xuất: 🟢
@@ -372,7 +372,7 @@ Không gọi dịch vụ bên ngoài trực tiếp.
 - [common/validators/bounded-json.ts](../../../server/src/common/validators/bounded-json.ts), [common/validation-message.ts](../../../server/src/common/validation-message.ts)
 - [modules/queue/queue-key.ts](../../../server/src/modules/queue/queue-key.ts), [modules/queue/queue.defaults.ts](../../../server/src/modules/queue/queue.defaults.ts)
 - [modules/matching/matching.processor.ts](../../../server/src/modules/matching/matching.processor.ts), [modules/matching/rules/match-write.ts](../../../server/src/modules/matching/rules/match-write.ts)
-- [modules/upskill/learning.service.ts](../../../server/src/modules/upskill/learning.service.ts)
+- [modules/upskill/services/learning.service.ts](../../../server/src/modules/upskill/services/learning.service.ts)
 - [schema.prisma — Profile](../../../server/prisma/schema.prisma#L71), [JobSeniority](../../../server/prisma/schema.prisma#L330)
 - Test: [profile-quick-start.e2e-spec.ts](../../../server/test/profile-quick-start.e2e-spec.ts), [security.e2e-spec.ts](../../../server/test/security.e2e-spec.ts)
 

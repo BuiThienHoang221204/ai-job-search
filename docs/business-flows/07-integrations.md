@@ -19,6 +19,7 @@
 | 10 | Hugging Face (`Xenova/multilingual-e5-base`, chạy cục bộ) | Embedding 768 chiều cho danh bạ kỹ năng | Tải model lần đầu, sau đó cục bộ | [matching](./modules/matching.md#15-integrations) | — |
 | 11 | PostgreSQL + pgvector + pg-boss | Lưu trữ, hàng đợi, tìm láng giềng kỹ năng | Đi | [platform-operations](./modules/platform-operations.md) | `DATABASE_URL` |
 | 12 | x-interview.com | Nguồn ngân hàng câu hỏi (06/09/2026) và bảng lương tham chiếu | Đi, **chỉ qua script chạy tay** | [question-bank](./modules/question-bank.md#15-integrations), [salary](./modules/salary.md#15-integrations) | `DATABASE_URL`, `OMNIROUTE_*`, `MODEL_ID` (script) |
+| 13 | Web Push (dịch vụ push của trình duyệt) | Nhắc học trước giờ học 15 phút *(2026-10-23)* | Đi | [upskill](./modules/upskill.md#15-integrations) | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
 
 **Chiều về (webhook): không có.** Không route nào nhận callback từ hệ thống ngoài (grep `webhook` trên `server/src` không có kết quả).
 

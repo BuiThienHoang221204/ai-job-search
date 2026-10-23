@@ -24,6 +24,7 @@ import { ProfileModule } from './modules/profile/profile.module';
 import { ProfileSourcesModule } from './modules/profile-sources/profile-sources.module';
 import { ReconcileModule } from './modules/reconcile/reconcile.module';
 import { ScraperModule } from './modules/scraper/scraper.module';
+import { PushModule } from './modules/push/push.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -71,6 +72,7 @@ export const THROTTLED_MESSAGE =
     SalaryModule,
     QuestionBankModule,
     ReconcileModule,
+    PushModule,
     AdminModule,
   ],
 })

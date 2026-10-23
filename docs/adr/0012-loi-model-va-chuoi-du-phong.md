@@ -310,5 +310,7 @@ Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/healt
 - Nguyên nhân: Các router alias (`openrouter/free`, `openrouter/auto`, `…/openrouter/free`) định tuyến ngẫu nhiên tới các model backend không xác định; chúng có thể vượt qua micro-prompt `{ok, echo}` của probe (vốn chỉ vài token), nhưng lập tức sập hoặc vi phạm schema khi gặp prompt dài.
 - Do đó, `isProbeCandidate` **loại bỏ các router alias** có đuôi `openrouter/free` và `openrouter/auto`.
 
+**Thứ tự lõi bể main đổi 2026-10-23:** `omniroute → opencode-direct → opencode → openrouter` (trước đó `opencode-direct` đứng đầu), theo quyết định của chủ dự án. Đổi cả mặc định trong `configuration.ts` lẫn `MAIN_TASK_PROVIDERS` trong `.env`; thứ tự lõi là khoá xếp thứ ba của `rankModels`, sau model trượt probe và model ghim.
+
 **4. Bổ sung lõi `opencode-direct`:**
 - Thêm `providers/opencode-direct.ts` gọi trực tiếp OpenCode Zen API kèm giả lập vân tay CLI v2 (`x-opencode-client`, `x-opencode-project`, `x-opencode-session`), không cần qua container `opencode-service`. Khai báo `catalogId: 'opencode'` để liên kết và lọc theo catalog `models.opencode.ai`.

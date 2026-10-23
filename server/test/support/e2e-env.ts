@@ -28,6 +28,11 @@ process.env.AI_HEALTHCHECK_ENABLED = 'false';
 // kiểu test chập chờn mà không ai tìm ra nguyên nhân.
 process.env.RECONCILE_CRON_ENABLED = 'false';
 
+// Không có khoá VAPID thì cron nhắc học không chạy và `web-push` không bao giờ
+// gửi thật. `.env` máy dev có khoá thì test sẽ đẩy thông báo tới trình duyệt thật.
+process.env.VAPID_PUBLIC_KEY = '';
+process.env.VAPID_PRIVATE_KEY = '';
+
 // In PDF phải đi qua `FakeSandbox` của harness. `.env` máy dev hay đặt
 // `PDF_SERVICE_URL` trỏ container, và khi đó test gọi mạng thật.
 process.env.PDF_SERVICE_URL = '';

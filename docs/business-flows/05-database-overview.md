@@ -79,7 +79,7 @@ Bảng không có khoá ngoại tới bảng khác: `occupation_crawls`, `compan
 
 | Bảng | Trường nghiệp vụ chính | Ràng buộc / index đáng chú ý |
 |---|---|---|
-| `users` | `role`, `email`, `passwordHash?`, `googleId?`, `tokenVersion`, `name` | `email` unique, `googleId` unique |
+| `users` | `role`, `email`, `passwordHash?`, `googleId?`, `tokenVersion`, `name`, `studyTime` | `email` unique, `googleId` unique |
 | `profiles` | danh tính (`headline`, `location`, `phone`…), kỹ năng (`primarySkills`, `secondarySkills`, `lackingSkills`), kinh nghiệm, định hướng, `currentSalary`, `expectedSalary`, khối JSON (`experiences`, `educations`, `projects`…), `occupationCode?`, `subOccupationCodes[]`, `experienceLevel`, `completion`, `lastFanOutAt?` | `userId` unique; index `lastFanOutAt` |
 | `profile_drafts` | `status`, `evidence` (Json), `proposal` (Json), `storageKey`, `filename`, `generatedAt`, `appliedAt`, `error` | index `(userId, createdAt desc)` |
 | `jobs` | `source`, `externalId?`, `url`, `title`, `company`, `location`, `workMode`, dẫn xuất (`provinceCode`, `occupationCode`, `subOccupationCode`, `searchText`, `dedupeKey`), `duplicateOfId?`, `salaryRaw`, `salaryMin/Max/currency` (đọc từ `salaryRaw` bởi `derivedFields`, chỉ lương VND theo tháng — BR-JOB-29b *(2026-10-19)*), `tags`, `categories`, `description`, `postedAt?`, `scrapedAt` | unique `(source, externalId)`; index `(scrapedAt desc, id desc)` và 3 biến thể theo tỉnh/ngành/nghề; GIN trigram trên `searchText`; `dedupeKey` **cố ý không unique** |
@@ -104,6 +104,7 @@ Bảng không có khoá ngoại tới bảng khác: `occupation_crawls`, `compan
 | `agent_steps` | `index`, `text`, `toolCalls`, `toolResults`, `durationMs` | unique `(runId, index)` |
 | `upskill_reports` | `mode`, `status`, `jobId?`, `jobsAnalysed`, `hardGaps`, `synthesisedGaps`, `learningPlan`, `summary` — **không có `updatedAt`** | index `(userId, createdAt desc)` |
 | `learning_items` | `skillKey`, `skillName`, `status`, `steps Boolean[3]`, `days` | unique `(userId, skillKey)` |
+| `push_subscriptions` | `userId`, `endpoint`, `p256dh`, `auth` *(2026-10-23)* | unique `endpoint`, index `userId` |
 | `ai_calls` | `userId?`, `purpose`, `provider`, `modelId`, `ok`, `failureKind`, `errorMessage`, `durationMs`, `inputTokens`, `outputTokens`, `cachedTokens`, `finishReason`, `responseText` (**dữ liệu cá nhân**) | index `createdAt desc`, `(purpose, ok)`, `userId` |
 | `queue_configs` | `queueName`, `concurrency` (mặc định 1), `serial`, `note` | `queueName` unique |
 

@@ -1,9 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Put,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { LearningService } from './learning.service';
-import { LearningKeyDto, SaveLearningDto } from './upskill.dto';
+import { LearningService } from './services/learning.service';
+import {
+  LearningKeyDto,
+  LearningSettingsDto,
+  SaveLearningDto,
+} from './upskill.dto';
 
 @ApiTags('Learning Plan')
 @ApiBearerAuth()
@@ -18,6 +30,17 @@ export class LearningController {
   @Get()
   overview(@CurrentUser() user: AuthUser) {
     return this.learning.overview(user.id);
+  }
+
+  @ApiOperation({
+    summary: 'Đổi giờ học hằng ngày, nhắc học gửi trước 15 phút',
+  })
+  @Patch()
+  updateSettings(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: LearningSettingsDto,
+  ) {
+    return this.learning.updateSettings(user.id, dto);
   }
 
   @ApiOperation({ summary: 'Học hoặc bỏ qua một kỹ năng, lưu mốc và ngày học' })

@@ -14,6 +14,12 @@ cd server
 pnpm lint && pnpm test && pnpm test:e2e
 ```
 
+**Tự rà diff trước khi báo xong**, theo ba câu hỏi, sửa ngay những gì vướng rồi mới báo, và báo kèm kết quả rà:
+
+1. **Có over-engineer không?** Đối chiếu mục "Sửa ĐỦ DÙNG": tham số/option không có chỗ gọi truyền giá trị khác mặc định, hai cơ chế cho một vấn đề, test trùng hành vi, code thêm nhiều hơn phần thật sự cần.
+2. **Có vi phạm quy tắc thiết kế hay kỹ thuật nào trong file này không?** Controller mỏng, khoá theo `userId`, giành chỗ có điều kiện, bồi hoàn khi đẩy hàng đợi, cấu hình mặc định chỉ ở `configuration.ts`, comment, cấu trúc thư mục module, import.
+3. **Logic có thẳng và đơn giản không?** Đối chiếu mục "Logic thẳng, đọc từ trên xuống": không ternary lồng, không mẹo chuỗi, chỉ tách hàm khi có lý do, không export/khai báo thừa.
+
 **Đổi hành vi thì cập nhật `docs/business-flows/` trong cùng thay đổi.** Hành vi gồm: endpoint, quyền, quy tắc, validation, thông điệp lỗi, trạng thái, bảng/cột, hàng đợi/cron, tích hợp. Sửa file module ứng với vùng code đó (`docs/business-flows/modules/<module>.md`; dòng `Phạm vi` đầu mỗi file ghi nó phủ thư mục nào). Sau đó chạy `python docs/business-flows/_gen.py --write`. Thứ tự cập nhật, cách đánh dấu ngày, cách chuyển rủi ro sang `✅ Đã sửa` và những file hệ thống cần sửa tay: [`docs/business-flows/README.md` §7](docs/business-flows/README.md#7-bảo-trì-tài-liệu). Refactor giữ nguyên hành vi thì không cần.
 
 `pnpm test:e2e` **cần Postgres đang chạy** (`pnpm db:up`) và biến `TEST_DATABASE_URL` trỏ tới database có tên kết thúc bằng `_test`. Nó tự tạo database đó và tự chạy migration.
@@ -147,6 +153,7 @@ Mỗi ADR giữ nguyên văn số đo, lý do và bẫy đã sập của một c
 - **Muốn hồi sinh runtime Claude Code (`/setup`, `/apply`)** → `docs/adr/0015-khong-co-ho-so-ung-vien.md` (Vì sao CLAUDE.md không chứa hồ sơ ứng viên)
 - **Sửa `modules/companies`, Serper, nguồn trích hoặc `confidence`** → `docs/adr/0016-tim-hieu-cong-ty.md` (Tìm hiểu công ty: luồng cố định, chỉ lưu bản phân tích)
 - **Thêm/sửa schema zod cho output model, `common/model-output.ts`** → `docs/adr/0017-cat-chuoi-model-output.md` (Schema output của model: CẮT thay vì từ chối)
+- **Sửa nhắc học, `modules/push`, `StudyReminderService`, `User.studyTime` hoặc thêm kênh thông báo** → `docs/adr/0018-nhac-hoc-web-push.md` (Nhắc học bằng Web Push, giờ học do người dùng chọn)
 
 ## Ranh giới không được xê dịch
 

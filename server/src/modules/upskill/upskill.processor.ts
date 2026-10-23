@@ -4,7 +4,7 @@ import {
   QueueService,
   type UpskillReportPayload,
 } from '../queue/queue.service';
-import { UpskillService } from './upskill.service';
+import { UpskillService } from './services/upskill.service';
 
 @Injectable()
 export class UpskillProcessor implements OnModuleInit {

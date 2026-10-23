@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { LearningStatus } from '@/generated/prisma/enums';
 import { PrismaService } from '@/prisma/prisma.service';
-import { ProfileService } from '../profile/profile.service';
+import { ProfileService } from '@/modules/profile/profile.service';
 import { SkillGapService } from './skill-gap.service';
-import type { SaveLearningDto } from './upskill.dto';
+import type { LearningSettingsDto, SaveLearningDto } from '../upskill.dto';
 
 export const MAX_LEARNING = 3;
 
@@ -16,11 +16,15 @@ export class LearningService {
   ) {}
 
   async overview(userId: string) {
-    const [report, items] = await Promise.all([
+    const [report, items, user] = await Promise.all([
       this.gaps.forUser(userId),
       this.prisma.learningItem.findMany({
         where: { userId },
         orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { studyTime: true },
       }),
     ]);
     const statusOf = new Map(items.map((item) => [item.skillKey, item.status]));
@@ -31,6 +35,7 @@ export class LearningService {
         ...gap,
         status: statusOf.get(gap.key) ?? 'OPEN',
       })),
+      studyTime: user.studyTime,
       plan: items.filter((item) => item.status !== 'SKIPPED'),
       skipped: items.filter((item) => item.status === 'SKIPPED'),
     };
@@ -66,6 +71,14 @@ export class LearningService {
 
     if (status === 'DONE') await this.profile.addSkill(userId, dto.skillName);
     return item;
+  }
+
+  async updateSettings(userId: string, dto: LearningSettingsDto) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { studyTime: dto.studyTime },
+      select: { studyTime: true },
+    });
   }
 
   async remove(userId: string, skillKey: string) {

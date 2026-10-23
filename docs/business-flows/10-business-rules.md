@@ -437,6 +437,10 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-UPS-23 | Gửi `LEARNING` với đủ 3 mốc đều `true` → mục thành `DONE` và kỹ năng được thêm vào `secondarySkills` của hồ sơ (nếu chưa có) | SV | ✅ Mềm |
 | BR-UPS-24 | Xoá mục kế hoạch không gỡ kỹ năng đã thêm vào hồ sơ | SV | ✅ Mềm |
 | BR-UPS-25 | Đọc/ghi báo cáo và kế hoạch học luôn khoá theo `userId` của JWT | SV | ✅ Mềm |
+| BR-UPS-26 | Giờ học `User.studyTime` mặc định `20:00`, chỉ nhận 06:00–23:00 bước 30 phút, một giờ cho mọi kỹ năng *(2026-10-23)* | DTO, DB | ✅ Mềm |
+| BR-UPS-27 | Nhắc học gửi trước giờ học 15 phút, chỉ vào ngày học của ít nhất một kỹ năng `LEARNING`, chỉ tới người đã bật nhắc trên ít nhất một thiết bị; một thông báo gộp mọi kỹ năng hôm đó *(2026-10-23)* | SV | ✅ Mềm |
+| BR-UPS-28 | Thiết bị nhận thông báo khoá theo `endpoint` (duy nhất); đăng ký lại từ tài khoản khác thì thiết bị chuyển chủ; chỉ huỷ / gửi thử được thiết bị của chính mình *(2026-10-23)* | SV, DB | ✅ Mềm |
+| BR-UPS-29 | Dịch vụ push trả 404/410 thì xoá thiết bị; chưa đặt khoá VAPID thì không phát khoá công khai (503) và không chạy cron nhắc học *(2026-10-23)* | SV | ✅ Mềm |
 
 ### Company Research — Tìm hiểu công ty — [modules/company-research.md](./modules/company-research.md#7-business-rules)
 

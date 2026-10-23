@@ -24,7 +24,7 @@ import {
   skillKeyOf,
   type GapJob,
   type SkillGap,
-} from './utils/skill-gaps';
+} from '../utils/skill-gaps';
 
 const RECENT_DAYS = 30;
 const MAX_JOBS = 400;

@@ -47,7 +47,7 @@ const configuration = () => ({
     fastFallbackModelIds: csv('AI_FAST_FALLBACK_IDS', ''),
     mainProviders: csv(
       'MAIN_TASK_PROVIDERS',
-      'opencode-direct,opencode,omniroute,openrouter',
+      'omniroute,opencode-direct,opencode,openrouter',
     ),
     fastProviders: csv(
       'FAST_TASK_PROVIDERS',
@@ -162,6 +162,13 @@ const configuration = () => ({
 
     reconcileEnabled: process.env.RECONCILE_CRON_ENABLED !== 'false',
     reconcileSchedule: process.env.RECONCILE_CRON_SCHEDULE ?? '*/10 * * * *',
+  },
+
+  push: {
+    vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+    vapidSubject:
+      process.env.VAPID_SUBJECT ?? 'https://ui-ai-job-search.vercel.app',
   },
 
   throttle: {

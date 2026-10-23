@@ -7,27 +7,27 @@ import {
 } from '@nestjs/common';
 import type { Profile, UpskillReport } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
-import { AiService } from '../ai/services/ai.service';
-import { QUEUE, QueueService } from '../queue/queue.service';
+import { AiService } from '@/modules/ai/services/ai.service';
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import { messageOf } from '@/common/error-message';
 import { withFailureKind, streamFailureEvent } from '@/common/ai/failure-view';
-import { PromptBuilderService } from '../skills/services/prompt-builder.service';
-import { SkillRegistryService } from '../skills/services/skill-registry.service';
+import { PromptBuilderService } from '@/modules/skills/services/prompt-builder.service';
+import { SkillRegistryService } from '@/modules/skills/services/skill-registry.service';
 import type { ModelStreamEvent } from '@/common/stream-event';
-import type { StreamObjectOptions } from '../ai/ai.types';
+import type { StreamObjectOptions } from '@/modules/ai/ai.types';
 import {
   upskillGapsSchema,
   upskillPlanSchema,
   type UpskillGaps,
   type UpskillPlan,
-} from './upskill.schema';
+} from '../upskill.schema';
 import {
   gapsPrompt,
   planPrompt,
   GAPS_SECTIONS,
   PLAN_SECTIONS,
   type ScoredJob,
-} from './utils/upskill.prompt';
+} from '../utils/upskill.prompt';
 import { STUCK_AFTER_MS } from '@/common/duration';
 
 const SKILL_NAME = 'upskill';

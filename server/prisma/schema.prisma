@@ -44,25 +44,46 @@ model User {
   /// minh token được ký, không chứng minh nó chưa bị rút lại.
   tokenVersion Int      @default(0)
   name         String
+  /// Giờ học hằng ngày "HH:MM" (giờ Việt Nam, bước 30 phút) cho lộ trình học;
+  /// thông báo nhắc học gửi trước 15 phút.
+  studyTime    String   @default("20:00")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  profile          Profile?
-  matches          JobMatch[]
-  skillMatches     JobRequirementMatch[]
-  savedJobs        SavedJob[]
-  interviewPreps   InterviewPrep[]
-  interviewAnswers InterviewAnswer[]
-  upskillReports   UpskillReport[]
-  learningItems    LearningItem[]
-  documents        Document[]
-  scrapeRuns       ScrapeRun[]
-  aiCalls          AiCall[]
-  applications     Application[]
-  profileDrafts    ProfileDraft[]
-  agentRuns        AgentRun[]
+  profile           Profile?
+  matches           JobMatch[]
+  skillMatches      JobRequirementMatch[]
+  savedJobs         SavedJob[]
+  interviewPreps    InterviewPrep[]
+  interviewAnswers  InterviewAnswer[]
+  upskillReports    UpskillReport[]
+  learningItems     LearningItem[]
+  documents         Document[]
+  scrapeRuns        ScrapeRun[]
+  aiCalls           AiCall[]
+  applications      Application[]
+  profileDrafts     ProfileDraft[]
+  agentRuns         AgentRun[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
+}
+
+/// Một trình duyệt/thiết bị đã cho phép nhận thông báo đẩy (Web Push).
+/// `endpoint` do dịch vụ push của trình duyệt cấp nên duy nhất trên mọi người
+/// dùng; đăng nhập tài khoản khác trên cùng trình duyệt thì dòng chuyển chủ.
+model PushSubscription {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 /// Hồ sơ ứng viên. Các trường ở đây thay thế trực tiếp các placeholder

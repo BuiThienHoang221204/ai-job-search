@@ -9,6 +9,7 @@ import {
   Length,
   MaxLength,
 } from 'class-validator';
+import { STUDY_TIMES } from './utils/study-reminder';
 
 export const WEEK_DAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const;
 
@@ -42,4 +43,11 @@ export class SaveLearningDto {
   @ArrayMaxSize(7)
   @IsIn(WEEK_DAYS, { each: true, message: 'Ngày học không hợp lệ' })
   days?: string[];
+}
+
+export class LearningSettingsDto {
+  @IsIn(STUDY_TIMES, {
+    message: 'Giờ học phải từ 06:00 tới 23:00, bước 30 phút',
+  })
+  studyTime!: string;
 }

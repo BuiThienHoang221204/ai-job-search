@@ -17,7 +17,7 @@ import type { AiService } from 'src/modules/ai/services/ai.service.js';
 import { PromptBuilderService } from 'src/modules/skills/services/prompt-builder.service.js';
 import type { SkillRegistryService } from 'src/modules/skills/services/skill-registry.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
-import { UpskillService } from 'src/modules/upskill/upskill.service.js';
+import { UpskillService } from 'src/modules/upskill/services/upskill.service.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 
 /*
@@ -36,7 +36,7 @@ import { FakeAi } from 'src/testing/fake-ai.js';
 
 /** File skill THẬT, không phải bản giả: xem docblock của test "khung phân tích". */
 const SKILL_BODY = readFileSync(
-  join(__dirname, '../../../../../.claude/skills/upskill/SKILL.md'),
+  join(__dirname, '../../../../../../.claude/skills/upskill/SKILL.md'),
   'utf8',
 );
 

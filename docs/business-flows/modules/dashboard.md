@@ -244,7 +244,7 @@ Không có tích hợp ngoài phía backend (không gọi AI, không hàng đợ
 
 ### R2 — Mỗi lần mở Tổng quan chạy lại toàn bộ phép tính khoảng trống kỹ năng
 - **Mô tả:** `overview` gọi `SkillGapService.forUser` (đọc tới 400 `JobRequirement` + đối chiếu bằng code) mỗi request, không cache; `staleTime: 0` ở FE và header `no-store`. Trang Hồ sơ (`/dashboard/skill-gaps`) và Lộ trình học (`/learning`) tính lại lần nữa.
-- **Bằng chứng:** [dashboard.service.ts:131](../../../server/src/modules/dashboard/dashboard.service.ts#L131), [skill-gap.service.ts:86-99](../../../server/src/modules/upskill/skill-gap.service.ts#L86), [use-dashboard.ts](../../../../ui-ai-job-search/hooks/use-dashboard.ts).
+- **Bằng chứng:** [dashboard.service.ts:131](../../../server/src/modules/dashboard/dashboard.service.ts#L131), [skill-gap.service.ts:86-99](../../../server/src/modules/upskill/services/skill-gap.service.ts#L86), [use-dashboard.ts](../../../../ui-ai-job-search/hooks/use-dashboard.ts).
 - **Tác động:** chi phí CPU/DB tăng theo số tin trong ngành; chưa có số đo cho thấy chạm ngưỡng (theo nguyên tắc "tối ưu khi số đo gần ngưỡng" của CLAUDE.md).
 - **Đề xuất:** ghi nhận, đo khi kho tin tăng.
 - **Mức đề xuất:** 🟢
@@ -263,7 +263,7 @@ Không có tích hợp ngoài phía backend (không gọi AI, không hàng đợ
 - [dashboard.service.ts](../../../server/src/modules/dashboard/dashboard.service.ts)
 - [dashboard.utils.ts](../../../server/src/modules/dashboard/dashboard.utils.ts)
 - [dashboard.module.ts](../../../server/src/modules/dashboard/dashboard.module.ts)
-- [skill-gap.service.ts](../../../server/src/modules/upskill/skill-gap.service.ts)
+- [skill-gap.service.ts](../../../server/src/modules/upskill/services/skill-gap.service.ts)
 - [applications.service.ts](../../../server/src/modules/applications/applications.service.ts) (`countsFor`)
 - [job-card.select.ts](../../../server/src/modules/jobs/job-card.select.ts)
 - [profile/utils/completion.ts](../../../server/src/modules/profile/utils/completion.ts)

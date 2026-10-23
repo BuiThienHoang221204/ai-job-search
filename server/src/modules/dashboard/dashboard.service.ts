@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ApplicationsService } from '../applications/applications.service';
-import { SkillGapService } from '../upskill/skill-gap.service';
+import { SkillGapService } from '../upskill/services/skill-gap.service';
 import { missingFields } from '../profile/utils/completion';
 import { jobCardSelect } from '../jobs/job-card.select';
 import {

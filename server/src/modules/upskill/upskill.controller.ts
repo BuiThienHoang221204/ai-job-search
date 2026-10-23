@@ -17,7 +17,7 @@ import {
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { GenerateUpskillDto } from './upskill.dto';
-import { UpskillService } from './upskill.service';
+import { UpskillService } from './services/upskill.service';
 import { streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 
