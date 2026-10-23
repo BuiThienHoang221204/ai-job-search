@@ -178,7 +178,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-SCR-06 | `POST /api/scrape` giới hạn 3 lượt/giờ mỗi tài khoản. | GD | ✅ |
 | BR-SCR-07 | Không chỉ định portal thì quét portal đầu tiên đã nạp; portal không có trong danh sách → 400. | SV | ✅ |
 | BR-SCR-08 | Portal hợp lệ = thư mục có `SKILL.md` + `cli/src/cli.ts` và frontmatter không `enabled: false`; khoá portal = tên thư mục bỏ `-search/-jobs/-portal`. | SV | ✅ |
-| BR-SCR-09 | Frontmatter `delayMs`, `maxJobs`, `queryLimit` chỉ nhận số nguyên dương, `occupations` chỉ nhận mảng chuỗi không rỗng; sai kiểu thì dùng giá trị chung (hoặc null). | SV | ✅ |
+| BR-SCR-09 | Frontmatter `delayMs`, `maxJobs` chỉ nhận số nguyên dương, `occupations` chỉ nhận mảng chuỗi không rỗng; sai kiểu thì dùng giá trị chung. | SV | ✅ |
 | BR-SCR-10 | Hàng đợi `scrape.run` buộc tuần tự (concurrency 1, `serial: true`), khoá chặn trùng = `runId`. | SV | ✅ |
 | BR-SCR-11 | Lượt quét chỉ chạy khi giành được chỗ `PENDING → RUNNING`; worker thua thì bỏ qua, không gọi portal/AI. | SV | ✅ |
 | BR-SCR-12 | Lỗi bất kỳ trong lượt → `FAILED` + `error` + `finishedAt`; `FAILED` không tự xếp lại. | SV | ✅ |
@@ -188,7 +188,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-SCR-16 | Từ khoá lượt người dùng: chức danh trước, chức danh + lĩnh vực mục tiêu, rồi ≤ 4 kỹ năng chính, lùi về nghề "Chọn nhanh"; tối đa 5 truy vấn, ≤ 60 ký tự. | SV | ✅ |
 | BR-SCR-17 | AI chỉ TINH CHỈNH từ khoá lượt người dùng (timeout 30s, không thử lại); lỗi → dùng bản tất định. | SV | ✅ |
 | BR-SCR-18 | Output model: 2–6 truy vấn (thừa thì cắt), `query` ≥ 2 ký tự cắt 60, `location` cắt 40, `rationale` cắt 200; ngành IT/kỹ thuật từ khoá tiếng Anh, ngành khác tiếng Việt có dấu. | SV | ✅ |
-| BR-SCR-19 | Lượt hệ thống: cụm theo NGHỀ con (lùi về nhóm) của hồ sơ đủ dữ liệu + sàn phủ mọi nghề; lọc theo `occupations` của portal TRƯỚC khi xoay vòng; chọn số cụm quét lâu nhất không vượt quá `queryLimit` của portal (nếu có) hoặc `SCRAPER_SYSTEM_QUERY_LIMIT` (30), hoà thì cụm đông trước; quét cả nước. | SV | ✅ |
+| BR-SCR-19 | Lượt hệ thống: cụm theo NGHỀ con (lùi về nhóm) của hồ sơ đủ dữ liệu + sàn phủ mọi nghề; lọc theo `occupations` của portal TRƯỚC khi xoay vòng; chọn ≤ `SCRAPER_SYSTEM_QUERY_LIMIT` (30) cụm quét lâu nhất, hoà thì cụm đông trước; quét cả nước. | SV | ✅ |
 | BR-SCR-20 | Chỉ nghề đã thật sự gửi được request mới được đóng dấu `OccupationCrawl.lastCrawledAt`. | SV | ✅ |
 | BR-SCR-21 | Trần tin mỗi portal mỗi lượt = `maxJobs` của portal hoặc `SCRAPER_MAX_JOBS_PER_PORTAL` (100); hạn ngạch mỗi truy vấn `floor(trần / số truy vấn)`, vòng hai lấp chỗ trống. *(2026-10-16 nâng 50 → 100)* | SV | ✅ |
 | BR-SCR-22 | Mỗi truy vấn tối đa `SCRAPER_MAX_PAGES` (5) trang × 25 tin/trang. | SV | ✅ |

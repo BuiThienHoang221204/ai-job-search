@@ -9,14 +9,23 @@ description: >
   Trigger phrases: tim viec Vieclam24h, viec lam 24h, tuyen dung Vieclam24h.
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
-delayMs: 8000  # nhịp riêng, đặt thận trọng từ đầu sau bài học hCaptcha của careerlink
+delayMs: 8000  # nhịp riêng, đặt thận trọng từ đầu sau bài học trang chặn ở ADR 0005
 allowed-tools: Bash(bun run .agents/skills/vieclam24h-search/cli/src/cli.ts *)
 ---
 
 # Vieclam24h Search Skill
 
 Duyệt việc làm tại Việt Nam trên Vieclam24h **theo ngành nghề**. Không cần đăng
-nhập, không cần API key, không cần `curl`.
+nhập. Bị chặn IP thì tự tải qua dịch vụ proxy nếu có key.
+
+## Khi IP máy chủ bị chặn
+
+Vieclam24h đứng sau tường lửa AWS, chặn dải IP datacenter của máy chủ (HTTP 403).
+Máy cá nhân (IP dân dụng) vẫn tải trực tiếp, không tốn credit. Trên máy chủ,
+gặp 403 thì CLI gọi ScrapingAnt (`SCRAPINGANT_API_KEY`, proxy datacenter,
+1 credit/request), hỏng thì dự phòng ZenRows (`ZENROWS_API_KEY`, 10 credit/request).
+Dữ liệu nằm sẵn trong `__NEXT_DATA__` nên không cần bật trình duyệt. Chi tiết và
+số đo: ADR 0005.
 
 ## Vì sao theo ngành chứ không theo từ khoá
 

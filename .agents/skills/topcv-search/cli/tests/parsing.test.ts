@@ -14,6 +14,8 @@ import {
   searchUrl,
   splitJobCards,
   zenrowsFetch,
+  scrapingAntFetch,
+  proxyFetch,
   BlockedError,
 } from "../src/helpers.ts"
 
@@ -324,9 +326,59 @@ describe("zenrowsFetch", () => {
   test("báo lỗi BlockedError khi ZenRows trả lỗi mạng hoặc trang thử thách", async () => {
     globalThis.fetch = (async () => new Response("Forbidden", { status: 500 })) as unknown as typeof fetch
     try {
-      expect(zenrowsFetch("https://www.topcv.vn/tim-viec-lam", "test-key")).rejects.toThrow(BlockedError)
+      await expect(zenrowsFetch("https://www.topcv.vn/tim-viec-lam", "test-key")).rejects.toThrow(BlockedError)
     } finally {
       globalThis.fetch = origFetch
+    }
+  })
+})
+
+describe("proxyFetch: ScrapingAnt trước, ZenRows dự phòng", () => {
+  const origFetch = globalThis.fetch
+  const origAnt = process.env.SCRAPINGANT_API_KEY
+  const origZen = process.env.ZENROWS_API_KEY
+  const restore = () => {
+    globalThis.fetch = origFetch
+    if (origAnt === undefined) delete process.env.SCRAPINGANT_API_KEY
+    else process.env.SCRAPINGANT_API_KEY = origAnt
+    if (origZen === undefined) delete process.env.ZENROWS_API_KEY
+    else process.env.ZENROWS_API_KEY = origZen
+  }
+
+  test("ScrapingAnt bị phát hiện (423) thì thử lại bằng proxy datacenter", async () => {
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input))
+      return calls.length === 1 ? new Response("detected", { status: 423 }) : new Response(searchHtml, { status: 200 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await scrapingAntFetch("https://www.topcv.vn/tim-viec-lam-ke-toan", "ant-key")
+      expect(html).toContain("job-item-search-result")
+      expect(calls).toHaveLength(2)
+      expect(calls[0]).toContain("proxy_type=datacenter")
+    } finally {
+      restore()
+    }
+  })
+
+  test("ScrapingAnt hỏng hết lượt thử thì chuyển sang ZenRows", async () => {
+    process.env.SCRAPINGANT_API_KEY = "ant-key"
+    process.env.ZENROWS_API_KEY = "zen-key"
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      return url.includes("scrapingant") ? new Response("detected", { status: 423 }) : new Response(searchHtml, { status: 200 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await proxyFetch("https://www.topcv.vn/tim-viec-lam-ke-toan", new BlockedError("chặn"))
+      expect(html).toContain("job-item-search-result")
+      expect(calls.filter((url) => url.includes("scrapingant"))).toHaveLength(3)
+      expect(calls.at(-1)).toContain("api.zenrows.com")
+    } finally {
+      restore()
     }
   })
 })

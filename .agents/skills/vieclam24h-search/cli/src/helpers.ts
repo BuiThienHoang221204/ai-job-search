@@ -25,7 +25,113 @@ export function errorForStatus(status: number): Error {
     : new Error(`Vieclam24h trả về ${status}`)
 }
 
-/** Tải HTML, lùi dần khi gặp 429/5xx. Trả "" khi 404. Ném BlockedError khi gặp 403 hoặc trang chặn. */
+const PROXY_BUDGET_MS = 40_000
+const SCRAPINGANT_ATTEMPTS = 3
+
+/** Khoá API: biến môi trường trước, không có thì dò `server/.env` (khi chạy CLI bằng tay từ gốc repo hoặc thư mục cli). */
+export function envKey(name: string): string | undefined {
+  if (process.env[name]) return process.env[name]
+  try {
+    const fs = require("node:fs")
+    const path = require("node:path")
+    for (const rel of ["server/.env", "../server/.env", "../../server/.env", "../../../server/.env"]) {
+      const p = path.resolve(process.cwd(), rel)
+      if (fs.existsSync(p)) {
+        const match = fs.readFileSync(p, "utf8").match(new RegExp(`^${name}=(.+)$`, "m"))
+        if (match && match[1]?.trim()) return match[1].trim()
+      }
+    }
+  } catch {}
+  return undefined
+}
+
+const remainingMs = (deadline: number) => Math.max(1, deadline - Date.now())
+
+/** Tải qua ScrapingAnt bằng proxy datacenter (1 credit/request); bị phát hiện (423) thì thử lại với IP khác - lần hỏng không bị tính credit. */
+export async function scrapingAntFetch(
+  url: string,
+  apiKey: string,
+  deadline = Date.now() + PROXY_BUDGET_MS,
+  checkBlocked = true,
+): Promise<string> {
+  const endpoint = new URL("https://api.scrapingant.com/v2/general")
+  endpoint.searchParams.set("url", url)
+  endpoint.searchParams.set("browser", "false")
+  endpoint.searchParams.set("proxy_type", "datacenter")
+
+  for (let attempt = 1; attempt <= SCRAPINGANT_ATTEMPTS && Date.now() < deadline; attempt++) {
+    let res: Response
+    try {
+      res = await fetch(endpoint.toString(), {
+        headers: { "x-api-key": apiKey },
+        signal: AbortSignal.timeout(remainingMs(deadline)),
+      })
+    } catch (err) {
+      throw new BlockedError(`ScrapingAnt fetch thất bại: ${(err as Error).message}`)
+    }
+    if (res.status === 404) return ""
+    if (res.ok) {
+      const html = await res.text()
+      if (!checkBlocked || !isBlockedPage(html)) return html
+    } else if (res.status !== 423) {
+      throw new BlockedError(`ScrapingAnt trả về ${res.status}`)
+    }
+  }
+  throw new BlockedError(`ScrapingAnt vẫn bị Vieclam24h chặn sau ${SCRAPINGANT_ATTEMPTS} lần thử`)
+}
+
+/** Tải qua ZenRows (`premium_proxy`, 10 credit/request) - dự phòng khi ScrapingAnt hỏng. */
+export async function zenrowsFetch(
+  url: string,
+  apiKey: string,
+  deadline = Date.now() + PROXY_BUDGET_MS,
+  checkBlocked = true,
+): Promise<string> {
+  const endpoint = new URL("https://api.zenrows.com/v1/")
+  endpoint.searchParams.set("apikey", apiKey)
+  endpoint.searchParams.set("url", url)
+  endpoint.searchParams.set("premium_proxy", "true")
+
+  try {
+    const res = await fetch(endpoint.toString(), { signal: AbortSignal.timeout(remainingMs(deadline)) })
+    if (res.status === 404 || res.status === 422) {
+      return ""
+    }
+    if (!res.ok) {
+      throw new BlockedError(`ZenRows trả về ${res.status}: không thể vượt chặn Vieclam24h`)
+    }
+    const html = await res.text()
+    if (checkBlocked && isBlockedPage(html)) {
+      throw new BlockedError("Vieclam24h chặn (trang chặn qua ZenRows); tạm dừng quét portal này")
+    }
+    return html
+  } catch (err) {
+    if (err instanceof BlockedError) throw err
+    throw new BlockedError(`ZenRows fetch thất bại: ${(err as Error).message}`)
+  }
+}
+
+/**
+ * Tải qua dịch vụ proxy khi IP máy chủ bị chặn: ScrapingAnt trước (rẻ), hỏng thì ZenRows,
+ * chung một ngân sách thời gian để không vượt trần mỗi lần gọi CLI của backend.
+ * Không có key nào thì ném `blocked` để cầu dao ở backend bật như trước.
+ */
+export async function proxyFetch(url: string, blocked: Error, checkBlocked = true): Promise<string> {
+  const deadline = Date.now() + PROXY_BUDGET_MS
+  const antKey = envKey("SCRAPINGANT_API_KEY")
+  const zenrowsKey = envKey("ZENROWS_API_KEY")
+  if (antKey) {
+    try {
+      return await scrapingAntFetch(url, antKey, deadline, checkBlocked)
+    } catch (err) {
+      if (!zenrowsKey) throw err
+    }
+  }
+  if (zenrowsKey) return zenrowsFetch(url, zenrowsKey, deadline, checkBlocked)
+  throw blocked
+}
+
+/** Tải HTML, lùi dần khi gặp 429/5xx. Trả "" khi 404. Gặp 403 hoặc trang chặn thì tải qua `proxyFetch` (ScrapingAnt rồi ZenRows), không có key thì ném BlockedError. */
 export async function htmlFetch(url: string): Promise<string> {
   const maxRetries = 3
   let delay = 1_000
@@ -41,10 +147,12 @@ export async function htmlFetch(url: string): Promise<string> {
       const html = await response.text()
       // Không thử lại: gọi thêm khi đang bị chặn chỉ kéo dài thời gian bị chặn.
       if (isBlockedPage(html)) {
-        throw new BlockedError("Vieclam24h trả trang chặn thay vì dữ liệu; tạm dừng quét portal này")
+        return proxyFetch(url, new BlockedError("Vieclam24h trả trang chặn thay vì dữ liệu; tạm dừng quét portal này"))
       }
       return html
     }
+
+    if (response.status === 403) return proxyFetch(url, errorForStatus(403))
 
     const retryable = response.status === 429 || response.status >= 500
     if (!retryable || attempt === maxRetries) throw errorForStatus(response.status)
@@ -56,10 +164,11 @@ export async function htmlFetch(url: string): Promise<string> {
   throw new Error("không thể tải trang")
 }
 
-/** Tải file tĩnh (sitemap XML) - KHÔNG qua `htmlFetch`: thiếu `__NEXT_DATA__` ở đây là bình thường, qua đó sẽ bị báo nhầm BLOCKED và cả portal bị tạm ngừng. */
+/** Tải file tĩnh (sitemap XML) - KHÔNG qua `htmlFetch`: thiếu `__NEXT_DATA__` ở đây là bình thường, qua đó sẽ bị báo nhầm BLOCKED và cả portal bị tạm ngừng. Bị 403 thì tải qua `proxyFetch`. */
 export async function textFetch(url: string): Promise<string> {
   const response = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(60_000) })
   if (response.status === 404) return ""
+  if (response.status === 403) return proxyFetch(url, errorForStatus(403), false)
   if (!response.ok) throw errorForStatus(response.status)
   return response.text()
 }

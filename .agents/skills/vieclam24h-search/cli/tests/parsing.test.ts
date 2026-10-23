@@ -14,6 +14,9 @@ import {
   rankByQuery,
   relevantTo,
   salaryText,
+  zenrowsFetch,
+  scrapingAntFetch,
+  proxyFetch,
 } from "../src/helpers.ts"
 
 const fixture = (name: string) =>
@@ -218,5 +221,104 @@ describe("errorForStatus", () => {
   test("mã khác là lỗi thường", () => {
     expect(errorForStatus(500)).not.toBeInstanceOf(BlockedError)
     expect(errorForStatus(410)).not.toBeInstanceOf(BlockedError)
+  })
+})
+
+describe("zenrowsFetch", () => {
+  const origFetch = globalThis.fetch
+
+  test("gọi ZenRows với đầy đủ tham số premium_proxy", async () => {
+    let calledUrl = ""
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calledUrl = String(input)
+      return new Response(categoryHtml, { status: 200 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await zenrowsFetch("https://vieclam24h.vn/ke-toan-c17.html", "test-api-key")
+      expect(calledUrl).toContain("https://api.zenrows.com/v1/")
+      expect(calledUrl).toContain("apikey=test-api-key")
+      expect(calledUrl).toContain("premium_proxy=true")
+      expect(html).toContain("__NEXT_DATA__")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  test("trả về rỗng khi ZenRows trả về 404 hoặc 422 (không tìm thấy trang)", async () => {
+    globalThis.fetch = (async () => new Response("Not found", { status: 404 })) as unknown as typeof fetch
+    try {
+      const html404 = await zenrowsFetch("https://vieclam24h.vn/abc.html", "test-key")
+      expect(html404).toBe("")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+
+    globalThis.fetch = (async () => new Response("Unprocessable", { status: 422 })) as unknown as typeof fetch
+    try {
+      const html422 = await zenrowsFetch("https://vieclam24h.vn/abc.html", "test-key")
+      expect(html422).toBe("")
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+
+  test("báo lỗi BlockedError khi ZenRows trả lỗi mạng hoặc trang thử thách", async () => {
+    globalThis.fetch = (async () => new Response("Forbidden", { status: 500 })) as unknown as typeof fetch
+    try {
+      await expect(zenrowsFetch("https://vieclam24h.vn/ke-toan-c17.html", "test-key")).rejects.toThrow(BlockedError)
+    } finally {
+      globalThis.fetch = origFetch
+    }
+  })
+})
+
+describe("proxyFetch: ScrapingAnt trước, ZenRows dự phòng", () => {
+  const origFetch = globalThis.fetch
+  const origAnt = process.env.SCRAPINGANT_API_KEY
+  const origZen = process.env.ZENROWS_API_KEY
+  const restore = () => {
+    globalThis.fetch = origFetch
+    if (origAnt === undefined) delete process.env.SCRAPINGANT_API_KEY
+    else process.env.SCRAPINGANT_API_KEY = origAnt
+    if (origZen === undefined) delete process.env.ZENROWS_API_KEY
+    else process.env.ZENROWS_API_KEY = origZen
+  }
+
+  test("ScrapingAnt bị phát hiện (423) thì thử lại bằng proxy datacenter", async () => {
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input))
+      return calls.length === 1 ? new Response("detected", { status: 423 }) : new Response(categoryHtml, { status: 200 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await scrapingAntFetch("https://vieclam24h.vn/ke-toan-c17.html", "ant-key")
+      expect(html).toContain("__NEXT_DATA__")
+      expect(calls).toHaveLength(2)
+      expect(calls[0]).toContain("proxy_type=datacenter")
+    } finally {
+      restore()
+    }
+  })
+
+  test("ScrapingAnt hỏng hết lượt thử thì chuyển sang ZenRows", async () => {
+    process.env.SCRAPINGANT_API_KEY = "ant-key"
+    process.env.ZENROWS_API_KEY = "zen-key"
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      return url.includes("scrapingant") ? new Response("detected", { status: 423 }) : new Response(categoryHtml, { status: 200 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await proxyFetch("https://vieclam24h.vn/ke-toan-c17.html", new BlockedError("chặn"))
+      expect(html).toContain("__NEXT_DATA__")
+      expect(calls.filter((url) => url.includes("scrapingant"))).toHaveLength(3)
+      expect(calls.at(-1)).toContain("api.zenrows.com")
+    } finally {
+      restore()
+    }
   })
 })

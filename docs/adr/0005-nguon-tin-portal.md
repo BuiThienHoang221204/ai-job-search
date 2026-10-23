@@ -46,15 +46,17 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 
 **Cầu dao `BLOCKED` nằm trong `PortalCliService.invoke`** (áp cho MỌI portal): gặp mã đó thì ngừng gọi portal ấy `BLOCKED_COOLDOWN_MS` (30 phút) và ném ngay không chạy CLI. Trước đó `JobWriter` vẫn gọi `detail` cho từng tin còn lại — mỗi lần một request vào đúng trang đang chặn mình, kéo dài lượt chặn. Portal mới nào có trang chặn riêng thì CLI của nó phải báo `BLOCKED`; `test/unit/modules/scraper/portal-blocked.spec.ts` canh cầu dao.
 
-**TopCV: 403 là `BLOCKED` NGAY trên fetch trực tiếp, tự động fallback sang ZenRows nếu có key** (`fetchVerdict` và `zenrowsFetch` trong `topcv-search/cli/src/helpers.ts`). Hồi 08–09/2026 Cloudflare của TopCV chặn THEO ĐỢT, nhưng từ 2026-09-09 IP máy chủ Oracle bị chặn LIÊN TỤC. Nay CLI áp dụng cơ chế fallback thông minh: môi trường máy cá nhân (IP dân dụng) vẫn fetch trực tiếp tốn $0 (0 credit); khi gặp 403 trên IP datacenter máy chủ và có `ZENROWS_API_KEY`, CLI tự động chuyển sang gọi ZenRows Web Scraping API với `premium_proxy=true`. Do HTML TopCV là SSR nên không cần `js_render=true`, tiết kiệm 60% chi phí (từ 25 xuống 10 credits/request). Khi không có key hoặc ZenRows cũng lỗi/hết credit thì mới báo `BLOCKED` để kích hoạt cầu dao.
+**TopCV & Vieclam24h: bị chặn trên fetch trực tiếp thì tải qua dịch vụ proxy — ScrapingAnt trước, ZenRows dự phòng** (`proxyFetch`, `scrapingAntFetch`, `zenrowsFetch` trong `helpers.ts` của hai CLI). Hồi 08–09/2026 Cloudflare của TopCV chặn THEO ĐỢT, nhưng từ 2026-09-09 IP máy chủ Oracle bị chặn LIÊN TỤC; Vieclam24h bị tường lửa AWS chặn IP datacenter tương tự. Máy cá nhân (IP dân dụng) vẫn fetch trực tiếp, không tốn credit. Trên máy chủ, gặp chặn thì gọi **ScrapingAnt** với `proxy_type=datacenter`, `browser=false` (1 credit/request), bị phát hiện (HTTP 423) thì thử lại tối đa 3 lần với IP khác; hỏng hết mới gọi **ZenRows** `premium_proxy=true` (10 credit/request). Cả chuỗi chung ngân sách 40 giây để không vượt `SCRAPER_TIMEOUT_MS` 60 giây mỗi lần gọi CLI. Không có key nào, hoặc cả hai đều hỏng, thì báo `BLOCKED` để cầu dao bật như trước.
+
+**Vì sao ScrapingAnt đứng trước — đo 2026-10-23** (request đi qua proxy của dịch vụ nên đo từ máy nào cũng như nhau). Proxy datacenter của ScrapingAnt: TopCV trang tìm kiếm 6/6, Vieclam24h sitemap/trang ngành/chi tiết 7/7, TopCV trang chi tiết 5/9 (còn lại 423); proxy residential (25 credit) cũng chỉ 3/4 ở trang chi tiết TopCV nên thử lại bằng datacenter rẻ hơn. Request hỏng KHÔNG bị tính credit. Ước tính mỗi đêm khi hai portal chạy trần chung như mọi portal khác (30 từ khoá, 100 tin): ~190–270 credit qua ScrapingAnt, tức 5.700–8.100/tháng — vừa gói miễn phí 10.000/tháng; nếu giới hạn `queryLimit: 5`, `maxJobs: 50` thì ~120–140 credit, so với ~850–1.250 nếu chỉ dùng ZenRows (gói miễn phí 5.000/tháng — hết sau khoảng 4 đêm). Đêm 2026-10-22 TopCV qua ZenRows: 5 từ khoá, 36 tin mới, không bị chặn.
 
 **Ba portal chặn THEO IP máy chủ, không phải lỗi code — đo 2026-10-13.** Cùng URL, cùng User-Agent: từ máy cá nhân trả 200 kèm tin, từ máy chủ Oracle (168.107.87.28, Singapore) thì:
 
-| Portal | Từ máy chủ | Lớp chặn | Hỏng từ |
-|---|---|---|---|
-| `topcv` | 403 | Cloudflare | 2026-09-09, mọi đêm |
-| `vieclam24h` | 403, kể cả `robots.txt` | tường lửa AWS (`server: awselb/2.0`) | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được trên production |
-| `careerlink` | 200 nhưng là **Cloudflare Turnstile** ở trang tìm kiếm (trang chủ vẫn 200 có tin) | Cloudflare | lượt đầu tiên 2026-09-30 — CHƯA TỪNG chạy được; đã gỡ 2026-10-22 |
+| Portal | Từ máy chủ | Lớp chặn | Hỏng từ | Giải pháp vượt chặn |
+|---|---|---|---|---|
+| `topcv` | 403 | Cloudflare | 2026-09-09, mọi đêm | ScrapingAnt, dự phòng ZenRows |
+| `vieclam24h` | 403, kể cả `robots.txt` | tường lửa AWS (`server: awselb/2.0`) | lượt đầu tiên 2026-09-30 | ScrapingAnt, dự phòng ZenRows |
+| `careerlink` | 200 nhưng là **Cloudflare Turnstile** ở trang tìm kiếm (trang chủ vẫn 200 có tin) | Cloudflare | lượt đầu tiên 2026-09-30 | Đã gỡ 2026-10-22 |
 
 Portal vẫn để BẬT: hết bị chặn thì tự chạy lại. Máy chủ ARM mới trên Oracle nhiều khả năng bị đối xử y hệt (vẫn là IP datacenter).
 
@@ -66,7 +68,7 @@ Portal vẫn để BẬT: hết bị chặn thì tự chạy lại. Máy chủ A
 
 **Trần tin riêng từng portal: `maxJobs` trong frontmatter `SKILL.md`**, cùng cách đọc với `delayMs`; vắng thì dùng `SCRAPER_MAX_JOBS_PER_PORTAL`. Thêm 2026-10-16 khi nâng trần chung 50 → 100: đo trên production, mọi lượt quét đêm chạm đúng 50 tin, chia cho 20 truy vấn là 2 tin mỗi nghề mỗi portal, nên số tin của một ngành đi theo số lần nó được hỏi chứ không theo thị trường (IT 1.122 tin, Nông nghiệp 11). ITviec giữ `maxJobs: 50` vì chỉ phục vụ IT/DATA_AI — nâng nó chỉ làm lệch thêm. TopDev KHÔNG giữ 50: trong 138 tin của nó chỉ 17 tin IT. Trần mỗi truy vấn là `floor(trần / số truy vấn)`, nên nâng `SCRAPER_SYSTEM_QUERY_LIMIT` lại chia mỏng tin mỗi nghề — chỉnh hai biến cùng nhau.
 
-**Trần từ khoá riêng từng portal: `queryLimit` trong frontmatter `SKILL.md`** (số nguyên dương), ghi đè `SCRAPER_SYSTEM_QUERY_LIMIT` cho lượt quét hệ thống của riêng portal đó; vắng thì dùng giá trị chung (30). Thêm 2026-10-22 để tối ưu hạn mức ZenRows cho TopCV: TopCV dùng `queryLimit: 5` và `maxJobs: 50` để quét đúng 5 ngành đa dạng mỗi đêm (IT, Kế toán, Marketing, Bán hàng, Nhân sự) với ~10 tin/ngành, thay vì hỏi 30 từ khoá chia mỏng tin và tiêu cạn 5.000 credits/tháng. Các portal miễn phí khác vẫn dùng trần chung 30.
+**Đã gỡ: trần từ khoá riêng từng portal (`queryLimit` trong frontmatter).** Thêm 2026-10-22 để giữ TopCV và Vieclam24h trong hạn mức ZenRows (5 ngành × ~10 tin thay vì 30 từ khoá × 100 tin); gỡ khỏi code 2026-10-23 khi chuyển sang ScrapingAnt, vì trần chung chỉ tốn ~190–270 credit/đêm, vừa gói miễn phí, và không còn portal nào cần giá trị khác `SCRAPER_SYSTEM_QUERY_LIMIT`. Cần lại thì thêm theo cùng cách đọc với `maxJobs` (`positiveIntFrom`).
 
 **Nhãn ngành của portal đi vào `Job.categories`, KHÔNG vào `tags`** (thêm 2026-10-13). `tags` của VietnamWorks là kỹ năng; trộn hai thứ thì không biết chữ nào là nghề. Nguồn nhãn: VietnamWorks `jobFunction` (nghề con trước, nhóm cha sau — có ngay trong API tìm kiếm, và trong HTML chi tiết thì là tham chiếu lồng `$39` → `children: "$3a"` → `["$3b"]`, giải bằng `resolveFlightRefs`), CareerViet/JobOKO JSON-LD `industry`, ITviec "Job Expertise" (KHÔNG lấy "Job Domain" — đó là lĩnh vực công ty). LinkedIn không có: trang khách chỉ còn "Industries" của CÔNG TY. Nhãn chỉ lấy từ trang đã mở sẵn để đọc mô tả — **không mở trang chi tiết chỉ vì nhãn**.
 

@@ -9,7 +9,7 @@ description: >
   tuyen dung CareerViet, CareerBuilder Vietnam jobs.
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
-delayMs: 8000  # nhịp riêng: mỗi trang ~1,5MB, và bài học hCaptcha của careerlink
+delayMs: 8000  # nhịp riêng: mỗi trang ~1,5MB, và bài học trang chặn ở ADR 0005
 allowed-tools: Bash(bun run .agents/skills/careerviet-search/cli/src/cli.ts *)
 ---
 
