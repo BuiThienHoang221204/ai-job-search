@@ -66,7 +66,7 @@
 4. `decorate` thêm `industryName`, `typeName`, `canHaveSampleAnswer` ([question-bank.utils.ts:52-61](../../../server/src/modules/question-bank/question-bank.utils.ts#L52)).
 5. Trả `{ items, total, limit, offset }`, 200.
 
-**Alternative Flow:** `answeredAt != null` cho FE biết câu đã có đáp án sẵn (mở nhanh).
+**Alternative Flow:** `answeredAt != null` cho FE biết câu đã có đáp án sẵn: mở câu đó ra là FE tự gọi `POST /:id/answer` và hiện đáp án ngay, không cần bấm "Xem gợi ý trả lời" (không tốn lượt model vì đáp án đã lưu). Câu chưa có `answeredAt` vẫn chỉ sinh khi người dùng bấm. Đáp án giữ trong cache FE, đóng mở lại không gọi lại *(2026-10-23)*.
 
 **Failure Flow:** như Luồng A; `limit` ngoài 1–100 hoặc `offset` ngoài 0–100000 → 400.
 
