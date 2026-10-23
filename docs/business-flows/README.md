@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Phiên bản** | 1.8 |
+| **Phiên bản** | 1.9 |
 | **Ngày phát hành** | 2026-10-19 |
-| **Ngày cập nhật** | 2026-10-22 (1.8: gỡ portal CareerLink; 1.7: tìm hiểu công ty dùng Tavily làm nguồn tìm kiếm chính, Serper dự phòng; 1.6: thêm `POST /admin/jobs/re-extract`; lỗi đẩy hàng đợi ghi bản ghi `FAILED`, xếp việc chuyển từ controller vào service; 1.1: đã sửa 8 vấn đề gốc mức 🟠; 1.2: gỡ LaTeX, mọi PDF in từ HTML; 1.3: `streamObject` không còn treo khi provider từ chối ngay; 1.4: mọi lõi lọc model theo `structured_output` của catalog; 1.5: lọc omniroute theo mẫu, loại bỏ `auto/*` và router alias, thêm `opencode-direct`) |
+| **Ngày cập nhật** | 2026-10-23 (1.9: hồ sơ chọn nhiều nghề trong một ngành và nhiều tỉnh làm việc, "Việc làm phù hợp" lọc theo các nghề và tỉnh đó; khách dùng tính năng cần tài khoản thì mở modal đăng nhập; 1.8: gỡ portal CareerLink; 1.7: tìm hiểu công ty dùng Tavily làm nguồn tìm kiếm chính, Serper dự phòng; 1.6: thêm `POST /admin/jobs/re-extract`; lỗi đẩy hàng đợi ghi bản ghi `FAILED`, xếp việc chuyển từ controller vào service; 1.1: đã sửa 8 vấn đề gốc mức 🟠; 1.2: gỡ LaTeX, mọi PDF in từ HTML; 1.3: `streamObject` không còn treo khi provider từ chối ngay; 1.4: mọi lõi lọc model theo `structured_output` của catalog; 1.5: lọc omniroute theo mẫu, loại bỏ `auto/*` và router alias, thêm `opencode-direct`) |
 | **Phạm vi** | Backend `server/` (NestJS, 25 module, 111 endpoint, 27 bảng), frontend người dùng `ui-ai-job-search`, frontend quản trị `ui-admin-job-search`, dịch vụ phụ (`pdf-service`, `omniroute-service`, `opencode-service`), CLI portal `.agents/skills/`. Gồm cả thay đổi **chưa commit** ở `modules/ai` (bể model, model health) trên nhánh `dev` tại ngày phát hành, đánh dấu `*(2026-10-19, chưa commit)*` |
 | **Phương pháp** | Reverse engineering từ mã nguồn: lần từng endpoint controller → service → Prisma → side effect (hàng đợi, tích hợp), đối chiếu e2e và ADR. Code là nguồn sự thật duy nhất |
 

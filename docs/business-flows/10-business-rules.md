@@ -90,7 +90,8 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-PRF-10 | `occupationCode` chỉ suy lại khi lần lưu có `headline` hoặc `primarySkills`; suy từ phần chức danh của headline + kỹ năng chính; ra `OTHER` hoặc thiếu dữ liệu thì giữ ngành cũ | SV | ✅ Mềm |
 | BR-PRF-11 | `occupationCode` chỉ được ghi tường minh qua quick-start và phải thuộc danh mục nhóm ngành (`OCCUPATION_CODES`); lựa chọn đó giữ tới khi một lần lưu headline/kỹ năng suy ra ngành thật khác | DTO, SV | ✅ Mềm |
 | BR-PRF-12 | `occupationCode = null` nghĩa là chưa đủ dữ liệu; cố ý không quy về `OTHER` | DB, SV | ✅ Mềm |
-| BR-PRF-13 | Quick-start: `occupationCode` bắt buộc; `subOccupationCode` chuỗi tự do ≤ 200; `experienceLevel` ∈ INTERN/FRESHER/JUNIOR/MIDDLE/SENIOR/LEAD (không nhận `UNKNOWN`) | DTO | ✅ Mềm |
+| BR-PRF-13 | Quick-start: `occupationCode` bắt buộc; `subOccupationCodes` mảng ≤ 20 mã trong danh mục nghề con, mỗi mã phải thuộc `occupationCode` (khác → 400), trùng thì giữ một; `preferredProvinces` mảng mã tỉnh trong danh mục; hai mảng đều bắt buộc *(2026-10-23)*; `experienceLevel` ∈ INTERN/FRESHER/JUNIOR/MIDDLE/SENIOR/LEAD (không nhận `UNKNOWN`) | DTO | ✅ Mềm |
+| BR-PRF-14a | Lưu `location` khi `preferredProvinces` còn rỗng thì tự điền một tỉnh suy từ nơi ở (`resolveProvince`, bỏ qua `REMOTE`); đã có tỉnh thì không đè *(2026-10-23)* | SV | ✅ Mềm |
 | BR-PRF-14 | `experienceLevel` mặc định `UNKNOWN` (chưa chọn) | DB | 🔒 Cứng |
 | BR-PRF-15 | Mỗi lần ghi qua `save` xếp một việc `skill.canonicalize { userId }` (khoá chặn trùng `user:<id>`) | SV | ✅ Mềm |
 | BR-PRF-16 | Thêm kỹ năng: 1–80 ký tự; trùng (so không dấu, không phân biệt hoa thường) với kỹ năng chính hoặc phụ thì bỏ qua; mới thì thêm vào cuối kỹ năng phụ (đã trim) | DTO, SV | ✅ Mềm |
@@ -138,7 +139,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-05 | Lọc lương tối thiểu: giữ tin có `salaryMax ≥ salaryMin`, hoặc tin chỉ ghi mức dưới (`salaryMax` null) có `salaryMin ≥ salaryMin` *(2026-10-19)*; tin không đọc được lương bị loại. | SV | ✅ |
 | BR-JOB-06 | "Mới nhất" xếp theo ngày ĐĂNG `postedAt DESC NULLS LAST`, rồi `scrapedAt DESC`, `id DESC`; "Lương" xếp `salaryMax DESC NULLS LAST`. *(2026-10-16)* | SV | ✅ |
 | BR-JOB-07 | `sort=match` chỉ trả tin đã có cặp `JobRequirementMatch` của chính người dùng, xếp theo `rank`, `met`. | SV | ✅ |
-| BR-JOB-08 | "Việc làm phù hợp" (`scored=true`): đúng MỘT nhóm ngành của hồ sơ; cấp bậc tin trong khoảng ±1 bậc của hồ sơ hoặc tin chưa rút yêu cầu / `seniority = UNKNOWN`. *(2026-10-08)* | SV | ✅ |
+| BR-JOB-08 | "Việc làm phù hợp" (`scored=true`): đúng MỘT nhóm ngành của hồ sơ; hồ sơ đã chọn nghề thì tin phải thuộc một trong các nghề đó hoặc chưa rõ nghề; hồ sơ đã chọn nơi làm việc thì tin phải ở một trong các tỉnh đó, làm từ xa, hoặc chưa rõ địa điểm *(2026-10-23)*; cấp bậc tin trong khoảng ±1 bậc của hồ sơ hoặc tin chưa rút yêu cầu / `seniority = UNKNOWN`. *(2026-10-08)* | SV | ✅ |
 | BR-JOB-09 | Cấp bậc hồ sơ = `experienceLevel` người dùng chọn; nếu `UNKNOWN` thì suy từ số năm (\<1 FRESHER, \<3 JUNIOR, \<5 MIDDLE, \<8 SENIOR, ≥8 LEAD); không suy được thì không lọc cấp bậc. | SV | ✅ |
 | BR-JOB-10 | Hồ sơ chưa có ngành hoặc ngành `OTHER` thì "Việc làm phù hợp" trả rỗng kèm `needsOccupation: true`. | SV | ✅ |
 | BR-JOB-11 | Cổng không có lối thoát: bộ lọc ngành được giao với cổng; `sort` bị bỏ qua (luôn mới đăng trước) khi `scored=true`. | SV, DTO | ✅ |
@@ -163,7 +164,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-29 | Mọi đường ghi tin phải lấy trọn bộ cột dẫn xuất từ `derivedFields`. | SV | ✅ |
 | BR-JOB-30 | Backfill mặc định chỉ xử lý tin `searchText IS NULL`; `all=true` tính lại toàn bộ, lô 500, tuần tự. | SV | ✅ |
 | BR-JOB-31 | Một tin là duy nhất theo `(source, externalId)`. | DB | 🔒 |
-| BR-JOB-32 | Khách bấm "Việc làm phù hợp" bị chặn ở FE với lời mời đăng nhập; mọi nút cần tài khoản dẫn sang `/login?next=...`. | FE | ⚠️ |
+| BR-JOB-32 | Khách bấm "Việc làm phù hợp" bị chặn ở FE với lời mời đăng nhập; mọi nút, mục sidebar và thẻ hành động cần tài khoản mở modal đăng nhập/đăng ký ngay trên trang (không chuyển sang `/login`), đăng nhập xong nạp lại đúng trang hoặc tới mục đã bấm. *(2026-10-23)* | FE | ⚠️ |
 
 ### Job Scraping — Quét tin tuyển dụng từ portal — [modules/job-scraping.md](./modules/job-scraping.md#7-business-rules)
 
@@ -681,7 +682,7 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (39)
+### 🟡 Trung bình (38)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -690,7 +691,6 @@ Không có rủi ro nào được xếp mức này.
 | [auth#R3](./modules/auth.md) | auth | Không xác thực email, không quên/đổi mật khẩu |
 | [auth#R6](./modules/auth.md) | auth | Throttle auth theo IP phụ thuộc `TRUST_PROXY`; không khoá theo tài khoản |
 | [auth#R8](./modules/auth.md) | auth | FE người dùng treo spinner khi `/auth/me` lỗi khác 401 |
-| [profile#R1](./modules/profile.md) | profile | `subOccupationCode` không được kiểm và có thể lệch với `occupationCode` |
 | [cv-import#R1](./modules/cv-import.md) | cv-import | Trang upload treo ở "Đang đọc" khi bản nháp mới nhất đang PENDING/RUNNING |
 | [cv-import#R2](./modules/cv-import.md) | cv-import | Không có chính sách lưu trữ/xoá CV |
 | [jobs#R2](./modules/jobs.md) | jobs | Tin không bao giờ hết hạn |
@@ -792,10 +792,11 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R7](./modules/platform-operations.md) | platform-operations | Thử lại của pg-boss dựa hoàn toàn vào mặc định thư viện |
 | [platform-operations#R8](./modules/platform-operations.md) | platform-operations | Cờ "lượt trước còn chạy" của cron chỉ nằm trong bộ nhớ một tiến trình |
 
-### ✅ Đã sửa (12)
+### ✅ Đã sửa (13)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
+| [profile#R1](./modules/profile.md) | profile | `subOccupationCode` không được kiểm và có thể lệch với `occupationCode` |
 | [jobs#R1](./modules/jobs.md) | jobs | Bộ lọc "lương tối thiểu" và sắp xếp "Lương cao nhất" không có dữ liệu để chạy |
 | [job-scraping#R1](./modules/job-scraping.md) | job-scraping | Không có lương dạng số từ bất kỳ portal nào |
 | [matching#R1](./modules/matching.md) | matching | "Đối chiếu lại" sau khi admin sửa tay danh bạ không tính lại các cặp đã lưu |

@@ -62,7 +62,7 @@
 
 **Main Flow:**
 1. Người dùng sửa một khối trên trang hồ sơ (modal `EditModal`), FE gọi `useSaveProfile().save(changes)` → `PUT /api/profile` với chỉ các trường thay đổi ([use-profile.ts:49](../../../../ui-ai-job-search/hooks/use-profile.ts#L49)).
-2. `ValidationPipe` kiểm `UpdateProfileDto` (§8); trường không có trong DTO — kể cả `occupationCode`, `subOccupationCode`, `experienceLevel`, `completion` — bị **400** nhờ `forbidNonWhitelisted` ([profile-quick-start.e2e-spec.ts:134](../../../server/test/profile-quick-start.e2e-spec.ts#L134)).
+2. `ValidationPipe` kiểm `UpdateProfileDto` (§8); trường không có trong DTO — kể cả `occupationCode`, `subOccupationCodes`, `experienceLevel`, `completion` — bị **400** nhờ `forbidNonWhitelisted` ([profile-quick-start.e2e-spec.ts:134](../../../server/test/profile-quick-start.e2e-spec.ts#L134)).
 3. `ProfileService.save(userId, dto)`:
    1. `upsert` ghi các trường gửi lên (trường vắng giữ nguyên) ([profile.service.ts:39](../../../server/src/modules/profile/profile.service.ts#L39)).
    2. `update` thứ hai ghi `completion = completionPercent(saved)` và `occupationCode = occupationAfterSave(saved, data)` ([profile.service.ts:45](../../../server/src/modules/profile/profile.service.ts#L45)).
@@ -97,17 +97,17 @@
 **Preconditions:** đã đăng nhập.
 
 **Main Flow:**
-1. Dashboard hiện `QuickStartOnboarding` thay cho nội dung khi `occupationCode` là `null` hoặc `OTHER` ([dashboard-view.tsx:28](../../../../ui-ai-job-search/app/dashboard/dashboard-view.tsx#L28)). Người dùng chọn ngành (bước 1) + nghề con tuỳ chọn + cấp bậc (bước 2, bắt buộc trên FE) ([quick-start-onboarding.tsx:188](../../../../ui-ai-job-search/app/dashboard/quick-start-onboarding.tsx#L188)).
-2. `POST /api/profile/quick-start { occupationCode, subOccupationCode?, experienceLevel? }`.
-3. `QuickStartProfileDto`: `occupationCode` ∈ `OCCUPATION_CODES`; `subOccupationCode` chuỗi ≤ 200; `experienceLevel` ∈ `INTERN|FRESHER|JUNIOR|MIDDLE|SENIOR|LEAD` ([profile.dto.ts:152](../../../server/src/modules/profile/profile.dto.ts#L152)).
-4. `ProfileService.save(userId, dto)` — vì `data` có `occupationCode` nên giá trị người dùng chọn được **giữ nguyên**, không suy lại ([occupation.ts:30](../../../server/src/modules/profile/utils/occupation.ts#L30)).
+1. Dashboard hiện `QuickStartOnboarding` thay cho nội dung khi `occupationCode` là `null` hoặc `OTHER` ([dashboard-view.tsx:28](../../../../ui-ai-job-search/app/dashboard/dashboard-view.tsx#L28)). Người dùng chọn một ngành và **một hoặc nhiều** nghề con của ngành đó (bước 1; FE bắt buộc ít nhất một nghề, ẩn mục ảo "Khác") + cấp bậc (bước 2, bắt buộc trên FE) *(2026-10-23)* ([quick-start-onboarding.tsx:188](../../../../ui-ai-job-search/app/dashboard/quick-start-onboarding.tsx#L188)).
+2. `POST /api/profile/quick-start { occupationCode, subOccupationCodes, preferredProvinces, experienceLevel? }` — hai mảng bắt buộc (được gửi rỗng), request luôn mang đủ trạng thái. Bước 2 hỏi thêm "Bạn muốn làm việc ở đâu?" (chọn nhiều tỉnh, không bắt buộc) *(2026-10-23)*.
+3. `QuickStartProfileDto`: `occupationCode` ∈ `OCCUPATION_CODES`; `subOccupationCodes` mảng ≤ 20 mã, mỗi mã thuộc danh mục nghề con (`SUB_OCCUPATION_PARENT`); `preferredProvinces` mảng mã trong `PROVINCES`; `experienceLevel` ∈ `INTERN|FRESHER|JUNIOR|MIDDLE|SENIOR|LEAD` ([profile.dto.ts:152](../../../server/src/modules/profile/profile.dto.ts#L152)).
+4. `ProfileService.quickStart` khử trùng `subOccupationCodes`, mã nào không thuộc đúng `occupationCode` → **400** `Nghề đã chọn không thuộc nhóm ngành này`; khử trùng `preferredProvinces` *(2026-10-23)*. Rồi `save` — vì `data` có `occupationCode` nên giá trị người dùng chọn được **giữ nguyên**, không suy lại ([occupation.ts:30](../../../server/src/modules/profile/utils/occupation.ts#L30)).
 5. Trả **200** hồ sơ; FE làm mới profile/dashboard/skill gaps/job lists/learning ([query-keys.ts:58](../../../../ui-ai-job-search/lib/query-keys.ts#L58)).
 
-**Alternative Flow:** trên trang hồ sơ, hai ô "Ngành" và "Cấp bậc" ở đầu trang cũng gọi quick-start (`saveSearch`) — đổi ngành gửi `{ occupationCode, experienceLevel }` **không kèm** `subOccupationCode`; ô Cấp bậc bị khoá khi chưa chọn ngành ([profile-summary.tsx:101](../../../../ui-ai-job-search/app/dashboard/profile/profile-summary.tsx#L101), [profile-summary.tsx:124](../../../../ui-ai-job-search/app/dashboard/profile/profile-summary.tsx#L124)).
+**Alternative Flow:** trên trang hồ sơ, hai ô "Ngành" và "Cấp bậc" ở đầu trang cũng gọi quick-start (`saveSearch`) — bốn ô Ngành / Nghề / Cấp bậc / Nơi làm việc đều gửi đủ trạng thái hiện có và chỉ đổi đúng ô vừa sửa; đổi ngành gửi `subOccupationCodes: []`; ô Nghề và Nơi làm việc tick nhiều mục rồi bấm Lưu mới gửi một lần *(2026-10-23)*; các ô Cấp bậc, Nghề, Nơi làm việc bị khoá khi chưa chọn ngành ([profile-summary.tsx:101](../../../../ui-ai-job-search/app/dashboard/profile/profile-summary.tsx#L101), [profile-summary.tsx:124](../../../../ui-ai-job-search/app/dashboard/profile/profile-summary.tsx#L124)).
 
 **Failure Flow:** mã ngành không có trong danh mục (kể cả mã nghề con như `IT_BACKEND`) → **400** `occupationCode Mã ngành nghề không hợp lệ`; cấp bậc sai → **400** (§8). FE onboarding hiện `Không lưu được lựa chọn, thử lại sau` hoặc thông điệp backend.
 
-**Postconditions:** `occupationCode`, `subOccupationCode`, `experienceLevel` được ghi; các lần `PUT /profile` sau không đụng tới chúng trừ khi `headline`/`primarySkills` đổi và suy ra ngành thật khác (chỉ `occupationCode` bị đổi, `subOccupationCode` giữ nguyên — xem §17 R1).
+**Postconditions:** `occupationCode`, `subOccupationCodes`, `experienceLevel` được ghi; các lần `PUT /profile` sau không đụng tới chúng trừ khi `headline`/`primarySkills` đổi và suy ra ngành thật khác — khi đó `occupationCode` đổi và `subOccupationCodes` bị xoá *(2026-10-23)*.
 
 ## 5. Mermaid Flowchart
 
@@ -173,7 +173,8 @@ sequenceDiagram
 | BR-PRF-10 | `occupationCode` chỉ suy lại khi lần lưu có `headline` hoặc `primarySkills`; suy từ phần chức danh của headline + kỹ năng chính; ra `OTHER` hoặc thiếu dữ liệu thì giữ ngành cũ | SV | ✅ Mềm | [occupation.ts:25](../../../server/src/modules/profile/utils/occupation.ts#L25), [occupation.ts:35](../../../server/src/modules/profile/utils/occupation.ts#L35) |
 | BR-PRF-11 | `occupationCode` chỉ được ghi tường minh qua quick-start và phải thuộc danh mục nhóm ngành (`OCCUPATION_CODES`); lựa chọn đó giữ tới khi một lần lưu headline/kỹ năng suy ra ngành thật khác | DTO, SV | ✅ Mềm | [profile.dto.ts:153](../../../server/src/modules/profile/profile.dto.ts#L153), [occupation.ts:30](../../../server/src/modules/profile/utils/occupation.ts#L30) |
 | BR-PRF-12 | `occupationCode = null` nghĩa là chưa đủ dữ liệu; cố ý không quy về `OTHER` | DB, SV | ✅ Mềm | [schema.prisma:130](../../../server/prisma/schema.prisma#L130) |
-| BR-PRF-13 | Quick-start: `occupationCode` bắt buộc; `subOccupationCode` chuỗi tự do ≤ 200; `experienceLevel` ∈ INTERN/FRESHER/JUNIOR/MIDDLE/SENIOR/LEAD (không nhận `UNKNOWN`) | DTO | ✅ Mềm | [profile.dto.ts:143](../../../server/src/modules/profile/profile.dto.ts#L143) |
+| BR-PRF-13 | Quick-start: `occupationCode` bắt buộc; `subOccupationCodes` mảng ≤ 20 mã trong danh mục nghề con, mỗi mã phải thuộc `occupationCode` (khác → 400), trùng thì giữ một; `preferredProvinces` mảng mã tỉnh trong danh mục; hai mảng đều bắt buộc *(2026-10-23)*; `experienceLevel` ∈ INTERN/FRESHER/JUNIOR/MIDDLE/SENIOR/LEAD (không nhận `UNKNOWN`) | DTO | ✅ Mềm | [profile.dto.ts:143](../../../server/src/modules/profile/profile.dto.ts#L143) |
+| BR-PRF-14a | Lưu `location` khi `preferredProvinces` còn rỗng thì tự điền một tỉnh suy từ nơi ở (`resolveProvince`, bỏ qua `REMOTE`); đã có tỉnh thì không đè *(2026-10-23)* | SV | ✅ Mềm | [profile.service.ts](../../../server/src/modules/profile/profile.service.ts) |
 | BR-PRF-14 | `experienceLevel` mặc định `UNKNOWN` (chưa chọn) | DB | 🔒 Cứng | [schema.prisma:145](../../../server/prisma/schema.prisma#L145) |
 | BR-PRF-15 | Mỗi lần ghi qua `save` xếp một việc `skill.canonicalize { userId }` (khoá chặn trùng `user:<id>`) | SV | ✅ Mềm | [profile.service.ts:53](../../../server/src/modules/profile/profile.service.ts#L53), [queue-key.ts:41](../../../server/src/modules/queue/queue-key.ts#L41) |
 | BR-PRF-16 | Thêm kỹ năng: 1–80 ký tự; trùng (so không dấu, không phân biệt hoa thường) với kỹ năng chính hoặc phụ thì bỏ qua; mới thì thêm vào cuối kỹ năng phụ (đã trim) | DTO, SV | ✅ Mềm | [profile.dto.ts:161](../../../server/src/modules/profile/profile.dto.ts#L161), [profile.service.ts:24](../../../server/src/modules/profile/profile.service.ts#L24) |
@@ -207,7 +208,9 @@ Thông điệp đi qua `vietnameseValidationError` với nhãn trường ở [va
 | Field | Ràng buộc | DTO/Schema | Lỗi trả về (400) |
 |---|---|---|---|
 | occupationCode | bắt buộc, `@IsIn(OCCUPATION_CODES)` | QuickStartProfileDto | `occupationCode Mã ngành nghề không hợp lệ` |
-| subOccupationCode | tuỳ chọn, `@IsString`, `@MaxLength(200)` (không kiểm danh mục) | QuickStartProfileDto | `subOccupationCode không được dài quá 200 ký tự` |
+| subOccupationCodes | bắt buộc (được rỗng), `@IsArray`, `@ArrayMaxSize(20)`, mỗi phần tử `@IsIn` danh mục nghề con | QuickStartProfileDto | `Mã nghề không hợp lệ` |
+| preferredProvinces | bắt buộc (được rỗng), `@IsArray`, `@ArrayMaxSize(34)`, mỗi phần tử `@IsIn` mã `PROVINCES` | QuickStartProfileDto | `Mã tỉnh/thành không hợp lệ` |
+| subOccupationCodes ↔ occupationCode | mỗi mã phải thuộc đúng nhóm ngành gửi kèm | `ProfileService.quickStart` | `Nghề đã chọn không thuộc nhóm ngành này` |
 | experienceLevel | tuỳ chọn, `@IsIn(EXPERIENCE_LEVELS)` | QuickStartProfileDto | `experienceLevel chỉ nhận một trong các giá trị: INTERN, FRESHER, JUNIOR, MIDDLE, SENIOR, LEAD` |
 
 **`AddSkillDto`** ([profile.dto.ts:161](../../../server/src/modules/profile/profile.dto.ts#L161))
@@ -223,7 +226,7 @@ Thông điệp đi qua `vietnameseValidationError` với nhãn trường ở [va
 | GET | `/api/profile` | USER/ADMIN | Xem hồ sơ của mình (tự tạo nếu thiếu) | `ProfileController#get` | `ProfileService.get` | — | 200 `Profile`, `Cache-Control: no-store` |
 | PUT | `/api/profile` | USER/ADMIN | Cập nhật một phần hồ sơ | `ProfileController#update` | `ProfileService.save` | `UpdateProfileDto` | 200 `Profile` |
 | POST | `/api/profile/skills` | USER/ADMIN | Thêm một kỹ năng nếu chưa có | `ProfileController#addSkill` | `ProfileService.addSkill` | `AddSkillDto` | 200 `Profile` |
-| POST | `/api/profile/quick-start` | USER/ADMIN | Ghi ngành/nghề/cấp bậc người dùng chọn | `ProfileController#quickStart` | `ProfileService.save` | `QuickStartProfileDto` | 200 `Profile` |
+| POST | `/api/profile/quick-start` | USER/ADMIN | Ghi ngành/nghề/cấp bậc người dùng chọn | `ProfileController#quickStart` | `ProfileService.quickStart` | `QuickStartProfileDto` | 200 `Profile` |
 
 Không có throttle riêng (dùng trần mặc định 120/phút/user).
 
@@ -268,7 +271,8 @@ Không có throttle riêng (dùng trần mặc định 120/phút/user).
 | Đi lại | willingToRelocate | Boolean `@default(false)` | |
 | Khối dài | behavioralTraits, experiences, educations, certificates, projects | Json? | Không có schema DB |
 | Phân loại | occupationCode | String? | Dẫn xuất / chọn nhanh ([schema.prisma:136](../../../server/prisma/schema.prisma#L136)) |
-| Phân loại | subOccupationCode | String? | Chỉ do "Chọn nhanh" ghi ([schema.prisma:141](../../../server/prisma/schema.prisma#L141)) |
+| Phân loại | subOccupationCodes | String[] `@default([])` | Chỉ do "Chọn nhanh" ghi; bị xoá khi `occupationCode` đổi ([schema.prisma:141](../../../server/prisma/schema.prisma#L141)) *(2026-10-23, thay `subOccupationCode String?`)* |
+| Phân loại | preferredProvinces | String[] `@default([])` | Nơi làm việc; rỗng = không lọc địa điểm; tự điền từ `location` khi còn rỗng *(2026-10-23)* |
 | Phân loại | experienceLevel | `JobSeniority` `@default(UNKNOWN)` | ([schema.prisma:145](../../../server/prisma/schema.prisma#L145)) |
 | Vận hành | lastFanOutAt | DateTime? | Lần cuối được xếp chấm điểm |
 | Vận hành | completion | Int `@default(0)` | % hoàn thiện |
@@ -292,7 +296,7 @@ stateDiagram-v2
 |---|---|---|---|
 | occupationCode | `null` → mã ngành | `save` có `headline`/`primarySkills` | `resolveOccupation` ra mã (kể cả `OTHER` khi chưa có ngành cũ) |
 | occupationCode | bất kỳ → mã chọn | `POST /profile/quick-start` | Mã thuộc `OCCUPATION_CODES` |
-| occupationCode | mã A → mã B | `save` có `headline`/`primarySkills` | Suy ra ngành thật B ≠ `OTHER` |
+| occupationCode | mã A → mã B | `save` có `headline`/`primarySkills` | Suy ra ngành thật B ≠ `OTHER`; `subOccupationCodes` thành rỗng |
 | experienceLevel | `UNKNOWN` → cấp bậc | quick-start có `experienceLevel` | Giá trị trong 6 cấp; không có đường quay về `UNKNOWN` qua API |
 | completion | n → m | mọi lần `save` | Tính lại từ dữ liệu sau ghi |
 
@@ -331,7 +335,7 @@ Không gọi dịch vụ bên ngoài trực tiếp.
 
 ## 17. ⚠️ Sai lệch / Rủi ro nghiệp vụ
 
-**R1 — `subOccupationCode` không được kiểm và có thể lệch với `occupationCode`.** Mức đề xuất: 🟡
+**R1 — `subOccupationCode` không được kiểm và có thể lệch với `occupationCode`.** ✅ **Đã sửa 2026-10-23**: cột thành `subOccupationCodes`, `ProfileService.quickStart` từ chối nghề không thuộc ngành, `save` xoá danh sách nghề khi ngành đổi.
 - Mô tả: DTO chỉ kiểm `subOccupationCode` là chuỗi ≤ 200, không đối chiếu danh mục nghề con hay việc nó thuộc `occupationCode`. Đổi ngành ở đầu trang hồ sơ gửi quick-start **không kèm** `subOccupationCode`, và việc suy lại ngành từ headline chỉ đổi `occupationCode` — nghề con cũ ở lại.
 - Bằng chứng: [profile.dto.ts:155](../../../server/src/modules/profile/profile.dto.ts#L155); [profile-summary.tsx:101](../../../../ui-ai-job-search/app/dashboard/profile/profile-summary.tsx#L101); [occupation.ts:25](../../../server/src/modules/profile/utils/occupation.ts#L25)-33.
 - Tác động: hồ sơ kiểu `occupationCode = FINANCE`, `subOccupationCode = IT_BACKEND`; nghề con được dùng làm từ khoá dự phòng khi quét tin ([query-plan.ts:59](../../../server/src/modules/scraper/utils/query-plan.ts#L59)) và lọc tin cho skill gap ([skill-gap.service.ts:78](../../../server/src/modules/upskill/skill-gap.service.ts#L78)) ⇒ quét/so sai nghề.

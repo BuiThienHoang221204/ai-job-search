@@ -43,6 +43,8 @@ export class JobsService {
       where: { userId },
       select: {
         occupationCode: true,
+        subOccupationCodes: true,
+        preferredProvinces: true,
         experienceLevel: true,
         updatedAt: true,
         currentSalary: true,

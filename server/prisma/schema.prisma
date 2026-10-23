@@ -135,10 +135,16 @@ model Profile {
   /// hồ sơ trống thành một cụm thì cụm rỗng đó chiếm mất suất của ngành có thật.
   occupationCode String?
 
-  /// Nghề cụ thể bên trong nhóm (vd `IT_BACKEND` trong nhóm `IT`) - chỉ do
-  /// bước "Chọn nhanh" ghi tường minh lúc đăng ký, KHÔNG được suy từ
-  /// `headline`/`primarySkills` như `occupationCode`. `null` = chưa chọn.
-  subOccupationCode String?
+  /// Các nghề cụ thể bên trong nhóm (vd `IT_BACKEND`, `IT_FULLSTACK` trong nhóm
+  /// `IT`) - chỉ do bước "Chọn nhanh" ghi tường minh, KHÔNG được suy từ
+  /// `headline`/`primarySkills` như `occupationCode`. Rỗng = chưa chọn. Nhóm
+  /// ngành đổi thì danh sách bị xoá vì nghề cũ không còn thuộc nhóm mới.
+  subOccupationCodes String[] @default([])
+
+  /// Các tỉnh/thành muốn làm việc (mã `PROVINCES`), lọc "Việc làm phù hợp".
+  /// Rỗng = không lọc theo địa điểm. Tự điền một tỉnh từ `location` khi lưu
+  /// nơi ở mà danh sách còn rỗng.
+  preferredProvinces String[] @default([])
 
   /// Mức kinh nghiệm user tự chọn ở bước "Chọn nhanh" lúc đăng ký, dùng cùng
   /// thang với `Job.seniority` để sau này so khớp được. `UNKNOWN` = chưa chọn.

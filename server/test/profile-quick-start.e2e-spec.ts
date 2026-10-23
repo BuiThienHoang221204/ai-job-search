@@ -29,7 +29,7 @@ describe('POST /api/profile/quick-start', () => {
     request(harness.server)
       .post('/api/profile/quick-start')
       .set(auth())
-      .send(body);
+      .send({ subOccupationCodes: [], preferredProvinces: [], ...body });
 
   const getProfile = () =>
     request(harness.server).get('/api/profile').set(auth());
@@ -37,25 +37,76 @@ describe('POST /api/profile/quick-start', () => {
   const updateProfile = (body: Record<string, unknown>) =>
     request(harness.server).put('/api/profile').set(auth()).send(body);
 
-  test('ghi được occupationCode + subOccupationCode + experienceLevel', async () => {
+  test('ghi được occupationCode + nhiều nghề + experienceLevel, nghề trùng chỉ giữ một', async () => {
     await quickStart({
       occupationCode: 'IT',
-      subOccupationCode: 'IT_BACKEND',
+      subOccupationCodes: ['IT_BACKEND', 'IT_FULLSTACK', 'IT_BACKEND'],
       experienceLevel: 'JUNIOR',
     }).expect(200);
 
     const response = await getProfile().expect(200);
     const body = response.body as {
       occupationCode: string;
-      subOccupationCode: string;
+      subOccupationCodes: string[];
       experienceLevel: string;
     };
     expect(body.occupationCode).toBe('IT');
-    expect(body.subOccupationCode).toBe('IT_BACKEND');
+    expect(body.subOccupationCodes).toEqual(['IT_BACKEND', 'IT_FULLSTACK']);
     expect(body.experienceLevel).toBe('JUNIOR');
   });
 
-  test('chỉ occupationCode là bắt buộc', async () => {
+  test('nghề không thuộc nhóm ngành đã chọn hoặc không có trong danh mục bị từ chối', async () => {
+    await quickStart({
+      occupationCode: 'IT',
+      subOccupationCodes: ['IT_BACKEND', 'FIN_TAX'],
+    }).expect(400);
+    await quickStart({
+      occupationCode: 'IT',
+      subOccupationCodes: ['IT_OTHER'],
+    }).expect(400);
+
+    const response = await getProfile().expect(200);
+    expect(
+      (response.body as { subOccupationCodes: string[] }).subOccupationCodes,
+    ).toEqual([]);
+  });
+
+  test('ghi được nơi làm việc, tỉnh trùng chỉ giữ một; mã tỉnh lạ bị từ chối', async () => {
+    await quickStart({
+      occupationCode: 'IT',
+      preferredProvinces: ['HCM', 'DNA', 'HCM'],
+    }).expect(200);
+    await quickStart({
+      occupationCode: 'IT',
+      preferredProvinces: ['SAI_GON'],
+    }).expect(400);
+
+    const response = await getProfile().expect(200);
+    expect(
+      (response.body as { preferredProvinces: string[] }).preferredProvinces,
+    ).toEqual(['HCM', 'DNA']);
+  });
+
+  test('lưu nơi ở khi chưa chọn nơi làm việc thì tự điền tỉnh; đã chọn rồi thì không đè', async () => {
+    await updateProfile({ location: 'Gò Vấp, TP. Hồ Chí Minh' }).expect(200);
+    const filled = await getProfile().expect(200);
+    expect(
+      (filled.body as { preferredProvinces: string[] }).preferredProvinces,
+    ).toEqual(['HCM']);
+
+    await updateProfile({ location: 'Cầu Giấy, Hà Nội' }).expect(200);
+    const kept = await getProfile().expect(200);
+    expect(
+      (kept.body as { preferredProvinces: string[] }).preferredProvinces,
+    ).toEqual(['HCM']);
+  });
+
+  test('thiếu danh sách nghề hoặc nơi làm việc bị từ chối; experienceLevel không bắt buộc', async () => {
+    await request(harness.server)
+      .post('/api/profile/quick-start')
+      .set(auth())
+      .send({ occupationCode: 'FINANCE' })
+      .expect(400);
     await quickStart({ occupationCode: 'FINANCE' }).expect(200);
 
     const response = await getProfile().expect(200);
@@ -84,7 +135,7 @@ describe('POST /api/profile/quick-start', () => {
   test('PUT /profile sau đó KHÔNG xoá occupationCode đã chọn nhanh', async () => {
     await quickStart({
       occupationCode: 'IT',
-      subOccupationCode: 'IT_BACKEND',
+      subOccupationCodes: ['IT_BACKEND'],
     }).expect(200);
 
     await updateProfile({ phone: '0901234567' }).expect(200);
@@ -92,22 +143,29 @@ describe('POST /api/profile/quick-start', () => {
     const response = await getProfile().expect(200);
     const body = response.body as {
       occupationCode: string;
-      subOccupationCode: string;
+      subOccupationCodes: string[];
       phone: string;
     };
     expect(body.occupationCode).toBe('IT');
-    expect(body.subOccupationCode).toBe('IT_BACKEND');
+    expect(body.subOccupationCodes).toEqual(['IT_BACKEND']);
     expect(body.phone).toBe('0901234567');
   });
 
-  test('PUT /profile với headline suy ra được NGÀNH THẬT thì ghi đè lựa chọn nhanh', async () => {
-    await quickStart({ occupationCode: 'IT' }).expect(200);
+  test('PUT /profile với headline suy ra được NGÀNH THẬT thì ghi đè lựa chọn nhanh và bỏ các nghề của ngành cũ', async () => {
+    await quickStart({
+      occupationCode: 'IT',
+      subOccupationCodes: ['IT_BACKEND'],
+    }).expect(200);
 
     await updateProfile({ headline: 'Kế toán tổng hợp' }).expect(200);
 
     const response = await getProfile().expect(200);
-    const body = response.body as { occupationCode: string };
+    const body = response.body as {
+      occupationCode: string;
+      subOccupationCodes: string[];
+    };
     expect(body.occupationCode).toBe('FINANCE');
+    expect(body.subOccupationCodes).toEqual([]);
   });
 
   test('PUT /profile với headline không khớp ngành nào (OTHER) thì vẫn giữ lựa chọn nhanh', async () => {

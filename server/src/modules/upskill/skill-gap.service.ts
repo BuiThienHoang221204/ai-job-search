@@ -54,7 +54,8 @@ export class SkillGapService {
       select: {
         ...profileSelect,
         occupationCode: true,
-        subOccupationCode: true,
+        subOccupationCodes: true,
+        preferredProvinces: true,
         experienceLevel: true,
       },
     });
@@ -74,14 +75,19 @@ export class SkillGapService {
     if (!profile || !fit?.occupationCode || needsOccupation(fit)) return empty;
 
     const levels = nearbySeniorities(fit.experienceLevel);
-    const sub =
-      profile.subOccupationCode ??
-      resolveSubOccupation(
+    let subs: string[] | null = null;
+    if (fit.subOccupationCodes.length) {
+      subs = Array.from(
+        new Set(fit.subOccupationCodes.flatMap(nearbySubOccupations)),
+      );
+    } else {
+      const inferred = resolveSubOccupation(
         fit.occupationCode,
         profile.headline ?? '',
         profile.primarySkills,
       );
-    const subs = sub ? nearbySubOccupations(sub) : null;
+      if (inferred) subs = nearbySubOccupations(inferred);
+    }
     const [requirements, dictionary] = await Promise.all([
       this.prisma.jobRequirement.findMany({
         where: {

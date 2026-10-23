@@ -56,13 +56,10 @@ export function planFromProfile(profile: QueryProfile | null): PlannedQuery[] {
     push(skill, `Kỹ năng chính: ${skill}.`);
   }
 
-  if (!queries.length && profile?.subOccupationCode) {
-    const fallback = subOccupationQuery(profile.subOccupationCode);
-    if (fallback) {
-      push(
-        fallback,
-        `Nghề đã chọn lúc "Chọn nhanh": ${profile.subOccupationCode}.`,
-      );
+  if (!queries.length) {
+    for (const code of profile?.subOccupationCodes ?? []) {
+      const fallback = subOccupationQuery(code);
+      if (fallback) push(fallback, `Nghề đã chọn lúc "Chọn nhanh": ${code}.`);
     }
   }
 

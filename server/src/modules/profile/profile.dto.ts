@@ -14,8 +14,12 @@ import {
 import type { Prisma } from '@/generated/prisma/client';
 import { IsBoundedJson } from '@/common/validators/bounded-json';
 import { OCCUPATION_CODES } from '@/modules/jobs/taxonomy/occupations';
+import { SUB_OCCUPATION_PARENT } from '@/modules/jobs/taxonomy/sub-occupations';
+import { PROVINCES } from '@/modules/jobs/taxonomy/provinces';
 
 const SHORT = 200;
+
+const MAX_SUB_OCCUPATIONS = 20;
 
 const MAX_MONTHLY_SALARY = 2_000_000_000;
 
@@ -152,7 +156,20 @@ export const EXPERIENCE_LEVELS = [
 export class QuickStartProfileDto {
   @IsIn(OCCUPATION_CODES, { message: 'Mã ngành nghề không hợp lệ' })
   occupationCode!: string;
-  @IsOptional() @IsString() @MaxLength(SHORT) subOccupationCode?: string;
+  @IsArray()
+  @ArrayMaxSize(MAX_SUB_OCCUPATIONS)
+  @IsIn(Object.keys(SUB_OCCUPATION_PARENT), {
+    each: true,
+    message: 'Mã nghề không hợp lệ',
+  })
+  subOccupationCodes!: string[];
+  @IsArray()
+  @ArrayMaxSize(PROVINCES.length)
+  @IsIn(PROVINCES.map((province) => province.code), {
+    each: true,
+    message: 'Mã tỉnh/thành không hợp lệ',
+  })
+  preferredProvinces!: string[];
   @IsOptional()
   @IsIn(EXPERIENCE_LEVELS)
   experienceLevel?: (typeof EXPERIENCE_LEVELS)[number];

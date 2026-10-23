@@ -14,7 +14,7 @@ const profile = (overrides: Partial<QueryProfile> = {}): QueryProfile => ({
   location: null,
   primarySkills: [],
   targetSectors: [],
-  subOccupationCode: null,
+  subOccupationCodes: [],
   ...overrides,
 });
 
@@ -70,7 +70,7 @@ describe('planFromProfile', () => {
 
   it('hồ sơ trống chữ nhưng đã "Chọn nhanh" thì mượn từ khoá taxonomy của nghề đó', () => {
     const queries = planFromProfile(
-      profile({ subOccupationCode: 'IT_BACKEND' }),
+      profile({ subOccupationCodes: ['IT_BACKEND'] }),
     ).map((q) => q.query);
 
     expect(queries).toEqual(['backend']);
@@ -78,7 +78,7 @@ describe('planFromProfile', () => {
 
   it('mã nghề không có thật trong danh mục thì vẫn không sinh truy vấn nào', () => {
     expect(
-      planFromProfile(profile({ subOccupationCode: 'KHONG_CO_THAT' })),
+      planFromProfile(profile({ subOccupationCodes: ['KHONG_CO_THAT'] })),
     ).toEqual([]);
   });
 
@@ -86,7 +86,7 @@ describe('planFromProfile', () => {
     const queries = planFromProfile(
       profile({
         headline: 'Kế toán tổng hợp',
-        subOccupationCode: 'IT_BACKEND',
+        subOccupationCodes: ['IT_BACKEND'],
       }),
     ).map((q) => q.query);
 

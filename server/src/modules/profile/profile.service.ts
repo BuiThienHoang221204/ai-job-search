@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma, Profile } from '@/generated/prisma/client';
 import { foldTerm } from '@/common/text/vietnamese';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
 import { completionPercent } from './utils/completion';
 import { occupationAfterSave } from './utils/occupation';
+import { SUB_OCCUPATION_PARENT } from '@/modules/jobs/taxonomy/sub-occupations';
+import { resolveProvince } from '@/modules/jobs/taxonomy/resolve';
+import { REMOTE_CODE } from '@/modules/jobs/taxonomy/provinces';
+import type { QuickStartProfileDto } from './profile.dto';
 
 @Injectable()
 export class ProfileService {
@@ -31,6 +35,27 @@ export class ProfileService {
     });
   }
 
+  /** Ghi đủ ngành, các nghề trong ngành, nơi làm việc và kinh nghiệm; nghề phải thuộc đúng ngành gửi kèm. */
+  async quickStart(
+    userId: string,
+    dto: QuickStartProfileDto,
+  ): Promise<Profile> {
+    const subOccupationCodes = Array.from(new Set(dto.subOccupationCodes));
+    if (
+      subOccupationCodes.some(
+        (code) => SUB_OCCUPATION_PARENT[code] !== dto.occupationCode,
+      )
+    ) {
+      throw new BadRequestException('Nghề đã chọn không thuộc nhóm ngành này');
+    }
+    return this.save(userId, {
+      occupationCode: dto.occupationCode,
+      subOccupationCodes,
+      preferredProvinces: Array.from(new Set(dto.preferredProvinces)),
+      experienceLevel: dto.experienceLevel,
+    });
+  }
+
   /** Đường GHI duy nhất: thiếu `completion` hay `occupationCode` là hồ sơ tàng hình. */
   async save(
     userId: string,
@@ -42,11 +67,22 @@ export class ProfileService {
       update: data,
     });
 
+    const occupationCode = occupationAfterSave(saved, data);
+    const province =
+      data.location !== undefined && !saved.preferredProvinces.length
+        ? resolveProvince(saved.location)
+        : null;
     const profile = await this.prisma.profile.update({
       where: { userId },
       data: {
         completion: completionPercent(saved),
-        occupationCode: occupationAfterSave(saved, data),
+        occupationCode,
+        ...(occupationCode !== saved.occupationCode
+          ? { subOccupationCodes: [] }
+          : {}),
+        ...(province && province !== REMOTE_CODE
+          ? { preferredProvinces: [province] }
+          : {}),
       },
     });
 

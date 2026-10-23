@@ -174,7 +174,7 @@ sequenceDiagram
   FE->>API: "POST /api/auth/register"
   API-->>FE: "201 {user} + cookie"
   FE->>API: "GET /api/auth/me"
-  FE->>API: "POST /api/profile/quick-start {occupationCode, subOccupationCode, experienceLevel}"
+  FE->>API: "POST /api/profile/quick-start {occupationCode, subOccupationCodes, preferredProvinces, experienceLevel}"
   alt "Có CV PDF"
     FE->>API: "POST /api/profile-drafts/cv?stream=true (multipart)"
     FE->>API: "POST /api/profile-drafts/:id/synthesize-stream (NDJSON)"

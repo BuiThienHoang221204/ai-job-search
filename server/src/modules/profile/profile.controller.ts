@@ -51,6 +51,6 @@ export class ProfileController {
   @Post('quick-start')
   @HttpCode(200)
   quickStart(@CurrentUser() user: AuthUser, @Body() dto: QuickStartProfileDto) {
-    return this.profile.save(user.id, dto);
+    return this.profile.quickStart(user.id, dto);
   }
 }

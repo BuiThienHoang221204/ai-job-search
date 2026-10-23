@@ -116,9 +116,9 @@
 - **Main Flow:**
   1. `GET /api/learning` → `LearningService.overview` chạy song song `SkillGapService.forUser(userId)` và `LearningItem.findMany({ userId })` theo `createdAt` tăng ([learning.service.ts:18](../../../server/src/modules/upskill/learning.service.ts#L18)).
   2. `forUser` ([skill-gap.service.ts:50](../../../server/src/modules/upskill/skill-gap.service.ts#L50)):
-     1. Đọc `Profile` (`profileSelect` + `occupationCode`, `subOccupationCode`, `experienceLevel`); `profileFit` suy cấp bậc từ số năm kinh nghiệm khi `experienceLevel = UNKNOWN`.
+     1. Đọc `Profile` (`profileSelect` + `occupationCode`, `subOccupationCodes`, `experienceLevel`); `profileFit` suy cấp bậc từ số năm kinh nghiệm khi `experienceLevel = UNKNOWN`.
      2. Không có hồ sơ, chưa có ngành, hoặc ngành = `OTHER` → trả bản rỗng `needsOccupation: true`.
-     3. Cấp bậc ±1 (`nearbySeniorities`) cộng `UNKNOWN`; nghề = `subOccupationCode` của hồ sơ hoặc suy bằng `resolveSubOccupation` từ headline + kỹ năng chính, mở rộng sang nghề gần (`nearbySubOccupations`).
+     3. Cấp bậc ±1 (`nearbySeniorities`) cộng `UNKNOWN`; nghề = các `subOccupationCodes` của hồ sơ *(2026-10-23)* hoặc, khi rỗng, suy bằng `resolveSubOccupation` từ headline + kỹ năng chính, mở rộng sang nghề gần (`nearbySubOccupations`).
      4. Lấy tối đa 400 `JobRequirement` `DONE` của tin đúng ngành, đúng nghề, không phải bản sao (`duplicateOfId = null`), quét trong 30 ngày, mới nhất trước.
      5. Đối chiếu bằng `matchRequirements` (luật trong `matching/rules`, không gọi model) với từ điển kỹ năng.
      6. `aggregateSkillGaps`: mỗi tin đếm một kỹ năng tối đa một lần; chỉ tính kiểm tra `SKILL`/`NICE` có `met === false`; bỏ kỹ năng xuất hiện ở \< 2 tin; `kind = REQUIRED` nếu số tin bắt buộc ≥ số tin ưu tiên; `near` = số tin "gần đạt" (khớp ≥ 50% kỹ năng bắt buộc); hiện tối đa 5 tin, ưu tiên tin gần đạt; sắp theo `demand` giảm, `near` giảm, tên ([skill-gaps.ts:49](../../../server/src/modules/upskill/utils/skill-gaps.ts#L49)).

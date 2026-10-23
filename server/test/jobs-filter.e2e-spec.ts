@@ -328,6 +328,50 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       expect(await scoredIds()).toEqual([ids[0], ids[2]].sort());
     });
 
+    test('đã chọn nghề thì chỉ hiện tin đúng các nghề đó và tin chưa rõ nghề', async () => {
+      await setProfile('IT');
+      await harness.prisma.profile.update({
+        where: { userId: user.id },
+        data: { subOccupationCodes: ['IT_BACKEND'] },
+      });
+      await harness.prisma.job.update({
+        where: { id: ids[0] },
+        data: { subOccupationCode: 'IT_BACKEND' },
+      });
+      await harness.prisma.job.update({
+        where: { id: ids[1] },
+        data: { occupationCode: 'IT', subOccupationCode: null },
+      });
+      await harness.prisma.job.update({
+        where: { id: ids[2] },
+        data: { subOccupationCode: 'IT_FRONTEND' },
+      });
+
+      expect(await scoredIds()).toEqual([ids[0], ids[1]].sort());
+    });
+
+    test('đã chọn nơi làm việc thì chỉ hiện tin ở tỉnh đó, tin làm từ xa và tin chưa rõ địa điểm', async () => {
+      await setProfile('IT');
+      await harness.prisma.profile.update({
+        where: { userId: user.id },
+        data: { preferredProvinces: ['HCM'] },
+      });
+      await harness.prisma.job.update({
+        where: { id: ids[0] },
+        data: { provinceCode: 'HN' },
+      });
+      await harness.prisma.job.update({
+        where: { id: ids[1] },
+        data: { occupationCode: 'IT', provinceCode: 'REMOTE' },
+      });
+      await harness.prisma.job.update({
+        where: { id: ids[2] },
+        data: { provinceCode: null },
+      });
+
+      expect(await scoredIds()).toEqual([ids[1], ids[2]].sort());
+    });
+
     test('lọc cấp bậc lệch tối đa một bậc, tin chưa rõ cấp bậc vẫn hiện', async () => {
       await setProfile('IT', 'JUNIOR');
       await harness.prisma.job.update({

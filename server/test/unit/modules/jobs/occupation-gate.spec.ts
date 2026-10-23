@@ -33,7 +33,12 @@ describe('occupationGate', () => {
 
   test('chỉ đúng một nhóm ngành, không kèm OTHER hay nhóm liền kề', () => {
     expect(
-      occupationGate(scored, { occupationCode: 'IT', experienceLevel: null }),
+      occupationGate(scored, {
+        occupationCode: 'IT',
+        subOccupationCodes: [],
+        preferredProvinces: [],
+        experienceLevel: null,
+      }),
     ).toEqual({ occupationCode: 'IT' });
   });
 
@@ -41,18 +46,24 @@ describe('occupationGate', () => {
     expect(
       occupationGate(scored, {
         occupationCode: 'FINANCE',
+        subOccupationCodes: [],
+        preferredProvinces: [],
         experienceLevel: 'JUNIOR',
       }),
     ).toEqual({
-      occupationCode: 'FINANCE',
-      OR: [
-        { requirements: { is: null } },
+      AND: [
+        { occupationCode: 'FINANCE' },
         {
-          requirements: {
-            is: {
-              seniority: { in: ['FRESHER', 'JUNIOR', 'MIDDLE', 'UNKNOWN'] },
+          OR: [
+            { requirements: { is: null } },
+            {
+              requirements: {
+                is: {
+                  seniority: { in: ['FRESHER', 'JUNIOR', 'MIDDLE', 'UNKNOWN'] },
+                },
+              },
             },
-          },
+          ],
         },
       ],
     });
@@ -64,17 +75,32 @@ describe('occupationGate', () => {
     expect(
       occupationGate(scored, {
         occupationCode: 'OTHER',
+        subOccupationCodes: [],
+        preferredProvinces: [],
         experienceLevel: null,
       }),
     ).toEqual(none);
     expect(
-      needsOccupation({ occupationCode: null, experienceLevel: null }),
+      needsOccupation({
+        occupationCode: null,
+        subOccupationCodes: [],
+        preferredProvinces: [],
+        experienceLevel: null,
+      }),
     ).toBe(true);
   });
 
   test('không phải trang việc làm phù hợp thì không có cổng', () => {
     expect(
-      occupationGate({}, { occupationCode: 'IT', experienceLevel: 'JUNIOR' }),
+      occupationGate(
+        {},
+        {
+          occupationCode: 'IT',
+          subOccupationCodes: [],
+          preferredProvinces: [],
+          experienceLevel: 'JUNIOR',
+        },
+      ),
     ).toBeNull();
   });
 });
@@ -95,10 +121,17 @@ describe('profileFit', () => {
     expect(
       profileFit({
         occupationCode: 'IT',
+        subOccupationCodes: ['IT_BACKEND'],
+        preferredProvinces: [],
         experienceLevel: 'SENIOR',
         experiences: [],
       }),
-    ).toEqual({ occupationCode: 'IT', experienceLevel: 'SENIOR' });
+    ).toEqual({
+      occupationCode: 'IT',
+      subOccupationCodes: ['IT_BACKEND'],
+      preferredProvinces: [],
+      experienceLevel: 'SENIOR',
+    });
   });
 
   test('chưa chọn cấp bậc thì suy từ kinh nghiệm trong CV', () => {
@@ -106,6 +139,8 @@ describe('profileFit', () => {
     expect(
       profileFit({
         occupationCode: 'IT',
+        subOccupationCodes: [],
+        preferredProvinces: [],
         experienceLevel: 'UNKNOWN',
         experiences,
       })?.experienceLevel,
