@@ -11,6 +11,7 @@ import {
   occupationFor,
   parseDetail,
   parseJobCards,
+  toCard,
   rankByQuery,
   relevantTo,
   salaryText,
@@ -108,6 +109,23 @@ describe("parseJobCards", () => {
 
   test("trang không có __NEXT_DATA__ thì rỗng, không ném", () => {
     expect(parseJobCards("<html><body>không có gì</body></html>")).toEqual([])
+  })
+})
+
+describe("toCard - tên tỉnh", () => {
+  test("tin dùng mã tỉnh mới sau sáp nhập (21xxxxxxx) vẫn ra tên tỉnh từ danh mục AuLocation", () => {
+    const card = toCard(
+      { id: 1, title: "Kế toán tổng hợp", title_slug: "ke-toan-tong-hop", occupation_ids_main: [17], province_ids: [210000187] },
+      {
+        props: {
+          initialState: {
+            api: { initCommon: { data: { provinces: [{ id: 122, name: "TP.HCM" }], occupation: [{ id: 17, slug: "ke-toan" }] } } },
+            AuLocation: { provinces: [{ id: 210000187, name: "TP.HCM" }] },
+          },
+        },
+      },
+    )
+    expect(card?.location).toBe("TP.HCM")
   })
 })
 

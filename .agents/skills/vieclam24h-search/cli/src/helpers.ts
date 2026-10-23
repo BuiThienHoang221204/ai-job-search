@@ -256,6 +256,8 @@ type NextData = {
         initCommon?: { data?: { provinces?: Province[]; occupation?: Occupation[] } }
         jobDetailHiddenContact?: { data?: RawJob }
       }
+      /** Danh mục tỉnh MỚI sau sáp nhập (mã 21xxxxxxx), kèm cả mã cũ 11xxxxxxx; `initCommon.provinces` chỉ còn 65 tỉnh mã cũ. */
+      AuLocation?: { provinces?: Province[] }
     }
     /** Trang ngành cha để danh sách ở `jobsResponse`, trang ngành con ở `jobs` - tìm theo HÌNH DẠNG chứ không theo tên khoá. */
     initialProps?: { pageProps?: Record<string, unknown> }
@@ -316,8 +318,12 @@ export function toCard(job: RawJob, data: NextData): JobCard | null {
   if (!job.id || !job.title || !job.title_slug || !occupationSlug || !provinceId) return null
 
   const slug = `${occupationSlug}/${job.title_slug}-c${occupationId}p${provinceId}id${job.id}`
+  const catalog = [
+    ...(data.props?.initialState?.AuLocation?.provinces ?? []),
+    ...(common?.provinces ?? []),
+  ]
   const provinces = (job.province_ids ?? [])
-    .map((id) => common?.provinces?.find((p) => p.id === id)?.name)
+    .map((id) => catalog.find((p) => p.id === id)?.name)
     .filter((name): name is string => Boolean(name))
   const employer = job.employer_info
 
