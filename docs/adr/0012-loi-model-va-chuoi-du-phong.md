@@ -10,6 +10,8 @@
 
 **Lõi `groq` — thêm 2026-09-30, dùng cho tác vụ NGƯỜI DÙNG ĐANG CHỜ, không phải lõi mặc định.** SDK riêng `groq-sdk` KHÔNG được dùng — Groq có endpoint OpenAI-compatible công khai (`https://api.groq.com/openai/v1`), nên nó đi đúng khuôn `createOpenAICompatible` như mọi lõi khác; khai `baseURLEnv: 'GROQ_BASE_URL'` vì Groq không nằm trong catalog `models.opencode.ai`, giống lý do `omniroute`/`opencode` khai trường đó.
 
+**Hạn mức Groq viết cứng theo từng model (`LIMITS` trong `providers/groq.ts`), vì `/models` của Groq KHÔNG trả hạn mức** — chỉ console và header `x-ratelimit-*` của từng phản hồi có. Model Groq mới do `ModelHealthService` tự quét vào bể mà chưa có trong bảng thì dùng `STANDARD` (8 000 token/phút, 200 000 token/ngày, 1 000 lượt/ngày) *(2026-10-24)*: trước đó `rateLimitFor` trả `undefined`, `hasRoom` coi là vô hạn và dồn mọi lượt vào model mới tới khi Groq trả 429 — với `interview.turn` (không có chuỗi dự phòng) là lỗi thẳng tới người dùng. Model có hạn mức khác chuẩn (`gpt-oss-safeguard-20b` 2 000 token/phút) vẫn khai riêng. Chưa bắt được trường hợp Groq ĐỔI hạn mức của model đã khai — muốn vậy phải đọc header phản hồi. Lưu ý thêm: local và production đang dùng chung một `GROQ_API_KEY` (so mã băm 2026-10-24), hai bộ đếm RAM không thấy nhau; chủ dự án chọn giữ vì quy mô đồ án, xem lại khi log có 429.
+
 **`honorsResponseFormat: false` — đo thật 2026-09-30 bằng đúng prompt production (`scripts/probe-prompt-cache.mjs --model groq/openai/gpt-oss-120b`), không phải đoán.** Lượt đầu để trống (coi như ép được `response_format`) và Groq trả 400 NGAY từ request, chưa tới lượt model chạy:
 
 ```

@@ -206,8 +206,10 @@ describe('Lõi groq — LPU suy luận nhanh, không phải catalog opencode.ai'
     ]);
   });
 
-  test('rateLimitFor: model lạ trả undefined — an toàn, scheduler coi như còn chỗ', () => {
-    expect(groq.rateLimitFor?.('model-chua-tung-thay')).toBeUndefined();
+  test('rateLimitFor: model Groq mới quét được mà chưa có trong bảng dùng hạn mức chuẩn, không bị coi là vô hạn', () => {
+    expect(groq.rateLimitFor?.('meta-llama/llama-9-scout')).toEqual(
+      groq.rateLimitFor?.('openai/gpt-oss-120b'),
+    );
   });
 });
 

@@ -24,5 +24,5 @@ export const groq: ProviderDescriptor = {
   baseURLEnv: 'GROQ_BASE_URL',
   honorsResponseFormat: false,
   dropJsonMode: true,
-  rateLimitFor: (modelId) => LIMITS.get(modelId),
+  rateLimitFor: (modelId) => LIMITS.get(modelId) ?? STANDARD,
 };
