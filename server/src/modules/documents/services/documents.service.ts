@@ -247,7 +247,7 @@ export class DocumentsService {
     }
     if (document.status !== 'DONE') {
       throw new UnprocessableEntityException(
-        `Tài liệu đang ở trạng thái ${document.status} và chưa có nội dung để sửa.`,
+        'Tài liệu chưa tạo xong nên chưa sửa được.',
       );
     }
 
@@ -285,7 +285,7 @@ export class DocumentsService {
 
     if (document.status !== 'DONE' || !document.content) {
       throw new UnprocessableEntityException(
-        `Tài liệu đang ở trạng thái ${document.status} và chưa có nội dung để xem trước.`,
+        'Tài liệu chưa tạo xong nên chưa xem trước được.',
       );
     }
 

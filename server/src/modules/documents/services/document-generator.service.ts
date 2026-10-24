@@ -113,7 +113,7 @@ export class DocumentGenerator {
     const { document, claimed } = await this.claim(userId, documentId);
     if (!claimed) {
       throw new ConflictException(
-        `Tài liệu đang ở trạng thái ${document.status}, không sinh lại được. Muốn bản khác thì tạo tài liệu mới.`,
+        'Tài liệu này đang được tạo hoặc đã tạo xong, không tạo lại được. Muốn bản khác thì tạo tài liệu mới.',
       );
     }
 

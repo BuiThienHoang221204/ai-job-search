@@ -83,7 +83,7 @@ describe('Giành chỗ có điều kiện và lỗi trước sự kiện đầu 
       expect(eventsOf(response.text)).toEqual([
         expect.objectContaining({ type: 'error', statusCode: 409 }),
       ]);
-      expect(eventsOf(response.text)[0].message).toContain('DONE');
+      expect(eventsOf(response.text)[0].message).toContain('đã tạo xong');
 
       const after = await harness.prisma.document.findUniqueOrThrow({
         where: { id: document.id },

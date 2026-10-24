@@ -64,7 +64,7 @@
 **Alternative Flow**
 - **A1 — `skipDocuments` falsy (chỉ khi gọi API trực tiếp):**
   1. Không có `JobMatch` → 400 `"Chưa chấm điểm công việc này. Hãy chạy đánh giá độ phù hợp trước khi tạo đơn."`
-  2. `JobMatch.status !== 'DONE'` → 400 `` `Kết quả chấm điểm đang ở trạng thái ${match.status}, chưa dùng được để tạo đơn.` ``
+  2. `JobMatch.status !== 'DONE'` → 400 `` `Kết quả chấm điểm công việc này chưa xong. Đợi chấm xong, hoặc chấm lại nếu lần trước lỗi, rồi tạo đơn.` ``
   3. `eligibility === 'FAIL'` → 400 `` `Công việc này không đủ điều kiện ứng tuyển: ${eligibilityNote ?? 'tin tuyển dụng đòi điều kiện mà hồ sơ không đáp ứng'}` ``
   4. Sau khi tạo đơn: `prepareDocuments` tạo **song song** 2 `Document` (`CV` tiêu đề `"CV - {title}"`, `COVER_LETTER` tiêu đề `"Thư xin việc - {company}"`) rồi xếp 2 việc `document.generate` ([applications.service.ts:115](../../../server/src/modules/applications/applications.service.ts#L115)).
 - **A2 — FE đã có đơn cho tin:** FE không gọi API, chỉ mở `job.url` ([job-detail-view.tsx](../../../../ui-ai-job-search/app/dashboard/jobs/[id]/job-detail-view.tsx)).
@@ -382,7 +382,7 @@ Không có trạng thái nào do hệ thống tự chuyển (không cron, không
 | Tình huống | HTTP | Thông điệp nguyên văn | Nguồn |
 |---|---|---|---|
 | Tạo đơn (không skip) khi chưa có JobMatch | 400 | `Chưa chấm điểm công việc này. Hãy chạy đánh giá độ phù hợp trước khi tạo đơn.` | [applications.service.ts:59](../../../server/src/modules/applications/applications.service.ts#L59) |
-| JobMatch chưa DONE | 400 | `Kết quả chấm điểm đang ở trạng thái ${match.status}, chưa dùng được để tạo đơn.` | [applications.service.ts:64](../../../server/src/modules/applications/applications.service.ts#L64) |
+| JobMatch chưa DONE | 400 | `Kết quả chấm điểm công việc này chưa xong. Đợi chấm xong, hoặc chấm lại nếu lần trước lỗi, rồi tạo đơn.` | [applications.service.ts:64](../../../server/src/modules/applications/applications.service.ts#L64) |
 | Eligibility FAIL | 400 | `Công việc này không đủ điều kiện ứng tuyển: ${match.eligibilityNote ?? 'tin tuyển dụng đòi điều kiện mà hồ sơ không đáp ứng'}` | [applications.service.ts:69](../../../server/src/modules/applications/applications.service.ts#L69) |
 | Đơn trùng | 409 | `Bạn đã có đơn ứng tuyển cho công việc này` | [applications.service.ts:96](../../../server/src/modules/applications/applications.service.ts#L96) |
 | `jobId` không tồn tại (P2003) | 400 | `Dữ liệu tham chiếu không hợp lệ` | [prisma-exception.filter.ts](../../../server/src/common/filters/prisma-exception.filter.ts) |

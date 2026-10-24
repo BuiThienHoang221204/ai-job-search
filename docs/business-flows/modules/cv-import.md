@@ -91,7 +91,7 @@
 
 **Failure Flow:**
 - Bản nháp không thuộc user/không tồn tại → sự kiện `{"type":"error","message":"Không tìm thấy bản nháp hồ sơ: <id>","statusCode":404}` (HTTP vẫn 200) ([profile-synthesizer.service.ts:104](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L104), [profile-draft.e2e-spec.ts:416](../../../server/test/profile-draft.e2e-spec.ts#L416)).
-- Không giành được chỗ (đang `RUNNING` chưa kẹt, hoặc `DONE`) → sự kiện lỗi `statusCode: 409`, `Bản nháp đang ở trạng thái <status>, không đọc lại được.` ([profile-synthesizer.service.ts:42](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L42)).
+- Không giành được chỗ (đang `RUNNING` chưa kẹt, hoặc `DONE`) → sự kiện lỗi `statusCode: 409`, `Bản nháp này đang được đọc hoặc đã đọc xong, không đọc lại được.` ([profile-synthesizer.service.ts:42](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L42)).
 - Model lỗi/timeout/sai schema, hoặc không có bằng chứng → `fail`: `status = FAILED`, `error = <thông điệp thô>`; sự kiện `{ type: 'error', message: 'Không hoàn thành được tác vụ.', failureKind }` ([profile-synthesizer.service.ts:58](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L58), [failure-view.ts:15](../../../server/src/common/ai/failure-view.ts#L15)).
 - Vượt trần 429 / chưa đăng nhập 401 → HTTP lỗi trước khi stream; FE: `Phiên đăng nhập đã hết hạn.` hoặc `Máy chủ trả về HTTP <status>` ([model-stream.ts:38](../../../../ui-ai-job-search/lib/model-stream.ts#L38)).
 
@@ -139,7 +139,7 @@
 
 **Alternative Flow:** hai lần bấm đồng thời → đúng một 200 và một lượt xếp hàng ([profile-draft.e2e-spec.ts:434](../../../server/test/profile-draft.e2e-spec.ts#L434)).
 
-**Failure Flow:** 404 `Không tìm thấy bản nháp: <id>`; 400 `Bản nháp đang ở trạng thái <status>, chỉ chạy lại được bản đã FAILED.`; 409 `Bản nháp vừa được chạy lại ở nơi khác.`; FE hết lượt hỏi → `Chờ quá lâu mà chưa có kết quả. Lượt đọc vẫn chạy ở nền, mở lại trang sau ít phút.`
+**Failure Flow:** 404 `Không tìm thấy bản nháp: <id>`; 400 `Chỉ chạy lại được bản nháp bị lỗi; bản này đang được đọc hoặc đã đọc xong.`; 409 `Bản nháp vừa được chạy lại ở nơi khác.`; FE hết lượt hỏi → `Chờ quá lâu mà chưa có kết quả. Lượt đọc vẫn chạy ở nền, mở lại trang sau ít phút.`
 
 **Postconditions:** bản nháp `PENDING` rồi được worker đưa sang `RUNNING → DONE/FAILED`.
 
@@ -162,7 +162,7 @@
 
 **Failure Flow:**
 - Bản nháp người khác/không tồn tại → **404** `Không tìm thấy bản nháp: <id>`.
-- Chưa `DONE` → **400** `Bản nháp đang ở trạng thái <status>, chưa có đề xuất để áp dụng.`
+- Chưa `DONE` → **400** `Bản nháp chưa đọc xong nên chưa có đề xuất để áp dụng.`
 - Body rỗng → **400** `Chưa chọn trường nào để áp dụng vào hồ sơ.`
 - Gửi trường ngoài danh sách trắng (`citizenship`, `careerGoals`, `phone`…) → **400** `<Nhãn> không phải là trường hợp lệ` ([profile-draft.e2e-spec.ts:270](../../../server/test/profile-draft.e2e-spec.ts#L270)).
 - Vi phạm ràng buộc `UpdateProfileDto` (vd > 60 kỹ năng) → **400** (xem [profile.md](./profile.md) §8). FE toast thông điệp backend hoặc `Không lưu được vào hồ sơ`.
@@ -445,11 +445,11 @@ stateDiagram-v2
 | Bản nháp không tồn tại/không thuộc user | 404 | `Không tìm thấy bản nháp: <id>` | [profile-draft.service.ts:102](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L102) |
 | Bản nháp không giữ file | 404 | `Bản nháp này không giữ file gốc.` | [profile-draft.service.ts:79](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L79) |
 | Stream: bản nháp không tồn tại | sự kiện `error`, `statusCode: 404` | `Không tìm thấy bản nháp hồ sơ: <id>` | [profile-synthesizer.service.ts:104](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L104) |
-| Stream: không giành được chỗ | sự kiện `error`, `statusCode: 409` | `Bản nháp đang ở trạng thái <status>, không đọc lại được.` | [profile-synthesizer.service.ts:43](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L43) |
+| Stream: không giành được chỗ | sự kiện `error`, `statusCode: 409` | `Bản nháp này đang được đọc hoặc đã đọc xong, không đọc lại được.` | [profile-synthesizer.service.ts:43](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L43) |
 | Stream: model/bằng chứng lỗi | sự kiện `error` (không `statusCode`) | `Không hoàn thành được tác vụ.` + `failureKind` | [failure-view.ts:25](../../../server/src/common/ai/failure-view.ts#L25) |
-| Retry bản không FAILED | 400 | `Bản nháp đang ở trạng thái <status>, chỉ chạy lại được bản đã FAILED.` | [profile-draft.service.ts:121](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L121) |
+| Retry bản không FAILED | 400 | `Chỉ chạy lại được bản nháp bị lỗi; bản này đang được đọc hoặc đã đọc xong.` | [profile-draft.service.ts:121](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L121) |
 | Retry thua đua | 409 | `Bản nháp vừa được chạy lại ở nơi khác.` | [profile-draft.service.ts:131](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L131) |
-| Apply bản chưa DONE | 400 | `Bản nháp đang ở trạng thái <status>, chưa có đề xuất để áp dụng.` | [profile-draft.service.ts:147](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L147) |
+| Apply bản chưa DONE | 400 | `Bản nháp chưa đọc xong nên chưa có đề xuất để áp dụng.` | [profile-draft.service.ts:147](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L147) |
 | Apply body rỗng | 400 | `Chưa chọn trường nào để áp dụng vào hồ sơ.` | [profile-draft.service.ts:156](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L156) |
 | Apply trường ngoài danh sách trắng | 400 | `<Nhãn> không phải là trường hợp lệ` | [validation-message.ts:106](../../../server/src/common/validation-message.ts#L106) |
 | Vượt trần AI | 429 | `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` | [app.module.ts:31](../../../server/src/app.module.ts#L31) |

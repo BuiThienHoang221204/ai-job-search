@@ -104,7 +104,7 @@
 - **Main Flow:**
   1. FE `streamModel` POST `/api/upskill/generate-stream` (không gửi body) ([use-upskill-report.ts:101](../../../../ui-ai-job-search/hooks/use-upskill-report.ts#L101)).
   2. Controller tạo báo cáo (`create`) rồi `streamNdjson`; dòng mở đầu `{"type":"partial","data":{"step":0,"reportId":...}}` ([upskill.controller.ts:79](../../../server/src/modules/upskill/upskill.controller.ts#L79)).
-  3. `streamGenerate`: giành chỗ như Luồng D; nếu không giành được → `ConflictException "Báo cáo đang ở trạng thái <status>, không tạo lại được."` (thành sự kiện `error` kèm `statusCode` vì chưa có sự kiện nào) ([upskill.service.ts:83](../../../server/src/modules/upskill/services/upskill.service.ts#L83), [ndjson.ts](../../../server/src/common/ndjson.ts)).
+  3. `streamGenerate`: giành chỗ như Luồng D; nếu không giành được → `ConflictException "Báo cáo này đang được tạo hoặc đã tạo xong, không tạo lại được."` (thành sự kiện `error` kèm `statusCode` vì chưa có sự kiện nào) ([upskill.service.ts:83](../../../server/src/modules/upskill/services/upskill.service.ts#L83), [ndjson.ts](../../../server/src/common/ndjson.ts)).
   4. Đẩy partial `{ step: 1, value }` trong lúc lời gọi 1 viết, lưu khoảng trống, rồi partial `{ step: 2, value }` cho lời gọi 2.
   5. Sự kiện cuối `{ type: 'done', result: <UpskillReport đã DONE> }`. FE ghi vào cache `keys.upskill()`.
   6. Server gửi dòng trống mỗi 10 giây làm heartbeat; FE bỏ cuộc nếu 40 giây không nhận gì ([model-stream.ts](../../../../ui-ai-job-search/lib/model-stream.ts)).
@@ -505,7 +505,7 @@ stateDiagram-v2
 | Chưa có báo cáo DONE | 404 | `Chưa có báo cáo upskill nào` | [upskill.service.ts:306](../../../server/src/modules/upskill/services/upskill.service.ts#L306) |
 | Báo cáo không tồn tại / không thuộc người gọi | 404 | `Không tìm thấy báo cáo: <id>` | [upskill.service.ts:327](../../../server/src/modules/upskill/services/upskill.service.ts#L327) |
 | Báo cáo biến mất khi giành chỗ | 404 (stream: sự kiện `error`) | `Không tìm thấy báo cáo: <reportId>` | [upskill.service.ts:174](../../../server/src/modules/upskill/services/upskill.service.ts#L174) |
-| Stream không giành được chỗ | 409 (sự kiện `error` + `statusCode`) | `Báo cáo đang ở trạng thái <status>, không tạo lại được.` | [upskill.service.ts:88](../../../server/src/modules/upskill/services/upskill.service.ts#L88) |
+| Stream không giành được chỗ | 409 (sự kiện `error` + `statusCode`) | `Báo cáo này đang được tạo hoặc đã tạo xong, không tạo lại được.` | [upskill.service.ts:88](../../../server/src/modules/upskill/services/upskill.service.ts#L88) |
 | TARGETED, tin chưa chấm | ghi `FAILED`; stream: sự kiện `error` | `Công việc này chưa được chấm điểm` | [upskill.service.ts:71](../../../server/src/modules/upskill/services/upskill.service.ts#L71) |
 | Không có tin đã chấm | ghi `FAILED`; stream: sự kiện `error` | `Chưa có công việc nào được chấm điểm. Hãy nạp tin tuyển dụng trước.` | [upskill.service.ts:186](../../../server/src/modules/upskill/services/upskill.service.ts#L186) |
 | AGGREGATE \< 3 tin | ghi `FAILED`; stream: sự kiện `error` | `Cần ít nhất 3 công việc đã chấm điểm để tổng hợp, hiện có <n>.` | [upskill.service.ts:194](../../../server/src/modules/upskill/services/upskill.service.ts#L194) |

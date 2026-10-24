@@ -134,7 +134,7 @@ export class ProfileDraftService {
 
     if (draft.status !== 'FAILED') {
       throw new BadRequestException(
-        `Bản nháp đang ở trạng thái ${draft.status}, chỉ chạy lại được bản đã FAILED.`,
+        'Chỉ chạy lại được bản nháp bị lỗi; bản này đang được đọc hoặc đã đọc xong.',
       );
     }
 
@@ -160,7 +160,7 @@ export class ProfileDraftService {
 
     if (draft.status !== 'DONE') {
       throw new BadRequestException(
-        `Bản nháp đang ở trạng thái ${draft.status}, chưa có đề xuất để áp dụng.`,
+        'Bản nháp chưa đọc xong nên chưa có đề xuất để áp dụng.',
       );
     }
     const data = Object.fromEntries(

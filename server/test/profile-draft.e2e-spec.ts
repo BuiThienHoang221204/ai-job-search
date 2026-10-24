@@ -364,7 +364,9 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
       .send({ primarySkills: ['NestJS'] })
       .expect(400);
 
-    expect((response.body as { message: string }).message).toMatch(/PENDING/);
+    expect((response.body as { message: string }).message).toContain(
+      'chưa đọc xong',
+    );
   });
 
   test('gửi rỗng bị từ chối chứ không lặng lẽ đánh dấu đã áp dụng', async () => {

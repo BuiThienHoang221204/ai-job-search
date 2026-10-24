@@ -40,7 +40,7 @@ export class ProfileSynthesizerService {
     const { draft, claimed } = await this.start(userId, draftId);
     if (!claimed) {
       throw new ConflictException(
-        `Bản nháp đang ở trạng thái ${draft.status}, không đọc lại được.`,
+        'Bản nháp này đang được đọc hoặc đã đọc xong, không đọc lại được.',
       );
     }
 

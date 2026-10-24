@@ -50,7 +50,7 @@ Nguồn: [all-exceptions.filter.ts](../../server/src/common/filters/all-exceptio
 | 404 | Không có tài nguyên **hoặc không phải của mình**; P2025 | `Không tìm thấy dữ liệu` hoặc thông điệp riêng | §13 module |
 | 409 | Trùng (P2002); thua giành chỗ; trạng thái không cho phép (đã có buổi phỏng vấn đang chạy, làm mới bản công ty trong vòng 1 giờ…) | `Dữ liệu đã tồn tại` hoặc thông điệp riêng | §13 module |
 | 413 | Body > 1 MB | `Nội dung gửi lên quá lớn (tối đa 1MB).` | |
-| 422 | Thao tác không áp dụng cho loại/trạng thái tài liệu; in PDF hỏng | vd `Tài liệu đang ở trạng thái ${status} và chưa có nội dung để sửa.` | [documents.md §13](./modules/documents.md#13-exceptions) |
+| 422 | Thao tác không áp dụng cho loại/trạng thái tài liệu; in PDF hỏng | vd `Tài liệu chưa tạo xong nên chưa sửa được.` | [documents.md §13](./modules/documents.md#13-exceptions) |
 | 429 | Vượt rate limit | `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` | [app.module.ts](../../server/src/app.module.ts) |
 | 500 | Lỗi ngoài dự kiến | `Máy chủ gặp lỗi ngoài dự kiến. Hãy thử lại sau.` | |
 | 502 | Model trả sai schema (SCHEMA) | `AI trả về kết quả không đúng cấu trúc. Hãy thử lại; nếu vẫn lỗi thì báo lại.` | |

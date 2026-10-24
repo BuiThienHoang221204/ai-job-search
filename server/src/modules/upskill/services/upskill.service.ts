@@ -102,7 +102,7 @@ export class UpskillService {
     const { report, claimed } = await this.start(reportId);
     if (!claimed) {
       throw new ConflictException(
-        `Báo cáo đang ở trạng thái ${report.status}, không tạo lại được.`,
+        'Báo cáo này đang được tạo hoặc đã tạo xong, không tạo lại được.',
       );
     }
 

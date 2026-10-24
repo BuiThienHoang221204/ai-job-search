@@ -63,7 +63,7 @@ export class ApplicationsService {
       }
       if (match.status !== 'DONE') {
         throw new BadRequestException(
-          `Kết quả chấm điểm đang ở trạng thái ${match.status}, chưa dùng được để tạo đơn.`,
+          'Kết quả chấm điểm công việc này chưa xong. Đợi chấm xong, hoặc chấm lại nếu lần trước lỗi, rồi tạo đơn.',
         );
       }
       if (match.eligibility === 'FAIL') {
