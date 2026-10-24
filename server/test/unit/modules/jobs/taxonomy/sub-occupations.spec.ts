@@ -23,6 +23,25 @@ describe('resolveSubOccupation', () => {
     expect(sub('Chuyên viên An toàn thông tin')).toBe('IT_SECURITY');
   });
 
+  test('tin IT từng lọt vào "chưa rõ nghề" của mọi hồ sơ IT nay xếp đúng nghề (đo 2026-10-25)', () => {
+    expect(sub('Chuyên viên Sản Phẩm (PHÂN TÍCH NGHIỆP VỤ & THIẾT KẾ)')).toBe(
+      'IT_PM',
+    );
+    expect(sub('Software Development Engineer in Test (SDET)')).toBe('IT_QA');
+    expect(sub('IT Service Desk')).toBe('IT_SUPPORT');
+    expect(sub('Network Engineer - Tech Lounge & AV')).toBe('IT_DEVOPS');
+    expect(sub('Database Administrator')).toBe('IT_DEVOPS');
+    expect(sub('Ruby on Rails Developer (Middle/Senior)')).toBe('IT_BACKEND');
+    expect(sub('Senior Backend Engineer (Java, Kotlin, English)')).toBe(
+      'IT_BACKEND',
+    );
+    expect(sub('Nhân Viên IT Lập Trình')).toBe('IT_SWE');
+  });
+
+  test('tin thiết kế có chữ "mobile" thuộc nhóm Thiết kế, không phải CNTT', () => {
+    expect(resolveOccupation('UI Designer (Mobile App)', [])).toBe('DESIGN');
+  });
+
   test('tách được nghề ngoài ngành IT', () => {
     expect(sub('Điều dưỡng viên')).toBe('MED_NURSE');
     expect(sub('Kế toán tổng hợp')).toBe('FIN_ACCOUNTING');
