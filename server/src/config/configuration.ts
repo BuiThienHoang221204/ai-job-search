@@ -124,6 +124,12 @@ const configuration = () => ({
 
   mockInterview: {
     maxQuestions: int('MOCK_INTERVIEW_MAX_QUESTIONS', 20),
+    voice: {
+      model: process.env.MOCK_INTERVIEW_VOICE_MODEL ?? 'gemini-3.8-live',
+      voiceName: process.env.MOCK_INTERVIEW_VOICE_NAME ?? 'Kore',
+      sessionMinutes: int('MOCK_INTERVIEW_VOICE_SESSION_MINUTES', 20),
+      dailyMinutes: int('MOCK_INTERVIEW_VOICE_DAILY_MINUTES', 30),
+    },
   },
 
   scraper: {

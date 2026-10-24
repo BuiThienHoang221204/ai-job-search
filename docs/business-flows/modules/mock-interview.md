@@ -1,6 +1,6 @@
 # Mock Interview — Phỏng vấn thử với người phỏng vấn ảo
 
-> **Phạm vi:** `server/src/modules/mock-interview/**` (`MockInterviewController`, `MockInterviewService`, `InterviewTurnService`, utils) · bảng `AgentRun`, `AgentStep` · màn hình `/dashboard/interview/[jobId]/mock` và danh sách buổi luyện trong `/dashboard/interview` (FE người dùng).
+> **Phạm vi:** `server/src/modules/mock-interview/**` (`MockInterviewController`, `MockInterviewService`, `InterviewTurnService`, `VoiceSessionService`, `LiveTokenService`, utils) · bảng `AgentRun`, `AgentStep` · màn hình `/dashboard/interview/[jobId]/mock` và danh sách buổi luyện trong `/dashboard/interview` (FE người dùng).
 > **Nguyên tắc:** tài liệu mô tả hệ thống **as-is**. Code là nguồn sự thật duy nhất.
 
 ## 1. Purpose
@@ -10,6 +10,7 @@
 | Luyện phỏng vấn theo lượt hỏi–đáp | Người phỏng vấn ảo (model) hỏi từng câu, người dùng trả lời, model nhận xét ngắn rồi hỏi câu tiếp theo cho tới khi tự đánh dấu kết thúc ([utils/interview-turn.prompt.ts:21-39](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts#L21)). |
 | Bám vào hồ sơ ứng tuyển thật | Lượt mở đầu nạp "hồ sơ" gồm tin tuyển dụng kèm yêu cầu kinh nghiệm (số năm, cấp bậc), tóm tắt hồ sơ ứng viên (chức danh, kỹ năng chính, 3 kinh nghiệm gần nhất, tên dự án) *(2026-10-24)*, trạng thái đơn, điểm phù hợp + khoảng trống, tài liệu đã soạn, câu khó và điểm yếu từ bộ chuẩn bị phỏng vấn ([mock-interview.service.ts:112-171](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L112)). |
 | Trả lời chảy dần (stream) | Câu hỏi/nhận xét được stream dạng `text/plain` để người dùng đọc ngay khi model đang viết ([mock-interview.controller.ts:59-124](../../../server/src/modules/mock-interview/mock-interview.controller.ts#L59)). |
+| Luyện bằng giọng nói *(2026-10-24)* | Người phỏng vấn nói chuyện thời gian thực qua Gemini Live: trình duyệt nối thẳng tới Gemini bằng token ngắn hạn do server cấp, server lưu từng lượt hỏi–đáp dạng chữ và tạo lời tổng kết bằng đúng đường `finish` của buổi luyện chữ ([services/voice-session.service.ts](../../../server/src/modules/mock-interview/services/voice-session.service.ts), ADR 0019). |
 | Lưu lại để xem lại / đếm tiến độ | Mỗi buổi là một `AgentRun` (`workflow = 'interview'`), mỗi lượt hỏi là một `AgentStep`; module khác đếm số buổi luyện từ đây. |
 
 **Điểm mấu chốt:**
@@ -24,6 +25,7 @@
 |---|---|---|
 | Người dùng đã đăng nhập (USER/ADMIN) | Mở buổi luyện cho bất kỳ tin tồn tại, gửi câu trả lời, xem danh sách/chi tiết buổi luyện CỦA MÌNH | Không có route `@Public()`. |
 | Model AI (qua `AiService.streamText`) | Viết câu hỏi mở đầu (`interview.open`) và từng lượt nhận xét + câu hỏi (`interview.turn`) | Dùng chuỗi model nhanh (`fastModelChain`, chỉ lấy `modelId` đầu). |
+| Gemini Live (Google) | Nói chuyện với người dùng ở buổi giọng nói; server chỉ cấp token, âm thanh không đi qua server *(2026-10-24)* | ADR 0019 |
 | Cron reconcile | Đánh `FAILED` buổi luyện kẹt `PENDING`/`RUNNING` quá 10 phút | [reconcile.service.ts:105-108](../../../server/src/modules/reconcile/services/reconcile.service.ts#L105) |
 | Module `interview`, `dashboard`, `admin` | Chỉ ĐỌC `AgentRun` | Xem §11 "Ai dùng AgentRun". |
 
@@ -37,6 +39,8 @@
 | F4 | Gửi câu trả lời, stream nhận xét + câu hỏi tiếp | Người dùng | `POST /api/mock-interviews/:id/turn` |
 | F4b | Kết thúc sớm, stream lời tổng kết *(2026-10-24)* | Người dùng | `POST /api/mock-interviews/:id/finish` |
 | F5 | Dọn buổi luyện kẹt | Cron reconcile | `ReconcileService.failStuck` |
+| F6 | Mở buổi luyện bằng giọng nói, nhận token Gemini Live *(2026-10-24)* | Người dùng | `POST /api/mock-interviews/voice` |
+| F7 | Lưu một lượt hỏi–đáp của buổi giọng nói *(2026-10-24)* | Người dùng | `POST /api/mock-interviews/:id/voice-turns` |
 
 ## 4. Business Flow
 
@@ -120,6 +124,26 @@
 **Main Flow:** `agentRun.updateMany` với `status IN (PENDING, RUNNING)` và `updatedAt < now − 10 phút` → `FAILED`, `error = STUCK_MESSAGE`, `finishedAt = now` ([reconcile.service.ts:105-108](../../../server/src/modules/reconcile/services/reconcile.service.ts#L105)).
 
 **Alternative Flow:** buổi `WAITING_USER` KHÔNG bị đụng tới (chờ người dùng là hợp lệ). **Failure Flow:** lỗi được cron log. **Postconditions:** buổi kẹt thành `FAILED`; không tự chạy lại.
+
+### Luồng F — Buổi luyện bằng giọng nói (F6, F7) *(2026-10-24)*
+
+**Preconditions:** đã đăng nhập; tin `jobId` tồn tại; không có buổi `PENDING`/`RUNNING` dưới 10 phút; còn ít nhất 3 phút trong hạn mức giọng nói 24 giờ.
+
+**Main Flow:**
+1. `POST /api/mock-interviews/voice` body `{ jobId }`, `@ThrottleAi()` ([mock-interview.controller.ts](../../../server/src/modules/mock-interview/mock-interview.controller.ts)).
+2. `VoiceSessionService.open` dựng hồ sơ bằng đúng `buildContext` của luồng C, rồi `assertNoRunInFlight`.
+3. Cộng số phút giọng nói đã dùng của các buổi `input.mode = 'voice'` tạo trong 24 giờ qua (`voiceMinutesUsed`: buổi `DONE`/`FAILED` tính tới `updatedAt`, buổi còn mở tính tới bây giờ, mỗi buổi tối đa bằng `input.minutes` đã cấp) ([utils/voice-interview.ts](../../../server/src/modules/mock-interview/utils/voice-interview.ts)). Còn dưới 3 phút → 400.
+4. Số phút cấp = `min(MOCK_INTERVIEW_VOICE_SESSION_MINUTES = 20, phần còn lại)`. `LiveTokenService.create` gọi `POST https://generativelanguage.googleapis.com/v1alpha/auth_tokens` với `uses: 1`, `newSessionExpireTime` = 1 phút, `expireTime` = hết số phút cấp, và `bidiGenerateContentSetup` khoá toàn bộ cấu hình phiên (`voiceSetup`): model `MOCK_INTERVIEW_VOICE_MODEL`, giọng `MOCK_INTERVIEW_VOICE_NAME`, prompt người phỏng vấn bằng giọng nói kèm hồ sơ, ghi chữ hai chiều (đầu vào chỉ `vi-VN`/`en-US`), nhận diện lượt nói độ nhạy thấp, nén ngữ cảnh, công cụ `end_interview` ([services/live-token.service.ts](../../../server/src/modules/mock-interview/services/live-token.service.ts)).
+5. Tạo `AgentRun { workflow: 'interview', jobId, status: 'WAITING_USER', startedAt, modelId, input: { mode: 'voice', minutes }, messages: [hồ sơ + ghi chú "bản ghi tự động từ giọng nói"] }`; trả `{ runId, token, model, expiresAt }` (201).
+6. Trình duyệt nối thẳng tới Gemini Live bằng token; mỗi khi có một cặp câu hỏi của AI + câu trả lời của người dùng thì gọi `POST /api/mock-interviews/:id/voice-turns` body `{ question, answer }`.
+7. `appendTurn`: `sessions.get` (404 nếu không phải của người dùng); không phải buổi giọng nói → 400; khác `WAITING_USER` → 400; **giành chỗ** `WAITING_USER → RUNNING` kèm `userId` (thua → 400); SAU khi giành chỗ mới đọc `messages` và số bước; đủ `MOCK_INTERVIEW_MAX_QUESTIONS` bước → 400; trong một `$transaction` tạo bước `index = số bước` (`ask_user` đã gắn sẵn `answer`) và nối `messages` thêm `assistant: "TIẾP\n@@HOI@@\n<câu hỏi>"` + `user: <câu trả lời>`, trả run về `WAITING_USER`. Trả `{ answered }` (201).
+8. Kết thúc: trình duyệt gọi `POST /api/mock-interviews/:id/finish` như buổi chữ (luồng D, BR-MOCK-19) — model văn bản viết lời tổng kết từ bản ghi, buổi `DONE`, `result.text`.
+
+**Alternative Flow:** người dùng đóng tab giữa chừng → buổi nằm `WAITING_USER` với các lượt đã lưu; gọi `finish` sau đó vẫn có tổng kết; số phút của buổi được tính tới khi hết số phút đã cấp.
+
+**Failure Flow:** Google từ chối cấp token → log `Cấp token Gemini Live hỏng (<mã>)`, 503, không tạo buổi; lỗi ghi lượt → `finally` trả run `RUNNING → WAITING_USER`, không thêm bước.
+
+**Postconditions:** buổi giọng nói có cùng định dạng bước và `messages` với buổi chữ, nên màn xem lại, danh sách và `closing` không phân biệt hai loại.
 
 ## 5. Mermaid Flowchart
 
@@ -207,6 +231,10 @@ sequenceDiagram
 | BR-MOCK-20 | Trần an toàn `MOCK_INTERVIEW_MAX_QUESTIONS` (mặc định 20) câu: khi buổi đã có đủ số bước đó, lượt trả lời kế tiếp dặn model tổng kết và buộc `DONE` dù model ghi `TIẾP`. Số câu bình thường vẫn do model tự quyết. *(2026-10-24)* | SV | ✅ | [interview-turn.service.ts](../../../server/src/modules/mock-interview/services/interview-turn.service.ts), [configuration.ts](../../../server/src/config/configuration.ts) |
 | BR-MOCK-21 | Lượt chưa `HẾT` mà thiếu vạch `@@HOI@@` (model bị ngắt giữa chừng) là lượt hỏng: không ghi bước, trả buổi về `WAITING_USER`, người dùng gửi lại. Đo 2026-10-24: một lượt dừng ở "…tiêu chuẩn như ISO 2" từng bị lưu thành câu hỏi. *(2026-10-24)* | SV | ✅ | [interview-turn.service.ts](../../../server/src/modules/mock-interview/services/interview-turn.service.ts) |
 | BR-MOCK-22 | Prompt người phỏng vấn: nhận xét chỉ dựa trên chữ ứng viên viết; mỗi chủ đề tối đa hai câu rồi chuyển yêu cầu chưa hỏi, chỉ hỏi công nghệ có trong tin hoặc hồ sơ; tin yêu cầu tiếng Anh thì có ít nhất một câu tiếng Anh; không lặp góp ý; buổi thường 8-12 câu; lời tổng kết là của người hướng dẫn (điểm mạnh, điểm cần sửa, chủ đề luyện tiếp). Rút ra từ buổi luyện 2026-10-24: 20 câu, 4 câu về OWASP ZAP không có trong tin, 7 lần cùng góp ý "thiếu số liệu", một lần khuyên "tưởng tượng" ví dụ. *(2026-10-24)* | Prompt | ✅ | [utils/interview-turn.prompt.ts](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts) |
+| BR-MOCK-23 | Buổi giọng nói: trình duyệt nhận token Gemini Live dùng MỘT lần, phải mở phiên trong 1 phút, sống tới hết số phút cấp; toàn bộ cấu hình phiên (prompt + hồ sơ, giọng, ghi chữ, nhận diện lượt nói, công cụ) khoá trong token — client gửi `systemInstruction` khác bị bỏ qua (đo 2026-10-24). API key không rời server. *(2026-10-24)* | SV | ✅ | [services/live-token.service.ts](../../../server/src/modules/mock-interview/services/live-token.service.ts), [utils/voice-interview.ts](../../../server/src/modules/mock-interview/utils/voice-interview.ts) |
+| BR-MOCK-24 | Hạn mức giọng nói `MOCK_INTERVIEW_VOICE_DAILY_MINUTES` (30) phút trên 24 giờ gần nhất; buổi đã đóng tính tới `updatedAt`, buổi còn mở tính tới bây giờ, mỗi buổi tối đa số phút đã cấp (buổi bỏ dở không lách được hạn mức); còn dưới 3 phút → 400; token sống `min(20, phần còn lại)` phút. *(2026-10-24)* | SV | ✅ | [services/voice-session.service.ts](../../../server/src/modules/mock-interview/services/voice-session.service.ts) |
+| BR-MOCK-25 | Lưu lượt giọng nói: chỉ buổi `input.mode = 'voice'` đang `WAITING_USER`; giành chỗ `WAITING_USER → RUNNING` kèm `userId`, đọc `messages` và số bước SAU khi giành chỗ; bước mới cùng định dạng `ask_user` với buổi chữ (câu trả lời gắn sẵn), `messages` thêm lượt `TIẾP`/`@@HOI@@` để `finish` nối tiếp được; trần `MOCK_INTERVIEW_MAX_QUESTIONS` bước → 400. *(2026-10-24)* | SV | ✅ | [services/voice-session.service.ts](../../../server/src/modules/mock-interview/services/voice-session.service.ts) |
+| BR-MOCK-26 | Prompt người phỏng vấn bằng giọng nói: luôn nói tiếng Việt, cả buổi đúng một câu tiếng Anh có báo trước; câu không liên quan, cụt, khác ngôn ngữ hoặc nói với người khác là tạp âm — không đáp, không đổi ngôn ngữ; câu trả lời chung chung thì hỏi lại tình huống cụ thể; không bịa thông tin công ty; đọc mã từng chữ số; muốn kết thúc thì gọi `end_interview` TRƯỚC và chỉ chào khi được `ok`. Rút ra từ 4 buổi thử 2026-10-24 (tivi làm AI tự ngắt 5 lần và nhảy sang tiếng Anh; câu "làm việc nhóm tốt" được khen thay vì hỏi lại; AI tự đóng buổi sau 5 câu). *(2026-10-24)* | Prompt | ✅ | [utils/voice-interview.ts](../../../server/src/modules/mock-interview/utils/voice-interview.ts) |
 | BR-MOCK-18 | Trình duyệt ngắt kết nối không làm server dừng hay xếp lại lượt; generator chạy tới cuối và tự ghi kết quả. | SV | ✅ | [mock-interview.controller.ts:80-91](../../../server/src/modules/mock-interview/mock-interview.controller.ts#L80) |
 
 > **Possible Business Rule:** Không có giới hạn số lượt hỏi trong một buổi; việc kết thúc hoàn toàn do model đánh `HẾT` ("Hết bộ câu hỏi hoặc ứng viên xin dừng"). Cần xác nhận có cần trần số lượt không (xem §17 R4).
@@ -236,6 +264,15 @@ sequenceDiagram
 |---|---|---|---|
 | `text` | bắt buộc, chuỗi 1–4000 | `AnswerTurnDto` | 400 `Câu trả lời trống hoặc quá dài` |
 
+**`OpenVoiceInterviewDto`** = `PickType(OpenMockInterviewDto, ['jobId'])` *(2026-10-24)* — gửi `question` → 400 (`forbidNonWhitelisted`).
+
+**`VoiceTurnDto`** *(2026-10-24)* ([mock-interview.dto.ts](../../../server/src/modules/mock-interview/mock-interview.dto.ts))
+
+| Field | Ràng buộc | DTO/Schema | Lỗi trả về |
+|---|---|---|---|
+| `question` | bắt buộc, chuỗi 1–2000 | `VoiceTurnDto` | 400 `Câu hỏi trống hoặc quá dài` |
+| `answer` | bắt buộc, chuỗi 1–8000 | idem | 400 `Câu trả lời trống hoặc quá dài` |
+
 Trường lạ bị chặn bởi `forbidNonWhitelisted` (ValidationPipe toàn cục). FE cắt `?q=` còn 300 ký tự trước khi gửi ([mock/page.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/page.tsx)).
 
 ## 9. API Mapping
@@ -247,6 +284,8 @@ Trường lạ bị chặn bởi `forbidNonWhitelisted` (ValidationPipe toàn c�
 | POST | `/api/mock-interviews` | USER (ThrottleAi 10/phút) | Mở buổi luyện, stream câu hỏi đầu | `MockInterviewController#open` | `InterviewTurnService.openStream` | `OpenMockInterviewDto` | 201 `text/plain` stream, header `X-Run-Id` |
 | POST | `/api/mock-interviews/:id/turn` | USER (ThrottleAi 10/phút) | Gửi câu trả lời, stream lượt tiếp | `MockInterviewController#turn` | `InterviewTurnService.stream` | `AnswerTurnDto` | 201 `text/plain` stream |
 | POST | `/api/mock-interviews/:id/finish` | USER (ThrottleAi 10/phút) | Kết thúc sớm, stream lời tổng kết | `MockInterviewController#finish` | `InterviewTurnService.stream` (`answer = null`) | — | 201 `text/plain` stream |
+| POST | `/api/mock-interviews/voice` | USER (ThrottleAi 10/phút) | Mở buổi luyện bằng giọng nói, nhận token Gemini Live | `MockInterviewController#openVoice` | `VoiceSessionService.open` | `OpenVoiceInterviewDto` | 201 `{ runId, token, model, expiresAt }` |
+| POST | `/api/mock-interviews/:id/voice-turns` | USER | Lưu một lượt hỏi–đáp của buổi giọng nói | `MockInterviewController#appendVoiceTurn` | `VoiceSessionService.appendTurn` | `VoiceTurnDto` | 201 `{ answered }` |
 
 > Ghi chú: hai route POST dùng `@Res()` nhưng Nest đặt mã mặc định 201 của `@Post` trước khi gọi handler; e2e [mock-interview-turn.e2e-spec.ts:138](../../../server/test/mock-interview-turn.e2e-spec.ts#L138) ghi nhận `turn` trả **201**.
 
@@ -263,6 +302,7 @@ Trường lạ bị chặn bởi `forbidNonWhitelisted` (ValidationPipe toàn c�
 | Route FE | Vai trò | Mục đích | Hook / API client |
 |---|---|---|---|
 | `/dashboard/interview/[jobId]/mock` ([page.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/page.tsx)) — `?q=` câu chọn sẵn, `?run=` buổi cần mở | USER | Màn phỏng vấn thử: mở buổi, đọc stream, gửi câu trả lời, xem lại | `useMockInterview` ([use-mock-interview.ts](../../../../ui-ai-job-search/hooks/use-mock-interview.ts)) — mở buổi `?run=` hoặc buổi gần nhất (`list limit=1`); `useMockInterviewRun` ([use-mock-interview-run.ts](../../../../ui-ai-job-search/hooks/use-mock-interview-run.ts)) poll 2 giây khi `PENDING`/`RUNNING`; stream qua `streamInterviewOpen`/`streamInterviewTurn` ([lib/interview-stream.ts](../../../../ui-ai-job-search/lib/interview-stream.ts)) |
+| Buổi luyện bằng giọng nói *(2026-10-24)* | USER | Chọn "Nói chuyện bằng giọng nói" ở màn bắt đầu: xin micro TRƯỚC khi gọi `POST /voice` (bị chặn micro thì không tạo buổi, không trừ phút), nối Gemini Live bằng token, cổng tạp âm hoặc "Giữ để nói", lưu từng cặp hỏi–đáp qua `voice-turns`, kết thúc thì gọi `finish`. Buổi giọng nói còn `WAITING_USER` mà không có phiên đang nói (đóng tab, mất mạng) hiện "Kết nối giọng nói bị ngắt" ngay trong khung nói chuyện, với nút kết thúc để lấy tổng kết (chưa có câu nào thì nút bắt đầu lại); trình duyệt báo `offline` thì đóng phiên ngay, nối Gemini quá 15 giây thì báo lỗi. Lỗi khi bắt đầu (micro bị chặn / không có / đang bận, hết hạn mức, Google lỗi) hiện modal giữa màn hình kèm cách gỡ và nút luyện bằng chữ *(2026-10-24)* | `useVoiceInterview` ([hooks/use-voice-interview.ts](../../../../ui-ai-job-search/hooks/use-voice-interview.ts)), [lib/voice-gate.ts](../../../../ui-ai-job-search/lib/voice-gate.ts), [lib/voice-turns.ts](../../../../ui-ai-job-search/lib/voice-turns.ts), [lib/voice-audio.ts](../../../../ui-ai-job-search/lib/voice-audio.ts), [voice-stage.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/voice/voice-stage.tsx), [mode-choice.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/mode-choice.tsx) |
 | Thành phần màn hình | USER | Khung hội thoại, ô trả lời | [mock-view.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/mock-view.tsx), [interview-turns.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/interview-turns.tsx), [answer-box.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/answer-box.tsx) |
 | `/dashboard/interview?job=` — khối "Buổi phỏng vấn thử của vị trí này" | USER | Liệt kê tối đa 20 buổi của tin, mở lại bằng `?run=` | `mockInterviewService.list` ở [job-mock-sessions.tsx](../../../../ui-ai-job-search/app/dashboard/interview/job-mock-sessions.tsx) |
 | Link "Luyện câu này" / "Phỏng vấn thử" | USER | Sang màn phỏng vấn thử với `?q=` | [practice-question.tsx:122](../../../../ui-ai-job-search/app/dashboard/interview/practice-question.tsx#L122), [prep-detail.tsx:202](../../../../ui-ai-job-search/app/dashboard/interview/prep-detail.tsx#L202) |
@@ -280,12 +320,12 @@ API client đọc: [services/mock-interview.ts](../../../../ui-ai-job-search/ser
 | `workflow` | String | luôn `'interview'` trong code hiện tại |
 | `status` | `AgentRunStatus` mặc định `PENDING` | code tạo thẳng `RUNNING` |
 | `jobId` | String? | FK `Job` `onDelete: SetNull` |
-| `input` | Json | `{ question }` hoặc `{}` |
+| `input` | Json | `{ question }` hoặc `{}`; buổi giọng nói `{ mode: 'voice', minutes }` (số phút đã cấp) *(2026-10-24)* |
 | `result`, `review` | Json? | **không có code ghi** |
 | `question` | Text? | câu đang chờ trả lời; `null` khi `DONE` |
 | `answer` | Text? | chỉ bị đặt `null`; câu trả lời thật nằm trong `AgentStep.toolResults` |
 | `messages` | Json? | lịch sử hội thoại (`ModelMessage[]`), trạng thái máy |
-| `modelId` | String? | **không có code ghi** (xem §17 R3) |
+| `modelId` | String? | chỉ buổi giọng nói ghi (model Gemini Live) *(2026-10-24)*; buổi chữ không ghi (xem §17 R3) |
 | `error` | Text? | lỗi thô, không trả ra API |
 | `startedAt`, `finishedAt` | DateTime? | `finishedAt` chỉ do reconcile ghi |
 | `createdAt`, `updatedAt` | DateTime | `updatedAt` là mốc kẹt |
@@ -322,6 +362,8 @@ Index: `@@index([userId, createdAt desc])`, `@@index([userId, jobId, createdAt d
 ```mermaid
 stateDiagram-v2
   [*] --> RUNNING: POST /mock-interviews (create)
+  [*] --> WAITING_USER: POST /mock-interviews/voice (create)
+  WAITING_USER --> RUNNING: POST {id}/voice-turns (giành chỗ, ghi lượt rồi trả về WAITING_USER)
   RUNNING --> WAITING_USER: lượt model xong, dấu TIẾP
   RUNNING --> DONE: lượt model xong, dấu HẾT
   RUNNING --> FAILED: mở buổi lỗi / không có câu hỏi / reconcile > 10 phút
@@ -333,6 +375,8 @@ stateDiagram-v2
 | Từ | Sang | Trigger | Điều kiện |
 |---|---|---|---|
 | (chưa có) | `RUNNING` | `openStream` | tin tồn tại, không có buổi đang chạy \< 10 phút |
+| (chưa có) | `WAITING_USER` | `VoiceSessionService.open` *(2026-10-24)* | như trên, còn ≥ 3 phút hạn mức giọng nói, Google cấp token |
+| `WAITING_USER` | `RUNNING` → `WAITING_USER` | `appendTurn` *(2026-10-24)* | giành chỗ thắng; ghi lượt hoặc `finally` trả về |
 | `RUNNING` | `WAITING_USER` | `openTurn` / `persist` | có câu hỏi, dấu đầu không phải `HẾT` |
 | `RUNNING` | `DONE` | `openTurn` / `persist` | dấu đầu là `HẾT` |
 | `RUNNING` | `FAILED` | `failRun` | `streamText` ném lỗi khi mở buổi; hoặc model không trả câu hỏi ở lượt mở |
@@ -357,6 +401,12 @@ stateDiagram-v2
 | Model không trả câu hỏi | 400 (thường đã gửi header → cắt kết nối) | `Model không trả về nội dung nào.`; ghi DB lượt mở: `Model không trả về câu hỏi nào` | [interview-turn.service.ts:106-107](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L106), [:206](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L206) |
 | Lỗi model trước mẩu đầu | 502 / 503 / 504 | bảng `FAILURE` của bộ lọc toàn cục, kèm `failureKind` | [all-exceptions.filter.ts:20-40](../../../server/src/common/filters/all-exceptions.filter.ts#L20) |
 | Validation | 400 | `Thiếu mã công việc`, `Mã công việc không hợp lệ`, `Câu hỏi mở đầu quá dài`, `Câu trả lời trống hoặc quá dài`, `Tên kịch bản không hợp lệ` | [mock-interview.dto.ts](../../../server/src/modules/mock-interview/mock-interview.dto.ts) |
+| Hết hạn mức giọng nói 24 giờ *(2026-10-24)* | 400 | `Bạn đã luyện phỏng vấn bằng giọng nói đủ <N> phút trong 24 giờ qua. Luyện bằng chữ ngay bây giờ, hoặc quay lại sau để luyện tiếp bằng giọng nói.` | [services/voice-session.service.ts](../../../server/src/modules/mock-interview/services/voice-session.service.ts) |
+| Google không cấp token *(2026-10-24)* | 503 (thông điệp chung của bộ lọc 5xx) | log: `Cấp token Gemini Live hỏng (<mã>): <body>` | [services/live-token.service.ts](../../../server/src/modules/mock-interview/services/live-token.service.ts) |
+| Gửi lượt giọng nói cho buổi chữ *(2026-10-24)* | 400 | `Buổi luyện này không phải buổi luyện bằng giọng nói.` | idem voice-session |
+| Lượt giọng nói cho buổi không chờ *(2026-10-24)* | 400 | `Buổi luyện này không còn nhận câu trả lời. Tải lại trang để xem trạng thái mới nhất.` | idem |
+| Lượt giọng nói gửi trùng *(2026-10-24)* | 400 | `Câu trả lời trước của buổi luyện này đang được lưu, đợi một chút rồi gửi tiếp.` | idem |
+| Buổi giọng nói đủ trần câu *(2026-10-24)* | 400 | `Buổi luyện đã đủ <N> câu. Bấm kết thúc để nhận lời tổng kết.` | idem |
 | Vượt throttle | 429 | `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` | [app.module.ts:31](../../../server/src/app.module.ts#L31) |
 | Buổi kẹt (ghi DB) | — | `Máy chủ khởi động lại khi việc này đang chạy dở, nên nó không bao giờ hoàn tất. Hãy bấm chạy lại.` | [reconcile.service.ts:11](../../../server/src/modules/reconcile/services/reconcile.service.ts#L11) |
 
@@ -370,6 +420,7 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 |---|---|---|
 | `AiService.streamText` | `purpose: 'interview.open'` / `'interview.turn'`; model = `fastModelChain(...).modelId` (`AI_FAST_MODEL_ID`/pool) — stream KHÔNG đi tiếp chuỗi dự phòng, chỉ mở một model; timeout mặc định của `AiService`; lượt gọi ghi `AiCall` khi stream kết thúc/lỗi | [interview-turn.service.ts:69-75](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L69), [ai.service.ts:405-445](../../../server/src/modules/ai/services/ai.service.ts#L405), [ai-platform.md](./ai-platform.md) |
 | Dữ liệu module khác (chỉ đọc) | `Job`, `Application`, `Document`, `InterviewPrep`, `JobMatch`, `JobRequirement`, `Profile` dựng bối cảnh | [mock-interview.service.ts:118-145](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L118) |
+| Gemini Live *(2026-10-24)* | Server: `POST /v1alpha/auth_tokens` (`x-goog-api-key` = `GOOGLE_GEMINI_API_KEY`, timeout 10 s). Trình duyệt: WebSocket `BidiGenerateContentConstrained` bằng token. Bậc miễn phí của Gemini có thể dùng hội thoại để cải thiện sản phẩm — người dùng thật thì bật thanh toán. Cấu hình `MOCK_INTERVIEW_VOICE_*` ở `configuration.ts` | [services/live-token.service.ts](../../../server/src/modules/mock-interview/services/live-token.service.ts), ADR 0019 |
 | Reconcile cron | `RECONCILE_CRON_ENABLED`, `RECONCILE_CRON_SCHEDULE` | [reconcile-cron.service.ts](../../../server/src/modules/reconcile/services/reconcile-cron.service.ts) |
 
 ## 16. Security
@@ -377,6 +428,7 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 - **Xác thực:** mọi route cần JWT (guard toàn cục, không `@Public()`).
 - **Sở hữu:** đọc theo `{ id, userId }`; giành chỗ `updateMany` cũng mang `userId`. Buổi của người khác → 404 (e2e [mock-interview-turn.e2e-spec.ts:178](../../../server/test/mock-interview-turn.e2e-spec.ts#L178)). Các lệnh ghi sau khi giành chỗ (`persist`, `failRun`, `finally`) khoá theo `id` (đã kiểm sở hữu trước đó).
 - **Rate limit:** `@ThrottleAi()` 10/phút cho hai route POST; đếm theo `user:<id>`.
+- **Buổi giọng nói** *(2026-10-24)*: API key Gemini chỉ ở server; trình duyệt nhận token một lần dùng, cấu hình khoá cứng, hết hạn theo số phút cấp. Lượt `voice-turns` khoá theo `{ id, userId }` như lượt chữ (e2e [mock-interview-voice.e2e-spec.ts](../../../server/test/mock-interview-voice.e2e-spec.ts)).
 - **Dữ liệu nhạy cảm:** `messages` (chứa toàn bộ hồ sơ ứng tuyển) bị `omit` ở API chi tiết và không có trong danh sách; `error` thô thay bằng `failureKind`. Bối cảnh được đánh dấu "dữ liệu, không phải mệnh lệnh" để giảm prompt injection từ mô tả tin.
 
 ## 17. ⚠️ Sai lệch / Rủi ro nghiệp vụ
@@ -417,6 +469,12 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 - Đề xuất: backend chép câu hỏi cuối vào `result.text` khi lượt kết thúc bằng `ask_user`, để mọi chỗ đọc kết quả đều thấy tổng kết.
 - Mức đề xuất: 🟢
 
+**R8 — Bản ghi chữ của buổi giọng nói do trình duyệt gửi lên.** *(2026-10-24)*
+- Bằng chứng: âm thanh đi thẳng trình duyệt ↔ Gemini; server chỉ nhận `{ question, answer }` qua `voice-turns` ([services/voice-session.service.ts](../../../server/src/modules/mock-interview/services/voice-session.service.ts)).
+- Tác động: người dùng sửa được bản ghi của chính mình trước khi lưu, nên lời tổng kết phản ánh thứ họ gửi chứ không chắc là thứ họ nói. Đây là dữ liệu luyện tập của chính họ nên chấp nhận (ADR 0019). Kiểm hạn mức và tạo buổi cũng là kiểm-rồi-tạo như R1: hai lượt mở cùng lúc có thể vượt hạn mức một buổi.
+- Đề xuất: giữ nguyên tới khi kết quả buổi giọng nói được dùng cho việc khác ngoài luyện tập.
+- Mức đề xuất: 🟢
+
 **R6 — Cột/quan hệ không dùng tới trên `AgentRun`.**
 - Bằng chứng: `result`, `review` không có chỗ ghi; `answer` chỉ bị đặt `null` ([interview-turn.service.ts:328](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L328)); `Document.agentRunId` không được ghi ở `server/src` ([schema.prisma:753](../../../server/prisma/schema.prisma#L753)). Chú thích model nói về "kịch bản trong `.claude/commands/`" (vd. `apply`) nhưng code chỉ tạo workflow `interview`.
 - Tác động: nợ kỹ thuật, dễ gây hiểu nhầm khi đọc schema; không ảnh hưởng hành vi.
@@ -433,10 +491,11 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 - [mock-interview.module.ts](../../../server/src/modules/mock-interview/mock-interview.module.ts)
 - [utils/interview-turn.prompt.ts](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts)
 - [utils/mock-interview.ts](../../../server/src/modules/mock-interview/utils/mock-interview.ts)
+- [services/voice-session.service.ts](../../../server/src/modules/mock-interview/services/voice-session.service.ts), [services/live-token.service.ts](../../../server/src/modules/mock-interview/services/live-token.service.ts), [utils/voice-interview.ts](../../../server/src/modules/mock-interview/utils/voice-interview.ts), [ADR 0019](../../adr/0019-phong-van-giong-noi.md)
 - [interview.service.ts](../../../server/src/modules/interview/interview.service.ts), [dashboard.service.ts](../../../server/src/modules/dashboard/dashboard.service.ts), [reconcile.service.ts](../../../server/src/modules/reconcile/services/reconcile.service.ts), [reconcile-cron.service.ts](../../../server/src/modules/reconcile/services/reconcile-cron.service.ts), [reconcile-note.ts](../../../server/src/modules/admin/utils/reconcile-note.ts)
 - [ai.service.ts](../../../server/src/modules/ai/services/ai.service.ts), [common/throttle.ts](../../../server/src/common/throttle.ts), [all-exceptions.filter.ts](../../../server/src/common/filters/all-exceptions.filter.ts), [failure-view.ts](../../../server/src/common/ai/failure-view.ts), [duration.ts](../../../server/src/common/duration.ts)
 - [schema.prisma](../../../server/prisma/schema.prisma#L1024)
-- Test: [mock-interview-turn.e2e-spec.ts](../../../server/test/mock-interview-turn.e2e-spec.ts), [interview-list.e2e-spec.ts](../../../server/test/interview-list.e2e-spec.ts) (đếm buổi luyện, `closing`), [stream-claim.e2e-spec.ts](../../../server/test/stream-claim.e2e-spec.ts) (mẫu giành chỗ của route stream nói chung)
+- Test: [mock-interview-voice.e2e-spec.ts](../../../server/test/mock-interview-voice.e2e-spec.ts) (buổi giọng nói), [mock-interview-turn.e2e-spec.ts](../../../server/test/mock-interview-turn.e2e-spec.ts), [interview-list.e2e-spec.ts](../../../server/test/interview-list.e2e-spec.ts) (đếm buổi luyện, `closing`), [stream-claim.e2e-spec.ts](../../../server/test/stream-claim.e2e-spec.ts) (mẫu giành chỗ của route stream nói chung)
 
 **Frontend**
 - [app/dashboard/interview/[jobId]/mock/page.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/page.tsx), [mock-view.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/mock-view.tsx), [interview-turns.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/interview-turns.tsx), [answer-box.tsx](../../../../ui-ai-job-search/app/dashboard/interview/[jobId]/mock/answer-box.tsx)

@@ -155,6 +155,7 @@ Mỗi ADR giữ nguyên văn số đo, lý do và bẫy đã sập của một c
 - **Sửa `modules/companies`, Serper, nguồn trích hoặc `confidence`** → `docs/adr/0016-tim-hieu-cong-ty.md` (Tìm hiểu công ty: luồng cố định, chỉ lưu bản phân tích)
 - **Thêm/sửa schema zod cho output model, `common/model-output.ts`** → `docs/adr/0017-cat-chuoi-model-output.md` (Schema output của model: CẮT thay vì từ chối)
 - **Sửa nhắc học, `modules/push`, `StudyReminderService`, `User.studyTime` hoặc thêm kênh thông báo** → `docs/adr/0018-nhac-hoc-web-push.md` (Nhắc học bằng Web Push, giờ học do người dùng chọn)
+- **Sửa phỏng vấn bằng giọng nói (`VoiceSessionService`, `LiveTokenService`, `MOCK_INTERVIEW_VOICE_*`) hoặc làm giao diện thoại ở FE** → `docs/adr/0019-phong-van-giong-noi.md` (Gemini Live: token khoá cấu hình, hạn mức, tạp âm và kết thúc sớm đã đo)
 
 ## Ranh giới không được xê dịch
 

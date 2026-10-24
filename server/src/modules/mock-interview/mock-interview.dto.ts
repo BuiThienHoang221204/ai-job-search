@@ -1,3 +1,4 @@
+import { PickType } from '@nestjs/swagger';
 import { IsOptional, IsString, Length } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 
@@ -22,6 +23,20 @@ export class OpenMockInterviewDto {
   @IsString()
   @Length(1, 300, { message: 'Câu hỏi mở đầu quá dài' })
   question?: string;
+}
+
+export class OpenVoiceInterviewDto extends PickType(OpenMockInterviewDto, [
+  'jobId',
+]) {}
+
+export class VoiceTurnDto {
+  @IsString()
+  @Length(1, 2000, { message: 'Câu hỏi trống hoặc quá dài' })
+  question!: string;
+
+  @IsString()
+  @Length(1, 8000, { message: 'Câu trả lời trống hoặc quá dài' })
+  answer!: string;
 }
 
 export class AnswerTurnDto {

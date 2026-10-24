@@ -22,9 +22,12 @@ import {
   AnswerTurnDto,
   ListMockInterviewsDto,
   OpenMockInterviewDto,
+  OpenVoiceInterviewDto,
+  VoiceTurnDto,
 } from './mock-interview.dto';
 import { InterviewTurnService } from './services/interview-turn.service';
 import { MockInterviewService } from './services/mock-interview.service';
+import { VoiceSessionService } from './services/voice-session.service';
 import { withFailureKind } from '@/common/ai/failure-view';
 import { messageOf } from '@/common/error-message';
 
@@ -37,6 +40,7 @@ export class MockInterviewController {
   constructor(
     private readonly sessions: MockInterviewService,
     private readonly turns: InterviewTurnService,
+    private readonly voice: VoiceSessionService,
   ) {}
 
   @ApiOperation({ summary: 'Danh sách buổi luyện của người dùng hiện tại' })
@@ -89,6 +93,29 @@ export class MockInterviewController {
       return;
     }
     response.end();
+  }
+
+  @ThrottleAi()
+  @ApiOperation({
+    summary:
+      'Mở buổi phỏng vấn thử bằng giọng nói: trả token ngắn hạn để trình duyệt nối thẳng tới Gemini Live',
+  })
+  @Post('voice')
+  openVoice(@CurrentUser() user: AuthUser, @Body() dto: OpenVoiceInterviewDto) {
+    return this.voice.open(user.id, dto.jobId);
+  }
+
+  @ApiOperation({
+    summary: 'Lưu một lượt hỏi-đáp của buổi luyện bằng giọng nói',
+  })
+  @ApiParam({ name: 'id', description: 'ID của buổi luyện' })
+  @Post(':id/voice-turns')
+  appendVoiceTurn(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: VoiceTurnDto,
+  ) {
+    return this.voice.appendTurn(user.id, id, dto);
   }
 
   @ThrottleAi()

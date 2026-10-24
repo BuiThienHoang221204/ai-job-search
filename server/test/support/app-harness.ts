@@ -15,6 +15,8 @@ import { FakeStorage } from 'src/testing/fake-storage.js';
 import { STORAGE } from 'src/modules/storage/storage.interface.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 import { FakeGoogleAuth } from 'src/testing/fake-google-auth.js';
+import { FakeLiveTokens } from 'src/testing/fake-live-tokens.js';
+import { LiveTokenService } from 'src/modules/mock-interview/services/live-token.service.js';
 import { FakeQueue } from './fake-queue.js';
 import { truncateAll } from './test-database.js';
 
@@ -51,6 +53,8 @@ export type TestApp = {
   sandbox: FakeSandbox;
   /// Bản giả của GoogleAuthService - test tự định nghĩa idToken trỏ tới profile nào, không gọi mạng thật tới Google.
   google: FakeGoogleAuth;
+  /// Bản giả cấp token Gemini Live - ghi lại cấu hình phiên, không gọi mạng thật tới Google.
+  liveTokens: FakeLiveTokens;
   /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
   ///
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
@@ -101,6 +105,7 @@ export async function createTestApp(
   const queue = new FakeQueue();
   const sandbox = new FakeSandbox();
   const google = new FakeGoogleAuth();
+  const liveTokens = new FakeLiveTokens();
 
   // Đặt TRƯỚC khi compile: `ConfigModule` đọc biến môi trường lúc dựng module,
   // nên đổi sau đó thì không có tác dụng. Không dùng `overrideGuard` được -
@@ -118,6 +123,8 @@ export async function createTestApp(
     .useValue(google)
     .overrideProvider(STORAGE)
     .useValue(new FakeStorage())
+    .overrideProvider(LiveTokenService)
+    .useValue(liveTokens)
     .compile();
 
   const app = moduleRef.createNestApplication({ bodyParser: false });
@@ -202,6 +209,7 @@ export async function createTestApp(
     queue,
     sandbox,
     google,
+    liveTokens,
     signUp,
     promoteToAdmin: async (userId: string): Promise<void> => {
       await prisma.user.update({
@@ -215,6 +223,7 @@ export async function createTestApp(
       queue.reset();
       sandbox.reset();
       google.reset();
+      liveTokens.reset();
     },
     close: async (): Promise<void> => {
       await app.close();
