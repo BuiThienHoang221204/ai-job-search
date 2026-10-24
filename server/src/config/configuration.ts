@@ -122,6 +122,10 @@ const configuration = () => ({
     },
   },
 
+  mockInterview: {
+    maxQuestions: int('MOCK_INTERVIEW_MAX_QUESTIONS', 20),
+  },
+
   scraper: {
     timeoutMs: int('SCRAPER_TIMEOUT_MS', 60_000),
 

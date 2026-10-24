@@ -8,7 +8,7 @@
 | Mục tiêu | Diễn giải |
 |---|---|
 | Luyện phỏng vấn theo lượt hỏi–đáp | Người phỏng vấn ảo (model) hỏi từng câu, người dùng trả lời, model nhận xét ngắn rồi hỏi câu tiếp theo cho tới khi tự đánh dấu kết thúc ([utils/interview-turn.prompt.ts:21-39](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts#L21)). |
-| Bám vào hồ sơ ứng tuyển thật | Lượt mở đầu nạp "hồ sơ" gồm tin tuyển dụng, trạng thái đơn, điểm phù hợp + khoảng trống, tài liệu đã soạn, câu khó và điểm yếu từ bộ chuẩn bị phỏng vấn ([mock-interview.service.ts:112-171](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L112)). |
+| Bám vào hồ sơ ứng tuyển thật | Lượt mở đầu nạp "hồ sơ" gồm tin tuyển dụng kèm yêu cầu kinh nghiệm (số năm, cấp bậc), tóm tắt hồ sơ ứng viên (chức danh, kỹ năng chính, 3 kinh nghiệm gần nhất, tên dự án) *(2026-10-24)*, trạng thái đơn, điểm phù hợp + khoảng trống, tài liệu đã soạn, câu khó và điểm yếu từ bộ chuẩn bị phỏng vấn ([mock-interview.service.ts:112-171](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L112)). |
 | Trả lời chảy dần (stream) | Câu hỏi/nhận xét được stream dạng `text/plain` để người dùng đọc ngay khi model đang viết ([mock-interview.controller.ts:59-124](../../../server/src/modules/mock-interview/mock-interview.controller.ts#L59)). |
 | Lưu lại để xem lại / đếm tiến độ | Mỗi buổi là một `AgentRun` (`workflow = 'interview'`), mỗi lượt hỏi là một `AgentStep`; module khác đếm số buổi luyện từ đây. |
 
@@ -35,6 +35,7 @@
 | F2 | Chi tiết một buổi luyện kèm các bước | Người dùng | `GET /api/mock-interviews/:id` |
 | F3 | Mở buổi luyện mới, stream câu hỏi đầu tiên | Người dùng | `POST /api/mock-interviews` |
 | F4 | Gửi câu trả lời, stream nhận xét + câu hỏi tiếp | Người dùng | `POST /api/mock-interviews/:id/turn` |
+| F4b | Kết thúc sớm, stream lời tổng kết *(2026-10-24)* | Người dùng | `POST /api/mock-interviews/:id/finish` |
 | F5 | Dọn buổi luyện kẹt | Cron reconcile | `ReconcileService.failStuck` |
 
 ## 4. Business Flow
@@ -76,7 +77,7 @@
 
 **Main Flow:**
 1. `POST /api/mock-interviews` body `{ jobId, question? }`, `@ThrottleAi()` 10 lượt/phút ([mock-interview.controller.ts:59-92](../../../server/src/modules/mock-interview/mock-interview.controller.ts#L59)).
-2. `buildContext` dựng hồ sơ buổi phỏng vấn từ `Job` (mô tả cắt 2000 ký tự), `Application` của người dùng, `Document` `DONE` của người dùng cho tin, `InterviewPrep` (chỉ khi `DONE`), `JobMatch` (chỉ khi `DONE` và có điểm). Tin không tồn tại → **404 `Không tìm thấy công việc: <jobId>`** ([interview-turn.service.ts:47-50](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L47)).
+2. `buildContext` dựng hồ sơ buổi phỏng vấn từ `Job` (mô tả cắt 2000 ký tự), `Application` của người dùng, `Document` `DONE` của người dùng cho tin, `InterviewPrep` (chỉ khi `DONE`), `JobMatch` (chỉ khi `DONE` và có điểm), `JobRequirement` (số năm tối thiểu và cấp bậc, chỉ khi `DONE`), `Profile` của người dùng (chức danh, tối đa 10 kỹ năng chính, 3 kinh nghiệm đầu với 2 ý nổi bật mỗi mục cắt 200 ký tự, tối đa 3 tên dự án; mục kinh nghiệm thiếu chức danh hoặc công ty bị bỏ) *(2026-10-24)*. Tin không tồn tại → **404 `Không tìm thấy công việc: <jobId>`** ([interview-turn.service.ts:47-50](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L47)).
 3. `assertNoRunInFlight`: có `AgentRun` của người dùng ở `PENDING`/`RUNNING` với `updatedAt` trong 10 phút → **409 `Bạn đang có một buổi luyện chưa xong. Đợi nó kết thúc rồi hãy mở buổi mới.`** ([mock-interview.service.ts:26-41](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L26)).
 4. Tạo `AgentRun { workflow: 'interview', jobId, status: 'RUNNING', startedAt, input: { question } | {} }` ([interview-turn.service.ts:54-63](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L54)).
 5. Gọi `AiService.streamText` với `INTERVIEW_TURN_SYSTEM` và `openingPrompt` (hỏi đúng câu người dùng chọn nếu có `question`, nếu không thì một câu mở đầu về động lực/Agile), `purpose: 'interview.open'` ([interview-turn.service.ts:68-75](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L68)).
@@ -100,7 +101,7 @@
 **Main Flow:**
 1. `POST /api/mock-interviews/:id/turn` body `{ text }` (1–4000), `@ThrottleAi()` ([mock-interview.controller.ts:94-124](../../../server/src/modules/mock-interview/mock-interview.controller.ts#L94)).
 2. `sessions.get(userId, id)` → 404 `Không tìm thấy buổi luyện: <id>` nếu không có/không phải của người dùng.
-3. `workflow != 'interview'` → 400 `Chỉ buổi luyện phỏng vấn mới trả lời theo kiểu này.`; `status != 'WAITING_USER'` → 400 `Lượt chạy đang ở trạng thái <status>, không chờ câu trả lời nào.`; `messages` rỗng → 400 `Buổi luyện chưa có hội thoại nào để nối tiếp.` ([interview-turn.service.ts:155-171](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L155)).
+3. `workflow != 'interview'` → 400 `Chỉ buổi luyện phỏng vấn mới trả lời theo kiểu này.`; `status = 'RUNNING'` → 400 `Câu trả lời trước của buổi luyện này đang được xử lý, đợi một chút rồi gửi tiếp.`; trạng thái khác `WAITING_USER` → 400 `Buổi luyện này không còn chờ câu trả lời. Tải lại trang để xem trạng thái mới nhất.` *(2026-10-24)*; `messages` rỗng → 400 `Buổi luyện chưa có hội thoại nào để nối tiếp.` ([interview-turn.service.ts:155-171](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L155)).
 4. **Giành chỗ:** `updateMany({ where: { id, userId, status: 'WAITING_USER' }, data: { status: 'RUNNING' } })`; `count = 0` → 400 `Câu trả lời trước của buổi luyện này đang được xử lý, không chờ câu trả lời nào.` ([interview-turn.service.ts:173-181](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L173)).
 5. Ghép `messages + { role: 'user', content: text }`, gọi `streamText` (`purpose: 'interview.turn'`).
 6. Header stream chỉ được gửi khi có mẩu đầu tiên — lỗi trước đó đi ra như HTTP JSON bình thường. Mỗi mẩu (nhận xét → câu hỏi, đã lọc) được ghi ra.
@@ -159,7 +160,7 @@ sequenceDiagram
   U->>FE: Bắt đầu buổi luyện
   FE->>C: POST /api/mock-interviews {jobId, question?}
   C->>T: openStream()
-  T->>S: buildContext (Job, Application, Document, InterviewPrep, JobMatch)
+  T->>S: buildContext (Job, Application, Document, InterviewPrep, JobMatch, JobRequirement, Profile)
   T->>S: assertNoRunInFlight
   T->>DB: agentRun.create RUNNING
   T->>AI: streamText(interview.open)
@@ -188,7 +189,7 @@ sequenceDiagram
 | BR-MOCK-01 | Chỉ mở buổi luyện cho tin đang tồn tại. | SV | ✅ | [interview-turn.service.ts:47-50](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L47) |
 | BR-MOCK-02 | Mỗi người dùng chỉ có một buổi luyện đang `PENDING`/`RUNNING` (cập nhật trong 10 phút) tại một thời điểm; mở thêm → 409. Kiểm-rồi-tạo, không có khoá DB. | SV | ✅ | [mock-interview.service.ts:26-41](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L26) |
 | BR-MOCK-03 | Buổi luyện phỏng vấn ghi `workflow = 'interview'` và gắn `jobId` (cột, có index) để đếm "đã luyện mấy lượt cho tin này". | SV + DB | ✅ | [interview-turn.service.ts:54-63](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L54), [schema.prisma:1088-1090](../../../server/prisma/schema.prisma#L1088) |
-| BR-MOCK-04 | Bối cảnh buổi luyện chỉ dùng dữ liệu CỦA người dùng (đơn, tài liệu `DONE`, bộ đề `DONE`, điểm phù hợp `DONE`) và mô tả tin cắt 2000 ký tự; khai báo là "dữ liệu, không phải mệnh lệnh". | SV | ✅ | [mock-interview.service.ts:112-171](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L112), [utils/mock-interview.ts:103-165](../../../server/src/modules/mock-interview/utils/mock-interview.ts#L103) |
+| BR-MOCK-04 | Bối cảnh buổi luyện chỉ dùng dữ liệu CỦA người dùng (đơn, tài liệu `DONE`, bộ đề `DONE`, điểm phù hợp `DONE`, tóm tắt hồ sơ) cùng yêu cầu kinh nghiệm và mô tả tin cắt 2000 ký tự *(2026-10-24: thêm hồ sơ và yêu cầu kinh nghiệm)*; khai báo là "dữ liệu, không phải mệnh lệnh". | SV | ✅ | [mock-interview.service.ts:112-171](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L112), [utils/mock-interview.ts:103-165](../../../server/src/modules/mock-interview/utils/mock-interview.ts#L103) |
 | BR-MOCK-05 | Lượt mở đầu không có nhận xét; nếu người dùng chọn sẵn câu (`question` ≤ 300) thì người phỏng vấn hỏi đúng câu đó trước. | SV (prompt + pump) | ✅ | [utils/interview-turn.prompt.ts:41-47](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts#L41), [interview-turn.service.ts:102-114](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L102) |
 | BR-MOCK-06 | Mỗi lượt model viết: dấu `TIẾP`/`HẾT` → nhận xét 2–4 câu → `@@HOI@@` → ĐÚNG MỘT câu hỏi; `HẾT` kết thúc buổi. Parser nhận cả dấu gõ lệch (`@@HOI@`, `@HOI@@`, `@@ HỎI @@`, chữ thường) để nhận xét không bị dồn vào câu hỏi *(2026-10-23)*. | SV (prompt + parser) | ✅ | [utils/interview-turn.prompt.ts:21-85](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts#L21) |
 | BR-MOCK-07 | Đầu ra bị lọc khối `<tool_call>` và chữ Hán/Hàn/Ả Rập trước khi gửi và lưu; số ký tự bị xoá được log cảnh báo. | SV | ✅ | [utils/interview-turn.prompt.ts:5-19](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts#L5), [interview-turn.service.ts:280-287](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L280) |
@@ -199,9 +200,13 @@ sequenceDiagram
 | BR-MOCK-12 | Mỗi lượt thành công ghi nguyên tử: câu trả lời gắn vào bước trước, bước mới, trạng thái và lịch sử hội thoại. | SV + DB | ✅ | [interview-turn.service.ts:305-332](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L305) |
 | BR-MOCK-13 | Thứ tự bước trong một buổi là duy nhất. | DB | 🔒 | [schema.prisma:1110](../../../server/prisma/schema.prisma#L1110) |
 | BR-MOCK-14 | Lịch sử hội thoại (`messages`) là trạng thái máy, không trả ra API chi tiết; `steps` là bản cho người đọc. | SV | ✅ | [mock-interview.service.ts:57](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L57) |
-| BR-MOCK-15 | Lời tổng kết của buổi chỉ có khi `DONE` và là chữ của bước cuối, cắt 400 ký tự. | SV | ✅ | [utils/mock-interview.ts:9-16](../../../server/src/modules/mock-interview/utils/mock-interview.ts#L9) |
+| BR-MOCK-15 | Lời tổng kết của buổi chỉ có khi `DONE`, nằm ở `result.text` (phần sau `@@HOI@@` của lượt đánh `HẾT`; bước cuối không mang `ask_user`), cắt 400 ký tự. *(2026-10-24, trước đó lấy chữ bước cuối)* | SV | ✅ | [utils/mock-interview.ts:9-16](../../../server/src/modules/mock-interview/utils/mock-interview.ts#L9) |
 | BR-MOCK-16 | Buổi kẹt `PENDING`/`RUNNING` quá 10 phút bị reconcile đánh `FAILED` + `finishedAt`; buổi `WAITING_USER` không bị đụng. | SV (cron) | ✅ | [reconcile.service.ts:26-29](../../../server/src/modules/reconcile/services/reconcile.service.ts#L26), [:105-108](../../../server/src/modules/reconcile/services/reconcile.service.ts#L105) |
 | BR-MOCK-17 | Xoá tin tuyển dụng không xoá buổi luyện (`jobId` → `NULL`); xoá người dùng xoá buổi luyện và các bước. | DB | 🔒 | [schema.prisma:1056-1057](../../../server/prisma/schema.prisma#L1056), [:1098](../../../server/prisma/schema.prisma#L1098) |
+| BR-MOCK-19 | Kết thúc sớm (`POST :id/finish`) đi chung đường giành chỗ với lượt trả lời; gửi model yêu cầu tổng kết thay cho câu trả lời, buộc `DONE`, câu đang hỏi dở không được gắn câu trả lời. *(2026-10-24)* | SV | ✅ | [interview-turn.service.ts](../../../server/src/modules/mock-interview/services/interview-turn.service.ts) |
+| BR-MOCK-20 | Trần an toàn `MOCK_INTERVIEW_MAX_QUESTIONS` (mặc định 20) câu: khi buổi đã có đủ số bước đó, lượt trả lời kế tiếp dặn model tổng kết và buộc `DONE` dù model ghi `TIẾP`. Số câu bình thường vẫn do model tự quyết. *(2026-10-24)* | SV | ✅ | [interview-turn.service.ts](../../../server/src/modules/mock-interview/services/interview-turn.service.ts), [configuration.ts](../../../server/src/config/configuration.ts) |
+| BR-MOCK-21 | Lượt chưa `HẾT` mà thiếu vạch `@@HOI@@` (model bị ngắt giữa chừng) là lượt hỏng: không ghi bước, trả buổi về `WAITING_USER`, người dùng gửi lại. Đo 2026-10-24: một lượt dừng ở "…tiêu chuẩn như ISO 2" từng bị lưu thành câu hỏi. *(2026-10-24)* | SV | ✅ | [interview-turn.service.ts](../../../server/src/modules/mock-interview/services/interview-turn.service.ts) |
+| BR-MOCK-22 | Prompt người phỏng vấn: nhận xét chỉ dựa trên chữ ứng viên viết; mỗi chủ đề tối đa hai câu rồi chuyển yêu cầu chưa hỏi, chỉ hỏi công nghệ có trong tin hoặc hồ sơ; tin yêu cầu tiếng Anh thì có ít nhất một câu tiếng Anh; không lặp góp ý; buổi thường 8-12 câu; lời tổng kết là của người hướng dẫn (điểm mạnh, điểm cần sửa, chủ đề luyện tiếp). Rút ra từ buổi luyện 2026-10-24: 20 câu, 4 câu về OWASP ZAP không có trong tin, 7 lần cùng góp ý "thiếu số liệu", một lần khuyên "tưởng tượng" ví dụ. *(2026-10-24)* | Prompt | ✅ | [utils/interview-turn.prompt.ts](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts) |
 | BR-MOCK-18 | Trình duyệt ngắt kết nối không làm server dừng hay xếp lại lượt; generator chạy tới cuối và tự ghi kết quả. | SV | ✅ | [mock-interview.controller.ts:80-91](../../../server/src/modules/mock-interview/mock-interview.controller.ts#L80) |
 
 > **Possible Business Rule:** Không có giới hạn số lượt hỏi trong một buổi; việc kết thúc hoàn toàn do model đánh `HẾT` ("Hết bộ câu hỏi hoặc ứng viên xin dừng"). Cần xác nhận có cần trần số lượt không (xem §17 R4).
@@ -241,6 +246,7 @@ Trường lạ bị chặn bởi `forbidNonWhitelisted` (ValidationPipe toàn c�
 | GET | `/api/mock-interviews/:id` | USER | Chi tiết buổi luyện + các bước | `MockInterviewController#get` | `MockInterviewService.detail` | — | `AgentRun` (trừ `messages`, `error`) + `steps[]` + `failureKind` |
 | POST | `/api/mock-interviews` | USER (ThrottleAi 10/phút) | Mở buổi luyện, stream câu hỏi đầu | `MockInterviewController#open` | `InterviewTurnService.openStream` | `OpenMockInterviewDto` | 201 `text/plain` stream, header `X-Run-Id` |
 | POST | `/api/mock-interviews/:id/turn` | USER (ThrottleAi 10/phút) | Gửi câu trả lời, stream lượt tiếp | `MockInterviewController#turn` | `InterviewTurnService.stream` | `AnswerTurnDto` | 201 `text/plain` stream |
+| POST | `/api/mock-interviews/:id/finish` | USER (ThrottleAi 10/phút) | Kết thúc sớm, stream lời tổng kết | `MockInterviewController#finish` | `InterviewTurnService.stream` (`answer = null`) | — | 201 `text/plain` stream |
 
 > Ghi chú: hai route POST dùng `@Res()` nhưng Nest đặt mã mặc định 201 của `@Post` trước khi gọi handler; e2e [mock-interview-turn.e2e-spec.ts:138](../../../server/test/mock-interview-turn.e2e-spec.ts#L138) ghi nhận `turn` trả **201**.
 
@@ -344,7 +350,8 @@ stateDiagram-v2
 | Đang có buổi chưa xong | 409 | `Bạn đang có một buổi luyện chưa xong. Đợi nó kết thúc rồi hãy mở buổi mới.` | [mock-interview.service.ts:37-39](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L37) |
 | Buổi không có / của người khác | 404 | `Không tìm thấy buổi luyện: <id>` | [mock-interview.service.ts:49](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L49), [:61](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L61) |
 | Workflow khác `interview` | 400 | `Chỉ buổi luyện phỏng vấn mới trả lời theo kiểu này.` | [interview-turn.service.ts:156-158](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L156) |
-| Buổi không chờ trả lời | 400 | `Lượt chạy đang ở trạng thái <status>, không chờ câu trả lời nào.` | [interview-turn.service.ts:161-163](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L161) |
+| Câu trả lời trước còn đang xử lý | 400 | `Câu trả lời trước của buổi luyện này đang được xử lý, đợi một chút rồi gửi tiếp.` | [interview-turn.service.ts](../../../server/src/modules/mock-interview/services/interview-turn.service.ts) |
+| Buổi không chờ trả lời | 400 | `Buổi luyện này không còn chờ câu trả lời. Tải lại trang để xem trạng thái mới nhất.` | [interview-turn.service.ts:161-163](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L161) |
 | Không có lịch sử hội thoại | 400 | `Buổi luyện chưa có hội thoại nào để nối tiếp.` | [interview-turn.service.ts:168-170](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L168) |
 | Thua giành chỗ (gửi trùng) | 400 | `Câu trả lời trước của buổi luyện này đang được xử lý, không chờ câu trả lời nào.` | [interview-turn.service.ts:178-180](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L178) |
 | Model không trả câu hỏi | 400 (thường đã gửi header → cắt kết nối) | `Model không trả về nội dung nào.`; ghi DB lượt mở: `Model không trả về câu hỏi nào` | [interview-turn.service.ts:106-107](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L106), [:206](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L206) |
@@ -362,7 +369,7 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 | Tích hợp | Cách dùng | Nguồn |
 |---|---|---|
 | `AiService.streamText` | `purpose: 'interview.open'` / `'interview.turn'`; model = `fastModelChain(...).modelId` (`AI_FAST_MODEL_ID`/pool) — stream KHÔNG đi tiếp chuỗi dự phòng, chỉ mở một model; timeout mặc định của `AiService`; lượt gọi ghi `AiCall` khi stream kết thúc/lỗi | [interview-turn.service.ts:69-75](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L69), [ai.service.ts:405-445](../../../server/src/modules/ai/services/ai.service.ts#L405), [ai-platform.md](./ai-platform.md) |
-| Dữ liệu module khác (chỉ đọc) | `Job`, `Application`, `Document`, `InterviewPrep`, `JobMatch` dựng bối cảnh | [mock-interview.service.ts:118-145](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L118) |
+| Dữ liệu module khác (chỉ đọc) | `Job`, `Application`, `Document`, `InterviewPrep`, `JobMatch`, `JobRequirement`, `Profile` dựng bối cảnh | [mock-interview.service.ts:118-145](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L118) |
 | Reconcile cron | `RECONCILE_CRON_ENABLED`, `RECONCILE_CRON_SCHEDULE` | [reconcile-cron.service.ts](../../../server/src/modules/reconcile/services/reconcile-cron.service.ts) |
 
 ## 16. Security
@@ -392,16 +399,22 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 - Đề xuất: ghi `finishedAt` khi `DONE`/`FAILED` và `modelId` khi mở/lượt.
 - Mức đề xuất: 🟢
 
-**R4 — Không có trần số lượt; mỗi lượt gửi lại TOÀN BỘ lịch sử.**
+**R4 — Không có trần số lượt; mỗi lượt gửi lại TOÀN BỘ lịch sử.** ✅ **Đã sửa 2026-10-24**: trần an toàn 20 câu (BR-MOCK-20) và nút kết thúc sớm (BR-MOCK-19); số câu bình thường vẫn do model quyết theo chủ dự án.
 - Bằng chứng: `stream` ghép `[...previous, answer]` và gửi hết ([interview-turn.service.ts:183-198](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L183)); không có bộ đếm lượt nào, kết thúc chỉ khi model đánh `HẾT` ([utils/interview-turn.prompt.ts:35](../../../server/src/modules/mock-interview/utils/interview-turn.prompt.ts#L35)).
 - Tác động: buổi dài làm token đầu vào tăng tuyến tính mỗi lượt, tốn hạn mức gateway và có thể vượt ngữ cảnh model nhanh.
 - Đề xuất: chủ dự án xác nhận số lượt tối đa (xem Possible Business Rule ở §7).
 - Mức đề xuất: 🟡
 
-**R5 — FE bỏ mất thông điệp lỗi tiếng Việt của server trên route stream.**
+**R5 — FE bỏ mất thông điệp lỗi tiếng Việt của server trên route stream.** ✅ **Đã sửa 2026-10-24**: `responseErrorMessage` (`lib/axios.ts`) đọc `message` trong body cho cả ba hàm stream (`interview-stream.ts`, `model-stream.ts`).
 - Bằng chứng: khi `!response.ok`, `streamInterviewOpen`/`streamInterviewTurn` chỉ ném `Máy chủ trả về HTTP <mã>` (trừ 401) mà không đọc body ([lib/interview-stream.ts](../../../../ui-ai-job-search/lib/interview-stream.ts)).
 - Tác động: người dùng thấy "Máy chủ trả về HTTP 409" thay vì "Bạn đang có một buổi luyện chưa xong..."; tương tự với 400/404/504.
 - Đề xuất: đọc `message` từ body JSON khi có.
+- Mức đề xuất: 🟢
+
+**R7 — Model gửi lời tổng kết qua `ask_user`, buổi `DONE` mà `result.text` rỗng.** ✅ **Đã sửa 2026-10-24**: `persist` ghi phần tổng kết vào `result.text`, bước cuối không còn `ask_user` (BR-MOCK-15). Buổi cũ vẫn do FE `buildTranscript` xử lý.
+- Bằng chứng: đo 2026-10-24 trên DB dev — bước cuối gọi `ask_user` với câu "Chúc mừng, bạn đã hoàn thành buổi luyện tập…", buổi chuyển `DONE`, `result.text` rỗng.
+- Tác động: FE từng dựng lời tổng kết thành "Câu 8 · Đến lượt bạn", người dùng trả lời và nhận 400. ✅ FE đã xử lý 2026-10-24: `buildTranscript` coi câu cuối chưa trả lời của buổi `DONE` là tổng kết, ô trả lời ẩn khi buổi đã đóng (`isClosed`).
+- Đề xuất: backend chép câu hỏi cuối vào `result.text` khi lượt kết thúc bằng `ask_user`, để mọi chỗ đọc kết quả đều thấy tổng kết.
 - Mức đề xuất: 🟢
 
 **R6 — Cột/quan hệ không dùng tới trên `AgentRun`.**

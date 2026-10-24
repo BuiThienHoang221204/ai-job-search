@@ -105,6 +105,7 @@ describe('GET /interview · danh sách chỉ trả bản tóm tắt', () => {
     status: 'DONE' | 'WAITING_USER',
     steps: string[],
     workflow = 'interview',
+    closing?: string,
   ) =>
     harness.prisma.agentRun.create({
       data: {
@@ -113,6 +114,7 @@ describe('GET /interview · danh sách chỉ trả bản tóm tắt', () => {
         workflow,
         status,
         input: {},
+        ...(closing ? { result: { text: closing } } : {}),
         steps: {
           create: steps.map((text, index) => ({
             index,
@@ -143,12 +145,14 @@ describe('GET /interview · danh sách chỉ trả bản tóm tắt', () => {
     ).toBe(2);
   });
 
-  test('buổi đã xong mang lời tổng kết là chữ của bước cuối; buổi dở thì không', async () => {
-    await seedRun(user, 'DONE', [
-      '',
-      'Nhận xét giữa buổi',
+  test('buổi đã xong mang lời tổng kết từ result.text; buổi dở thì không', async () => {
+    await seedRun(
+      user,
+      'DONE',
+      ['', 'Nhận xét giữa buổi', 'Nhận xét câu cuối'],
+      'interview',
       'Bạn trả lời tốt phần kỹ thuật.',
-    ]);
+    );
     await seedRun(user, 'WAITING_USER', ['', 'Nhận xét lượt một']);
 
     const response = await request(harness.server)

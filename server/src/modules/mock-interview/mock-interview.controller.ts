@@ -103,8 +103,30 @@ export class MockInterviewController {
     @Body() dto: AnswerTurnDto,
     @Res() response: Response,
   ): Promise<void> {
+    await this.pipeTurn(id, this.turns.stream(user.id, id, dto.text), response);
+  }
+
+  @ThrottleAi()
+  @ApiOperation({
+    summary: 'Kết thúc sớm buổi luyện và nhận lời tổng kết dạng stream',
+  })
+  @ApiParam({ name: 'id', description: 'ID của buổi luyện' })
+  @Post(':id/finish')
+  async finish(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    await this.pipeTurn(id, this.turns.stream(user.id, id, null), response);
+  }
+
+  private async pipeTurn(
+    id: string,
+    stream: AsyncGenerator<string>,
+    response: Response,
+  ): Promise<void> {
     try {
-      for await (const piece of this.turns.stream(user.id, id, dto.text)) {
+      for await (const piece of stream) {
         if (!response.headersSent) {
           response.setHeader('Content-Type', 'text/plain; charset=utf-8');
           response.setHeader('Cache-Control', 'no-cache, no-transform');

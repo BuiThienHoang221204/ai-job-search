@@ -11,7 +11,9 @@ import type { ListMockInterviewsDto } from '../mock-interview.dto';
 import {
   DOCUMENT_LABEL,
   formatInterviewDossier,
+  projectNames,
   quietDays,
+  recentExperiences,
   toughQuestionTexts,
   closingOf,
   type InterviewDossier,
@@ -87,19 +89,15 @@ export class MockInterviewService {
           jobId: true,
           job: { select: { title: true, company: true } },
           _count: { select: { steps: true } },
-          steps: {
-            orderBy: { index: 'desc' },
-            take: 1,
-            select: { text: true },
-          },
+          result: true,
         },
       }),
       this.prisma.agentRun.count({ where }),
     ]);
 
-    const runs = items.map(({ steps, ...run }) => ({
+    const runs = items.map(({ result, ...run }) => ({
       ...run,
-      closing: closingOf(run.status, steps),
+      closing: closingOf(run.status, result),
     }));
     return pageOf(runs, total, query);
   }
@@ -115,34 +113,48 @@ export class MockInterviewService {
   ): Promise<InterviewDossier | null> {
     const key = { userId_jobId: { userId, jobId } };
 
-    const [job, application, documents, prep, match] = await Promise.all([
-      this.prisma.job.findUnique({
-        where: { id: jobId },
-        select: {
-          title: true,
-          company: true,
-          location: true,
-          description: true,
-        },
-      }),
-      this.prisma.application.findUnique({
-        where: key,
-        select: { status: true, updatedAt: true, appliedAt: true },
-      }),
-      this.prisma.document.findMany({
-        where: { userId, jobId, status: 'DONE' },
-        select: { kind: true, title: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.interviewPrep.findUnique({
-        where: key,
-        select: { toughQuestions: true, likelyProbes: true, status: true },
-      }),
-      this.prisma.jobMatch.findUnique({
-        where: key,
-        select: { overallScore: true, gaps: true, status: true },
-      }),
-    ]);
+    const [job, application, documents, prep, match, requirement, profile] =
+      await Promise.all([
+        this.prisma.job.findUnique({
+          where: { id: jobId },
+          select: {
+            title: true,
+            company: true,
+            location: true,
+            description: true,
+          },
+        }),
+        this.prisma.application.findUnique({
+          where: key,
+          select: { status: true, updatedAt: true, appliedAt: true },
+        }),
+        this.prisma.document.findMany({
+          where: { userId, jobId, status: 'DONE' },
+          select: { kind: true, title: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.interviewPrep.findUnique({
+          where: key,
+          select: { toughQuestions: true, likelyProbes: true, status: true },
+        }),
+        this.prisma.jobMatch.findUnique({
+          where: key,
+          select: { overallScore: true, gaps: true, status: true },
+        }),
+        this.prisma.jobRequirement.findUnique({
+          where: { jobId },
+          select: { seniority: true, minYears: true, status: true },
+        }),
+        this.prisma.profile.findUnique({
+          where: { userId },
+          select: {
+            headline: true,
+            primarySkills: true,
+            experiences: true,
+            projects: true,
+          },
+        }),
+      ]);
 
     if (!job) return null;
 
@@ -167,6 +179,16 @@ export class MockInterviewService {
         match?.status === 'DONE' && match.overallScore !== null
           ? { score: match.overallScore, gaps: match.gaps }
           : null,
+      requirement:
+        requirement?.status === 'DONE'
+          ? { seniority: requirement.seniority, minYears: requirement.minYears }
+          : null,
+      candidate: profile && {
+        headline: profile.headline,
+        skills: profile.primarySkills,
+        experiences: recentExperiences(profile.experiences),
+        projects: projectNames(profile.projects),
+      },
     };
   }
 }

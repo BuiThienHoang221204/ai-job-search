@@ -97,60 +97,61 @@ Sinh tự động từ mục §9 của các file module (script ở [README §7]
 | 60 | GET | `/api/mock-interviews/:id` | USER | — | `findFirst {id, userId}` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
 | 61 | POST | `/api/mock-interviews` | USER | ThrottleAi 10/phút | bối cảnh khoá `userId` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
 | 62 | POST | `/api/mock-interviews/:id/turn` | USER | ThrottleAi 10/phút | `{id, userId}` + claim kèm `userId` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 63 | GET | `/api/upskill` | USER | — | `where userId` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 64 | GET | `/api/upskill/in-flight` | USER | — | `where userId` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 65 | GET | `/api/upskill/:id` | USER | — | `findFirst {id, userId}` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 66 | POST | `/api/upskill/generate` | USER | 10/phút | tạo gắn `userId`; đọc `JobMatch(userId, jobId)` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 67 | POST | `/api/upskill/generate-stream` | USER | 10/phút | như trên | [upskill](./modules/upskill.md#9-api-mapping) |
-| 68 | GET | `/api/learning` | USER | — | `userId` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 69 | PUT | `/api/learning/:key` | USER | — | upsert `(userId, skillKey)` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 70 | DELETE | `/api/learning/:key` | USER | — | `deleteMany {userId, skillKey}` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 71 | PATCH | `/api/learning` | USER | — | `update where id = userId` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 72 | GET | `/api/push/public-key` | USER | — | không áp dụng (dữ liệu chung) | [upskill](./modules/upskill.md#9-api-mapping) |
-| 73 | POST | `/api/push/subscriptions` | USER | — | upsert theo `endpoint`, gắn `userId` người gọi | [upskill](./modules/upskill.md#9-api-mapping) |
-| 74 | DELETE | `/api/push/subscriptions` | USER | — | `deleteMany {userId, endpoint}` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 75 | POST | `/api/push/test` | USER | — | `findFirst {userId, endpoint}` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 76 | GET | `/api/companies/brief/by-job/:jobId` | Public | throttle 60/phút | không áp dụng (dữ liệu chung) | [company-research](./modules/company-research.md#9-api-mapping) |
-| 77 | POST | `/api/companies/brief/by-job/:jobId` | USER | ThrottleAi 10/phút | không áp dụng (dữ liệu chung) | [company-research](./modules/company-research.md#9-api-mapping) |
-| 78 | POST | `/api/companies/brief/by-job/:jobId/stream` | USER | ThrottleAi 10/phút | không áp dụng (dữ liệu chung) | [company-research](./modules/company-research.md#9-api-mapping) |
-| 79 | GET | `/api/salary/occupations` | Public | 60/phút | không áp dụng (dữ liệu chung) | [salary](./modules/salary.md#9-api-mapping) |
-| 80 | GET | `/api/salary/positions` | Public | 60/phút | không áp dụng (dữ liệu chung) | [salary](./modules/salary.md#9-api-mapping) |
-| 81 | GET | `/api/salary/positions/:slug` | Public | 60/phút | không áp dụng (dữ liệu chung) | [salary](./modules/salary.md#9-api-mapping) |
-| 82 | GET | `/api/dashboard` | USER | — | mọi truy vấn lọc `userId` | [dashboard](./modules/dashboard.md#9-api-mapping) |
-| 83 | GET | `/api/dashboard/skill-gaps` | USER | — | `userId` | [dashboard](./modules/dashboard.md#9-api-mapping) |
-| 84 | GET | `/api/admin/overview` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 85 | GET | `/api/admin/ai-health` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 86 | GET | `/api/admin/ai-failures` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 87 | GET | `/api/admin/ai-failures/facets` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 88 | GET | `/api/admin/ai-calls/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 89 | GET | `/api/admin/ai-usage` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 90 | POST | `/api/admin/scrape/run-now` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 91 | POST | `/api/admin/jobs/backfill-taxonomy` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 92 | POST | `/api/admin/reconcile/run-now` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 93 | GET | `/api/admin/queue/config` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 94 | PUT | `/api/admin/queue/config/:queueName` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 95 | GET | `/api/admin/jobs` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 96 | GET | `/api/admin/jobs/sources` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 97 | GET | `/api/admin/jobs/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 98 | POST | `/api/admin/jobs/re-extract` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 99 | GET | `/api/admin/scrape/portals` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 100 | GET | `/api/admin/scrape/batches` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 101 | GET | `/api/admin/skills/summary` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 102 | GET | `/api/admin/skills` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 103 | GET | `/api/admin/skills/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 104 | PUT | `/api/admin/skills/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 105 | POST | `/api/admin/skills/aliases/move` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 106 | POST | `/api/admin/skills/:id/merge` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 107 | POST | `/api/admin/skills/rematch` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 108 | GET | `/api/admin/users` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 109 | GET | `/api/admin/users/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 110 | PUT | `/api/admin/users/:id/role` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 111 | GET | `/api/admin/ai/models/health` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 112 | POST | `/api/admin/ai/models/health-check` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 113 | GET | `/api/skills` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 114 | POST | `/api/skills/reload` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 115 | GET | `/api/health` | Public | @SkipThrottle | không áp dụng (dữ liệu chung) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
-| 116 | GET | `/api/queue/stats` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
+| 63 | POST | `/api/mock-interviews/:id/finish` | USER | ThrottleAi 10/phút | không áp dụng (dữ liệu chung) | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 64 | GET | `/api/upskill` | USER | — | `where userId` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 65 | GET | `/api/upskill/in-flight` | USER | — | `where userId` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 66 | GET | `/api/upskill/:id` | USER | — | `findFirst {id, userId}` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 67 | POST | `/api/upskill/generate` | USER | 10/phút | tạo gắn `userId`; đọc `JobMatch(userId, jobId)` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 68 | POST | `/api/upskill/generate-stream` | USER | 10/phút | như trên | [upskill](./modules/upskill.md#9-api-mapping) |
+| 69 | GET | `/api/learning` | USER | — | `userId` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 70 | PUT | `/api/learning/:key` | USER | — | upsert `(userId, skillKey)` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 71 | DELETE | `/api/learning/:key` | USER | — | `deleteMany {userId, skillKey}` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 72 | PATCH | `/api/learning` | USER | — | `update where id = userId` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 73 | GET | `/api/push/public-key` | USER | — | không áp dụng (dữ liệu chung) | [upskill](./modules/upskill.md#9-api-mapping) |
+| 74 | POST | `/api/push/subscriptions` | USER | — | upsert theo `endpoint`, gắn `userId` người gọi | [upskill](./modules/upskill.md#9-api-mapping) |
+| 75 | DELETE | `/api/push/subscriptions` | USER | — | `deleteMany {userId, endpoint}` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 76 | POST | `/api/push/test` | USER | — | `findFirst {userId, endpoint}` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 77 | GET | `/api/companies/brief/by-job/:jobId` | Public | throttle 60/phút | không áp dụng (dữ liệu chung) | [company-research](./modules/company-research.md#9-api-mapping) |
+| 78 | POST | `/api/companies/brief/by-job/:jobId` | USER | ThrottleAi 10/phút | không áp dụng (dữ liệu chung) | [company-research](./modules/company-research.md#9-api-mapping) |
+| 79 | POST | `/api/companies/brief/by-job/:jobId/stream` | USER | ThrottleAi 10/phút | không áp dụng (dữ liệu chung) | [company-research](./modules/company-research.md#9-api-mapping) |
+| 80 | GET | `/api/salary/occupations` | Public | 60/phút | không áp dụng (dữ liệu chung) | [salary](./modules/salary.md#9-api-mapping) |
+| 81 | GET | `/api/salary/positions` | Public | 60/phút | không áp dụng (dữ liệu chung) | [salary](./modules/salary.md#9-api-mapping) |
+| 82 | GET | `/api/salary/positions/:slug` | Public | 60/phút | không áp dụng (dữ liệu chung) | [salary](./modules/salary.md#9-api-mapping) |
+| 83 | GET | `/api/dashboard` | USER | — | mọi truy vấn lọc `userId` | [dashboard](./modules/dashboard.md#9-api-mapping) |
+| 84 | GET | `/api/dashboard/skill-gaps` | USER | — | `userId` | [dashboard](./modules/dashboard.md#9-api-mapping) |
+| 85 | GET | `/api/admin/overview` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 86 | GET | `/api/admin/ai-health` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 87 | GET | `/api/admin/ai-failures` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 88 | GET | `/api/admin/ai-failures/facets` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 89 | GET | `/api/admin/ai-calls/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 90 | GET | `/api/admin/ai-usage` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 91 | POST | `/api/admin/scrape/run-now` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 92 | POST | `/api/admin/jobs/backfill-taxonomy` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 93 | POST | `/api/admin/reconcile/run-now` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 94 | GET | `/api/admin/queue/config` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 95 | PUT | `/api/admin/queue/config/:queueName` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 96 | GET | `/api/admin/jobs` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 97 | GET | `/api/admin/jobs/sources` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 98 | GET | `/api/admin/jobs/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 99 | POST | `/api/admin/jobs/re-extract` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 100 | GET | `/api/admin/scrape/portals` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 101 | GET | `/api/admin/scrape/batches` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 102 | GET | `/api/admin/skills/summary` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 103 | GET | `/api/admin/skills` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 104 | GET | `/api/admin/skills/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 105 | PUT | `/api/admin/skills/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 106 | POST | `/api/admin/skills/aliases/move` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 107 | POST | `/api/admin/skills/:id/merge` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 108 | POST | `/api/admin/skills/rematch` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 109 | GET | `/api/admin/users` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 110 | GET | `/api/admin/users/:id` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 111 | PUT | `/api/admin/users/:id/role` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 112 | GET | `/api/admin/ai/models/health` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 113 | POST | `/api/admin/ai/models/health-check` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 114 | GET | `/api/skills` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 115 | POST | `/api/skills/reload` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 116 | GET | `/api/health` | Public | @SkipThrottle | không áp dụng (dữ liệu chung) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
+| 117 | GET | `/api/queue/stats` | ADMIN | — | không áp dụng (admin xem toàn hệ thống) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
 
 [//]: # (/GEN:PERM)
 

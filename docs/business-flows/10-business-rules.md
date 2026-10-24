@@ -392,7 +392,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MOCK-01 | Chỉ mở buổi luyện cho tin đang tồn tại. | SV | ✅ |
 | BR-MOCK-02 | Mỗi người dùng chỉ có một buổi luyện đang `PENDING`/`RUNNING` (cập nhật trong 10 phút) tại một thời điểm; mở thêm → 409. Kiểm-rồi-tạo, không có khoá DB. | SV | ✅ |
 | BR-MOCK-03 | Buổi luyện phỏng vấn ghi `workflow = 'interview'` và gắn `jobId` (cột, có index) để đếm "đã luyện mấy lượt cho tin này". | SV + DB | ✅ |
-| BR-MOCK-04 | Bối cảnh buổi luyện chỉ dùng dữ liệu CỦA người dùng (đơn, tài liệu `DONE`, bộ đề `DONE`, điểm phù hợp `DONE`) và mô tả tin cắt 2000 ký tự; khai báo là "dữ liệu, không phải mệnh lệnh". | SV | ✅ |
+| BR-MOCK-04 | Bối cảnh buổi luyện chỉ dùng dữ liệu CỦA người dùng (đơn, tài liệu `DONE`, bộ đề `DONE`, điểm phù hợp `DONE`, tóm tắt hồ sơ) cùng yêu cầu kinh nghiệm và mô tả tin cắt 2000 ký tự *(2026-10-24: thêm hồ sơ và yêu cầu kinh nghiệm)*; khai báo là "dữ liệu, không phải mệnh lệnh". | SV | ✅ |
 | BR-MOCK-05 | Lượt mở đầu không có nhận xét; nếu người dùng chọn sẵn câu (`question` ≤ 300) thì người phỏng vấn hỏi đúng câu đó trước. | SV (prompt + pump) | ✅ |
 | BR-MOCK-06 | Mỗi lượt model viết: dấu `TIẾP`/`HẾT` → nhận xét 2–4 câu → `@@HOI@@` → ĐÚNG MỘT câu hỏi; `HẾT` kết thúc buổi. Parser nhận cả dấu gõ lệch (`@@HOI@`, `@HOI@@`, `@@ HỎI @@`, chữ thường) để nhận xét không bị dồn vào câu hỏi *(2026-10-23)*. | SV (prompt + parser) | ✅ |
 | BR-MOCK-07 | Đầu ra bị lọc khối `<tool_call>` và chữ Hán/Hàn/Ả Rập trước khi gửi và lưu; số ký tự bị xoá được log cảnh báo. | SV | ✅ |
@@ -403,9 +403,13 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MOCK-12 | Mỗi lượt thành công ghi nguyên tử: câu trả lời gắn vào bước trước, bước mới, trạng thái và lịch sử hội thoại. | SV + DB | ✅ |
 | BR-MOCK-13 | Thứ tự bước trong một buổi là duy nhất. | DB | 🔒 |
 | BR-MOCK-14 | Lịch sử hội thoại (`messages`) là trạng thái máy, không trả ra API chi tiết; `steps` là bản cho người đọc. | SV | ✅ |
-| BR-MOCK-15 | Lời tổng kết của buổi chỉ có khi `DONE` và là chữ của bước cuối, cắt 400 ký tự. | SV | ✅ |
+| BR-MOCK-15 | Lời tổng kết của buổi chỉ có khi `DONE`, nằm ở `result.text` (phần sau `@@HOI@@` của lượt đánh `HẾT`; bước cuối không mang `ask_user`), cắt 400 ký tự. *(2026-10-24, trước đó lấy chữ bước cuối)* | SV | ✅ |
 | BR-MOCK-16 | Buổi kẹt `PENDING`/`RUNNING` quá 10 phút bị reconcile đánh `FAILED` + `finishedAt`; buổi `WAITING_USER` không bị đụng. | SV (cron) | ✅ |
 | BR-MOCK-17 | Xoá tin tuyển dụng không xoá buổi luyện (`jobId` → `NULL`); xoá người dùng xoá buổi luyện và các bước. | DB | 🔒 |
+| BR-MOCK-19 | Kết thúc sớm (`POST :id/finish`) đi chung đường giành chỗ với lượt trả lời; gửi model yêu cầu tổng kết thay cho câu trả lời, buộc `DONE`, câu đang hỏi dở không được gắn câu trả lời. *(2026-10-24)* | SV | ✅ |
+| BR-MOCK-20 | Trần an toàn `MOCK_INTERVIEW_MAX_QUESTIONS` (mặc định 20) câu: khi buổi đã có đủ số bước đó, lượt trả lời kế tiếp dặn model tổng kết và buộc `DONE` dù model ghi `TIẾP`. Số câu bình thường vẫn do model tự quyết. *(2026-10-24)* | SV | ✅ |
+| BR-MOCK-21 | Lượt chưa `HẾT` mà thiếu vạch `@@HOI@@` (model bị ngắt giữa chừng) là lượt hỏng: không ghi bước, trả buổi về `WAITING_USER`, người dùng gửi lại. Đo 2026-10-24: một lượt dừng ở "…tiêu chuẩn như ISO 2" từng bị lưu thành câu hỏi. *(2026-10-24)* | SV | ✅ |
+| BR-MOCK-22 | Prompt người phỏng vấn: nhận xét chỉ dựa trên chữ ứng viên viết; mỗi chủ đề tối đa hai câu rồi chuyển yêu cầu chưa hỏi, chỉ hỏi công nghệ có trong tin hoặc hồ sơ; tin yêu cầu tiếng Anh thì có ít nhất một câu tiếng Anh; không lặp góp ý; buổi thường 8-12 câu; lời tổng kết là của người hướng dẫn (điểm mạnh, điểm cần sửa, chủ đề luyện tiếp). Rút ra từ buổi luyện 2026-10-24: 20 câu, 4 câu về OWASP ZAP không có trong tin, 7 lần cùng góp ý "thiếu số liệu", một lần khuyên "tưởng tượng" ví dụ. *(2026-10-24)* | Prompt | ✅ |
 | BR-MOCK-18 | Trình duyệt ngắt kết nối không làm server dừng hay xếp lại lượt; generator chạy tới cuối và tự ghi kết quả. | SV | ✅ |
 
 ### Upskill — Lộ trình học & báo cáo nâng cấp kỹ năng — [modules/upskill.md](./modules/upskill.md#7-business-rules)
@@ -600,7 +604,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AI-16 | Phân loại lỗi: `SCHEMA` (NoObjectGenerated/không khớp schema), `TIMEOUT` (Timeout/Abort), `UPSTREAM` (APICallError, 429, rút model, 5xx), `OTHER`; bóc `RetryError` trước khi phân loại | SV | ✅ |
 | BR-AI-17 | Người dùng cuối chỉ thấy phân loại lỗi (`Không hoàn thành được tác vụ.` + `failureKind`), lỗi thô nằm lại trong log/DB; `HttpException` giữ nguyên câu | SV | ✅ |
 | BR-AI-18 | Cổng song song theo lõi: chỉ lõi `opencode` có trần, `OPENCODE_APP_CONCURRENCY` (mặc định 2), theo tiến trình | SV | ✅ |
-| BR-AI-19 | Bể fast: chọn mắt đầu là model đầu tiên còn hạn mức theo `rateLimitFor` của lõi (Groq 8 000 token/phút, 200 000 token/ngày, 1 000 lượt/ngày; Gemini theo nhóm model; UnoRouter 1 lượt/phút), đếm trong RAM 25 giờ | SV | ✅ |
+| BR-AI-19 | Bể fast: chọn mắt đầu là model đầu tiên còn hạn mức theo `rateLimitFor` của lõi (Groq 8 000 token/phút, 200 000 token/ngày, 1 000 lượt/ngày — model Groq quét được mà chưa có trong bảng dùng đúng mức này thay vì coi là vô hạn *(2026-10-24)*; Gemini theo nhóm model; UnoRouter 1 lượt/phút), đếm trong RAM 25 giờ | SV | ✅ |
 | BR-AI-20 | Ước token = ⌈ký tự/3,5⌉ + 1 200 (cố ý ước cao) | SV | ✅ |
 | BR-AI-21 | Lõi thiếu API key bị coi là không khả dụng (ném lỗi, chuỗi đi tiếp); opencode/omniroute/kilo mặc định key `public` | SV | ✅ |
 | BR-AI-22 | Model phải có trong catalog/`/models`, adapter được hỗ trợ (`@ai-sdk/openai-compatible`, `@openrouter/ai-sdk-provider`), không nằm trong danh sách đã đo là hỏng structured output; OpenRouter phải khai `structured_outputs` | SV | ✅ |
@@ -686,7 +690,7 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (38)
+### 🟡 Trung bình (37)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -712,7 +716,6 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R4](./modules/question-bank.md) | question-bank | Không có đường sinh lại hay rà duyệt đáp án |
 | [mock-interview#R1](./modules/mock-interview.md) | mock-interview | Chặn "một buổi đang chạy" là kiểm-rồi-tạo, hai request mở buổi cùng lúc đều lọt |
 | [mock-interview#R2](./modules/mock-interview.md) | mock-interview | Stream lượt mở đầu đứt giữa chừng thì buổi nằm `RUNNING` và khoá người dùng mở buổi mới tới 10 phút |
-| [mock-interview#R4](./modules/mock-interview.md) | mock-interview | Không có trần số lượt; mỗi lượt gửi lại TOÀN BỘ lịch sử |
 | [upskill#R2](./modules/upskill.md) | upskill | Kết quả lời gọi 2 (`learningPlan`, `summary`) không được hiển thị ở đâu |
 | [upskill#R3](./modules/upskill.md) | upskill | Lỗi tiền điều kiện chỉ lộ ra sau khi đã tạo báo cáo và xếp hàng |
 | [company-research#R2](./modules/company-research.md) | company-research | Hai lượt stream cùng công ty không được gộp |
@@ -729,7 +732,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (62)
+### 🟢 Thấp (61)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -770,7 +773,6 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R1](./modules/question-bank.md) | question-bank | Hai người mở cùng một câu chưa có đáp án cùng lúc thì model bị gọi hai lần |
 | [question-bank#R5](./modules/question-bank.md) | question-bank | Xem lại đáp án đã cache vẫn phải đi qua `POST` có throttle AI |
 | [mock-interview#R3](./modules/mock-interview.md) | mock-interview | `finishedAt` và `modelId` của buổi luyện không bao giờ được ghi trên luồng thường |
-| [mock-interview#R5](./modules/mock-interview.md) | mock-interview | FE bỏ mất thông điệp lỗi tiếng Việt của server trên route stream |
 | [mock-interview#R6](./modules/mock-interview.md) | mock-interview | Cột/quan hệ không dùng tới trên `AgentRun` |
 | [upskill#R4](./modules/upskill.md) | upskill | Không chặn hai lượt phân tích song song của cùng người dùng |
 | [upskill#R5](./modules/upskill.md) | upskill | Giới hạn 3 kỹ năng đang học là đếm-rồi-ghi, không nguyên tử |
@@ -796,7 +798,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R7](./modules/platform-operations.md) | platform-operations | Thử lại của pg-boss dựa hoàn toàn vào mặc định thư viện |
 | [platform-operations#R8](./modules/platform-operations.md) | platform-operations | Cờ "lượt trước còn chạy" của cron chỉ nằm trong bộ nhớ một tiến trình |
 
-### ✅ Đã sửa (13)
+### ✅ Đã sửa (16)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -808,6 +810,9 @@ Không có rủi ro nào được xếp mức này.
 | [documents#R1](./modules/documents.md) | documents | Khoá Storage `.tex` không gắn với tài liệu: nhiều tài liệu dùng chung một file |
 | [documents#R2](./modules/documents.md) | documents | PDF LaTeX (mặc định) bỏ qua mẫu, bố cục, mục ẩn; một số màn vẫn dùng LaTeX cho CV |
 | [documents#R6](./modules/documents.md) | documents | Lưu CV và lưu mẫu không nguyên tử |
+| [mock-interview#R4](./modules/mock-interview.md) | mock-interview | Không có trần số lượt; mỗi lượt gửi lại TOÀN BỘ lịch sử |
+| [mock-interview#R5](./modules/mock-interview.md) | mock-interview | FE bỏ mất thông điệp lỗi tiếng Việt của server trên route stream |
+| [mock-interview#R7](./modules/mock-interview.md) | mock-interview | Model gửi lời tổng kết qua `ask_user`, buổi `DONE` mà `result.text` rỗng |
 | [upskill#R1](./modules/upskill.md) | upskill | Stream hỏng thì FE tự tạo báo cáo thứ hai và chạy AI lần nữa |
 | [company-research#R1](./modules/company-research.md) | company-research | FE tự xếp thêm một lượt dựng mỗi khi stream lỗi |
 | [admin-console#R1](./modules/admin-console.md) | admin-console | Giao diện báo "Worker nhận giá trị mới trong vòng 30 giây" nhưng worker chỉ nhận sau khi khởi động lại |

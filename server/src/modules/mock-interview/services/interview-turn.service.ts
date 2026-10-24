@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { ModelMessage } from 'ai';
 import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -15,8 +16,10 @@ import { MockInterviewService } from './mock-interview.service';
 import {
   countForeign,
   createStreamScrubber,
+  FINISH_REQUEST,
   INTERVIEW_TURN_SYSTEM,
   findQuestionMark,
+  LAST_ANSWER_NOTE,
   openingPrompt,
   splitTurnMarker,
   splitTurnParts,
@@ -33,11 +36,16 @@ import {
 export class InterviewTurnService {
   private readonly logger = new Logger(InterviewTurnService.name);
 
+  private readonly maxQuestions: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly sessions: MockInterviewService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.maxQuestions = config.get<number>('mockInterview.maxQuestions')!;
+  }
 
   async openStream(
     userId: string,
@@ -145,10 +153,11 @@ export class InterviewTurnService {
     this.warnForeign(turn.body);
   }
 
+  /** Một lượt của buổi luyện: `answer` là câu trả lời, `null` là ứng viên bấm kết thúc sớm; tới trần số câu thì cũng đóng buổi. */
   async *stream(
     userId: string,
     runId: string,
-    answer: string,
+    answer: string | null,
   ): AsyncGenerator<string> {
     const run = await this.sessions.get(userId, runId);
 
@@ -157,9 +166,14 @@ export class InterviewTurnService {
         'Chỉ buổi luyện phỏng vấn mới trả lời theo kiểu này.',
       );
     }
+    if (run.status === 'RUNNING') {
+      throw new BadRequestException(
+        'Câu trả lời trước của buổi luyện này đang được xử lý, đợi một chút rồi gửi tiếp.',
+      );
+    }
     if (run.status !== 'WAITING_USER') {
       throw new BadRequestException(
-        `Lượt chạy đang ở trạng thái ${run.status}, không chờ câu trả lời nào.`,
+        'Buổi luyện này không còn chờ câu trả lời. Tải lại trang để xem trạng thái mới nhất.',
       );
     }
 
@@ -180,10 +194,13 @@ export class InterviewTurnService {
       );
     }
 
-    const messages: ModelMessage[] = [
-      ...previous,
-      { role: 'user', content: answer },
-    ];
+    const asked = await this.prisma.agentStep.count({ where: { runId } });
+    const lastAnswer = asked >= this.maxQuestions;
+    let content = FINISH_REQUEST;
+    if (answer !== null) {
+      content = lastAnswer ? `${answer}\n\n${LAST_ANSWER_NOTE}` : answer;
+    }
+    const messages: ModelMessage[] = [...previous, { role: 'user', content }];
 
     let persisted = false;
     try {
@@ -199,11 +216,17 @@ export class InterviewTurnService {
 
       const turn: StreamedTurn = { body: '', done: false };
       yield* this.pump(result.textStream, turn, false);
-      const { body, done } = turn;
+      const body = turn.body;
+      const done = turn.done || answer === null || lastAnswer;
 
       const parts = splitTurnParts(body);
       if (!parts.question) {
         throw new BadRequestException('Model không trả về nội dung nào.');
+      }
+      if (!done && !findQuestionMark(body)) {
+        throw new BadRequestException(
+          'Lượt của người phỏng vấn bị ngắt giữa chừng. Câu trả lời của bạn chưa được ghi nhận, gửi lại giúp nhé.',
+        );
       }
 
       await this.persist(runId, answer, parts, done, Date.now() - startedAt, [
@@ -288,7 +311,7 @@ export class InterviewTurnService {
 
   private async persist(
     runId: string,
-    answer: string,
+    answer: string | null,
     parts: TurnParts,
     done: boolean,
     durationMs: number,
@@ -300,7 +323,8 @@ export class InterviewTurnService {
       select: { id: true, index: true, toolResults: true },
     });
 
-    const answered = attachAnswer(previous?.toolResults, answer);
+    const answered =
+      answer === null ? null : attachAnswer(previous?.toolResults, answer);
 
     await this.prisma.$transaction([
       ...(answered && previous
@@ -316,7 +340,9 @@ export class InterviewTurnService {
           runId,
           index: (previous?.index ?? -1) + 1,
           text: parts.feedback,
-          ...askUserStep(parts.question),
+          ...(done
+            ? { toolCalls: [], toolResults: [] }
+            : askUserStep(parts.question)),
           durationMs,
         },
       }),
@@ -325,6 +351,7 @@ export class InterviewTurnService {
         data: {
           status: done ? 'DONE' : 'WAITING_USER',
           question: done ? null : parts.question,
+          ...(done ? { result: { text: parts.question } } : {}),
           answer: null,
           messages: messages as unknown as Prisma.InputJsonValue,
         },

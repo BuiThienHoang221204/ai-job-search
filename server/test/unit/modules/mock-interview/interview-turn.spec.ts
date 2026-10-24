@@ -1,3 +1,4 @@
+import type { ConfigService } from '@nestjs/config';
 import { BadRequestException } from '@nestjs/common';
 import { InterviewTurnService } from 'src/modules/mock-interview/services/interview-turn.service.js';
 import type { MockInterviewService } from 'src/modules/mock-interview/services/mock-interview.service.js';
@@ -48,6 +49,7 @@ const build = (pieces: string[], options: BuildOptions = {}) => {
       },
     },
     agentStep: {
+      count: () => Promise.resolve(1),
       findFirst: () => Promise.resolve(options.lastStep ?? null),
       create: (args: { data: Record<string, unknown> }) => {
         written.steps.push(args.data);
@@ -81,7 +83,9 @@ const build = (pieces: string[], options: BuildOptions = {}) => {
   } as unknown as MockInterviewService;
 
   return {
-    service: new InterviewTurnService(prisma, ai, sessions),
+    service: new InterviewTurnService(prisma, ai, sessions, {
+      get: () => 20,
+    } as unknown as ConfigService),
     written,
     streamCalls: () => streamCalls,
   };
@@ -124,6 +128,8 @@ describe('InterviewTurnService.stream — dòng điều khiển không lọt ra 
 
     expect(written.runs[0].status).toBe('DONE');
     expect(written.runs[0].question).toBeNull();
+    expect(written.runs[0].result).toEqual({ text: 'Chúc bạn.' });
+    expect(written.steps[0].toolCalls).toEqual([]);
   });
 
   it('model quên dòng điều khiển thì coi như còn hỏi tiếp, không nuốt chữ', async () => {
@@ -337,6 +343,18 @@ describe('InterviewTurnService.stream — giành lượt chống gửi trùng', 
     await expect(
       collect(service.stream('u1', 'run-1', 'x')),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(written.claims.at(-1)?.data).toEqual({ status: 'WAITING_USER' });
+  });
+
+  it('lượt bị ngắt giữa chừng (thiếu vạch ngăn, chưa HẾT) thì hỏng và trả lượt về, không ghi bước', async () => {
+    const { service, written } = build([
+      'TIẾP\nBạn đã nêu rõ cách áp dụng JWT, nhưng cần cụ thể hơn như ISO 2',
+    ]);
+
+    await expect(
+      collect(service.stream('u1', 'run-1', 'x')),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(written.steps).toHaveLength(0);
     expect(written.claims.at(-1)?.data).toEqual({ status: 'WAITING_USER' });
   });
 

@@ -121,8 +121,8 @@ describe('POST /mock-interviews/:id/turn · giành lượt chống gửi trùng'
       .set(auth())
       .send({ text: 'Tôi là kế toán ba năm kinh nghiệm.' })
       .expect(400);
-    expect((second.body as { message: string }).message).toMatch(
-      /RUNNING|đang được xử lý/,
+    expect((second.body as { message: string }).message).toContain(
+      'đang được xử lý',
     );
 
     release();
@@ -171,7 +171,9 @@ describe('POST /mock-interviews/:id/turn · giành lượt chống gửi trùng'
       .send({ text: 'Thêm một câu.' })
       .expect(400);
 
-    expect((response.body as { message: string }).message).toContain('DONE');
+    expect((response.body as { message: string }).message).toContain(
+      'không còn chờ câu trả lời',
+    );
     expect(streamText).not.toHaveBeenCalled();
   });
 
@@ -248,5 +250,64 @@ describe('POST /mock-interviews/:id/turn · giành lượt chống gửi trùng'
       .expect(201);
     expect(retry.text).toContain('Bạn xử lý xung đột ra sao?');
     expect(await harness.prisma.agentStep.count({ where: { runId } })).toBe(2);
+  });
+
+  test('kết thúc sớm: đóng buổi, tổng kết vào result.text, câu đang hỏi dở không bị gắn câu trả lời', async () => {
+    const streamText = jest
+      .spyOn(harness.ai, 'streamText')
+      .mockImplementation(() =>
+        Promise.resolve({
+          modelId: 'fake',
+          result: streamOf(
+            Promise.resolve(),
+            'HẾT\nBạn trả lời chắc tay.\n@@HOI@@\nTổng kết: luyện thêm phần số liệu.',
+          ),
+        }),
+      );
+
+    await request(harness.server)
+      .post(`/api/mock-interviews/${runId}/finish`)
+      .set(auth())
+      .expect(201);
+
+    const run = await harness.prisma.agentRun.findUniqueOrThrow({
+      where: { id: runId },
+      include: { steps: { orderBy: { index: 'asc' } } },
+    });
+    expect(run.status).toBe('DONE');
+    expect(run.result).toEqual({ text: 'Tổng kết: luyện thêm phần số liệu.' });
+    expect(run.steps).toHaveLength(2);
+    expect(run.steps[0].toolResults).toEqual([]);
+    expect(run.steps[1].toolCalls).toEqual([]);
+    expect(
+      JSON.stringify(streamText.mock.calls[0][0].messages?.at(-1)),
+    ).toContain('xin dừng');
+  });
+
+  test('tới trần số câu thì đóng buổi dù model vẫn muốn hỏi tiếp', async () => {
+    await harness.prisma.agentStep.createMany({
+      data: Array.from({ length: 19 }, (_, index) => ({
+        runId,
+        index: index + 1,
+        text: '',
+        toolCalls: [],
+        toolResults: [],
+        durationMs: 1,
+      })),
+    });
+    jest.spyOn(harness.ai, 'streamText').mockImplementation(() =>
+      Promise.resolve({
+        modelId: 'fake',
+        result: streamOf(Promise.resolve(), NEXT_TURN),
+      }),
+    );
+
+    await request(harness.server)
+      .post(`/api/mock-interviews/${runId}/turn`)
+      .set(auth())
+      .send({ text: 'Câu trả lời thứ hai mươi.' })
+      .expect(201);
+
+    expect(await statusOf()).toBe('DONE');
   });
 });

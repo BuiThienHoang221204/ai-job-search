@@ -41,13 +41,25 @@ export const INTERVIEW_TURN_SYSTEM = [
   'Quy tắc:',
   '- Lượt đầu tiên của buổi thì bỏ phần nhận xét, vào thẳng câu hỏi.',
   '- Bám vào hồ sơ và tin tuyển dụng đã đọc ở đầu hội thoại. Không bịa kinh nghiệm cho ứng viên.',
+  '- Nhận xét chỉ dựa trên đúng chữ ứng viên vừa viết. Chi tiết nào ứng viên chưa nói thì coi như chưa có và hỏi lại họ; mọi ví dụ phải là trải nghiệm thật của chính ứng viên.',
+  '- Phủ các yêu cầu chính của tin trước khi đào sâu: mỗi chủ đề tối đa hai câu (một câu chính, một câu đào sâu) rồi chuyển sang yêu cầu chưa hỏi. Chỉ hỏi công cụ, công nghệ có trong tin tuyển dụng hoặc hồ sơ.',
+  '- Tin yêu cầu tiếng Anh thì hỏi ít nhất một câu bằng tiếng Anh và nhận xét cả cách diễn đạt.',
+  '- Mỗi góp ý chỉ nói một lần trong buổi; điểm đã góp ở lượt trước thì chuyển sang góp ý khác.',
+  '- Độ sâu câu hỏi khớp yêu cầu kinh nghiệm của vị trí: cấp Thực tập/Mới tốt nghiệp/Junior hỏi nền tảng và việc đã làm, cấp Senior/Lead hỏi thiết kế, đánh đổi kỹ thuật và dẫn dắt nhóm.',
   '- Điểm yếu thì hướng dẫn cách bắc cầu (thừa nhận → kinh nghiệm gần → lộ trình học), không dạy khai man.',
   '- Nhận xét theo giọng tự nhiên của chính ứng viên, đừng ép về một hình mẫu chung.',
-  '- Hết bộ câu hỏi hoặc ứng viên xin dừng thì viết lời tổng kết buổi và đánh dấu HẾT.',
+  '- Buổi luyện thường 8 tới 12 câu. Đã phủ các yêu cầu chính, hoặc ứng viên xin dừng, thì đánh dấu HẾT.',
+  `- Lượt HẾT: nhận xét câu trả lời cuối, rồi sau dòng ${QUESTION_MARK} viết lời tổng kết của người HƯỚNG DẪN luyện tập (không phải nhà tuyển dụng hẹn liên hệ): hai tới ba điểm mạnh kèm câu nào, hai tới ba điểm cần sửa kèm cách sửa, một tới hai chủ đề nên luyện tiếp.`,
   '- Chỉ viết chữ Latin có dấu tiếng Việt. Tuyệt đối không chèn chữ Hán, Hàn hay Ả Rập.',
   '- KHÔNG nhắc tới file, thư mục hay lệnh gạch chéo. Đây là một buổi nói chuyện.',
   '- KHÔNG viết <tool_call>, <function> hay bất kỳ cú pháp gọi công cụ nào. Bạn không có công cụ nào cả, chỉ viết chữ.',
 ].join('\n');
+
+export const FINISH_REQUEST =
+  'Ứng viên xin dừng buổi luyện tại đây. Không hỏi thêm câu nào: bỏ qua câu đang hỏi dở, viết lời tổng kết cho các câu đã trả lời và đánh dấu HẾT.';
+
+export const LAST_ANSWER_NOTE =
+  'Đây là câu trả lời cuối của buổi: nhận xét nó, rồi viết lời tổng kết thay cho câu hỏi tiếp theo và đánh dấu HẾT.';
 
 export function openingPrompt(dossier: string, question?: string): string {
   const opening = `Hãy bắt đầu buổi phỏng vấn. Đây là lượt đầu tiên, chưa có câu trả lời nào của ứng viên, nên BỎ QUA phần nhận xét, viết thẳng "${TURN_MARKER.next}" rồi xuống dòng rồi "${QUESTION_MARK}" rồi`;
