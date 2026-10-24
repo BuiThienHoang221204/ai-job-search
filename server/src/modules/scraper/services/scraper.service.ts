@@ -71,7 +71,8 @@ export class ScraperService {
     });
   }
 
-  async start(userId: string, portalKey?: string) {
+  /** Xếp một lượt quét vào hàng đợi; `userId = null` là lượt hệ thống (cron, admin), đẩy hàng hỏng thì đánh `FAILED` ngay. */
+  async start(userId: string | null, portalKey?: string) {
     const available = this.portals.listPortals();
     const portal = portalKey ?? available[0];
 
@@ -88,10 +89,7 @@ export class ScraperService {
 
     const run = await this.create(userId, portal);
     try {
-      await this.queue.send(QUEUE.SCRAPE_RUN, {
-        userId,
-        runId: run.id,
-      });
+      await this.queue.send(QUEUE.SCRAPE_RUN, { runId: run.id });
       return { queued: true, runId: run.id, portal: run.portal };
     } catch (queueError) {
       await this.markFailed(

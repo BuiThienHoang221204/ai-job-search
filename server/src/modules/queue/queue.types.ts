@@ -50,7 +50,6 @@ export type ProfileSynthesizePayload = {
 
 export type ScrapeRunPayload = {
   runId: string;
-  userId?: string;
 };
 
 export type Queue = Pick<QueueService, 'send' | 'sendMany' | 'work'>;

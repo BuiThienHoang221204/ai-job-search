@@ -157,7 +157,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-23 | Phân trang danh sách tin: `limit` 1–100 (mặc định 20), `offset` 0–2.000 (trần riêng của tin, chặt hơn trần chung 100.000). | DTO | ✅ |
 | BR-JOB-24 | Danh mục bộ lọc luôn liệt kê đủ 34 tỉnh/thành và 19 nhóm ngành kể cả khi `count = 0`, kèm mục "Làm việc từ xa" (`REMOTE`). | SV | ✅ |
 | BR-JOB-25 | Tỉnh suy từ `location` bằng alias dài nhất trước; không suy được thì `null` và tin không xuất hiện khi lọc theo tỉnh (cố ý không đoán). | SV | ✅ |
-| BR-JOB-26 | Ngành suy theo thứ tự: từ khoá chính tiêu đề → nhãn portal → từ khoá dự phòng tiêu đề → thẻ → `OTHER`; "thương mại điện tử" đổi thành `ecommerce` trước khi so. | SV | ✅ |
+| BR-JOB-26 | Ngành suy theo thứ tự: từ khoá chính tiêu đề → nhãn portal → từ khoá dự phòng tiêu đề → thẻ → `OTHER`; "thương mại điện tử" đổi thành `ecommerce` trước khi so. Nhóm `DESIGN` xét TRƯỚC `IT` để "UI Designer (Mobile App)" không vào CNTT vì chữ "mobile" *(2026-10-25, số đo ở ADR 0007)*. | SV | ✅ |
 | BR-JOB-27 | Nghề con suy từ tiêu đề trước, rồi nhãn + thẻ; không đủ căn cứ thì `null`. | SV | ✅ |
 | BR-JOB-28 | Vân tay chống trùng = công ty chuẩn hoá + chức danh bỏ nhiễu + tỉnh; công ty ẩn danh/trống → `null` (tin coi như duy nhất). `dedupeKey` KHÔNG unique ở DB. | SV | ✅ |
 | BR-JOB-29b | `derivedFields` đọc `salaryRaw` thành `salaryMin`/`salaryMax`/`currency = VND` (lương VND theo tháng: khoảng, "tới/lên đến" → chỉ trần, "từ/trên" → chỉ sàn); USD, lương tuần/giờ, chữ không đọc được → cả ba `null`. Đo trên DB dev: 1.869/1.980 chuỗi đọc được *(2026-10-19)*. | SV | ✅ |

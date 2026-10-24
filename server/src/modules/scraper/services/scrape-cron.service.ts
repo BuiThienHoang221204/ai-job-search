@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob } from 'cron';
 import { appRole, runsBackgroundWork } from '@/config/app-role';
-import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import { JobSourceRouter } from './job-source.router';
 import { ScraperService } from './scraper.service';
 import { messageOf } from '@/common/error-message';
@@ -20,7 +19,6 @@ export class ScrapeCronService implements OnModuleInit {
     private readonly registry: SchedulerRegistry,
     private readonly scraper: ScraperService,
     private readonly portals: JobSourceRouter,
-    private readonly queue: QueueService,
   ) {}
 
   onModuleInit(): void {
@@ -68,10 +66,9 @@ export class ScrapeCronService implements OnModuleInit {
 
       for (const portal of portals) {
         try {
-          const run = await this.scraper.create(null, portal);
-          await this.queue.send(QUEUE.SCRAPE_RUN, { runId: run.id });
-          started.push({ portal, runId: run.id });
-          this.logger.log(`Đã xếp hàng quét ${portal} (run ${run.id})`);
+          const { runId } = await this.scraper.start(null, portal);
+          started.push({ portal, runId });
+          this.logger.log(`Đã xếp hàng quét ${portal} (run ${runId})`);
         } catch (error) {
           this.logger.error(
             `Không xếp được hàng quét ${portal}: ${messageOf(error)}`,

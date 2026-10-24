@@ -22,6 +22,7 @@ import type { QueueConfigItem } from '@/modules/queue/queue.types';
 import { TaxonomyBackfillService } from '@/modules/jobs/taxonomy/backfill.service';
 import { ReconcileService } from '@/modules/reconcile/services/reconcile.service';
 import { ScrapeCronService } from '@/modules/scraper/services/scrape-cron.service';
+import { ScraperService } from '@/modules/scraper/services/scraper.service';
 import {
   AiHealthQueryDto,
   AiUsageQueryDto,
@@ -42,6 +43,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly cron: ScrapeCronService,
+    private readonly scraper: ScraperService,
     private readonly reconcile: ReconcileService,
     private readonly backfill: TaxonomyBackfillService,
     private readonly queueConfig: QueueConfigService,
@@ -107,6 +109,14 @@ export class AdminController {
         ? 'Đang quét ở nền. Theo dõi bằng GET /api/scrape/runs.'
         : 'Không có portal nào được đăng ký, hoặc lượt quét trước còn đang chạy.',
     };
+  }
+
+  @ApiOperation({ summary: 'Quét ngay MỘT portal (lượt hệ thống, như cron)' })
+  @ApiParam({ name: 'portal', description: 'Khoá portal, ví dụ 123job' })
+  @Post('scrape/run-now/:portal')
+  @HttpCode(202)
+  scrapePortalNow(@Param('portal') portal: string) {
+    return this.scraper.start(null, portal);
   }
 
   @ApiOperation({

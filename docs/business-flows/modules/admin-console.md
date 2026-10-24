@@ -45,6 +45,7 @@
 | F4 | Xem một lời gọi AI (có che dữ liệu cá nhân) | ADMIN | `GET /api/admin/ai-calls/:id` |
 | F5 | Thống kê token AI | ADMIN | `GET /api/admin/ai-usage?days=` |
 | F6 | Quét tin ngay | ADMIN | `POST /api/admin/scrape/run-now` |
+| F6b | Quét ngay MỘT portal *(2026-10-25)* | ADMIN | `POST /api/admin/scrape/run-now/:portal` |
 | F7 | Tính lại taxonomy kho tin | ADMIN | `POST /api/admin/jobs/backfill-taxonomy?all=` |
 | F8 | Nhặt việc rơi ngay | ADMIN | `POST /api/admin/reconcile/run-now` |
 | F9 | Xem/chỉnh concurrency hàng đợi | ADMIN | `GET /api/admin/queue/config`, `PUT /api/admin/queue/config/:queueName` |
@@ -105,11 +106,16 @@
 ### Luồng F — Quét tin ngay (F6)
 - **Main Flow:**
   1. `POST /api/admin/scrape/run-now` → `ScrapeCronService.runAllPortals()` ([scrape-cron.service.ts:54](../../../server/src/modules/scraper/services/scrape-cron.service.ts#L54)) — chính hàm cron 23h dùng.
-  2. Nếu cờ trong bộ nhớ `running = true` → trả `[]`. Ngược lại với **từng** portal đã đăng ký: tạo `ScrapeRun` với `userId = null`, xếp `scrape.run { runId }`. Lỗi một portal chỉ ghi log, portal khác vẫn chạy.
+  2. Nếu cờ trong bộ nhớ `running = true` → trả `[]`. Ngược lại với **từng** portal đã đăng ký gọi `ScraperService.start(null, portal)`: tạo `ScrapeRun` với `userId = null`, xếp `scrape.run { runId }`, đẩy hàng hỏng thì run thành `FAILED` ngay *(bồi hoàn từ 2026-10-25, trước đó run nằm `PENDING` tới reconcile 12 giờ)*. Lỗi một portal chỉ ghi log, portal khác vẫn chạy.
   3. Trả **202** `{ queued, runs: [{portal, runId}], note }` với `note` = `Đang quét ở nền. Theo dõi bằng GET /api/scrape/runs.` hoặc `Không có portal nào được đăng ký, hoặc lượt quét trước còn đang chạy.` ([admin.controller.ts:99](../../../server/src/modules/admin/controllers/admin.controller.ts#L99)).
 - **Alternative Flow:** không portal nào hoặc lượt trước chưa xếp xong → `queued: 0`, vẫn 202.
-- **Failure Flow:** không có nhánh 4xx; lỗi tạo run/xếp hàng bị nuốt trong vòng lặp.
+- **Failure Flow:** không có nhánh 4xx; lỗi của một portal chỉ ghi log trong vòng lặp, run của portal đó thành `FAILED` *(2026-10-25)*.
 - **Postconditions:** N bản ghi `ScrapeRun` (PENDING) + N việc trong hàng `scrape.run`. Vòng đời run thuộc [job-scraping.md](./job-scraping.md).
+
+### Luồng F6b — Quét ngay một portal *(2026-10-25)*
+- **Main Flow:** nút "Quét" trên từng dòng bảng Portal ở `/scrape` → `POST /api/admin/scrape/run-now/:portal` → `ScraperService.start(null, portal)`: một `ScrapeRun` lượt HỆ THỐNG (`userId = null`, chọn từ khoá như cron, không theo hồ sơ người bấm), xếp `scrape.run { runId }`, trả **202** `{ queued: true, runId, portal }`.
+- **Failure Flow:** portal chưa đăng ký → 400 `Portal chưa được hỗ trợ: <key>. Đang có: …`; đẩy hàng hỏng → run `FAILED`, lỗi đi ra 5xx.
+- **Vì sao có:** lượt 23:50 ngày 2026-10-24 bị deploy cắt ngang đúng lúc quét 123job; quét lại bằng "Quét ngay" tốn credit proxy của cả TopCV và Vieclam24h. Một dòng `RUNNING` kẹt KHÔNG chặn lượt mới (mỗi lượt là một dòng riêng; reconcile đánh `FAILED` sau 4 giờ).
 
 ### Luồng G — Tính lại taxonomy (F7)
 - **Main Flow:**
@@ -463,6 +469,7 @@ Tiền tố `/api`. Role = ADMIN cho mọi dòng. Throttle: chỉ global (120/60
 | GET | /api/admin/ai-calls/:id | ADMIN | Chi tiết một lời gọi AI (che dữ liệu cá nhân) | AdminController#aiCall | AdminService.aiCall | — | 200 / 404 |
 | GET | /api/admin/ai-usage | ADMIN | Token theo ngày/model/tác vụ/người dùng | AdminController#aiUsage | AdminService.aiUsage | AiUsageQueryDto | 200 |
 | POST | /api/admin/scrape/run-now | ADMIN | Quét mọi portal ngay | AdminController#scrapeNow | ScrapeCronService.runAllPortals | — | 202 `{queued, runs, note}` |
+| POST | /api/admin/scrape/run-now/:portal | ADMIN | Quét ngay một portal *(2026-10-25)* | AdminController#scrapePortalNow | ScraperService.start(null, portal) | — | 202 `{queued, runId, portal}` |
 | POST | /api/admin/jobs/backfill-taxonomy | ADMIN | Tính lại tỉnh/ngành/dedupe/searchText | AdminController#backfillTaxonomy | TaxonomyBackfillService.run | query `all` | 200 `{processed, missingProvince, missingDedupeKey}` |
 | POST | /api/admin/reconcile/run-now | ADMIN | Nhặt việc nền bị rơi ngay | AdminController#reconcileNow | ReconcileService.run + reconcileNote | — | 202 `ReconcileResult & {note}` |
 | GET | /api/admin/queue/config | ADMIN | Danh sách cấu hình hàng đợi | AdminController#queueConfigList | QueueConfigService.findAll | QueueConfigQueryDto | 200 Page\<QueueConfigItem\> |
