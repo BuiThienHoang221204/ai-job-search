@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsString, IsUrl, MaxLength, ValidateNested } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 const ENDPOINT_MAX = 1_000;
 const KEY_MAX = 200;
@@ -22,4 +29,9 @@ export class SubscribePushDto extends PushEndpointDto {
   @ValidateNested()
   @Type(() => PushKeysDto)
   keys!: PushKeysDto;
+}
+
+export class PushPreferencesDto {
+  @IsOptional() @IsBoolean() jobNotifications?: boolean;
+  @IsOptional() @IsBoolean() studyReminders?: boolean;
 }

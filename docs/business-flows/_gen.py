@@ -202,6 +202,8 @@ OWN = {
     "POST /api/push/subscriptions": "upsert theo `endpoint`, gắn `userId` người gọi",
     "DELETE /api/push/subscriptions": "`deleteMany {userId, endpoint}`",
     "POST /api/push/test": "`findFirst {userId, endpoint}`",
+    "GET /api/push/preferences": "`findUnique {id: userId}`",
+    "PATCH /api/push/preferences": "`update {id: userId}`",
     "GET /api/upskill/in-flight": "`where userId`",
     "GET /api/upskill/:id": "`findFirst {id, userId}`",
     "POST /api/upskill/generate": "tạo gắn `userId`; đọc `JobMatch(userId, jobId)`",

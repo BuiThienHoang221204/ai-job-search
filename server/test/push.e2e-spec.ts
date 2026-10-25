@@ -128,7 +128,7 @@ describe('Nhắc học bằng Web Push', () => {
         },
       });
 
-    test('chỉ nhắc người có giờ học 21:00, học vào thứ Hai, kỹ năng chưa xong và đã bật nhắc', async () => {
+    test('chỉ nhắc người có giờ học 21:00, học vào thứ Hai, kỹ năng chưa xong và chưa tắt nhắc và có thiết bị', async () => {
       const send = jest
         .spyOn(harness.app.get(PushService), 'send')
         .mockResolvedValue(1);
@@ -137,7 +137,15 @@ describe('Nhắc học bằng Web Push', () => {
         const wrongDay = await harness.signUp();
         const finished = await harness.signUp();
         const noDevice = await harness.signUp();
-        for (const who of [user, wrongTime, wrongDay, finished, noDevice]) {
+        const muted = await harness.signUp();
+        for (const who of [
+          user,
+          wrongTime,
+          wrongDay,
+          finished,
+          noDevice,
+          muted,
+        ]) {
           await harness.prisma.user.update({
             where: { id: who.id },
             data: { studyTime: who === wrongTime ? '20:00' : '21:00' },
@@ -150,9 +158,15 @@ describe('Nhắc học bằng Web Push', () => {
         await learning(wrongDay, 'Rust', ['TU']);
         await learning(finished, 'Java', ['MO'], 'DONE');
         await learning(noDevice, 'Kotlin', ['MO']);
-        for (const who of [user, wrongTime, wrongDay, finished]) {
+        await learning(muted, 'Swift', ['MO']);
+        for (const who of [user, wrongTime, wrongDay, finished, muted]) {
           await subscribe(who, `${ENDPOINT}-${who.id}`).expect(201);
         }
+        await request(harness.server)
+          .patch('/api/push/preferences')
+          .set(auth(muted))
+          .send({ studyReminders: false })
+          .expect(200);
 
         await harness.app.get(StudyReminderService).remind(MONDAY_20_45_VN);
 

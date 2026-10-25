@@ -41,7 +41,8 @@
 | F8 | Bỏ một kỹ năng khỏi kế hoạch hoặc khỏi danh sách bỏ qua | USER | `DELETE /api/learning/:key` |
 | F9 | Dọn báo cáo kẹt | Hệ thống | `ReconcileService.failStuck` |
 | F10 | Đổi giờ học (lịch và nhắc học dùng chung) *(2026-10-23)* | USER | `PATCH /api/learning` |
-| F11 | Bật / tắt / gửi thử nhắc học trên một thiết bị *(2026-10-23)* | USER | `GET /api/push/public-key`, `POST`/`DELETE /api/push/subscriptions`, `POST /api/push/test` |
+| F11 | Bật / tắt / gửi thử thông báo trên một thiết bị (dùng chung cho nhắc học và thông báo tìm việc) *(2026-10-23, 2026-10-25)* | USER | `GET /api/push/public-key`, `POST`/`DELETE /api/push/subscriptions`, `POST /api/push/test` |
+| F12 | Bật / tắt riêng nhắc học (mặc định bật) và thông báo tìm việc (báo tin mới mỗi sáng; mặc định tắt) — cùng các thiết bị Web Push *(2026-10-25)* | USER | `GET`/`PATCH /api/push/preferences { jobNotifications?, studyReminders? }` — xem [jobs.md](./jobs.md) BR-JOB-34 |
 | F12 | Gửi nhắc học trước giờ học 15 phút *(2026-10-23)* | Hệ thống | Cron `*/15 * * * *` → `StudyReminderService.remind` |
 
 ## 4. Business Flow
@@ -178,7 +179,7 @@
 
 1. `StudyReminderService` đăng ký cron `*/15 * * * *` khi tiến trình chạy việc nền VÀ đã đặt khoá VAPID.
 2. `reminderSlot(now)`: giờ học = `now` + 15 phút theo giờ Việt Nam, kèm mã thứ của ngày đó.
-3. Chọn người có `studyTime` đúng giờ đó, có ít nhất một `push_subscriptions`, và có `LearningItem` `LEARNING` với `days` chứa thứ đó.
+3. Chọn người có `studyTime` đúng giờ đó, chưa tắt `studyReminders` *(2026-10-25)*, có ít nhất một `push_subscriptions`, và có `LearningItem` `LEARNING` với `days` chứa thứ đó.
 4. Mỗi người một thông báo `{ title: "Careelot · Nhắc học", body, url: "/dashboard/upskill" }`; `body` gộp các kỹ năng học hôm đó, kèm mốc kế tiếp của kỹ năng đầu (`reminderBody`).
 5. `PushService.send` gửi tới từng thiết bị, `TTL` 30 phút; dịch vụ push trả 404/410 → xoá thiết bị; lỗi khác → log cảnh báo, không thử lại.
 
@@ -298,7 +299,7 @@ sequenceDiagram
 | BR-UPS-24 | Xoá mục kế hoạch không gỡ kỹ năng đã thêm vào hồ sơ | SV | ✅ Mềm | [learning.service.ts:71](../../../server/src/modules/upskill/services/learning.service.ts#L71) |
 | BR-UPS-25 | Đọc/ghi báo cáo và kế hoạch học luôn khoá theo `userId` của JWT | SV | ✅ Mềm | [upskill.service.ts:323](../../../server/src/modules/upskill/services/upskill.service.ts#L323), [learning.service.ts:71](../../../server/src/modules/upskill/services/learning.service.ts#L71) |
 | BR-UPS-26 | Giờ học `User.studyTime` mặc định `20:00`, chỉ nhận 06:00–23:00 bước 30 phút, một giờ cho mọi kỹ năng *(2026-10-23)* | DTO, DB | ✅ Mềm | [upskill.dto.ts](../../../server/src/modules/upskill/upskill.dto.ts), [study-reminder.ts](../../../server/src/modules/upskill/utils/study-reminder.ts) |
-| BR-UPS-27 | Nhắc học gửi trước giờ học 15 phút, chỉ vào ngày học của ít nhất một kỹ năng `LEARNING`, chỉ tới người đã bật nhắc trên ít nhất một thiết bị; một thông báo gộp mọi kỹ năng hôm đó *(2026-10-23)* | SV | ✅ Mềm | [study-reminder.service.ts](../../../server/src/modules/upskill/services/study-reminder.service.ts) |
+| BR-UPS-27 | Nhắc học gửi trước giờ học 15 phút, chỉ vào ngày học của ít nhất một kỹ năng `LEARNING`, chỉ tới người chưa tắt `User.studyReminders` (mặc định bật, 2026-10-25) và có ít nhất một thiết bị nhận thông báo; một thông báo gộp mọi kỹ năng hôm đó *(2026-10-23)* | SV | ✅ Mềm | [study-reminder.service.ts](../../../server/src/modules/upskill/services/study-reminder.service.ts) |
 | BR-UPS-28 | Thiết bị nhận thông báo khoá theo `endpoint` (duy nhất); đăng ký lại từ tài khoản khác thì thiết bị chuyển chủ; chỉ huỷ / gửi thử được thiết bị của chính mình *(2026-10-23)* | SV, DB | ✅ Mềm | [push.service.ts](../../../server/src/modules/push/push.service.ts) |
 | BR-UPS-29 | Dịch vụ push trả 404/410 thì xoá thiết bị; chưa đặt khoá VAPID thì không phát khoá công khai (503) và không chạy cron nhắc học *(2026-10-23)* | SV | ✅ Mềm | [push.service.ts](../../../server/src/modules/push/push.service.ts), [study-reminder.service.ts](../../../server/src/modules/upskill/services/study-reminder.service.ts) |
 
@@ -371,6 +372,8 @@ sequenceDiagram
 | GET | `/api/push/public-key` | USER | Khoá công khai VAPID | `PushController#publicKey` | `PushService.publicKeyOf` | — | `{ publicKey }` / 503 |
 | POST | `/api/push/subscriptions` | USER | Đăng ký thiết bị nhận nhắc học | `PushController#subscribe` | `PushService.subscribe` | `SubscribePushDto` | 201 `{ subscribed: true }` |
 | DELETE | `/api/push/subscriptions` | USER | Huỷ một thiết bị của mình | `PushController#unsubscribe` | `PushService.unsubscribe` | `PushEndpointDto` | `{ removed: number }` |
+| GET | `/api/push/preferences` | USER | Đã bật nhắc học, thông báo tìm việc chưa *(2026-10-25)* | `PushController#preferences` | `PushService.preferences` | — | `{ jobNotifications, studyReminders }` |
+| PATCH | `/api/push/preferences` | USER | Bật/tắt riêng nhắc học hoặc thông báo tìm việc; trường vắng giữ nguyên, vắng cả hai → **400** `Chọn loại thông báo cần bật hoặc tắt.` *(2026-10-25)* | `PushController#setPreferences` | `PushService.setPreferences` | `PushPreferencesDto` | `{ jobNotifications, studyReminders }` |
 | POST | `/api/push/test` | USER | Gửi thông báo thử tới thiết bị của mình | `PushController#sendTest` | `PushService.sendTest` | `PushEndpointDto` | 200 `{ sent }` / 404 / 503 |
 
 **Endpoint ở module khác tác động lên module này**
@@ -390,7 +393,7 @@ sequenceDiagram
 | `/dashboard/upskill` | USER | Trang "Lộ trình học" | [page.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/page.tsx) → [upskill-view.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/upskill-view.tsx), `useLearning` |
 | — khối "Kỹ năng nên học" | USER | Danh sách khoảng trống, nút Học / Đã biết / Bỏ qua | [skill-gap-list.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/skill-gap-list.tsx), [skill-gap-card.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/skill-gap-card.tsx), `useLearningActions` |
 | — khối "Kế hoạch" | USER | Mốc học, ngày học, xoá | [learning-plan.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/learning-plan.tsx), [learning-plan-item.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/learning-plan-item.tsx) |
-| — khung "Nhắc học" *(2026-10-23)* | USER | Chọn giờ học (06:00–23:00, bước 30 phút), bật/tắt/gửi thử nhắc học trên thiết bị đang dùng; báo trình duyệt chặn quyền, iPhone chưa thêm app ra màn hình chính, hoặc không hỗ trợ. Đã gỡ nút Google Calendar / `.ics` | [study-reminder.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/study-reminder.tsx), [hooks/use-push-reminder.ts](../../../../ui-ai-job-search/hooks/use-push-reminder.ts), [public/sw.js](../../../../ui-ai-job-search/public/sw.js) |
+| — khung "Nhắc học" *(2026-10-23, gom công tắc về Tài khoản 2026-10-25)* | USER | Chọn giờ học (06:00–23:00, bước 30 phút), hiện giờ nhắc hoặc "Nhắc học đang tắt" kèm liên kết sang Tài khoản → Thông báo. Công tắc thiết bị, gửi thử, nhắc học và thông báo tìm việc chỉ nằm ở `/dashboard/settings`. Đã gỡ nút Google Calendar / `.ics` | [study-reminder.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/study-reminder.tsx), [settings-view.tsx](../../../../ui-ai-job-search/app/dashboard/settings/settings-view.tsx), [hooks/use-push-reminder.ts](../../../../ui-ai-job-search/hooks/use-push-reminder.ts), [public/sw.js](../../../../ui-ai-job-search/public/sw.js) |
 | — khối "Khoảng trống khác" | USER | Hiện `synthesisedGaps` của báo cáo AI, nút "Phân tích bằng AI"/"Phân tích lại", cảnh báo báo cáo cũ hơn hồ sơ | [soft-gaps.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/soft-gaps.tsx), [upskill-progress.tsx](../../../../ui-ai-job-search/app/dashboard/upskill/upskill-progress.tsx), `useUpskillReport` |
 | API client | — | `/upskill`, `/upskill/in-flight`, `/upskill/:id`, `/upskill/generate` | [services/upskill.ts](../../../../ui-ai-job-search/services/upskill.ts); stream qua [lib/model-stream.ts](../../../../ui-ai-job-search/lib/model-stream.ts) |
 | API client | — | `/learning` (GET, PATCH giờ học), `/learning/:key` | [services/learning.ts](../../../../ui-ai-job-search/services/learning.ts) |

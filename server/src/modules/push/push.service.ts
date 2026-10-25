@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -9,7 +10,7 @@ import webpush from 'web-push';
 import type { PushSubscription } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { messageOf } from '@/common/error-message';
-import type { SubscribePushDto } from './push.dto';
+import type { PushPreferencesDto, SubscribePushDto } from './push.dto';
 
 type PushMessage = { title: string; body: string; url: string };
 
@@ -23,10 +24,12 @@ type Target = Pick<PushSubscription, 'id' | 'endpoint' | 'p256dh' | 'auth'>;
 
 const TTL_SECONDS = 30 * 60;
 
+const PREFERENCES = { jobNotifications: true, studyReminders: true };
+
 const TEST_MESSAGE: PushMessage = {
-  title: 'Careelot · Nhắc học',
-  body: 'Thiết bị này đã nhận được nhắc học.',
-  url: '/dashboard/upskill',
+  title: 'Careelot · Gửi thử',
+  body: 'Thiết bị này đã nhận được thông báo của Careelot.',
+  url: '/dashboard',
 };
 
 @Injectable()
@@ -76,6 +79,27 @@ export class PushService {
     return { removed: count };
   }
 
+  async preferences(userId: string) {
+    return this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: PREFERENCES,
+    });
+  }
+
+  async setPreferences(userId: string, dto: PushPreferencesDto) {
+    if (
+      dto.jobNotifications === undefined &&
+      dto.studyReminders === undefined
+    ) {
+      throw new BadRequestException('Chọn loại thông báo cần bật hoặc tắt.');
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: PREFERENCES,
+    });
+  }
+
   async sendTest(userId: string, endpoint: string) {
     if (!this.enabled) {
       throw new ServiceUnavailableException('Máy chủ chưa bật thông báo đẩy');
@@ -91,7 +115,11 @@ export class PushService {
   }
 
   /** Gửi tới từng thiết bị, trả số lần gửi được; thiết bị dịch vụ push báo đã huỷ (404/410) thì xoá luôn. */
-  async send(targets: Target[], message: PushMessage): Promise<number> {
+  async send(
+    targets: Target[],
+    message: PushMessage,
+    ttlSeconds = TTL_SECONDS,
+  ): Promise<number> {
     let sent = 0;
     for (const target of targets) {
       try {
@@ -101,7 +129,7 @@ export class PushService {
             keys: { p256dh: target.p256dh, auth: target.auth },
           },
           JSON.stringify(message),
-          { TTL: TTL_SECONDS },
+          { TTL: ttlSeconds },
         );
         sent += 1;
       } catch (error) {

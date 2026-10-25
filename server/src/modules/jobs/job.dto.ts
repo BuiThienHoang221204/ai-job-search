@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   Max,
@@ -83,6 +84,9 @@ export class ListJobsQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   applied?: boolean;
+  @IsOptional()
+  @IsISO8601({}, { message: 'Mốc thời gian không hợp lệ' })
+  since?: string;
 }
 
 export class PublicJobsQueryDto extends PickType(ListJobsQueryDto, [

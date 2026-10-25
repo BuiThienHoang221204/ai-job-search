@@ -172,6 +172,8 @@ const configuration = () => ({
 
     reconcileEnabled: process.env.RECONCILE_CRON_ENABLED !== 'false',
     reconcileSchedule: process.env.RECONCILE_CRON_SCHEDULE ?? '*/10 * * * *',
+
+    jobAlertSchedule: process.env.JOB_ALERT_CRON_SCHEDULE ?? '30 7 * * *',
   },
 
   push: {

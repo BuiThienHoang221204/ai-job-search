@@ -31,24 +31,31 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  role         UserRole @default(USER)
-  email        String   @unique
+  id               String    @id @default(cuid())
+  role             UserRole  @default(USER)
+  email            String    @unique
   /// Null khi tài khoản chỉ đăng nhập bằng Google - không có mật khẩu nào để băm.
-  passwordHash String?
+  passwordHash     String?
   /// `sub` của Google, null cho tài khoản chưa từng đăng nhập Google. Dùng để tìm user mà không phụ thuộc email có đổi hay không.
-  googleId     String?  @unique
+  googleId         String?   @unique
   /// Tăng số này để VÔ HIỆU mọi token đã phát cho người dùng. Cả access lẫn
   /// refresh token đều mang `ver` trong payload; lệch với cột này thì bị từ
   /// chối ngay, kể cả access token đang còn hạn - chữ ký JWT hợp lệ chỉ chứng
   /// minh token được ký, không chứng minh nó chưa bị rút lại.
-  tokenVersion Int      @default(0)
-  name         String
+  tokenVersion     Int       @default(0)
+  name             String
   /// Giờ học hằng ngày "HH:MM" (giờ Việt Nam, bước 30 phút) cho lộ trình học;
   /// thông báo nhắc học gửi trước 15 phút.
-  studyTime    String   @default("20:00")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  studyTime        String    @default("20:00")
+  /// Người dùng tự tắt được nhắc học mà thiết bị vẫn nhận thông báo khác.
+  studyReminders   Boolean   @default(true)
+  /// Người dùng tự bật: mỗi sáng báo tin mới qua "Việc làm phù hợp" và nhắc
+  /// trước ngày phỏng vấn, qua cùng các thiết bị đã đăng ký thông báo đẩy.
+  jobNotifications Boolean   @default(false)
+  /// Lần gần nhất đã gửi báo tin mới; tin mới là tin `scrapedAt` sau mốc này.
+  jobAlertSentAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   profile           Profile?
   matches           JobMatch[]

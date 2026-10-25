@@ -204,6 +204,7 @@ export function whereFrom(
         }
       : {}),
     ...(since ? { postedAt: { gte: since } } : {}),
+    ...(query.since ? { scrapedAt: { gte: new Date(query.since) } } : {}),
     ...(query.saved && userId ? { saves: { some: { userId } } } : {}),
     ...(query.applied && userId ? { applications: { some: { userId } } } : {}),
   };
