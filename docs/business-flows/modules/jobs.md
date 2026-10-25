@@ -14,7 +14,7 @@ Phiên bản 1.0 — 2026-10-19.
 | "Việc làm phù hợp" | Cờ `scored=true` bật **cổng ngành + cấp bậc** (`occupationGate`): chỉ tin đúng nhóm ngành của hồ sơ, cấp bậc lệch tối đa một bậc ([ADR 0007](../../adr/0007-quet-tin-da-nganh.md)). |
 | Chi tiết tin cho người dùng | Tin + trạng thái lưu + đơn ứng tuyển của chính người dùng + kết quả chấm AI (nếu có) + đối chiếu yêu cầu tính bằng code (`systemMatch`) + gợi ý lương (`salaryGuide`). |
 | Trang công khai cho khách | `GET /public/jobs`, `GET /public/jobs/:id`: không token, ẩn lương, mô tả chỉ còn đoạn trích 300 ký tự ([ADR 0008](../../adr/0008-trang-viec-lam-cong-khai.md)). |
-| Danh mục bộ lọc | Cây tỉnh/thành, nhóm ngành → nghề con kèm số tin, công khai. |
+| Danh mục bộ lọc | Cây tỉnh/thành, nhóm ngành → nghề con kèm số tin, công khai. Từ 2026-10-26 giao diện không hiện các con số này (số đếm toàn kho, không theo bộ lọc đang bật nên dễ gây hiểu nhầm); chỉ dùng để ẩn tỉnh không có tin và xếp tỉnh nhiều tin lên trước. |
 | Phân loại tin (taxonomy) | Bộ hàm thuần suy `provinceCode`, `occupationCode`, `subOccupationCode`, `searchText`, `dedupeKey` từ tiêu đề/công ty/địa điểm/thẻ/nhãn portal; dùng chung bởi scraper lúc ghi và bởi backfill. |
 
 **Điểm mấu chốt:**
