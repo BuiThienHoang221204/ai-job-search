@@ -14,11 +14,18 @@ cd server
 pnpm lint && pnpm test && pnpm test:e2e
 ```
 
-**Tự rà diff trước khi báo xong**, theo ba câu hỏi, sửa ngay những gì vướng rồi mới báo, và báo kèm kết quả rà:
+**Tự rà diff trước khi báo xong**, theo bốn câu hỏi, sửa ngay những gì vướng rồi mới báo, và báo kèm kết quả rà:
 
 1. **Có over-engineer không?** Đối chiếu mục "Sửa ĐỦ DÙNG": tham số/option không có chỗ gọi truyền giá trị khác mặc định, hai cơ chế cho một vấn đề, test trùng hành vi, code thêm nhiều hơn phần thật sự cần.
 2. **Có vi phạm quy tắc thiết kế hay kỹ thuật nào trong file này không?** Controller mỏng, khoá theo `userId`, giành chỗ có điều kiện, bồi hoàn khi đẩy hàng đợi, cấu hình mặc định chỉ ở `configuration.ts`, comment, cấu trúc thư mục module, import.
 3. **Logic có thẳng và đơn giản không?** Đối chiếu mục "Logic thẳng, đọc từ trên xuống": không ternary lồng, không mẹo chuỗi, chỉ tách hàm khi có lý do, không export/khai báo thừa.
+4. **Có lỗ hổng bảo mật không?** Với mỗi route, lệnh ghi và trang công khai mới, dò từng lớp rồi báo kết quả theo lớp:
+   - **IDOR:** đọc/ghi theo id luôn có `userId` trong `where`; tham số id do client gửi (`jobId`, `documentId`) phải kiểm thuộc người gọi hoặc là dữ liệu chung.
+   - **Race:** mọi "đọc thấy trống rồi ghi" (sinh mã, chuyển trạng thái, thưởng một lần) ghi có điều kiện trong `where` (`updateMany ... field: null`) rồi đọc lại; trần số lượng đếm-rồi-tạo thì ghi rõ là chấp nhận vượt nhẹ.
+   - **Rate limit:** route gọi model có `@ThrottleAi`, route `@Public()` có `@Throttle` riêng, tính năng tốn tiền (phút giọng nói, lượt AI) có hạn mức theo người.
+   - **Injection, XSS:** không `$queryRaw` ghép chuỗi; chữ của người dùng hay model chỉ render dạng text.
+   - **Lộ dữ liệu:** route công khai chỉ trả danh sách trắng trường hoặc số tổng hợp; không trả email, tên hay dữ liệu của người khác; mã/link chia sẻ đủ dài để không đoán được.
+   - **Lạm dụng:** tính năng có thưởng hoặc tốn chi phí có trần, và rủi ro còn lại ghi vào mục rủi ro của doc module.
 
 **Đổi hành vi thì cập nhật `docs/business-flows/` trong cùng thay đổi.** Hành vi gồm: endpoint, quyền, quy tắc, validation, thông điệp lỗi, trạng thái, bảng/cột, hàng đợi/cron, tích hợp. Sửa file module ứng với vùng code đó (`docs/business-flows/modules/<module>.md`; dòng `Phạm vi` đầu mỗi file ghi nó phủ thư mục nào). Sau đó chạy `python docs/business-flows/_gen.py --write`. Thứ tự cập nhật, cách đánh dấu ngày, cách chuyển rủi ro sang `✅ Đã sửa` và những file hệ thống cần sửa tay: [`docs/business-flows/README.md` §7](docs/business-flows/README.md#7-bảo-trì-tài-liệu). Refactor giữ nguyên hành vi thì không cần.
 
