@@ -139,7 +139,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-05 | Lọc lương tối thiểu: giữ tin có `salaryMax ≥ salaryMin`, hoặc tin chỉ ghi mức dưới (`salaryMax` null) có `salaryMin ≥ salaryMin` *(2026-10-19)*; tin không đọc được lương bị loại. | SV | ✅ |
 | BR-JOB-06 | "Mới nhất" xếp theo ngày ĐĂNG `postedAt DESC NULLS LAST`, rồi `scrapedAt DESC`, `id DESC`; "Lương" xếp `salaryMax DESC NULLS LAST`. *(2026-10-16)* | SV | ✅ |
 | BR-JOB-07 | `sort=match` chỉ trả tin đã có cặp `JobRequirementMatch` của chính người dùng, xếp theo `rank`, `met`. | SV | ✅ |
-| BR-JOB-08 | "Việc làm phù hợp" (`scored=true`): đúng MỘT nhóm ngành của hồ sơ; hồ sơ đã chọn nghề thì tin phải thuộc một trong các nghề đó hoặc chưa rõ nghề; hồ sơ đã chọn nơi làm việc thì tin phải ở một trong các tỉnh đó, làm từ xa, hoặc chưa rõ địa điểm *(2026-10-23)*; cấp bậc tin trong khoảng ±1 bậc của hồ sơ hoặc tin chưa rút yêu cầu / `seniority = UNKNOWN`. *(2026-10-08)* | SV | ✅ |
+| BR-JOB-08 | "Việc làm phù hợp" (`scored=true`): đúng MỘT nhóm ngành của hồ sơ; hồ sơ đã chọn nghề thì tin phải thuộc một trong các nghề đó hoặc chưa rõ nghề; hồ sơ đã chọn nơi làm việc thì tin phải ở một trong các tỉnh đó, làm từ xa, hoặc chưa rõ địa điểm *(2026-10-23)*; cấp bậc tin trong khoảng ±1 bậc của hồ sơ hoặc tin chưa rút yêu cầu / `seniority = UNKNOWN`. *(2026-10-08)*; chỉ tin đăng trong 7 ngày gần nhất, tin không có `postedAt` thì tính theo `scrapedAt` *(2026-10-25)*. | SV | ✅ |
 | BR-JOB-09 | Cấp bậc hồ sơ = `experienceLevel` người dùng chọn; nếu `UNKNOWN` thì suy từ số năm (\<1 FRESHER, \<3 JUNIOR, \<5 MIDDLE, \<8 SENIOR, ≥8 LEAD); không suy được thì không lọc cấp bậc. | SV | ✅ |
 | BR-JOB-10 | Hồ sơ chưa có ngành hoặc ngành `OTHER` thì "Việc làm phù hợp" trả rỗng kèm `needsOccupation: true`. | SV | ✅ |
 | BR-JOB-11 | Cổng không có lối thoát: bộ lọc ngành được giao với cổng; `sort` bị bỏ qua (luôn mới đăng trước) khi `scored=true`. | SV, DTO | ✅ |
@@ -157,7 +157,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-23 | Phân trang danh sách tin: `limit` 1–100 (mặc định 20), `offset` 0–2.000 (trần riêng của tin, chặt hơn trần chung 100.000). | DTO | ✅ |
 | BR-JOB-24 | Danh mục bộ lọc luôn liệt kê đủ 34 tỉnh/thành và 19 nhóm ngành kể cả khi `count = 0`, kèm mục "Làm việc từ xa" (`REMOTE`). | SV | ✅ |
 | BR-JOB-25 | Tỉnh suy từ `location` bằng alias dài nhất trước; không suy được thì `null` và tin không xuất hiện khi lọc theo tỉnh (cố ý không đoán). | SV | ✅ |
-| BR-JOB-26 | Ngành suy theo thứ tự: từ khoá chính tiêu đề → nhãn portal → từ khoá dự phòng tiêu đề → thẻ → `OTHER`; "thương mại điện tử" đổi thành `ecommerce` trước khi so. Nhóm `DESIGN` xét TRƯỚC `IT` để "UI Designer (Mobile App)" không vào CNTT vì chữ "mobile" *(2026-10-25, số đo ở ADR 0007)*. | SV | ✅ |
+| BR-JOB-26 | Ngành suy theo thứ tự: từ khoá chính tiêu đề → nhãn portal → từ khoá dự phòng tiêu đề → thẻ → `OTHER`; "thương mại điện tử" đổi thành `ecommerce` trước khi so. Nhóm `DESIGN` xét TRƯỚC `IT` để "UI Designer (Mobile App)" không vào CNTT vì chữ "mobile" *(2026-10-25, số đo ở ADR 0007)*. Trong nhóm IT, nghề `IT_SUPPORT` xét SAU mọi nghề lập trình và nhận chức danh chung chung ("Nhân viên IT", "Trưởng nhóm IT", "IT Specialist"), để "Nhân Viên IT (Power Platform Developer)" vẫn là lập trình *(2026-10-25)*. Nghề `IT_GAME` (Lập trình game) xét ĐẦU nhóm IT để "Mobile Game Developer Fullstack" không vào Fullstack *(2026-10-25)*. | SV | ✅ |
 | BR-JOB-27 | Nghề con suy từ tiêu đề trước, rồi nhãn + thẻ; không đủ căn cứ thì `null`. | SV | ✅ |
 | BR-JOB-28 | Vân tay chống trùng = công ty chuẩn hoá + chức danh bỏ nhiễu + tỉnh; công ty ẩn danh/trống → `null` (tin coi như duy nhất). `dedupeKey` KHÔNG unique ở DB. | SV | ✅ |
 | BR-JOB-29b | `derivedFields` đọc `salaryRaw` thành `salaryMin`/`salaryMax`/`currency = VND` (lương VND theo tháng: khoảng, "tới/lên đến" → chỉ trần, "từ/trên" → chỉ sàn); USD, lương tuần/giờ, chữ không đọc được → cả ba `null`. Đo trên DB dev: 1.869/1.980 chuỗi đọc được *(2026-10-19)*. | SV | ✅ |
@@ -165,6 +165,8 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-30 | Backfill mặc định chỉ xử lý tin `searchText IS NULL`; `all=true` tính lại toàn bộ, lô 500, tuần tự. | SV | ✅ |
 | BR-JOB-31 | Một tin là duy nhất theo `(source, externalId)`. | DB | 🔒 |
 | BR-JOB-32 | Khách bấm "Việc làm phù hợp" bị chặn ở FE với lời mời đăng nhập; mọi nút, mục sidebar và thẻ hành động cần tài khoản mở modal đăng nhập/đăng ký ngay trên trang (không chuyển sang `/login`), đăng nhập xong nạp lại đúng trang hoặc tới mục đã bấm. *(2026-10-23)* | FE | ⚠️ |
+| BR-JOB-33 | `since=<ISO>` (chỉ người đã đăng nhập) lọc `scrapedAt ≥ since` — tin lần đầu được quét sau mốc đó; là link trong thông báo "tin mới" *(2026-10-25)*. | SV | ✅ |
+| BR-JOB-34 | Báo tin mới mỗi sáng (`JOB_ALERT_CRON_SCHEDULE`, mặc định 07:30 giờ VN): chỉ người đã bật `User.jobNotifications` (mặc định TẮT) và có thiết bị đăng ký Web Push; mỗi người tối đa một lần một ngày nhờ giành chỗ `updateMany where jobAlertSentAt < 00:00 VN hôm nay`; đếm bằng đúng `whereFrom(scored)` của "Việc làm phù hợp" cộng `scrapedAt > lần báo trước` (lần đầu: 24 giờ); không có tin mới thì không gửi; nội dung nêu 2 tin mới nhất và số còn lại; thông báo sống 12 giờ. Không gọi AI. *(2026-10-25)* | SV (cron) | ✅ |
 
 ### Job Scraping — Quét tin tuyển dụng từ portal — [modules/job-scraping.md](./modules/job-scraping.md#7-business-rules)
 
@@ -446,7 +448,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-UPS-24 | Xoá mục kế hoạch không gỡ kỹ năng đã thêm vào hồ sơ | SV | ✅ Mềm |
 | BR-UPS-25 | Đọc/ghi báo cáo và kế hoạch học luôn khoá theo `userId` của JWT | SV | ✅ Mềm |
 | BR-UPS-26 | Giờ học `User.studyTime` mặc định `20:00`, chỉ nhận 06:00–23:00 bước 30 phút, một giờ cho mọi kỹ năng *(2026-10-23)* | DTO, DB | ✅ Mềm |
-| BR-UPS-27 | Nhắc học gửi trước giờ học 15 phút, chỉ vào ngày học của ít nhất một kỹ năng `LEARNING`, chỉ tới người đã bật nhắc trên ít nhất một thiết bị; một thông báo gộp mọi kỹ năng hôm đó *(2026-10-23)* | SV | ✅ Mềm |
+| BR-UPS-27 | Nhắc học gửi trước giờ học 15 phút, chỉ vào ngày học của ít nhất một kỹ năng `LEARNING`, chỉ tới người chưa tắt `User.studyReminders` (mặc định bật, 2026-10-25) và có ít nhất một thiết bị nhận thông báo; một thông báo gộp mọi kỹ năng hôm đó *(2026-10-23)* | SV | ✅ Mềm |
 | BR-UPS-28 | Thiết bị nhận thông báo khoá theo `endpoint` (duy nhất); đăng ký lại từ tài khoản khác thì thiết bị chuyển chủ; chỉ huỷ / gửi thử được thiết bị của chính mình *(2026-10-23)* | SV, DB | ✅ Mềm |
 | BR-UPS-29 | Dịch vụ push trả 404/410 thì xoá thiết bị; chưa đặt khoá VAPID thì không phát khoá công khai (503) và không chạy cron nhắc học *(2026-10-23)* | SV | ✅ Mềm |
 

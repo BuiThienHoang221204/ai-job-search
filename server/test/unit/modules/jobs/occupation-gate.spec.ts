@@ -32,26 +32,26 @@ describe('occupationGate', () => {
   const scored = { scored: true };
 
   test('chỉ đúng một nhóm ngành, không kèm OTHER hay nhóm liền kề', () => {
-    expect(
-      occupationGate(scored, {
-        occupationCode: 'IT',
-        subOccupationCodes: [],
-        preferredProvinces: [],
-        experienceLevel: null,
-      }),
-    ).toEqual({ occupationCode: 'IT' });
+    const gate = occupationGate(scored, {
+      occupationCode: 'IT',
+      subOccupationCodes: [],
+      preferredProvinces: [],
+      experienceLevel: null,
+    });
+    expect(gate?.AND).toEqual(
+      expect.arrayContaining([{ occupationCode: 'IT' }]),
+    );
   });
 
   test('có kinh nghiệm thì lọc cấp bậc ±1, tin chưa rõ cấp bậc vẫn qua', () => {
-    expect(
-      occupationGate(scored, {
-        occupationCode: 'FINANCE',
-        subOccupationCodes: [],
-        preferredProvinces: [],
-        experienceLevel: 'JUNIOR',
-      }),
-    ).toEqual({
-      AND: [
+    const gate = occupationGate(scored, {
+      occupationCode: 'FINANCE',
+      subOccupationCodes: [],
+      preferredProvinces: [],
+      experienceLevel: 'JUNIOR',
+    });
+    expect(gate?.AND).toEqual(
+      expect.arrayContaining([
         { occupationCode: 'FINANCE' },
         {
           OR: [
@@ -65,8 +65,8 @@ describe('occupationGate', () => {
             },
           ],
         },
-      ],
-    });
+      ]),
+    );
   });
 
   test('hồ sơ chưa chọn ngành hoặc ngành OTHER thì không khớp tin nào', () => {

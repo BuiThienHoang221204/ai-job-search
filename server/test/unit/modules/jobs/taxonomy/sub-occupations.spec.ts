@@ -38,6 +38,24 @@ describe('resolveSubOccupation', () => {
     expect(sub('Nhân Viên IT Lập Trình')).toBe('IT_SWE');
   });
 
+  test('chức danh IT chung chung là IT Support, xét SAU các nghề lập trình (đo 2026-10-25)', () => {
+    expect(sub('Nhân viên IT')).toBe('IT_SUPPORT');
+    expect(sub('Trưởng nhóm IT')).toBe('IT_SUPPORT');
+    expect(sub('IT Specialist (Chinese Speaking)')).toBe('IT_SUPPORT');
+    expect(sub('Nhân Viên IT (Power Platform Developer)')).toBe('IT_SWE');
+    expect(sub('IT Engineer', ['IT Helpdesk', 'IT Hardware'])).toBe(
+      'IT_SUPPORT',
+    );
+    expect(sub('Hardware Engineer')).toBe('IT_EMBEDDED');
+  });
+
+  test('lập trình game là nghề riêng, kể cả khi tiêu đề có chữ Fullstack (đo 2026-10-25)', () => {
+    expect(sub('Mobile Game Developer Fullstack 5Xp Java, C++, C#, PHP')).toBe(
+      'IT_GAME',
+    );
+    expect(sub('Middle Unity Developer (C#, .NET, WebGL)')).toBe('IT_GAME');
+  });
+
   test('tin thiết kế có chữ "mobile" thuộc nhóm Thiết kế, không phải CNTT', () => {
     expect(resolveOccupation('UI Designer (Mobile App)', [])).toBe('DESIGN');
   });

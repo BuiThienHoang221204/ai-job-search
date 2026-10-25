@@ -388,6 +388,25 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       expect(await scoredIds()).toEqual([ids[0], ids[2]].sort());
     });
 
+    test('chỉ hiện tin đăng trong 7 ngày; tin không có ngày đăng thì tính theo ngày quét', async () => {
+      await setProfile('IT');
+      const eightDaysAgo = new Date(Date.now() - 8 * 86_400_000);
+      const dates: Array<[string, Date | null, Date]> = [
+        [ids[0], eightDaysAgo, new Date()],
+        [ids[1], new Date(Date.now() - 6 * 86_400_000), new Date()],
+        [ids[2], null, eightDaysAgo],
+        [ids[3], null, new Date()],
+      ];
+      for (const [id, postedAt, scrapedAt] of dates) {
+        await harness.prisma.job.update({
+          where: { id },
+          data: { postedAt, scrapedAt, occupationCode: 'IT' },
+        });
+      }
+
+      expect(await scoredIds()).toEqual([ids[1], ids[3]].sort());
+    });
+
     test('hồ sơ chưa chọn ngành thì trả rỗng kèm cờ needsOccupation', async () => {
       await setProfile(null);
 
@@ -420,7 +439,7 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       const daysAgo = (days: number) =>
         new Date(Date.now() - days * 86_400_000);
       const posted: Array<[string, Date | null]> = [
-        [ids[0], daysAgo(10)],
+        [ids[0], daysAgo(6)],
         [ids[1], daysAgo(5)],
         [ids[2], daysAgo(1)],
         [ids[3], null],

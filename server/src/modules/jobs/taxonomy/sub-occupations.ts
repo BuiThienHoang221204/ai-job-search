@@ -7,6 +7,21 @@ export interface SubOccupation {
 export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
   IT: [
     {
+      code: 'IT_GAME',
+      name: 'Lập trình game',
+      keywords: [
+        'game developer',
+        'game dev',
+        'lap trinh game',
+        'game programmer',
+        'unity',
+        'cocos',
+        'unreal',
+        'game client',
+        'game server',
+      ],
+    },
+    {
       code: 'IT_QA',
       name: 'Kiểm thử / QA',
       keywords: [
@@ -63,19 +78,6 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
       ],
     },
     {
-      code: 'IT_SUPPORT',
-      name: 'IT Support / Helpdesk',
-      keywords: [
-        'it support',
-        'helpdesk',
-        'ho tro ky thuat',
-        'it helpdesk',
-        'technical support',
-        'service desk',
-        'desk support',
-      ],
-    },
-    {
       code: 'IT_EMBEDDED',
       name: 'Nhúng / IoT',
       keywords: [
@@ -84,7 +86,7 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'iot',
         'firmware',
         'vi dieu khien',
-        'hardware',
+        'hardware engineer',
       ],
     },
     {
@@ -166,6 +168,23 @@ export const SUB_OCCUPATIONS: Record<string, SubOccupation[]> = {
         'programmer',
         'programer',
         'phat trien phan mem',
+      ],
+    },
+    {
+      code: 'IT_SUPPORT',
+      name: 'IT Support / Helpdesk',
+      keywords: [
+        'it support',
+        'helpdesk',
+        'ho tro ky thuat',
+        'it helpdesk',
+        'technical support',
+        'service desk',
+        'desk support',
+        'it supporter',
+        'it specialist',
+        'nhan vien it',
+        'truong nhom it',
       ],
     },
   ],
