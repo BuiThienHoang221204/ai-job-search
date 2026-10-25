@@ -28,6 +28,7 @@ import {
 import { needsOccupation, profileFit } from './utils/occupation-gate';
 import type { JobSort, ListJobsQueryDto, PublicJobsQueryDto } from './job.dto';
 import { toPublicJobDetail } from './utils/public-job';
+import { repostSignal } from './utils/repost';
 
 @Injectable()
 export class JobsService {
@@ -224,26 +225,41 @@ export class JobsService {
       dictionary,
     );
 
-    const salaryGuide = await this.salary.guideForJob(
-      job,
-      job.requirements?.status === 'DONE' ? job.requirements : null,
-      scored.systemMatch?.kind === 'REQUIREMENTS'
-        ? scored.systemMatch.score
-        : null,
-      profileMeta
-        ? {
-            candidateYears: yearsOfExperience(profileMeta.experiences),
-            currentSalary: profileMeta.currentSalary,
-            expectedSalary: profileMeta.expectedSalary,
-          }
-        : null,
-    );
+    const [salaryGuide, reposts] = await Promise.all([
+      this.salary.guideForJob(
+        job,
+        job.requirements?.status === 'DONE' ? job.requirements : null,
+        scored.systemMatch?.kind === 'REQUIREMENTS'
+          ? scored.systemMatch.score
+          : null,
+        profileMeta
+          ? {
+              candidateYears: yearsOfExperience(profileMeta.experiences),
+              currentSalary: profileMeta.currentSalary,
+              expectedSalary: profileMeta.expectedSalary,
+            }
+          : null,
+      ),
+      this.repostsOf(job.dedupeKey),
+    ]);
 
     return {
       ...scored,
       salaryGuide,
+      reposts,
       profileLocation: profileMeta?.location ?? null,
     };
+  }
+
+  private async repostsOf(dedupeKey: string | null) {
+    if (!dedupeKey) return null;
+    const postings = await this.prisma.job.findMany({
+      where: { dedupeKey, duplicateOfId: null },
+      select: { postedAt: true, scrapedAt: true },
+    });
+    return repostSignal(
+      postings.map((posting) => posting.postedAt ?? posting.scrapedAt),
+    );
   }
 
   async save(userId: string, jobId: string) {

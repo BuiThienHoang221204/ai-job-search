@@ -539,6 +539,52 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       return { id: job.id, body: response.body as Record<string, unknown> };
     };
 
+    test('tin cùng công ty, tên vị trí, tỉnh được đăng lại thành tin mới thì trả số lần đăng; bản trùng cùng đợt không tính', async () => {
+      const [job] = (await pageOf({ limit: 1 })).items;
+      await harness.prisma.job.update({
+        where: { id: job.id },
+        data: { dedupeKey: 'dang-lai' },
+      });
+      const earlier = await harness.prisma.job.create({
+        data: {
+          source: 'test',
+          externalId: 'dang-lai-lan-dau',
+          url: 'https://example.test/dang-lai-lan-dau',
+          title: 'Backend Developer 0',
+          company: 'Công ty 0',
+          description: 'Mô tả',
+          tags: [],
+          dedupeKey: 'dang-lai',
+          postedAt: new Date(Date.now() - 20 * 86_400_000),
+        },
+      });
+      await harness.prisma.job.create({
+        data: {
+          source: 'test-khac',
+          externalId: 'ban-trung',
+          url: 'https://example.test/ban-trung',
+          title: 'Backend Developer 0',
+          company: 'Công ty 0',
+          description: 'Mô tả',
+          tags: [],
+          dedupeKey: 'dang-lai',
+          duplicateOfId: earlier.id,
+        },
+      });
+
+      const { body } = await detailOf();
+
+      expect(body.reposts).toMatchObject({
+        count: 2,
+        firstAt: earlier.postedAt!.toISOString(),
+      });
+    });
+
+    test('tin chỉ đăng một lần thì không có tín hiệu đăng lại', async () => {
+      const { body } = await detailOf();
+      expect(body.reposts).toBeNull();
+    });
+
     test('trả đơn của chính người dùng, không trả đơn của người khác', async () => {
       const { id } = await detailOf();
       const other = await harness.signUp();
