@@ -79,7 +79,15 @@ export class JobsService {
     if (query.scored && needsOccupation(fit)) {
       return { ...pageOf([], 0, query), needsOccupation: true };
     }
-    const jobWhere = whereFrom(query, userId, fit);
+    let jobWhere = whereFrom(query, userId, fit);
+    if (query.followed) {
+      const follows = await this.prisma.companyFollow.findMany({
+        where: { userId },
+        select: { companyKey: true },
+      });
+      const keys = follows.map((follow) => follow.companyKey);
+      jobWhere = { AND: [jobWhere, { companyKey: { in: keys } }] };
+    }
     const sort = listOrderFor(query);
     const profile = stored ? toMatchProfile(stored) : null;
 

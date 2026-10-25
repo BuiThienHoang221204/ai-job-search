@@ -1,4 +1,5 @@
 import { normalizeText } from '@/common/text/vietnamese';
+import { companyKeyOf } from '@/modules/companies/utils/company-key';
 import { dedupeKeyOf } from './dedupe';
 import { OCCUPATIONS, OTHER_CODE } from './occupations';
 import { PORTAL_CATEGORY_OCCUPATION } from './portal-categories';
@@ -142,6 +143,7 @@ export function derivedFields(
   subOccupationCode: string | null;
   searchText: string;
   dedupeKey: string | null;
+  companyKey: string | null;
 } {
   const provinceCode = resolveProvince(location ?? null);
   const occupationCode = resolveOccupation(title, tags, categories);
@@ -155,6 +157,7 @@ export function derivedFields(
     ]),
     searchText: buildSearchText(title, company, tags),
     dedupeKey: dedupeKeyOf(title, company, provinceCode),
+    companyKey: companyKeyOf(company),
     ...parseSalary(salaryRaw),
   };
 }

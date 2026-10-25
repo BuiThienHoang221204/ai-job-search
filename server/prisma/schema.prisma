@@ -72,6 +72,7 @@ model User {
   profileDrafts     ProfileDraft[]
   agentRuns         AgentRun[]
   pushSubscriptions PushSubscription[]
+  companyFollows    CompanyFollow[]
 
   @@map("users")
 }
@@ -79,6 +80,21 @@ model User {
 /// Một trình duyệt/thiết bị đã cho phép nhận thông báo đẩy (Web Push).
 /// `endpoint` do dịch vụ push của trình duyệt cấp nên duy nhất trên mọi người
 /// dùng; đăng nhập tài khoản khác trên cùng trình duyệt thì dòng chuyển chủ.
+/// Công ty người dùng theo dõi; tin mới của công ty đó vào thông báo 07:30.
+model CompanyFollow {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Khoá `companyKeyOf`, khớp `Job.companyKey`.
+  companyKey String
+  /// Tên hiển thị, lấy từ tin lúc bấm theo dõi.
+  name       String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, companyKey])
+  @@map("company_follows")
+}
+
 model PushSubscription {
   id       String @id @default(cuid())
   userId   String
@@ -231,6 +247,8 @@ model Job {
   /// KHÔNG đặt @@unique: hai tin thật sự khác nhau vẫn có thể đụng khoá, và lúc
   /// đó upsert sẽ ghi đè mất một tin. Kiểm tra bằng truy vấn lúc ghi.
   dedupeKey         String?
+  /// Tên công ty đã chuẩn hoá (`companyKeyOf`), để theo dõi công ty khớp tin của mọi portal.
+  companyKey        String?
 
   /// Trỏ về bản GỐC khi tin này là bản sao lấy từ portal khác.
   ///
@@ -283,6 +301,7 @@ model Job {
   @@index([subOccupationCode, scrapedAt(sort: Desc), id(sort: Desc)])
   @@index([postedAt])
   @@index([dedupeKey])
+  @@index([companyKey])
   @@index([duplicateOfId])
   @@index([salaryMax(sort: Desc)])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)

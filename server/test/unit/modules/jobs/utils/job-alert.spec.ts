@@ -1,4 +1,8 @@
-import { jobAlertBody, vnDayStart } from 'src/modules/jobs/utils/job-alert.js';
+import {
+  followedAlertText,
+  jobAlertBody,
+  vnDayStart,
+} from 'src/modules/jobs/utils/job-alert.js';
 
 describe('vnDayStart', () => {
   test('lấy 00:00 giờ Việt Nam, kể cả khi giờ UTC còn ở ngày hôm trước', () => {
@@ -24,5 +28,17 @@ describe('jobAlertBody', () => {
     expect(jobAlertBody(1, jobs.slice(0, 1))).toBe(
       '1 tin mới hợp với bạn: Backend Developer · Nexa.',
     );
+  });
+});
+
+describe('followedAlertText', () => {
+  test('nêu hai công ty nhiều tin nhất, đếm số công ty còn lại', () => {
+    expect(
+      followedAlertText([
+        { name: 'Nexa', count: 3 },
+        { name: 'OTS', count: 1 },
+        { name: 'FPT', count: 1 },
+      ]),
+    ).toBe('Công ty bạn theo dõi: 5 tin mới từ Nexa, OTS và 1 công ty khác.');
   });
 });

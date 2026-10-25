@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Logger,
   Param,
@@ -16,11 +17,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import type { AuthUser } from '@/common/types/auth-user';
 import { Public } from '@/common/decorators/public.decorator';
 import { justDone, streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
 import { QUEUE, QueueService } from '../queue/queue.service';
-import { RefreshBriefDto } from './company.dto';
+import { FollowCompanyDto, RefreshBriefDto } from './company.dto';
+import { CompanyFollowService } from './services/company-follow.service';
 import { CompanyService } from './services/company.service';
 
 @ApiTags('Companies')
@@ -31,8 +35,27 @@ export class CompanyController {
 
   constructor(
     private readonly companies: CompanyService,
+    private readonly follows: CompanyFollowService,
     private readonly queue: QueueService,
   ) {}
+
+  @ApiOperation({ summary: 'Các công ty mình đang theo dõi' })
+  @Get('follows')
+  listFollows(@CurrentUser() user: AuthUser) {
+    return this.follows.list(user.id);
+  }
+
+  @ApiOperation({ summary: 'Theo dõi công ty của một tin tuyển dụng' })
+  @Post('follows')
+  follow(@CurrentUser() user: AuthUser, @Body() dto: FollowCompanyDto) {
+    return this.follows.follow(user.id, dto.jobId);
+  }
+
+  @ApiOperation({ summary: 'Bỏ theo dõi một công ty' })
+  @Delete('follows/:id')
+  unfollow(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.follows.unfollow(user.id, id);
+  }
 
   @ApiOperation({
     summary: 'Lấy thông tin tóm tắt công ty theo ID tin tuyển dụng',

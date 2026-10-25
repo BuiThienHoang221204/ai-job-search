@@ -1,6 +1,6 @@
 # Company Research — Tìm hiểu công ty
 
-> **Phạm vi:** `server/src/modules/companies/**` (controller, processor hàng đợi `company.brief`, `CompanyService`, `ReviewResearchService` gọi Serper, `utils/` dựng prompt/chọn nguồn/chuẩn hoá tên công ty), bảng `CompanyBrief`, enum `CompanyVerdict`, `BriefConfidence`. Frontend: thẻ "Về công ty này" trong trang chi tiết tin `/dashboard/jobs/[id]` của `ui-ai-job-search`.
+> **Phạm vi:** `server/src/modules/companies/**` (controller, processor hàng đợi `company.brief`, `CompanyService`, `ReviewResearchService` gọi Serper, `utils/` dựng prompt/chọn nguồn/chuẩn hoá tên công ty), bảng `CompanyBrief`, `CompanyFollow`, enum `CompanyVerdict`, `BriefConfidence`. Frontend: thẻ "Về công ty này" trong trang chi tiết tin `/dashboard/jobs/[id]` của `ui-ai-job-search`.
 > **Nguyên tắc:** tài liệu mô tả hệ thống **as-is**. Code là nguồn sự thật duy nhất.
 
 ## 1. Purpose
@@ -35,6 +35,7 @@
 | F3 | Tìm hiểu/làm mới dạng stream (NDJSON, thấy từng phần) | USER | `POST /api/companies/brief/by-job/:jobId/stream?force=true\|false` |
 | F4 | Worker dựng bản tìm hiểu | Hệ thống | `CompanyProcessor` lắng nghe `company.brief` |
 | F5 | Thu thập và chấm nguồn | Hệ thống | `ReviewResearchService` (Serper + đọc trang), `review-sources.ts` |
+| F6 | Theo dõi / bỏ theo dõi công ty; tin mới của công ty theo dõi vào thông báo 07:30 *(2026-10-26)* | USER | `GET`/`POST /api/companies/follows`, `DELETE /api/companies/follows/:id` |
 
 ## 4. Business Flow
 
@@ -245,6 +246,9 @@ sequenceDiagram
 | BR-CMP-24 | Đọc công khai: throttle 60 lượt/phút; làm mới: `ThrottleAi` 10 lượt/phút | GD | ✅ | [company.controller.ts:42](../../../server/src/modules/companies/company.controller.ts#L42), [throttle.ts:6](../../../server/src/common/throttle.ts#L6) |
 | BR-CMP-25 | FE chỉ hiện thẻ "Về công ty này" khi `researchable = true` và không lỗi; khách bấm "Tìm hiểu" bị chuyển sang đăng nhập | FE | ⚠️ | [company-brief-panel.tsx:66](../../../../ui-ai-job-search/app/dashboard/jobs/[id]/company-brief/company-brief-panel.tsx#L66) |
 | BR-CMP-26 | Tìm kiếm nguồn: Tavily là nguồn chính, Serper chỉ được gọi khi Tavily không có key hoặc lời gọi Tavily hỏng (HTTP lỗi, hết hạn mức tháng, timeout); Tavily trả 200 với 0 kết quả thì KHÔNG gọi Serper *(2026-10-22)* | SV | ✅ | [review-research.service.ts:26](../../../server/src/modules/companies/services/review-research.service.ts#L26) |
+| BR-CMP-27 | Theo dõi công ty theo khoá `companyKeyOf` của tin (`POST { jobId }`), nên cùng một công ty ở nhiều portal chỉ là một lượt theo dõi; bấm lại trả bản đã có (bắt `P2002`); tin ẩn danh → 400; tối đa 50 công ty mỗi người → 400 *(2026-10-26)* | SV, DB | ✅ | [company-follow.service.ts](../../../server/src/modules/companies/services/company-follow.service.ts) |
+| BR-CMP-28 | Bỏ theo dõi khoá theo `{ id, userId }`; của người khác hoặc không có → 404 *(2026-10-26)* | SV | ✅ | [company-follow.service.ts](../../../server/src/modules/companies/services/company-follow.service.ts) |
+| BR-CMP-29 | `Job.companyKey` tính trong `derivedFields` khi ghi tin và khi "Tính lại toàn bộ"; tin cũ chỉ có khoá sau khi chạy lại *(2026-10-26)* | SV | ✅ | [resolve.ts](../../../server/src/modules/jobs/taxonomy/resolve.ts) |
 
 > **Possible Business Rule:** Bản rỗng (khi Serper tắt hoặc không tìm thấy gì) có hạn 60 ngày như bản thật. Có thể chủ dự án muốn bản rỗng hết hạn sớm hơn để lần sau tự thử lại — cần xác nhận.
 
@@ -282,6 +286,9 @@ Lỗi schema (thiếu trường bắt buộc, sai kiểu) đi theo xử lý chun
 | GET | `/api/companies/brief/by-job/:jobId` | Public (throttle 60/phút) | Xem bản tìm hiểu công ty của tin | `CompanyController#brief` | `CompanyService.forJob` | — | 200 `BriefView { company, researchable, brief: PublicBrief \| null, stale }` |
 | POST | `/api/companies/brief/by-job/:jobId` | USER/ADMIN (`ThrottleAi` 10/phút) | Xếp việc tìm hiểu/làm mới ở nền | `CompanyController#refresh` | `CompanyService.planRefresh` → `QueueService.send` | `RefreshBriefDto` | 201 `{ queued: false, reason: 'còn hạn' }` hoặc `{ queued: true, company }` |
 | POST | `/api/companies/brief/by-job/:jobId/stream?force=` | USER/ADMIN (`ThrottleAi` 10/phút) | Tìm hiểu/làm mới, đẩy từng phần | `CompanyController#refreshStream` | `CompanyService.planRefresh`, `streamBuild`, `forJob` | query `force` | 200 NDJSON: `partial`*, rồi `done` hoặc `error` |
+| GET | `/api/companies/follows` | USER | Công ty mình đang theo dõi *(2026-10-26)* | `CompanyController#listFollows` | `CompanyFollowService.list` | — | 200 `[{ id, companyKey, name }]` |
+| POST | `/api/companies/follows` | USER | Theo dõi công ty của một tin *(2026-10-26)* | `CompanyController#follow` | `CompanyFollowService.follow` | `FollowCompanyDto { jobId }` | 201 `{ id, companyKey, name }` |
+| DELETE | `/api/companies/follows/:id` | USER | Bỏ theo dõi *(2026-10-26)* | `CompanyController#unfollow` | `CompanyFollowService.unfollow` | — | 200 `{ removed }` |
 
 **Endpoint ở module khác tác động lên module này**
 
@@ -293,6 +300,7 @@ Lỗi schema (thiếu trường bắt buộc, sai kiểu) đi theo xử lý chun
 
 ## 10. Frontend Mapping
 
+| `/dashboard/jobs/[id]` — nút "Theo dõi" cạnh tên công ty ([follow-company-button.tsx](../../../../ui-ai-job-search/app/dashboard/jobs/[id]/follow-company-button.tsx)); `/dashboard/settings` — dòng "Công ty đang theo dõi" ([followed-companies.tsx](../../../../ui-ai-job-search/app/dashboard/settings/followed-companies.tsx)); công tắc "Công ty theo dõi" trên thanh lọc việc làm (`?followed=1`) *(2026-10-26)* | USER | Theo dõi / bỏ theo dõi, xem tin của công ty đang theo dõi; chỉ hiện nút khi đã đăng nhập và tin có `companyKey` | `useCompanyFollows` ([hooks/use-company-follows.ts](../../../../ui-ai-job-search/hooks/use-company-follows.ts)) |
 | Route FE | Vai trò | Mục đích | Hook / API client |
 |---|---|---|---|
 | `/dashboard/jobs/[id]` — thẻ "Về công ty này" ([company-brief-panel.tsx](../../../../ui-ai-job-search/app/dashboard/jobs/[id]/company-brief/company-brief-panel.tsx)) | Khách, USER | Hiện bản tìm hiểu, nút "Tìm hiểu công ty này" / "Làm mới", tiến trình trực tiếp | `useApiQuery(keys.companyBrief(jobId), companiesService.briefForJob)`; `streamModel({ path: '/companies/brief/by-job/:jobId/stream', force })` ([model-stream.ts](../../../../ui-ai-job-search/lib/model-stream.ts)); dự phòng `companiesService.refreshForJob(jobId, force)` ([companies.ts](../../../../ui-ai-job-search/services/companies.ts)) |
@@ -368,11 +376,14 @@ Trạng thái phía FE (cục bộ): `pendingSince` (đang chờ `updatedAt` đ�
 | Body `force` không phải boolean | 400 | thông điệp `ValidationPipe` | [company.dto.ts:4](../../../server/src/modules/companies/company.dto.ts#L4) |
 | Thiếu/hỏng token ở route POST | 401 | (guard JWT toàn cục) | — |
 | Vượt trần tần suất | 429 | (throttler) | [throttle.ts:6](../../../server/src/common/throttle.ts#L6) |
+| Theo dõi tin ẩn danh | 400 | `Tin này không ghi tên công ty nên chưa theo dõi được.` | [company-follow.service.ts](../../../server/src/modules/companies/services/company-follow.service.ts) |
+| Theo dõi quá 50 công ty | 400 | `Bạn đang theo dõi đủ 50 công ty. Bỏ bớt một công ty ở Tài khoản rồi theo dõi tiếp.` | như trên |
+| Bỏ theo dõi không thuộc mình | 404 | `Bạn không theo dõi công ty này` | như trên |
 | Serper trả lỗi / trang không đọc được | — | Không trả cho client; chỉ log `Tìm kiếm trả về HTTP …`, `Không đọc được <url>: …` | [review-research.service.ts:42](../../../server/src/modules/companies/services/review-research.service.ts#L42) |
 
 ## 14. Notifications
 
-Không có. Module không gửi email/thông báo; FE tự hỏi lại (`refetchInterval` 2,5 giây) khi đã rơi về hàng đợi và tự báo toast lỗi sau 5 phút.
+Tin mới của công ty đang theo dõi được gộp vào thông báo 07:30 của module jobs ([jobs.md](./jobs.md) BR-JOB-34) *(2026-10-26)*. Ngoài ra module không gửi email/thông báo; FE tự hỏi lại (`refetchInterval` 2,5 giây) khi đã rơi về hàng đợi và tự báo toast lỗi sau 5 phút.
 
 ## 15. Integrations
 

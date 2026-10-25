@@ -1,4 +1,5 @@
 import { CompanyController } from 'src/modules/companies/company.controller.js';
+import type { CompanyFollowService } from 'src/modules/companies/services/company-follow.service.js';
 import type { CompanyService } from 'src/modules/companies/services/company.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
@@ -23,7 +24,14 @@ function build(plan: unknown) {
     planRefresh: () => Promise.resolve(plan),
   } as unknown as CompanyService;
 
-  return { controller: new CompanyController(companies, queue), sent };
+  return {
+    controller: new CompanyController(
+      companies,
+      {} as CompanyFollowService,
+      queue,
+    ),
+    sent,
+  };
 }
 
 describe('CompanyController', () => {

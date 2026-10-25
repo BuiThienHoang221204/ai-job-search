@@ -7,7 +7,12 @@ import { daysAgo, HOUR_MS } from '@/common/duration';
 import { messageOf } from '@/common/error-message';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PushService } from '@/modules/push/push.service';
-import { jobAlertBody, jobAlertUrl, vnDayStart } from './utils/job-alert';
+import {
+  followedAlertText,
+  jobAlertBody,
+  jobAlertUrl,
+  vnDayStart,
+} from './utils/job-alert';
 import { needsOccupation, profileFit } from './utils/occupation-gate';
 import { orderFor, whereFrom } from './utils/job-view';
 
@@ -59,7 +64,7 @@ export class JobAlertService implements OnModuleInit {
     }
   }
 
-  /** Báo tin mới của "Việc làm phù hợp" cho người đã bật, mỗi người tối đa một lần một ngày; không có tin mới thì không gửi. */
+  /** Báo tin mới của "Việc làm phù hợp" và của công ty đang theo dõi cho người đã bật, mỗi người tối đa một lần một ngày; không có tin mới thì không gửi. */
   async alert(now: Date): Promise<number> {
     const due = {
       jobNotifications: true,
@@ -85,6 +90,7 @@ export class JobAlertService implements OnModuleInit {
         pushSubscriptions: {
           select: { id: true, endpoint: true, p256dh: true, auth: true },
         },
+        companyFollows: { select: { companyKey: true, name: true } },
       },
     });
 
@@ -94,30 +100,59 @@ export class JobAlertService implements OnModuleInit {
         where: { id: user.id, ...due },
         data: { jobAlertSentAt: now },
       });
-      const fit = profileFit(user.profile);
-      if (claimed.count === 0 || needsOccupation(fit)) continue;
+      if (claimed.count === 0) continue;
 
       const since = user.jobAlertSentAt ?? daysAgo(1, now.getTime());
-      const query = { scored: true, since: since.toISOString() };
-      const where = whereFrom(query, user.id, fit);
-      const [total, newest] = await Promise.all([
-        this.prisma.job.count({ where }),
-        this.prisma.job.findMany({
-          where,
-          orderBy: orderFor('newest'),
-          take: 2,
-          select: { title: true, company: true },
-        }),
-      ]);
-      if (!total) continue;
+      const fit = profileFit(user.profile);
+      const lines: string[] = [];
+      let url: string | null = null;
+
+      if (!needsOccupation(fit)) {
+        const query = { scored: true, since: since.toISOString() };
+        const where = whereFrom(query, user.id, fit);
+        const [total, newest] = await Promise.all([
+          this.prisma.job.count({ where }),
+          this.prisma.job.findMany({
+            where,
+            orderBy: orderFor('newest'),
+            take: 2,
+            select: { title: true, company: true },
+          }),
+        ]);
+        if (total) {
+          lines.push(jobAlertBody(total, newest));
+          url = jobAlertUrl('scored', since);
+        }
+      }
+
+      if (user.companyFollows.length) {
+        const names = new Map(
+          user.companyFollows.map((follow) => [follow.companyKey, follow.name]),
+        );
+        const groups = await this.prisma.job.groupBy({
+          by: ['companyKey'],
+          where: {
+            duplicateOfId: null,
+            companyKey: { in: [...names.keys()] },
+            scrapedAt: { gte: since },
+          },
+          _count: { _all: true },
+          orderBy: { _count: { companyKey: 'desc' } },
+        });
+        if (groups.length) {
+          const companies = groups.map((group) => ({
+            name: names.get(group.companyKey ?? '') ?? '',
+            count: group._count._all,
+          }));
+          lines.push(followedAlertText(companies));
+          url ??= jobAlertUrl('followed', since);
+        }
+      }
+      if (!url) continue;
 
       sent += await this.push.send(
         user.pushSubscriptions,
-        {
-          title: 'Careelot · Việc làm mới',
-          body: jobAlertBody(total, newest),
-          url: jobAlertUrl(since),
-        },
+        { title: 'Careelot · Việc làm mới', body: lines.join(' '), url },
         ALERT_TTL_SECONDS,
       );
     }

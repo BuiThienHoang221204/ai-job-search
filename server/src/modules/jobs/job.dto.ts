@@ -85,6 +85,10 @@ export class ListJobsQueryDto extends PaginationQueryDto {
   @IsBoolean()
   applied?: boolean;
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  followed?: boolean;
+  @IsOptional()
   @IsISO8601({}, { message: 'Mốc thời gian không hợp lệ' })
   since?: string;
 }
