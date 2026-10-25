@@ -18,6 +18,7 @@ import { HealthModule } from './modules/health/health.module';
 import { InterviewModule } from './modules/interview/interview.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { CompaniesModule } from './modules/companies/companies.module';
+import { MarketModule } from './modules/market/market.module';
 import { UpskillModule } from './modules/upskill/upskill.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { ProfileModule } from './modules/profile/profile.module';
@@ -65,6 +66,7 @@ export const THROTTLED_MESSAGE =
     InterviewModule,
     UpskillModule,
     CompaniesModule,
+    MarketModule,
     DocumentsModule,
     ApplicationsModule,
     MockInterviewModule,
