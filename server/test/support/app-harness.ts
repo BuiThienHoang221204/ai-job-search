@@ -60,7 +60,7 @@ export type TestApp = {
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
   /// thật còn băm mật khẩu và tạo sẵn Profile rỗng, và test cần đúng trạng thái
   /// đó chứ không phải một hàng dữ liệu tự dựng.
-  signUp(email?: string): Promise<TestUser>;
+  signUp(email?: string, ref?: string): Promise<TestUser>;
   /// Nâng quyền ADMIN thẳng trong DB. Route `PATCH /admin/users/:id/role` cũng làm được, nhưng nó đòi sẵn một admin khác.
   promoteToAdmin(userId: string): Promise<void>;
   /// Xoá sạch dữ liệu và trạng thái của các bản giả. Gọi trong `beforeEach`.
@@ -135,7 +135,7 @@ export async function createTestApp(
   const prisma = app.get(PrismaService);
   const server = app.getHttpServer() as Server;
 
-  const signUp = async (email?: string): Promise<TestUser> => {
+  const signUp = async (email?: string, ref?: string): Promise<TestUser> => {
     userCounter += 1;
     const address = email ?? `nguoi-dung-${userCounter}@test.local`;
 
@@ -145,6 +145,7 @@ export async function createTestApp(
         email: address,
         name: `Người dùng ${userCounter}`,
         password: TEST_PASSWORD,
+        ref,
       });
 
     if (response.status !== 201) {

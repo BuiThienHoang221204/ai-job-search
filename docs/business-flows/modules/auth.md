@@ -331,6 +331,7 @@ sequenceDiagram
 | BR-AUTH-25 | FE tự refresh một lần khi gặp 401 (gộp các request song song), không áp cho `/auth/refresh`, `/auth/login`, `/auth/register` | FE | ⚠️ Chỉ FE | [axios.ts:25](../../../../ui-ai-job-search/lib/axios.ts#L25) |
 | BR-AUTH-26 | Khu `/dashboard` không render khi chưa xác định đã đăng nhập; khách chỉ xem được trang việc làm và tra cứu lương | FE | ⚠️ Chỉ FE | [session-provider.tsx:78](../../../../ui-ai-job-search/providers/session-provider.tsx#L78), [public-job.ts:14](../../../../ui-ai-job-search/lib/public-job.ts#L14) |
 | BR-AUTH-27 | Console admin chỉ hiển thị nội dung khi `role = ADMIN`; tài khoản USER đăng nhập admin không bị đăng xuất khỏi app người dùng | FE | ⚠️ Chỉ FE | [page.tsx:34](../../../../ui-admin-job-search/app/login/page.tsx#L34), [admin-gate.tsx:30](../../../../ui-admin-job-search/components/shell/admin-gate.tsx#L30) |
+| BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./referrals.md)) *(2026-10-26)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
 
 > Các quy tắc **xuyên suốt** (mặc định đóng bằng `JwtAuthGuard` toàn cục + `@Public`; `RolesGuard` toàn cục + `@Roles('ADMIN')`; throttle mặc định 120/phút đếm theo user hoặc IP; ValidationPipe whitelist/forbidNonWhitelisted) được agent chính đánh mã `BR-SYS-nn`; ở đây chỉ mô tả cơ chế (§4 Luồng G, H, I).
 

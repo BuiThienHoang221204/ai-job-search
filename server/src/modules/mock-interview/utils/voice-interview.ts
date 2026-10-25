@@ -129,16 +129,41 @@ type VoiceRunUsage = {
   input: unknown;
 };
 
+/** Số phút một buổi đã dùng thật (tới lúc đóng, hoặc tới `now` nếu còn mở), không quá số phút được cấp; buổi thiếu dữ liệu thì `null`. */
+function runMinutes(
+  run: VoiceRunUsage,
+  now: Date,
+): { used: number; granted: number; bonus: number } | null {
+  const input = run.input as { minutes?: unknown; bonus?: unknown } | null;
+  if (!run.startedAt || typeof input?.minutes !== 'number') return null;
+
+  const closed = run.status === 'DONE' || run.status === 'FAILED';
+  const end = closed ? run.updatedAt : now;
+  const elapsed = (end.getTime() - run.startedAt.getTime()) / MINUTE_MS;
+  return {
+    used: Math.min(input.minutes, Math.max(0, elapsed)),
+    granted: input.minutes,
+    bonus: typeof input.bonus === 'number' ? input.bonus : 0,
+  };
+}
+
 export function voiceMinutesUsed(runs: VoiceRunUsage[], now: Date): number {
   let total = 0;
   for (const run of runs) {
-    const granted = (run.input as { minutes?: unknown } | null)?.minutes;
-    if (!run.startedAt || typeof granted !== 'number') continue;
+    const minutes = runMinutes(run, now);
+    if (minutes) total += minutes.used;
+  }
+  return total;
+}
 
-    const closed = run.status === 'DONE' || run.status === 'FAILED';
-    const end = closed ? run.updatedAt : now;
-    const minutes = (end.getTime() - run.startedAt.getTime()) / MINUTE_MS;
-    total += Math.min(granted, Math.max(0, minutes));
+/** Phút thưởng các buổi đã tiêu: mỗi buổi dùng hết phần hạn mức ngày trước, phần vượt mới trừ vào thưởng. */
+export function voiceBonusUsed(runs: VoiceRunUsage[], now: Date): number {
+  let total = 0;
+  for (const run of runs) {
+    const minutes = runMinutes(run, now);
+    if (!minutes) continue;
+    const daily = minutes.granted - minutes.bonus;
+    total += Math.min(minutes.bonus, Math.max(0, minutes.used - daily));
   }
   return total;
 }

@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
 import { isUniqueViolation } from '@/prisma/prisma-errors';
 import { PrismaService } from '@/prisma/prisma.service';
+import { ReferralsService } from '@/modules/referrals/referrals.service';
 import { GoogleAuthService } from './google-auth.service';
 import type { LoginDto, RegisterDto } from './auth.dto';
 import {
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly google: GoogleAuthService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResult> {
@@ -46,6 +48,7 @@ export class AuthService {
           email: dto.email,
           name: dto.name,
           passwordHash: await hash(dto.password, BCRYPT_ROUNDS),
+          referredById: await this.referrals.referrerOf(dto.ref),
           profile: { create: {} },
         },
       })
@@ -73,7 +76,7 @@ export class AuthService {
     return this.sign(user, user.tokenVersion);
   }
 
-  async loginWithGoogle(idToken: string): Promise<AuthResult> {
+  async loginWithGoogle(idToken: string, ref?: string): Promise<AuthResult> {
     const profile = await this.google.verify(idToken);
     const email = profile.email.trim().toLowerCase();
 
@@ -102,6 +105,7 @@ export class AuthService {
           email,
           name: profile.name,
           googleId: profile.googleId,
+          referredById: await this.referrals.referrerOf(ref),
           profile: { create: {} },
         },
       });

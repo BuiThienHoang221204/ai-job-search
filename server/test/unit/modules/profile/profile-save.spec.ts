@@ -1,6 +1,7 @@
 import { ProfileService } from 'src/modules/profile/profile.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
+import type { ReferralsService } from 'src/modules/referrals/referrals.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 
 const FULL = {
@@ -37,7 +38,11 @@ const build = () => {
   } as unknown as PrismaService;
 
   return {
-    service: new ProfileService(prisma, { send } as unknown as QueueService),
+    service: new ProfileService(
+      prisma,
+      { send } as unknown as QueueService,
+      { rewardIfDue: () => Promise.resolve() } as unknown as ReferralsService,
+    ),
     updates,
     send,
   };

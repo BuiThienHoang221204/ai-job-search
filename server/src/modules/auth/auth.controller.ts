@@ -59,7 +59,10 @@ export class AuthController {
     @Body() dto: GoogleLoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return issue(response, await this.auth.loginWithGoogle(dto.idToken));
+    return issue(
+      response,
+      await this.auth.loginWithGoogle(dto.idToken, dto.ref),
+    );
   }
 
   @Public()

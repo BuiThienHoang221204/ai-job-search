@@ -44,3 +44,5 @@ Bẫy đã sập ở P0 và cách đã chặn (phần prompt nằm trong `voiceS
 8. **FE từng cấm micro trên toàn site:** `next.config.ts` đặt `Permissions-Policy: microphone=()` nên `getUserMedia` ném `NotAllowedError` dù người dùng đã cho phép — lộ ra khi chạy thử bằng Playwright 2026-10-24. Đã đổi thành `microphone=(self)`.
 9. `gemini-3.8-live` gửi bản ghi chữ của ứng viên MỘT lần khi họ nói xong, không gửi dần trong lúc nói (đo 2026-10-24); phụ đề phía ứng viên hiện sau khi nói, thanh mức micro mới là tín hiệu "đang nghe".
 Test ghim: `test/mock-interview-voice.e2e-spec.ts` (cấp token, hạn mức, lưu lượt + `finish`, gửi trùng, trần câu, sở hữu, buổi chữ), `test/unit/modules/mock-interview/voice-interview.spec.ts` (buổi bỏ dở vẫn bị tính phút).
+
+**Phút thưởng mời bạn bè (2026-10-26).** Không đổi hạn mức 30 phút/24 giờ; phút thưởng chỉ bù khi phần ngày không đủ một buổi. Thay vì trừ số dư lúc mở buổi (dừng sớm sẽ mất phút), mỗi buổi ghi `input.bonus` = phần cấp vượt phần ngày, và số dư = `users.bonusVoiceMinutes` − phần thưởng các buổi đã tiêu thật (`voiceBonusUsed`). Một lúc chỉ có một buổi chạy (`assertNoRunInFlight`) nên không có hai buổi cùng tiêu một số dư.

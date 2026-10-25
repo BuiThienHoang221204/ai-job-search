@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 const normalizedEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
@@ -18,6 +24,8 @@ export class RegisterDto {
   @MinLength(1, { message: 'Tên không được để trống' })
   @MaxLength(200, { message: 'Tên tối đa 200 ký tự' })
   name!: string;
+
+  @IsOptional() @IsString() @MaxLength(16) ref?: string;
 }
 
 export class LoginDto {
@@ -33,4 +41,6 @@ export class GoogleLoginDto {
   @IsString()
   @MinLength(1, { message: 'Thiếu ID token' })
   idToken!: string;
+
+  @IsOptional() @IsString() @MaxLength(16) ref?: string;
 }

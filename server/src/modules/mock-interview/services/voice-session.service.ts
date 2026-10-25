@@ -18,6 +18,7 @@ import {
   voiceSetup,
   voiceTurnMessages,
 } from '../utils/voice-interview';
+import { ReferralsService } from '@/modules/referrals/referrals.service';
 import { LiveTokenService } from './live-token.service';
 import { MockInterviewService } from './mock-interview.service';
 
@@ -40,6 +41,7 @@ export class VoiceSessionService {
     private readonly prisma: PrismaService,
     private readonly sessions: MockInterviewService,
     private readonly tokens: LiveTokenService,
+    private readonly referrals: ReferralsService,
     config: ConfigService,
   ) {
     this.voice = config.get<VoiceConfig>('mockInterview.voice')!;
@@ -63,14 +65,21 @@ export class VoiceSessionService {
       },
       select: { status: true, startedAt: true, updatedAt: true, input: true },
     });
-    const left = this.voice.dailyMinutes - voiceMinutesUsed(recent, now);
-    if (left < MIN_SESSION_MINUTES) {
+    const left = Math.max(
+      0,
+      this.voice.dailyMinutes - voiceMinutesUsed(recent, now),
+    );
+    const bonusLeft = await this.referrals.bonusLeft(userId);
+    if (left + bonusLeft < MIN_SESSION_MINUTES) {
       throw new BadRequestException(
-        `Bạn đã luyện phỏng vấn bằng giọng nói đủ ${this.voice.dailyMinutes} phút trong 24 giờ qua. Luyện bằng chữ ngay bây giờ, hoặc quay lại sau để luyện tiếp bằng giọng nói.`,
+        `Bạn đã luyện phỏng vấn bằng giọng nói đủ ${this.voice.dailyMinutes} phút trong 24 giờ qua. Luyện bằng chữ ngay bây giờ, quay lại sau, hoặc mời bạn bè ở trang Tài khoản để được thêm phút.`,
       );
     }
 
-    const minutes = Math.floor(Math.min(this.voice.sessionMinutes, left));
+    const minutes = Math.floor(
+      Math.min(this.voice.sessionMinutes, left + bonusLeft),
+    );
+    const bonus = Math.max(0, minutes - Math.floor(left));
     const expiresAt = new Date(now.getTime() + minutes * MINUTE_MS);
     const token = await this.tokens.create(
       voiceSetup(dossier, {
@@ -89,7 +98,7 @@ export class VoiceSessionService {
         status: 'WAITING_USER',
         startedAt: now,
         modelId: this.voice.model,
-        input: { mode: VOICE_MODE, minutes },
+        input: { mode: VOICE_MODE, minutes, bonus },
         messages: [{ role: 'user', content: voiceOpening(dossier) }],
       },
       select: { id: true },

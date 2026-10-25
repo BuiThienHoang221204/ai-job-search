@@ -3,11 +3,13 @@ import type { Prisma, Profile } from '@/generated/prisma/client';
 import { foldTerm } from '@/common/text/vietnamese';
 import { PrismaService } from '@/prisma/prisma.service';
 import { QUEUE, QueueService } from '../queue/queue.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { completionPercent } from './utils/completion';
 import { occupationAfterSave } from './utils/occupation';
 import { SUB_OCCUPATION_PARENT } from '@/modules/jobs/taxonomy/sub-occupations';
 import { resolveProvince } from '@/modules/jobs/taxonomy/resolve';
 import { REMOTE_CODE } from '@/modules/jobs/taxonomy/provinces';
+import { OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
 import type { QuickStartProfileDto } from './profile.dto';
 
 @Injectable()
@@ -15,6 +17,7 @@ export class ProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly queue: QueueService,
+    private readonly referrals: ReferralsService,
   ) {}
 
   async get(userId: string): Promise<Profile> {
@@ -86,6 +89,9 @@ export class ProfileService {
       },
     });
 
+    if (profile.occupationCode && profile.occupationCode !== OTHER_CODE) {
+      await this.referrals.rewardIfDue(userId);
+    }
     await this.queue.send(QUEUE.SKILL_CANONICALIZE, { userId });
     return profile;
   }

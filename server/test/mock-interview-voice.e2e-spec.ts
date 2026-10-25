@@ -97,7 +97,7 @@ describe('Phỏng vấn thử bằng giọng nói', () => {
       where: { id: body.runId },
     });
     expect(run.status).toBe('WAITING_USER');
-    expect(run.input).toEqual({ mode: 'voice', minutes: 20 });
+    expect(run.input).toEqual({ mode: 'voice', minutes: 20, bonus: 0 });
     expect(JSON.stringify(run.messages)).toContain('GIỌNG NÓI');
   });
 
@@ -121,6 +121,24 @@ describe('Phỏng vấn thử bằng giọng nói', () => {
       '30 phút trong 24 giờ qua',
     );
     expect(harness.liveTokens.calls).toHaveLength(0);
+  });
+
+  test('hết hạn mức 24 giờ nhưng còn phút thưởng thì vẫn mở được, phần vượt ghi vào thưởng', async () => {
+    await seedVoiceRun(20, 25);
+    await seedVoiceRun(10, 11);
+    await harness.prisma.user.update({
+      where: { id: user.id },
+      data: { bonusVoiceMinutes: 15 },
+    });
+
+    const { runId } = (await openVoice().expect(201)).body as {
+      runId: string;
+    };
+
+    const run = await harness.prisma.agentRun.findUniqueOrThrow({
+      where: { id: runId },
+    });
+    expect(run.input).toMatchObject({ minutes: 15, bonus: 15 });
   });
 
   test('lưu lượt rồi kết thúc: câu trả lời gắn vào bước, lời tổng kết viết từ bản ghi giọng nói', async () => {
