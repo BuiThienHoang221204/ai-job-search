@@ -44,9 +44,10 @@ flowchart LR
 | Danh tính & hồ sơ | [auth](./modules/auth.md), [profile](./modules/profile.md), [cv-import](./modules/cv-import.md) |
 | Kho tin | [jobs](./modules/jobs.md), [job-scraping](./modules/job-scraping.md) |
 | Đánh giá phù hợp | [matching](./modules/matching.md), [dashboard](./modules/dashboard.md) |
-| Ứng tuyển | [applications](./modules/applications.md), [documents](./modules/documents.md), [company-research](./modules/company-research.md), [salary](./modules/salary.md) |
+| Ứng tuyển | [applications](./modules/applications.md), [documents](./modules/documents.md), [company-research](./modules/company-research.md), [salary](./modules/salary.md), [market](./modules/market.md) |
 | Phỏng vấn | [interview-prep](./modules/interview-prep.md), [question-bank](./modules/question-bank.md), [mock-interview](./modules/mock-interview.md) |
 | Phát triển bản thân | [upskill](./modules/upskill.md) |
+| Tăng trưởng | [referrals](./modules/referrals.md) |
 | Quản trị & nền tảng | [admin-console](./modules/admin-console.md), [ai-platform](./modules/ai-platform.md), [platform-operations](./modules/platform-operations.md) |
 
 ## 3. Kiến trúc

@@ -73,6 +73,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AUTH-25 | FE tự refresh một lần khi gặp 401 (gộp các request song song), không áp cho `/auth/refresh`, `/auth/login`, `/auth/register` | FE | ⚠️ Chỉ FE |
 | BR-AUTH-26 | Khu `/dashboard` không render khi chưa xác định đã đăng nhập; khách chỉ xem được trang việc làm và tra cứu lương | FE | ⚠️ Chỉ FE |
 | BR-AUTH-27 | Console admin chỉ hiển thị nội dung khi `role = ADMIN`; tài khoản USER đăng nhập admin không bị đăng xuất khỏi app người dùng | FE | ⚠️ Chỉ FE |
+| BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./modules/referrals.md)) *(2026-10-26)* | SV | ✅ |
 
 ### Profile — Hồ sơ ứng viên — [modules/profile.md](./modules/profile.md#7-business-rules)
 
@@ -166,7 +167,9 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-31 | Một tin là duy nhất theo `(source, externalId)`. | DB | 🔒 |
 | BR-JOB-32 | Khách bấm "Việc làm phù hợp" bị chặn ở FE với lời mời đăng nhập; mọi nút, mục sidebar và thẻ hành động cần tài khoản mở modal đăng nhập/đăng ký ngay trên trang (không chuyển sang `/login`), đăng nhập xong nạp lại đúng trang hoặc tới mục đã bấm. *(2026-10-23)* | FE | ⚠️ |
 | BR-JOB-33 | `since=<ISO>` (chỉ người đã đăng nhập) lọc `scrapedAt ≥ since` — tin lần đầu được quét sau mốc đó; là link trong thông báo "tin mới" *(2026-10-25)*. | SV | ✅ |
-| BR-JOB-34 | Báo tin mới mỗi sáng (`JOB_ALERT_CRON_SCHEDULE`, mặc định 07:30 giờ VN): chỉ người đã bật `User.jobNotifications` (mặc định TẮT) và có thiết bị đăng ký Web Push; mỗi người tối đa một lần một ngày nhờ giành chỗ `updateMany where jobAlertSentAt < 00:00 VN hôm nay`; đếm bằng đúng `whereFrom(scored)` của "Việc làm phù hợp" cộng `scrapedAt > lần báo trước` (lần đầu: 24 giờ); không có tin mới thì không gửi; nội dung nêu 2 tin mới nhất và số còn lại; thông báo sống 12 giờ. Không gọi AI. *(2026-10-25)* | SV (cron) | ✅ |
+| BR-JOB-34 | Báo tin mới mỗi sáng (`JOB_ALERT_CRON_SCHEDULE`, mặc định 07:30 giờ VN): chỉ người đã bật `User.jobNotifications` (mặc định TẮT) và có thiết bị đăng ký Web Push; mỗi người tối đa một lần một ngày nhờ giành chỗ `updateMany where jobAlertSentAt < 00:00 VN hôm nay`; đếm bằng đúng `whereFrom(scored)` của "Việc làm phù hợp" cộng `scrapedAt > lần báo trước` (lần đầu: 24 giờ); không có tin mới thì không gửi; nội dung nêu 2 tin mới nhất và số còn lại; thông báo sống 12 giờ. Không gọi AI. *(2026-10-25)* Từ 2026-10-26 gộp thêm tin mới (`scrapedAt > lần báo trước`) của công ty đang theo dõi, **không qua cổng ngành**: dòng "Công ty bạn theo dõi: N tin mới từ A, B và K công ty khác."; chỉ có tin của công ty theo dõi thì link mở `?followed=1&since=…`. | SV (cron) | ✅ |
+| BR-JOB-35 | `followed=true` (cần đăng nhập) chỉ trả tin có `companyKey` thuộc công ty người gọi đang theo dõi, không qua cổng ngành; khách gửi tham số này nhận 400 vì `PublicJobsQueryDto` không có nó *(2026-10-26)* | SV | ✅ |
+| BR-JOB-36 | Tín hiệu "đăng lại" trên chi tiết tin: đếm các tin gốc (`duplicateOfId = null`) cùng `dedupeKey` (cùng tên vị trí, công ty, tỉnh); chỉ trả `reposts { count, firstAt, dates }` khi có từ 2 lần đăng và lần đầu cách lần cuối ít nhất 14 ngày, còn lại `null`. Ngày của mỗi lần lấy `postedAt`, thiếu thì `scrapedAt`. Bản trùng cùng đợt ở portal khác đã gộp nên không tính. Không gọi AI. Đo 2026-10-26: 41 nhóm, 85 tin; kho mới có từ 18/08 *(2026-10-26)* | SV | ✅ |
 
 ### Job Scraping — Quét tin tuyển dụng từ portal — [modules/job-scraping.md](./modules/job-scraping.md#7-business-rules)
 
@@ -413,7 +416,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MOCK-21 | Lượt chưa `HẾT` mà thiếu vạch `@@HOI@@` (model bị ngắt giữa chừng) là lượt hỏng: không ghi bước, trả buổi về `WAITING_USER`, người dùng gửi lại. Đo 2026-10-24: một lượt dừng ở "…tiêu chuẩn như ISO 2" từng bị lưu thành câu hỏi. *(2026-10-24)* | SV | ✅ |
 | BR-MOCK-22 | Prompt người phỏng vấn: nhận xét chỉ dựa trên chữ ứng viên viết; mỗi chủ đề tối đa hai câu rồi chuyển yêu cầu chưa hỏi, chỉ hỏi công nghệ có trong tin hoặc hồ sơ; tin yêu cầu tiếng Anh thì có ít nhất một câu tiếng Anh; không lặp góp ý; buổi thường 8-12 câu; lời tổng kết là của người hướng dẫn (điểm mạnh, điểm cần sửa, chủ đề luyện tiếp). Rút ra từ buổi luyện 2026-10-24: 20 câu, 4 câu về OWASP ZAP không có trong tin, 7 lần cùng góp ý "thiếu số liệu", một lần khuyên "tưởng tượng" ví dụ. *(2026-10-24)* | Prompt | ✅ |
 | BR-MOCK-23 | Buổi giọng nói: trình duyệt nhận token Gemini Live dùng MỘT lần, phải mở phiên trong 1 phút, sống tới hết số phút cấp; toàn bộ cấu hình phiên (prompt + hồ sơ, giọng, ghi chữ, nhận diện lượt nói, công cụ) khoá trong token — client gửi `systemInstruction` khác bị bỏ qua (đo 2026-10-24). API key không rời server. *(2026-10-24)* | SV | ✅ |
-| BR-MOCK-24 | Hạn mức giọng nói `MOCK_INTERVIEW_VOICE_DAILY_MINUTES` (30) phút trên 24 giờ gần nhất; buổi đã đóng tính tới `updatedAt`, buổi còn mở tính tới bây giờ, mỗi buổi tối đa số phút đã cấp (buổi bỏ dở không lách được hạn mức); còn dưới 3 phút → 400; token sống `min(20, phần còn lại)` phút. *(2026-10-24)* | SV | ✅ |
+| BR-MOCK-24 | Hạn mức giọng nói `MOCK_INTERVIEW_VOICE_DAILY_MINUTES` (30) phút trên 24 giờ gần nhất; buổi đã đóng tính tới `updatedAt`, buổi còn mở tính tới bây giờ, mỗi buổi tối đa số phút đã cấp (buổi bỏ dở không lách được hạn mức); còn dưới 3 phút → 400; token sống `min(20, phần còn lại)` phút. *(2026-10-24)* Hết phần ngày thì dùng tiếp phút thưởng mời bạn bè; phần vượt ghi `input.bonus` của buổi ([referrals.md](./modules/referrals.md) BR-REF-05) *(2026-10-26)*. | SV | ✅ |
 | BR-MOCK-25 | Lưu lượt giọng nói: chỉ buổi `input.mode = 'voice'` đang `WAITING_USER`; giành chỗ `WAITING_USER → RUNNING` kèm `userId`, đọc `messages` và số bước SAU khi giành chỗ; bước mới cùng định dạng `ask_user` với buổi chữ (câu trả lời gắn sẵn), `messages` thêm lượt `TIẾP`/`@@HOI@@` để `finish` nối tiếp được; trần `MOCK_INTERVIEW_MAX_QUESTIONS` bước → 400. *(2026-10-24)* | SV | ✅ |
 | BR-MOCK-26 | Prompt người phỏng vấn bằng giọng nói: luôn nói tiếng Việt, cả buổi đúng một câu tiếng Anh có báo trước; câu không liên quan, cụt, khác ngôn ngữ hoặc nói với người khác là tạp âm — không đáp, không đổi ngôn ngữ; câu trả lời chung chung thì hỏi lại tình huống cụ thể; không bịa thông tin công ty; đọc mã từng chữ số; muốn kết thúc thì gọi `end_interview` TRƯỚC và chỉ chào khi được `ok`. Rút ra từ 4 buổi thử 2026-10-24 (tivi làm AI tự ngắt 5 lần và nhảy sang tiếng Anh; câu "làm việc nhóm tốt" được khen thay vì hỏi lại; AI tự đóng buổi sau 5 câu). *(2026-10-24)* | Prompt | ✅ |
 | BR-MOCK-18 | Trình duyệt ngắt kết nối không làm server dừng hay xếp lại lượt; generator chạy tới cuối và tự ghi kết quả. | SV | ✅ |
@@ -482,6 +485,9 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-CMP-24 | Đọc công khai: throttle 60 lượt/phút; làm mới: `ThrottleAi` 10 lượt/phút | GD | ✅ |
 | BR-CMP-25 | FE chỉ hiện thẻ "Về công ty này" khi `researchable = true` và không lỗi; khách bấm "Tìm hiểu" bị chuyển sang đăng nhập | FE | ⚠️ |
 | BR-CMP-26 | Tìm kiếm nguồn: Tavily là nguồn chính, Serper chỉ được gọi khi Tavily không có key hoặc lời gọi Tavily hỏng (HTTP lỗi, hết hạn mức tháng, timeout); Tavily trả 200 với 0 kết quả thì KHÔNG gọi Serper *(2026-10-22)* | SV | ✅ |
+| BR-CMP-27 | Theo dõi công ty theo khoá `companyKeyOf` của tin (`POST { jobId }`), nên cùng một công ty ở nhiều portal chỉ là một lượt theo dõi; bấm lại trả bản đã có (bắt `P2002`); tin ẩn danh → 400; tối đa 50 công ty mỗi người → 400 *(2026-10-26)* | SV, DB | ✅ |
+| BR-CMP-28 | Bỏ theo dõi khoá theo `{ id, userId }`; của người khác hoặc không có → 404 *(2026-10-26)* | SV | ✅ |
+| BR-CMP-29 | `Job.companyKey` tính trong `derivedFields` khi ghi tin và khi "Tính lại toàn bộ"; tin cũ chỉ có khoá sau khi chạy lại *(2026-10-26)* | SV | ✅ |
 
 ### Salary — Tra cứu lương & khung đàm phán lương — [modules/salary.md](./modules/salary.md#7-business-rules)
 
@@ -510,6 +516,29 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-SAL-21 | Khung làm tròn bội số 500.000 VND, tối thiểu 500.000; mục tiêu luôn nằm trong [sàn, trần] | SV | ✅ Mềm |
 | BR-SAL-22 | Ánh xạ ngành cho dữ liệu nguồn: ưu tiên theo vị trí (vd. `data-analyst → DATA_AI`), rồi theo ngành nguồn (vd. `it-software → IT`); không có thì `null` | Script | ✅ Mềm |
 | BR-SAL-23 | Script crawl chỉ bỏ dữ liệu khi trang thiếu CẢ lương TB lẫn khoảng lương | Script | ✅ Mềm |
+
+### Market — Báo cáo thị trường việc làm công khai — [modules/market.md](./modules/market.md#7-business-rules)
+
+| Mã | Quy tắc | Nơi thực thi | Mức |
+|---|---|---|---|
+| BR-MKT-01 | Cửa sổ 30 ngày trượt; tin tính theo `postedAt`, thiếu thì `scrapedAt`; chỉ tin gốc (`duplicateOfId = null`) *(2026-10-26)* | SV | ✅ |
+| BR-MKT-02 | Chỉ có báo cáo cho ngành ≥ 100 tin trong cửa sổ, trừ `OTHER`; còn lại 404 *(2026-10-26)* | SV | ✅ |
+| BR-MKT-03 | Lương đại diện một tin = giữa khoảng hoặc mức duy nhất (VND/tháng như `parseSalary`); trung vị trên tin có lương; kèm % tin có ghi lương *(2026-10-26)* | SV | ✅ |
+| BR-MKT-04 | % kỹ năng tính trên tin đã rút yêu cầu (`status = DONE`), mỗi tin đếm một kỹ năng một lần, gộp cách viết qua từ điển kỹ năng (`skillKeyOf`) *(2026-10-26)* | SV | ✅ |
+| BR-MKT-05 | Cấp bậc chia ba nhóm (Thực tập/Fresher/Junior, Middle, Senior/Lead), % trên tin đã biết cấp bậc (bỏ `UNKNOWN`) *(2026-10-26)* | SV | ✅ |
+| BR-MKT-06 | Không trả tên công ty, chỉ số công ty khác nhau; không gọi model *(2026-10-26)* | SV | ✅ |
+| BR-MKT-07 | Không so với 30 ngày trước: kho mới quét đầy đủ gần đây nên số kỳ trước thấp giả (193 so với 739 tin IT, đo 2026-10-26) *(2026-10-26)* | SV | ✅ |
+| BR-MKT-08 | Route công khai throttle 60 lượt/phút/IP; trang Next làm mới mỗi ngày *(2026-10-26)* | GD, FE | ✅ |
+
+### Referrals — Mời bạn bè — [modules/referrals.md](./modules/referrals.md#7-business-rules)
+
+| Mã | Quy tắc | Nơi thực thi | Mức |
+|---|---|---|---|
+| BR-REF-01 | Mã mời 8 ký tự, duy nhất, sinh lần đầu mở thẻ; ghi có điều kiện `referralCode IS NULL` rồi đọc lại, nên hai request cùng lúc nhận cùng một mã và link đã gửi không bị vô hiệu; trùng mã người khác thì sinh lại *(2026-10-26)* | SV, DB | ✅ |
+| BR-REF-02 | Mã lạ khi đăng ký bị bỏ qua, không chặn đăng ký *(2026-10-26)* | SV | ✅ |
+| BR-REF-03 | Điều kiện thưởng: người được mời có ngành khác `OTHER` sau một lần ghi hồ sơ; mỗi người được mời chỉ thưởng một lần nhờ giành chỗ `referralRewardedAt IS NULL` *(2026-10-26)* | SV | ✅ |
+| BR-REF-04 | Mỗi bên +15 phút giọng nói; người mời chỉ được thưởng cho 10 bạn đầu tiên, người được mời luôn được *(2026-10-26)* | SV | ✅ |
+| BR-REF-05 | Phút thưởng không hết hạn, chỉ dùng khi phần ngày (30 phút/24 giờ) không đủ một buổi; tính theo thời lượng thật nên dừng sớm không mất phút *(2026-10-26)* | SV | ✅ |
 
 ### Dashboard — Trang Tổng quan — [modules/dashboard.md](./modules/dashboard.md#7-business-rules)
 
@@ -696,7 +725,7 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (37)
+### 🟡 Trung bình (38)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -727,6 +756,7 @@ Không có rủi ro nào được xếp mức này.
 | [company-research#R2](./modules/company-research.md) | company-research | Hai lượt stream cùng công ty không được gộp |
 | [company-research#R3](./modules/company-research.md) | company-research | Bản rỗng khi Serper tắt bị "đóng băng" 60 ngày |
 | [salary#R2](./modules/salary.md) | salary | Route công khai chưa có e2e gọi không token |
+| [referrals#R1](./modules/referrals.md) | referrals | Tài khoản ảo lấy phút thưởng |
 | [admin-console#R2](./modules/admin-console.md) | admin-console | Chốt "admin cuối cùng" không nguyên tử; hai admin hạ quyền nhau đồng thời có thể để hệ thống còn 0 ADMIN |
 | [admin-console#R4](./modules/admin-console.md) | admin-console | `PUT /admin/queue/config/:queueName` nhận tên hàng đợi bất kỳ và ghi đè trường vắng về mặc định |
 | [ai-platform#R2](./modules/ai-platform.md) | ai-platform | Chuỗi có thể vượt `server.setTimeout` 300 s |

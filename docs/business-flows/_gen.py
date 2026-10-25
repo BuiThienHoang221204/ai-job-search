@@ -8,7 +8,7 @@ MOD = ROOT / "modules"
 
 ORDER = ["auth", "profile", "cv-import", "jobs", "job-scraping", "matching", "applications",
          "documents", "interview-prep", "question-bank", "mock-interview", "upskill",
-         "company-research", "salary", "dashboard", "admin-console", "ai-platform", "platform-operations"]
+         "company-research", "salary", "market", "referrals", "dashboard", "admin-console", "ai-platform", "platform-operations"]
 
 
 def section(text, num):
@@ -203,6 +203,10 @@ OWN = {
     "DELETE /api/push/subscriptions": "`deleteMany {userId, endpoint}`",
     "POST /api/push/test": "`findFirst {userId, endpoint}`",
     "GET /api/push/preferences": "`findUnique {id: userId}`",
+    "GET /api/companies/follows": "`where userId`",
+    "GET /api/referrals": "đếm `where referredById = userId`",
+    "POST /api/companies/follows": "tạo gắn `userId` người gọi",
+    "DELETE /api/companies/follows/:id": "`deleteMany {id, userId}`",
     "PATCH /api/push/preferences": "`update {id: userId}`",
     "GET /api/upskill/in-flight": "`where userId`",
     "GET /api/upskill/:id": "`findFirst {id, userId}`",

@@ -5,7 +5,7 @@
 
 ## 1. Danh mục bảng
 
-PostgreSQL 17 + extension `vector` (pgvector) và `pg_trgm`. 27 model Prisma, khoá chính `cuid()` trừ khi ghi khác.
+PostgreSQL 17 + extension `vector` (pgvector) và `pg_trgm`. 29 model Prisma, khoá chính `cuid()` trừ khi ghi khác.
 
 | # | Bảng (`@@map`) | Model | Nhóm | Module sở hữu | Mô tả |
 |---|---|---|---|---|---|
@@ -36,6 +36,8 @@ PostgreSQL 17 + extension `vector` (pgvector) và `pg_trgm`. 27 model Prisma, kh
 | 25 | `learning_items` | LearningItem | Phát triển | [upskill](./modules/upskill.md#11-database) | Kỹ năng đang học / bỏ qua / xong |
 | 26 | `ai_calls` | AiCall | Nền tảng | [ai-platform](./modules/ai-platform.md#11-database) | Nhật ký mọi lời gọi model |
 | 27 | `queue_configs` | QueueConfig | Nền tảng | [platform-operations](./modules/platform-operations.md#11-database) | Concurrency/serial từng hàng đợi |
+| 28 | `push_subscriptions` | PushSubscription | Phát triển | [upskill](./modules/upskill.md#11-database) | Thiết bị nhận thông báo đẩy |
+| 29 | `company_follows` | CompanyFollow | Ứng tuyển | [company-research](./modules/company-research.md#11-database) | Công ty người dùng theo dõi *(2026-10-26)* |
 | — | schema `pgboss` | (pg-boss) | Nền tảng | [platform-operations](./modules/platform-operations.md) | Bảng job/queue của pg-boss, không có model Prisma |
 
 ## 2. ER Diagram
