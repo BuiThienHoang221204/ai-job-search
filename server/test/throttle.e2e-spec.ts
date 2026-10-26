@@ -12,6 +12,7 @@ describe('Rate limiting', () => {
 
   beforeAll(async () => {
     harness = await createTestApp({ throttle: true });
+    await harness.reset();
   });
 
   afterAll(async () => {
