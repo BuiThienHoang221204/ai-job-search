@@ -33,6 +33,7 @@ describe('market.utils', () => {
         { ...job, skillKeys: null, seniority: null },
       ],
       new Map([['java', 'Java']]),
+      new Set(),
     );
 
     expect(sections.skills).toEqual({
@@ -42,9 +43,34 @@ describe('market.utils', () => {
         { name: 'Sql', percent: 50 },
       ],
     });
-    expect(sections.seniority[0]).toEqual({
-      label: 'Thực tập – Junior',
-      percent: 100,
-    });
+    expect(sections.seniority.slice(0, 2)).toEqual([
+      { label: 'Thực tập – Fresher', percent: 0 },
+      { label: 'Junior', percent: 100 },
+    ]);
+  });
+
+  test('nghề nối tới vị trí lương công khai đầu tiên trong bảng nối, không có thì null', () => {
+    const job = {
+      provinceCode: null,
+      salaryMin: null,
+      salaryMax: null,
+      skillKeys: null,
+      seniority: null,
+    };
+    const sections = marketSections(
+      [
+        { ...job, subOccupationCode: 'IT_BACKEND' },
+        { ...job, subOccupationCode: 'IT_FRONTEND' },
+      ],
+      new Map(),
+      new Set(['it-software-java-developer', 'it-software-nodejs-developer']),
+    );
+
+    expect(
+      sections.subOccupations.map((row) => [row.name, row.salarySlug]),
+    ).toEqual([
+      ['IT_BACKEND', 'it-software-nodejs-developer'],
+      ['IT_FRONTEND', null],
+    ]);
   });
 });

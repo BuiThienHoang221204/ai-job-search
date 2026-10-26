@@ -6,6 +6,7 @@ import { skillKeyOf } from '@/modules/upskill/utils/skill-gaps';
 import { OCCUPATIONS, OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
 import { PROVINCES } from '@/modules/jobs/taxonomy/provinces';
 import { SUB_OCCUPATIONS } from '@/modules/jobs/taxonomy/sub-occupations';
+import { SUB_OCCUPATION_POSITIONS } from '@/modules/salary/utils/sub-occupation-map';
 import {
   MARKET_WINDOW_DAYS,
   MIN_MARKET_JOBS,
@@ -55,7 +56,8 @@ export class MarketService {
 
     const now = new Date();
     const from = daysAgo(MARKET_WINDOW_DAYS, now.getTime());
-    const [rows, dictionary] = await Promise.all([
+    const subs = SUB_OCCUPATIONS[occupation.code] ?? [];
+    const [rows, dictionary, salaryPositions] = await Promise.all([
       this.prisma.job.findMany({
         where: {
           duplicateOfId: null,
@@ -74,6 +76,15 @@ export class MarketService {
         },
       }),
       this.dictionary.lookup(),
+      this.prisma.salaryReference.findMany({
+        where: {
+          visibility: 'PUBLIC',
+          positionSlug: {
+            in: subs.flatMap((sub) => SUB_OCCUPATION_POSITIONS[sub.code] ?? []),
+          },
+        },
+        select: { positionSlug: true },
+      }),
     ]);
     if (rows.length < MIN_MARKET_JOBS) {
       throw new NotFoundException('Chưa có báo cáo thị trường cho ngành này.');
@@ -97,9 +108,7 @@ export class MarketService {
     });
     const names = new Map([
       ...skills.map((skill): [string, string] => [skill.id, skill.name]),
-      ...(SUB_OCCUPATIONS[occupation.code] ?? []).map(
-        (sub): [string, string] => [sub.code, sub.name],
-      ),
+      ...subs.map((sub): [string, string] => [sub.code, sub.name]),
       ...PROVINCES.map((province): [string, string] => [
         province.code,
         province.name,
@@ -114,7 +123,11 @@ export class MarketService {
       total: rows.length,
       companies: new Set(rows.map((row) => row.companyKey).filter(Boolean))
         .size,
-      ...marketSections(jobs, names),
+      ...marketSections(
+        jobs,
+        names,
+        new Set(salaryPositions.map((row) => row.positionSlug)),
+      ),
     };
   }
 }

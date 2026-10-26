@@ -30,7 +30,7 @@
 
 1. Trang `/dashboard/market` gọi `GET /api/public/market`: đếm tin theo `occupationCode` trong 30 ngày (tin đăng trong cửa sổ; tin không có `postedAt` tính theo `scrapedAt`), bỏ `OTHER`, giữ ngành ≥ 100 tin, nhiều tin trước.
 2. Trang `/dashboard/market/[slug]` gọi `GET /api/public/market/:slug`. `slug` = tên ngành bỏ dấu nối gạch (`marketSlugOf`); slug lạ hoặc ngành < 100 tin → 404.
-3. `MarketService.report` đọc mọi tin của ngành trong cửa sổ (không lấy bản trùng), kèm `JobRequirement` nếu có, rồi `marketSections` gom: lương trung vị, top 10 kỹ năng, top 6 nghề kèm lương trung vị, top 4 tỉnh, phân bố cấp bậc; cộng số công ty khác nhau theo `companyKey`.
+3. `MarketService.report` đọc mọi tin của ngành trong cửa sổ (không lấy bản trùng), kèm `JobRequirement` nếu có, rồi `marketSections` gom: lương trung vị, top 10 kỹ năng, top 6 nghề kèm lương trung vị và vị trí lương công khai đầu tiên trong bảng nối nghề → vị trí (`SUB_OCCUPATION_POSITIONS`, null nếu không có) để link sang Tra cứu lương *(2026-10-26)*, top 4 tỉnh, phân bố cấp bậc; cộng số công ty khác nhau theo `companyKey`.
 
 ## 5. Mermaid Flowchart
 
@@ -67,7 +67,7 @@ sequenceDiagram
 | BR-MKT-02 | Chỉ có báo cáo cho ngành ≥ 100 tin trong cửa sổ, trừ `OTHER`; còn lại 404 *(2026-10-26)* | SV | ✅ | [market.service.ts](../../../server/src/modules/market/market.service.ts) |
 | BR-MKT-03 | Lương đại diện một tin = giữa khoảng hoặc mức duy nhất (VND/tháng như `parseSalary`); trung vị trên tin có lương; kèm % tin có ghi lương *(2026-10-26)* | SV | ✅ | [market.utils.ts](../../../server/src/modules/market/market.utils.ts) |
 | BR-MKT-04 | % kỹ năng tính trên tin đã rút yêu cầu (`status = DONE`), mỗi tin đếm một kỹ năng một lần, gộp cách viết qua từ điển kỹ năng (`skillKeyOf`); tên hiển thị viết hoa chữ cái đầu, phần còn lại giữ nguyên ("điều dưỡng" → "Điều dưỡng", "MS Word" giữ nguyên) *(2026-10-26)* | SV | ✅ | [market.service.ts](../../../server/src/modules/market/market.service.ts) |
-| BR-MKT-05 | Cấp bậc chia ba nhóm (Thực tập/Fresher/Junior, Middle, Senior/Lead), % trên tin đã biết cấp bậc (bỏ `UNKNOWN`) *(2026-10-26)* | SV | ✅ | [market.utils.ts](../../../server/src/modules/market/market.utils.ts) |
+| BR-MKT-05 | Cấp bậc chia bốn nhóm (Thực tập/Fresher, Junior, Middle, Senior/Lead), % trên tin đã biết cấp bậc (bỏ `UNKNOWN`) *(2026-10-26)* | SV | ✅ | [market.utils.ts](../../../server/src/modules/market/market.utils.ts) |
 | BR-MKT-06 | Không trả tên công ty, chỉ số công ty khác nhau; không gọi model *(2026-10-26)* | SV | ✅ | [market.service.ts](../../../server/src/modules/market/market.service.ts) |
 | BR-MKT-07 | Không so với 30 ngày trước: kho mới quét đầy đủ gần đây nên số kỳ trước thấp giả (193 so với 739 tin IT, đo 2026-10-26) *(2026-10-26)* | SV | ✅ | [market.service.ts](../../../server/src/modules/market/market.service.ts) |
 | BR-MKT-08 | Route công khai throttle 60 lượt/phút/IP; trang Next làm mới mỗi ngày *(2026-10-26)* | GD, FE | ✅ | [market.controller.ts](../../../server/src/modules/market/market.controller.ts) |
@@ -91,7 +91,7 @@ sequenceDiagram
 |---|---|---|---|
 | `/dashboard/market` ([page.tsx](../../../../ui-ai-job-search/app/dashboard/market/page.tsx)) *(2026-10-26)* | Khách | Danh sách ngành có báo cáo | `marketService.occupations` (fetch server, revalidate 1 ngày) |
 | Mục "Thị trường việc làm" trên thanh bên ([nav-items.ts](../../../../ui-ai-job-search/components/layout/nav-items.ts)), khách bấm được và xem được trong khung dashboard (`isGuestPath`) *(2026-10-26)* | Khách, USER | Mở `/dashboard/market`; lời mời cuối báo cáo: khách → Đăng ký, đã đăng nhập → Lộ trình học ([market-cta.tsx](../../../../ui-ai-job-search/app/dashboard/market/[slug]/market-cta.tsx)) | `useSession` |
-| `/dashboard/market/[slug]` ([page.tsx](../../../../ui-ai-job-search/app/dashboard/market/[slug]/page.tsx)) *(2026-10-26)* | Khách | Báo cáo một ngành, index được, nút đăng ký | `marketService.report` |
+| `/dashboard/market/[slug]` ([page.tsx](../../../../ui-ai-job-search/app/dashboard/market/[slug]/page.tsx)) *(2026-10-26)* | Khách | Báo cáo một ngành, index được, nút đăng ký; tên nghề có `salarySlug` là link sang `/dashboard/salary/<slug>` *(2026-10-26)* | `marketService.report` |
 
 ## 11. Database
 

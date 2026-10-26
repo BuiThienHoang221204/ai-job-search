@@ -1,5 +1,6 @@
 import type { JobSeniority, Prisma } from '@/generated/prisma/client';
 import { normalizeText } from '@/common/text/vietnamese';
+import { SUB_OCCUPATION_POSITIONS } from '@/modules/salary/utils/sub-occupation-map';
 
 export const MARKET_WINDOW_DAYS = 30;
 export const MIN_MARKET_JOBS = 100;
@@ -9,10 +10,8 @@ const TOP_SUB_OCCUPATIONS = 6;
 const TOP_PROVINCES = 4;
 
 const SENIORITY_GROUPS: { label: string; levels: JobSeniority[] }[] = [
-  {
-    label: 'Thực tập – Junior',
-    levels: ['INTERN', 'FRESHER', 'JUNIOR'],
-  },
+  { label: 'Thực tập – Fresher', levels: ['INTERN', 'FRESHER'] },
+  { label: 'Junior', levels: ['JUNIOR'] },
   { label: 'Middle', levels: ['MIDDLE'] },
   { label: 'Senior / Lead', levels: ['SENIOR', 'LEAD'] },
 ];
@@ -65,8 +64,12 @@ function countBy(values: string[]): [string, number][] {
   return [...counts].sort((a, b) => b[1] - a[1]);
 }
 
-/** Gom tin của một ngành thành các mục của báo cáo; `names` đổi mã (kỹ năng, nghề, tỉnh) ra tên hiển thị. */
-export function marketSections(jobs: MarketJob[], names: Map<string, string>) {
+/** Gom tin của một ngành thành các mục của báo cáo; `names` đổi mã (kỹ năng, nghề, tỉnh) ra tên hiển thị, `salarySlugs` là vị trí lương đang công khai. */
+export function marketSections(
+  jobs: MarketJob[],
+  names: Map<string, string>,
+  salarySlugs: ReadonlySet<string>,
+) {
   const salaries = jobs
     .map(salaryOf)
     .filter((value): value is number => value !== null);
@@ -102,6 +105,10 @@ export function marketSections(jobs: MarketJob[], names: Map<string, string>) {
       .slice(0, TOP_SUB_OCCUPATIONS)
       .map(([code, count]) => ({
         name: names.get(code) ?? code,
+        salarySlug:
+          SUB_OCCUPATION_POSITIONS[code]?.find((slug) =>
+            salarySlugs.has(slug),
+          ) ?? null,
         count,
         medianSalary: median(
           jobs
