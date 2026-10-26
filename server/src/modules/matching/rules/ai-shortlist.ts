@@ -6,12 +6,6 @@ import type {
   ShortlistTarget,
 } from './types';
 
-export const AI_TOP_N = 3;
-
-export const MAX_SHORTLIST_PER_RUN = 300;
-
-export const COOLDOWN_HOURS = 6;
-
 const olderFirst = (a: ShortlistCandidate, b: ShortlistCandidate): number => {
   const left = a.lastFanOutAt?.getTime() ?? 0;
   const right = b.lastFanOutAt?.getTime() ?? 0;
@@ -45,8 +39,7 @@ export function groupByUser(
 }
 
 export function planShortlist(input: ShortlistInput): ShortlistPlan {
-  const topN = input.topN ?? AI_TOP_N;
-  const maxPerRun = input.maxPerRun ?? MAX_SHORTLIST_PER_RUN;
+  const { topN, maxPerRun } = input;
   const candidates = groupByUser(input.rows, input.lastFanOutAt, topN);
 
   const targets: ShortlistTarget[] = [];

@@ -55,8 +55,8 @@ export type ShortlistCandidate = {
 export type ShortlistInput = {
   rows: ShortlistRow[];
   lastFanOutAt: Map<string, Date | null>;
-  topN?: number;
-  maxPerRun?: number;
+  topN: number;
+  maxPerRun: number;
 };
 
 export type ShortlistTarget = { userId: string; jobId: string };

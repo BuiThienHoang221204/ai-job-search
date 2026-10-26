@@ -6,8 +6,8 @@ import {
   type TestUser,
 } from './support/app-harness.js';
 
-/** Phát suất chấm AI chọn tin bằng SQL thô, nên cổng ngành phải kiểm trên Postgres thật chứ không kiểm được bằng unit test. */
-describe('AiShortlistService · cổng ngành', () => {
+/** Phát suất chấm AI chọn trong "Việc làm phù hợp" bằng truy vấn Prisma lồng quan hệ, nên kiểm trên Postgres thật. */
+describe('AiShortlistService · chọn từ Việc làm phù hợp', () => {
   let harness: TestApp;
   let user: TestUser;
   let shortlist: AiShortlistService;
@@ -36,7 +36,12 @@ describe('AiShortlistService · cổng ngành', () => {
     user = await harness.signUp();
   });
 
-  const seedJob = async (key: string, occupationCode: string | null) => {
+  const seedJob = async (
+    key: string,
+    occupationCode: string | null,
+    percent = 75,
+    subOccupationCode: string | null = null,
+  ) => {
     const job = await harness.prisma.job.create({
       data: {
         source: 'test',
@@ -47,6 +52,7 @@ describe('AiShortlistService · cổng ngành', () => {
         description: 'Mô tả đủ dài để qua được kiểm tra đầu vào.',
         tags: [],
         occupationCode,
+        subOccupationCode,
         searchText: key,
       },
     });
@@ -56,8 +62,8 @@ describe('AiShortlistService · cổng ngành', () => {
         jobId: job.id,
         met: 3,
         total: 4,
-        percent: 75,
-        rank: 0.5,
+        percent,
+        rank: percent / 200,
         hash: `seed-${key}`,
       },
     });
@@ -71,10 +77,13 @@ describe('AiShortlistService · cổng ngành', () => {
       .sort();
   };
 
-  const setProfile = (occupationCode: string | null) =>
+  const setProfile = (
+    occupationCode: string | null,
+    subOccupationCodes: string[] = [],
+  ) =>
     harness.prisma.profile.update({
       where: { userId: user.id },
-      data: { occupationCode, completion: 100 },
+      data: { occupationCode, subOccupationCodes, completion: 100 },
     });
 
   test('hồ sơ IT chỉ được phát suất cho tin đúng nhóm IT', async () => {
@@ -87,12 +96,27 @@ describe('AiShortlistService · cổng ngành', () => {
     expect(await dispatchedJobIds()).toEqual([it]);
   });
 
-  test('hồ sơ chưa rõ ngành thì không chặn gì', async () => {
+  test('hồ sơ chưa chọn ngành thì Việc làm phù hợp rỗng, nên không phát suất nào', async () => {
     await setProfile(null);
-    const it = await seedJob('it', 'IT');
-    const teacher = await seedJob('teacher', 'EDUCATION');
+    await seedJob('it', 'IT');
 
-    expect(await dispatchedJobIds()).toEqual([it, teacher].sort());
+    expect(await dispatchedJobIds()).toEqual([]);
+  });
+
+  test('chỉ lấy tin đúng nghề đã chọn, như trang Việc làm phù hợp', async () => {
+    await setProfile('IT', ['IT_BACKEND']);
+    const backend = await seedJob('backend', 'IT', 75, 'IT_BACKEND');
+    await seedJob('devops', 'IT', 90, 'IT_DEVOPS');
+
+    expect(await dispatchedJobIds()).toEqual([backend]);
+  });
+
+  test('bỏ tin dưới ngưỡng % khớp', async () => {
+    await setProfile('IT');
+    const enough = await seedJob('enough', 'IT', 50);
+    await seedJob('weak', 'IT', 49);
+
+    expect(await dispatchedJobIds()).toEqual([enough]);
   });
 
   test('tin chưa có mã ngành thì không được phát suất cho hồ sơ đã chọn ngành', async () => {

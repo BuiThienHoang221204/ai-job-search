@@ -108,6 +108,7 @@ describe('planShortlist', () => {
       ),
       lastFanOutAt: never,
       topN: 3,
+      maxPerRun: 300,
     });
 
     expect(plan.targets).toHaveLength(3);
@@ -119,6 +120,7 @@ describe('planShortlist', () => {
       rows: rows(['u1', 'jB', 0.5], ['u1', 'jA', 0.5]),
       lastFanOutAt: never,
       topN: 2,
+      maxPerRun: 300,
     });
 
     expect(plan.targets.map((row) => row.jobId)).toEqual(['jB', 'jA']);
@@ -206,7 +208,12 @@ describe('planShortlist', () => {
   });
 
   test('không có dòng nào thì không phát suất nào', () => {
-    const plan = planShortlist({ rows: [], lastFanOutAt: never });
+    const plan = planShortlist({
+      rows: [],
+      lastFanOutAt: never,
+      topN: 3,
+      maxPerRun: 300,
+    });
 
     expect(plan.targets).toHaveLength(0);
     expect(plan.served).toHaveLength(0);
