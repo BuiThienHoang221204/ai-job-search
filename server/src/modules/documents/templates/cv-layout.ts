@@ -58,7 +58,6 @@ const isSectionKey = (value: unknown): value is SectionKey =>
 const cleanKeys = (raw: unknown): SectionKey[] =>
   Array.isArray(raw) ? [...new Set(raw.filter(isSectionKey))] : [];
 
-/** Tên mục người dùng đặt riêng; tên rỗng bị bỏ để mục quay về nhãn mặc định theo ngôn ngữ. */
 const cleanTitles = (raw: unknown): Partial<Record<SectionKey, string>> => {
   const titles: Partial<Record<SectionKey, string>> = {};
   if (!raw || typeof raw !== 'object') return titles;

@@ -1,5 +1,5 @@
 import { OCCUPATION_NAMES } from '@/modules/jobs/taxonomy/occupations';
-import { EXPERIENCE_LABELS } from '../salary.types';
+import { EXPERIENCE_LABELS, type ReferenceBand } from '../salary.types';
 
 const LABEL_ORDER: readonly string[] = EXPERIENCE_LABELS;
 
@@ -7,15 +7,14 @@ export function occupationName(code: string | null): string | null {
   return code ? (OCCUPATION_NAMES.get(code) ?? null) : null;
 }
 
-export function orderBands<T extends { experienceLabel: string }>(
-  bands: T[],
-): T[] {
-  const at = (label: string) => {
-    const found = LABEL_ORDER.indexOf(label);
-    return found === -1 ? LABEL_ORDER.length : found;
-  };
+function labelRank(label: string): number {
+  const found = LABEL_ORDER.indexOf(label);
+  return found === -1 ? LABEL_ORDER.length : found;
+}
+
+export function orderBands(bands: ReferenceBand[]): ReferenceBand[] {
   return [...bands].sort(
-    (a, b) => at(a.experienceLabel) - at(b.experienceLabel),
+    (a, b) => labelRank(a.experienceLabel) - labelRank(b.experienceLabel),
   );
 }
 

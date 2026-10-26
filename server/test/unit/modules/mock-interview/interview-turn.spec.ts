@@ -332,7 +332,7 @@ describe('InterviewTurnService.stream — giành lượt chống gửi trùng', 
       '429',
     );
     expect(written.claims.at(-1)).toEqual({
-      where: { id: 'run-1', status: 'RUNNING' },
+      where: { id: 'run-1', userId: 'u1', status: 'RUNNING' },
       data: { status: 'WAITING_USER' },
     });
   });

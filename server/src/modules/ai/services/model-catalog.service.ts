@@ -1,3 +1,4 @@
+import { MINUTE_MS } from '@/common/duration';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { parseModelRef, formatModelRef } from '../utils/model-ref';
@@ -11,7 +12,7 @@ import {
 import type { CatalogProvider, ResolvedModel } from '../ai.types';
 import { messageOf } from '@/common/error-message';
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 5 * MINUTE_MS;
 const CATALOG_FETCH_TIMEOUT_MS = 10_000;
 
 @Injectable()
@@ -238,7 +239,6 @@ export class ModelCatalogService {
     }
   }
 
-  /** Danh sách model của một lõi dạng `lõi/model`; lõi lạ, thiếu key hoặc gọi lỗi thì trả `[]`. */
   async discoverModelsFor(providerId: string): Promise<string[]> {
     const descriptor = findProvider(providerId);
     if (!descriptor) return [];

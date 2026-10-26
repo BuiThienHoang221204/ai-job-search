@@ -1,3 +1,4 @@
+import { MINUTE_MS } from '@/common/duration';
 import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -19,7 +20,7 @@ import {
   BATCH,
   SHORTLIST,
   SYSTEM,
-} from '../prompt/skill-merge.prompt';
+} from '../prompts/skill-merge.prompt';
 import {
   skillImpliesSchema,
   type SkillImplies,
@@ -28,12 +29,12 @@ import {
   IMPLIES_BATCH,
   IMPLIES_SYSTEM,
   skillImpliesPrompt,
-} from '../prompt/skill-implies.prompt';
+} from '../prompts/skill-implies.prompt';
 import { nearest, type Canonical } from '../utils/nearest';
 import { picksFor } from '../utils/merge-picks';
 import { messageOf } from '@/common/error-message';
 
-const CACHE_MS = 60_000;
+const CACHE_MS = MINUTE_MS;
 
 export type IngestResult = { added: number; remaining: number };
 

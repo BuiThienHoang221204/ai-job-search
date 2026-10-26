@@ -380,7 +380,7 @@ Ký hiệu: **OK** nghĩa là khoá theo `userId` ở đúng chỗ ghi. **Chung*
 | 10 | `userId` lên đầu: `JobsService.list/get`, `QuestionBankService.ensureAnswer` | Đổi chữ ký | 3 + caller |
 | 11 | Đổi `companies/service/` → `services/`, `mock-interview/service/` → `services/`; sửa `server/README.md:413-421` | Đổi tên | ~8 (5 src + 3 test) + README |
 | 12 | Gỡ `ApplicationsService.get` (code chết) | Dọn | 1 |
-| 13 | Tuỳ chọn, chỉ khi đụng tới module đó: `dashboard.utils.ts`, `question-bank.utils.ts` → `utils/<khái niệm>.ts`; upskill gom 3 service vào `services/`; `matching/ai/prompt/` → `utils/` | Đổi tên | mỗi việc 2–6 |
+| 13 | Tuỳ chọn, chỉ khi đụng tới module đó: `dashboard.utils.ts`, `question-bank.utils.ts` → `utils/<khái niệm>.ts`; upskill gom 3 service vào `services/`; `matching/ai/prompts/` → `utils/` | Đổi tên | mỗi việc 2–6 |
 
 Việc 1–5 nên làm trước, mỗi việc một PR nhỏ kèm `git diff --numstat -- server/src` theo CLAUDE.md. Việc 8–13 chỉ làm **khi đang sửa module đó vì lý do khác**, theo nguyên tắc "giữ phạm vi đúng mục được giao".
 

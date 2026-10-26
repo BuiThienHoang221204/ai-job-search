@@ -1,8 +1,9 @@
+import { HOUR_MS, MINUTE_MS } from '@/common/duration';
 export const REMIND_BEFORE_MINUTES = 15;
 
 const FIRST_HOUR = 6;
 const LAST_HOUR = 23;
-const VN_OFFSET_MS = 7 * 60 * 60_000;
+const VN_OFFSET_MS = 7 * HOUR_MS;
 const WEEK_DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -16,7 +17,7 @@ export const STUDY_TIMES: string[] = Array.from(
 /** Giờ học được nhắc ở lượt cron lúc `now`: bằng `now` cộng 15 phút theo giờ Việt Nam, kèm mã thứ của ngày đó. */
 export function reminderSlot(now: Date): { studyTime: string; day: string } {
   const vn = new Date(
-    now.getTime() + REMIND_BEFORE_MINUTES * 60_000 + VN_OFFSET_MS,
+    now.getTime() + REMIND_BEFORE_MINUTES * MINUTE_MS + VN_OFFSET_MS,
   );
   return {
     studyTime: `${pad(vn.getUTCHours())}:${pad(vn.getUTCMinutes())}`,

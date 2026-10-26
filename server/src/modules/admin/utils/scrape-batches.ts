@@ -1,3 +1,4 @@
+import { MINUTE_MS } from '@/common/duration';
 export interface RunLite {
   id: string;
   portal: string;
@@ -11,7 +12,7 @@ export interface RunLite {
   finishedAt: Date | null;
 }
 
-export const BATCH_GAP_MS = 5 * 60 * 1000;
+export const BATCH_GAP_MS = 5 * MINUTE_MS;
 
 export interface Batch {
   id: string;

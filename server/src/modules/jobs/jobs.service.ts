@@ -158,7 +158,6 @@ export class JobsService {
       this.prisma.jobRequirementMatch.count({ where }),
     ] as const;
   }
-  /** Danh sách cho khách chưa đăng nhập: không lương, không đối chiếu hồ sơ, luôn mới đăng trước. */
   async publicList(query: PublicJobsQueryDto) {
     const where = whereFrom(query, null);
     const [rows, total] = await Promise.all([

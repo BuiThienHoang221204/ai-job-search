@@ -77,12 +77,13 @@ export class DocumentGenerator {
   }
 
   private finish(
+    userId: string,
     documentId: string,
     content: unknown,
     modelId: string,
   ): Promise<Document> {
     return this.prisma.document.update({
-      where: { id: documentId },
+      where: { id: documentId, userId },
       data: {
         status: 'DONE',
         content: content as Prisma.InputJsonValue,
@@ -94,6 +95,7 @@ export class DocumentGenerator {
   }
 
   private fail(
+    userId: string,
     documentId: string,
     error: unknown,
     label: string,
@@ -101,7 +103,7 @@ export class DocumentGenerator {
     const message = messageOf(error);
     this.logger.error(`${label} thất bại (${documentId}): ${message}`);
     return this.prisma.document.update({
-      where: { id: documentId },
+      where: { id: documentId, userId },
       data: { status: 'FAILED', error: message },
     });
   }
@@ -137,10 +139,10 @@ export class DocumentGenerator {
 
       yield {
         type: 'done',
-        result: await this.finish(documentId, content, modelId),
+        result: await this.finish(userId, documentId, content, modelId),
       };
     } catch (error) {
-      await this.fail(documentId, error, 'Sinh tài liệu (stream)');
+      await this.fail(userId, documentId, error, 'Sinh tài liệu (stream)');
       yield streamFailureEvent(error);
     }
   }
@@ -157,7 +159,7 @@ export class DocumentGenerator {
   }
 
   private async compose(document: Document): Promise<Document> {
-    const documentId = document.id;
+    const { id: documentId, userId } = document;
 
     try {
       const { profile, target, identity } = await this.context(document);
@@ -169,9 +171,9 @@ export class DocumentGenerator {
         identity,
       });
 
-      return await this.finish(documentId, content, modelId);
+      return await this.finish(userId, documentId, content, modelId);
     } catch (error) {
-      return this.fail(documentId, error, 'Sinh tài liệu');
+      return this.fail(userId, documentId, error, 'Sinh tài liệu');
     }
   }
 }

@@ -1,3 +1,4 @@
+import { HOUR_MS } from '@/common/duration';
 import { z } from 'zod';
 import type { CompanyBrief as BriefRecord } from '@/generated/prisma/client';
 import type { NumberedSource } from './company-brief.prompt';
@@ -116,7 +117,7 @@ export type BriefView = {
   stale: boolean;
 };
 
-export const FORCE_COOLDOWN_MS = 60 * 60_000;
+export const FORCE_COOLDOWN_MS = HOUR_MS;
 
 export function forceTooSoon(updatedAt: Date, now: number): boolean {
   return now - updatedAt.getTime() < FORCE_COOLDOWN_MS;

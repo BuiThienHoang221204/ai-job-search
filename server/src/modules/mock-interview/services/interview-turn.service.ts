@@ -83,24 +83,29 @@ export class InterviewTurnService {
       });
       textStream = result.textStream;
     } catch (error) {
-      await this.failRun(run.id, messageOf(error));
+      await this.failRun(userId, run.id, messageOf(error));
       throw error;
     }
 
     return {
       runId: run.id,
-      stream: this.openTurn(run.id, dossier, textStream, startedAt),
+      stream: this.openTurn(userId, run.id, dossier, textStream, startedAt),
     };
   }
 
-  private async failRun(runId: string, error: string): Promise<void> {
+  private async failRun(
+    userId: string,
+    runId: string,
+    error: string,
+  ): Promise<void> {
     await this.prisma.agentRun.update({
-      where: { id: runId },
+      where: { id: runId, userId },
       data: { status: 'FAILED', error },
     });
   }
 
   private async *openTurn(
+    userId: string,
     runId: string,
     dossier: string,
     textStream: AsyncIterable<string>,
@@ -111,7 +116,7 @@ export class InterviewTurnService {
 
     const rawParts = splitTurnParts(turn.body);
     if (!rawParts.question) {
-      await this.failRun(runId, 'Model không trả về câu hỏi nào');
+      await this.failRun(userId, runId, 'Model không trả về câu hỏi nào');
       throw new BadRequestException('Model không trả về nội dung nào.');
     }
 
@@ -137,7 +142,7 @@ export class InterviewTurnService {
         },
       }),
       this.prisma.agentRun.update({
-        where: { id: runId },
+        where: { id: runId, userId },
         data: {
           status: turn.done ? 'DONE' : 'WAITING_USER',
           question: turn.done ? null : rawParts.question,
@@ -229,10 +234,15 @@ export class InterviewTurnService {
         );
       }
 
-      await this.persist(runId, answer, parts, done, Date.now() - startedAt, [
-        ...messages,
-        { role: 'assistant', content: body.trim() },
-      ]);
+      await this.persist(
+        userId,
+        runId,
+        answer,
+        parts,
+        done,
+        Date.now() - startedAt,
+        [...messages, { role: 'assistant', content: body.trim() }],
+      );
       persisted = true;
 
       this.logger.log(
@@ -242,7 +252,7 @@ export class InterviewTurnService {
     } finally {
       if (!persisted) {
         await this.prisma.agentRun.updateMany({
-          where: { id: runId, status: 'RUNNING' },
+          where: { id: runId, userId, status: 'RUNNING' },
           data: { status: 'WAITING_USER' },
         });
       }
@@ -310,6 +320,7 @@ export class InterviewTurnService {
   }
 
   private async persist(
+    userId: string,
     runId: string,
     answer: string | null,
     parts: TurnParts,
@@ -347,7 +358,7 @@ export class InterviewTurnService {
         },
       }),
       this.prisma.agentRun.update({
-        where: { id: runId },
+        where: { id: runId, userId },
         data: {
           status: done ? 'DONE' : 'WAITING_USER',
           question: done ? null : parts.question,

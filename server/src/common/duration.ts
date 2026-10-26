@@ -5,6 +5,6 @@ export const DAY_MS = 24 * HOUR_MS;
 export const daysAgo = (days: number, now = Date.now()) =>
   new Date(now - days * DAY_MS);
 
-export const STALE_RUNNING_MS = 5 * 60_000;
+export const STALE_RUNNING_MS = 5 * MINUTE_MS;
 
-export const STUCK_AFTER_MS = Math.max(STALE_RUNNING_MS, 10 * 60_000);
+export const STUCK_AFTER_MS = Math.max(STALE_RUNNING_MS, 10 * MINUTE_MS);

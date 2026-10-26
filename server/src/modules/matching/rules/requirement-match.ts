@@ -52,6 +52,24 @@ function findSkill(
   return owned ? { skill: owned, viaDictionary: true } : null;
 }
 
+function skillCheck(
+  options: string[],
+  kind: 'SKILL' | 'NICE',
+  profile: MatchProfile,
+  dictionary?: SkillDictionary,
+): RequirementCheck {
+  const hit =
+    options
+      .map((option) => findSkill(profile.skills, option, dictionary))
+      .find((found) => found !== null) ?? null;
+  return {
+    label: options.join(' / '),
+    kind,
+    met: hit !== null,
+    via: hit?.viaDictionary ? hit.skill : undefined,
+  };
+}
+
 function checkEligibility(
   requirements: JobRequirements,
   profile: MatchProfile,
@@ -95,25 +113,12 @@ export function matchRequirements(
 ): RequirementMatch {
   const checks: RequirementCheck[] = [];
 
-  const skillCheck = (options: string[], kind: 'SKILL' | 'NICE') => {
-    const hit =
-      options
-        .map((option) => findSkill(profile.skills, option, dictionary))
-        .find((found) => found !== null) ?? null;
-    return {
-      label: options.join(' / '),
-      kind,
-      met: hit !== null,
-      via: hit?.viaDictionary ? hit.skill : undefined,
-    } satisfies RequirementCheck;
-  };
-
   for (const options of requirements.requiredSkills) {
-    checks.push(skillCheck(options, 'SKILL'));
+    checks.push(skillCheck(options, 'SKILL', profile, dictionary));
   }
 
   for (const options of requirements.niceToHaveSkills) {
-    checks.push(skillCheck(options, 'NICE'));
+    checks.push(skillCheck(options, 'NICE', profile, dictionary));
   }
 
   if (requirements.minYears !== null) {

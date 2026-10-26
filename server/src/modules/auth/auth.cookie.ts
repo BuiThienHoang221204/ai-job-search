@@ -1,12 +1,12 @@
 import type { CookieOptions, Response } from 'express';
-import { DAY_MS } from '@/common/duration';
+import { DAY_MS, MINUTE_MS } from '@/common/duration';
 
 export const AUTH_COOKIE = 'aijob_token';
 export const REFRESH_COOKIE = 'aijob_refresh';
 
 const REFRESH_PATH = '/api/auth/refresh';
 
-const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const FIFTEEN_MINUTES_MS = 15 * MINUTE_MS;
 
 const SEVEN_DAYS_MS = 7 * DAY_MS;
 

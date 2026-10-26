@@ -65,7 +65,6 @@ export class ModelPoolService {
     return ids.filter(Boolean).map((id) => this.canonical(id));
   }
 
-  /** Thay danh sách model quét được và xoá tình trạng của model không còn trong bể nào. */
   setDiscovered(main: string[], fast: string[]): void {
     this.discovered = { main, fast };
     const inUse = new Set([...this.mainChain(), ...this.fastChain()]);
@@ -74,7 +73,6 @@ export class ModelPoolService {
     }
   }
 
-  /** Nhớ lượt kiểm tra ĐẦU TIÊN để `waitForModels` có cái mà chờ; các lượt sau bỏ qua. */
   trackFirstRefresh(run: Promise<void>): void {
     this.firstRefresh ??= run;
   }

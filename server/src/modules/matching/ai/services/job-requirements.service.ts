@@ -21,7 +21,7 @@ import {
   BATCH_SYSTEM,
   BATCH_TIMEOUT_MS,
   SYSTEM,
-} from '../prompt/job-requirements.prompt';
+} from '../prompts/job-requirements.prompt';
 import {
   hasSkills,
   isUpToDate,

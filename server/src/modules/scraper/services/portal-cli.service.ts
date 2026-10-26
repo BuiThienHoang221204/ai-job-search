@@ -1,3 +1,4 @@
+import { MINUTE_MS } from '@/common/duration';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'node:child_process';
@@ -19,7 +20,7 @@ const run = promisify(execFile);
 
 const REST_AFTER_CALL_MS = 1_200;
 
-export const BLOCKED_COOLDOWN_MS = 30 * 60_000;
+export const BLOCKED_COOLDOWN_MS = 30 * MINUTE_MS;
 
 const positiveIntFrom = (raw: unknown): number | null =>
   typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : null;
@@ -221,7 +222,7 @@ export class PortalCliService implements OnModuleInit {
       if (parsed?.code === 'BLOCKED') {
         this.blockedUntil.set(portal, Date.now() + BLOCKED_COOLDOWN_MS);
         this.logger.warn(
-          `${portal} trả trang chống bot; tạm ngừng gọi ${BLOCKED_COOLDOWN_MS / 60_000} phút`,
+          `${portal} trả trang chống bot; tạm ngừng gọi ${BLOCKED_COOLDOWN_MS / MINUTE_MS} phút`,
         );
       }
       throw new Error(

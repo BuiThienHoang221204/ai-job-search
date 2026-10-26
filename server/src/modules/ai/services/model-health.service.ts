@@ -83,7 +83,6 @@ export class ModelHealthService
     return this.running;
   }
 
-  /** Một lượt kiểm tra: quét model mới của cả hai bể rồi probe tuần tự từng model; lỗi chỉ ghi log. */
   private async discoverAndProbe(): Promise<void> {
     try {
       const main = await this.discover(

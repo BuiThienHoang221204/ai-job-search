@@ -58,7 +58,6 @@ export class ReferralsService {
     return referrer?.id ?? null;
   }
 
-  /** Tài khoản được mời vừa chọn xong ngành: thưởng nó một lần, và thưởng người mời nếu chưa quá trần. */
   async rewardIfDue(userId: string): Promise<void> {
     const claimed = await this.prisma.user.updateMany({
       where: {
@@ -88,7 +87,6 @@ export class ReferralsService {
     });
   }
 
-  /** Ghi mã chỉ khi còn trống, để hai request cùng lúc không ghi đè mã đã trả cho request kia. */
   private async codeOf(userId: string): Promise<string> {
     for (;;) {
       const user = await this.prisma.user.findUniqueOrThrow({

@@ -5,7 +5,12 @@ import {
 } from 'src/modules/salary/utils/salary-view.js';
 import { EXPERIENCE_LABELS } from 'src/modules/salary/salary.types.js';
 
-const band = (experienceLabel: string) => ({ experienceLabel });
+const band = (experienceLabel: string) => ({
+  experienceLabel,
+  minAmount: null,
+  avgAmount: null,
+  maxAmount: null,
+});
 
 const peer = (positionSlug: string, avgMonthly: number) => ({
   positionSlug,

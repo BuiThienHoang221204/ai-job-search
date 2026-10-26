@@ -55,6 +55,14 @@ export function extractJson(text: string): string {
   return slice && parses(slice) ? slice : text;
 }
 
+function withBody(response: Response, body: string): Response {
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 export async function extractJsonFromResponse(
   response: Response,
 ): Promise<Response> {
@@ -66,12 +74,6 @@ export async function extractJsonFromResponse(
   }
 
   const raw = await response.text();
-  const rebuild = (body: string): Response =>
-    new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
 
   try {
     const payload = JSON.parse(raw) as {
@@ -88,8 +90,8 @@ export async function extractJsonFromResponse(
       choice.message!.content = unwrapped;
       changed = true;
     }
-    return rebuild(changed ? JSON.stringify(payload) : raw);
+    return withBody(response, changed ? JSON.stringify(payload) : raw);
   } catch {
-    return rebuild(raw);
+    return withBody(response, raw);
   }
 }

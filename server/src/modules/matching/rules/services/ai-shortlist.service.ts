@@ -43,7 +43,6 @@ export class AiShortlistService {
     return this.config.get<number>('matching.minPercent')!;
   }
 
-  /** Tin trong "Việc làm phù hợp" của từng hồ sơ (cùng bộ lọc với trang đó) chưa được AI chấm và % khớp đạt ngưỡng, gom một truy vấn, % cao nhất trước; `planShortlist` giữ `topN` tin đầu mỗi người. Tin đã có ở lượt trước thì không xét lại. */
   private async topRows(userId: string | undefined): Promise<ShortlistRow[]> {
     const cooldownBefore = new Date(Date.now() - this.cooldownHours * HOUR_MS);
     const profiles = await this.prisma.profile.findMany({

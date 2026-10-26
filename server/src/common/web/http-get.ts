@@ -49,7 +49,6 @@ export function pinArgs(url: URL, address: string): string[] {
   return ['--resolve', `${url.hostname}:${port}:${target}`];
 }
 
-/** Tham số curl cho MỘT chặng: không glob URL, chỉ http/https, ghim DNS — bỏ một cờ là bộ chặn SSRF có lỗ. */
 export function curlArgs(
   url: URL,
   address: string,

@@ -53,10 +53,10 @@ export class ProfileSynthesizerService {
       }
       yield {
         type: 'done',
-        result: await this.finish(draftId, await object, modelId),
+        result: await this.finish(userId, draftId, await object, modelId),
       };
     } catch (error) {
-      await this.fail(draftId, error, 'Đọc hồ sơ (stream)');
+      await this.fail(userId, draftId, error, 'Đọc hồ sơ (stream)');
       yield streamFailureEvent(error);
     }
   }
@@ -73,9 +73,9 @@ export class ProfileSynthesizerService {
       const { object, modelId } = await this.ai.generateObject(
         this.synthesisCall(draft),
       );
-      return await this.finish(draftId, object, modelId);
+      return await this.finish(userId, draftId, object, modelId);
     } catch (error) {
-      return this.fail(draftId, error, 'Đọc hồ sơ');
+      return this.fail(userId, draftId, error, 'Đọc hồ sơ');
     }
   }
 
@@ -127,12 +127,13 @@ export class ProfileSynthesizerService {
   }
 
   private finish(
+    userId: string,
     draftId: string,
     proposal: ProfileProposal,
     modelId: string,
   ): Promise<DraftView> {
     return this.prisma.profileDraft.update({
-      where: { id: draftId },
+      where: { id: draftId, userId },
       omit: WITHOUT_EVIDENCE,
       data: {
         status: 'DONE',
@@ -145,6 +146,7 @@ export class ProfileSynthesizerService {
   }
 
   private async fail(
+    userId: string,
     draftId: string,
     error: unknown,
     label: string,
@@ -152,7 +154,7 @@ export class ProfileSynthesizerService {
     const message = messageOf(error);
     this.logger.error(`${label} thất bại (${draftId}): ${message}`);
     return this.prisma.profileDraft.update({
-      where: { id: draftId },
+      where: { id: draftId, userId },
       data: { status: 'FAILED', error: message },
       omit: WITHOUT_EVIDENCE,
     });

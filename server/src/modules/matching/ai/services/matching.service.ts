@@ -30,7 +30,7 @@ import {
 import {
   evaluationPrompt,
   EVALUATION_SECTIONS,
-} from '../prompt/evaluation.prompt';
+} from '../prompts/evaluation.prompt';
 import { streamFailureEvent, withFailureKind } from '@/common/ai/failure-view';
 import { fastModelChain } from '@/modules/ai/utils/model-env';
 import { estimateTokens } from '@/common/ai/token-estimate';

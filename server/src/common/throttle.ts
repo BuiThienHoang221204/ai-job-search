@@ -1,16 +1,14 @@
 import { Throttle } from '@nestjs/throttler';
-
-const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
+import { HOUR_MS, MINUTE_MS } from './duration';
 
 export const ThrottleAi = () =>
-  Throttle({ default: { limit: 10, ttl: MINUTE } });
+  Throttle({ default: { limit: 10, ttl: MINUTE_MS } });
 
 export const ThrottleAuth = () =>
-  Throttle({ default: { limit: 10, ttl: MINUTE } });
+  Throttle({ default: { limit: 10, ttl: MINUTE_MS } });
 
 export const ThrottleScrape = () =>
-  Throttle({ default: { limit: 3, ttl: HOUR } });
+  Throttle({ default: { limit: 3, ttl: HOUR_MS } });
 
 export const ThrottlePdf = () =>
-  Throttle({ default: { limit: 10, ttl: MINUTE } });
+  Throttle({ default: { limit: 10, ttl: MINUTE_MS } });

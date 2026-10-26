@@ -22,7 +22,6 @@ type PublicJobRow = Prisma.JobGetPayload<{
   select: typeof PUBLIC_JOB_DETAIL_SELECT;
 }>;
 
-/** Đoạn đầu của mô tả, cắt ở ranh giới từ; khách chỉ thấy đoạn này, toàn văn nằm ở tin gốc. */
 export function excerptOf(description: string): string {
   const text = description.replace(/\s+/g, ' ').trim();
   if (text.length <= EXCERPT_LENGTH) return text;

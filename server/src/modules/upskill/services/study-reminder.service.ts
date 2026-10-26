@@ -46,7 +46,6 @@ export class StudyReminderService implements OnModuleInit {
     }
   }
 
-  /** Nhắc người có giờ học sau `now` 15 phút, hôm đó có kỹ năng đang học, chưa tắt nhắc học và có ít nhất một thiết bị nhận thông báo. */
   async remind(now: Date): Promise<number> {
     const { studyTime, day } = reminderSlot(now);
     const today = { status: 'LEARNING' as const, days: { has: day } };

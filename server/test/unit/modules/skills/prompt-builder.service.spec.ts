@@ -9,7 +9,7 @@ import {
 import {
   EVALUATION_SECTIONS,
   evaluationPrompt,
-} from 'src/modules/matching/ai/prompt/evaluation.prompt.js';
+} from 'src/modules/matching/ai/prompts/evaluation.prompt.js';
 
 const service = new PromptBuilderService();
 
