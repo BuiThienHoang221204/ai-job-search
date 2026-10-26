@@ -22,7 +22,6 @@ import type { AuthUser } from '@/common/types/auth-user';
 import { Public } from '@/common/decorators/public.decorator';
 import { justDone, streamNdjson } from '@/common/ndjson';
 import { ThrottleAi } from '@/common/throttle';
-import { QUEUE, QueueService } from '../queue/queue.service';
 import { FollowCompanyDto, RefreshBriefDto } from './company.dto';
 import { CompanyFollowService } from './services/company-follow.service';
 import { CompanyService } from './services/company.service';
@@ -36,7 +35,6 @@ export class CompanyController {
   constructor(
     private readonly companies: CompanyService,
     private readonly follows: CompanyFollowService,
-    private readonly queue: QueueService,
   ) {}
 
   @ApiOperation({ summary: 'Các công ty mình đang theo dõi' })
@@ -74,12 +72,8 @@ export class CompanyController {
   })
   @ApiParam({ name: 'jobId', description: 'ID của tin tuyển dụng' })
   @Post('brief/by-job/:jobId')
-  async refresh(@Param('jobId') jobId: string, @Body() dto: RefreshBriefDto) {
-    const payload = await this.companies.planRefresh(jobId, dto.force === true);
-    if (!payload) return { queued: false, reason: 'còn hạn' };
-
-    await this.queue.send(QUEUE.COMPANY_BRIEF, payload);
-    return { queued: true, company: payload.company };
+  refresh(@Param('jobId') jobId: string, @Body() dto: RefreshBriefDto) {
+    return this.companies.enqueueRefresh(jobId, dto.force === true);
   }
 
   @ThrottleAi()

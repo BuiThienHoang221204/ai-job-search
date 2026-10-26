@@ -11,8 +11,6 @@ import {
 import { formatModelRef, parseModelRef } from '../utils/model-ref';
 import { providerIds } from '../providers/index';
 
-export const DEFAULT_CHAIN_BUDGET_MS = 240_000;
-
 export type ModelHealthTracker = {
   mainChain(): string[];
   isCoolingDown(modelId: string): boolean;
@@ -24,7 +22,7 @@ export type ModelChainOptions = {
   defaultModelId: string;
   defaultProviderId: string;
   fallbackModelIds: string[];
-  budgetMs?: number;
+  budgetMs: number;
   logger: Logger;
   pool?: ModelHealthTracker;
 };
@@ -90,7 +88,7 @@ export class ModelChain {
     fallbackOverride?: string[],
   ): Promise<T> {
     const chain = this.links(requested, fallbackOverride);
-    const budgetMs = this.options.budgetMs ?? DEFAULT_CHAIN_BUDGET_MS;
+    const { budgetMs } = this.options;
     const startedAt = Date.now();
     let lastSkipped: unknown;
 

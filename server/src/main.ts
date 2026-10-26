@@ -17,7 +17,7 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  const trustProxyHops = config.get<number>('trustProxyHops') ?? 0;
+  const trustProxyHops = config.get<number>('trustProxyHops')!;
   if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 
   const jwtSecret = config.get<string>('auth.jwtSecret');

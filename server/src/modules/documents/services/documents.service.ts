@@ -216,7 +216,7 @@ export class DocumentsService {
 
     if (document.kind !== 'CV') {
       throw new UnprocessableEntityException(
-        `Tài liệu loại ${document.kind} không có mẫu trình bày để đổi.`,
+        'Chỉ CV mới đổi được mẫu trình bày.',
       );
     }
 
@@ -242,7 +242,7 @@ export class DocumentsService {
 
     if (document.kind !== 'CV') {
       throw new UnprocessableEntityException(
-        `Tài liệu loại ${document.kind} chưa sửa được bằng đường này.`,
+        'Chỉ CV mới sửa trực tiếp được ở đây.',
       );
     }
     if (document.status !== 'DONE') {
@@ -326,7 +326,7 @@ export class DocumentsService {
 
     if (!html) {
       throw new UnprocessableEntityException(
-        `Tài liệu loại ${document.kind} chưa có mẫu HTML để xem trước.`,
+        'Loại tài liệu này không có bản xem trước để in. Hãy sao chép nội dung rồi dán vào nơi gửi.',
       );
     }
 

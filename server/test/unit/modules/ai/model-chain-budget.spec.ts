@@ -7,7 +7,7 @@ const denied = (status: number) =>
     statusCode: status,
   });
 
-const chainOf = (fallbackModelIds: string[], budgetMs?: number) =>
+const chainOf = (fallbackModelIds: string[], budgetMs = 240_000) =>
   new ModelChain({
     defaultModelId: 'opencode/a',
     defaultProviderId: 'opencode',

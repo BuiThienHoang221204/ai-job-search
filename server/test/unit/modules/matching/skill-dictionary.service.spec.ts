@@ -121,6 +121,7 @@ function build(
     ai as unknown as AiService,
     config as unknown as ConfigService,
     semantic,
+    null as never,
   );
   return { service, ai, semantic, prisma };
 }

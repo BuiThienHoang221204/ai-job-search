@@ -1,3 +1,4 @@
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import {
   BadRequestException,
   ConflictException,
@@ -48,6 +49,7 @@ export class CompanyService {
     private readonly prisma: PrismaService,
     private readonly ai: AiService,
     private readonly research: ReviewResearchService,
+    private readonly queue: QueueService,
   ) {}
 
   async forJob(jobId: string): Promise<BriefView> {
@@ -73,6 +75,14 @@ export class CompanyService {
     });
 
     return briefViewOf(job.company, row, Date.now());
+  }
+
+  async enqueueRefresh(jobId: string, force: boolean) {
+    const payload = await this.planRefresh(jobId, force);
+    if (!payload) return { queued: false, reason: 'còn hạn' };
+
+    await this.queue.send(QUEUE.COMPANY_BRIEF, payload);
+    return { queued: true, company: payload.company };
   }
 
   async planRefresh(

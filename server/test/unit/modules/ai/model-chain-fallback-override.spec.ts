@@ -12,6 +12,7 @@ const chainOf = (fallbackModelIds: string[]) =>
     defaultModelId: 'opencode/a',
     defaultProviderId: 'opencode',
     fallbackModelIds,
+    budgetMs: 240_000,
     logger: { warn: jest.fn(), log: jest.fn() } as unknown as Logger,
   });
 

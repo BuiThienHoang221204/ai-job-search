@@ -143,8 +143,8 @@ export class QuestionBankService {
         ...fastModelChain(estimateTokens(system, prompt)),
       });
 
-    await this.prisma.interviewQuestion.update({
-      where: { id },
+    await this.prisma.interviewQuestion.updateMany({
+      where: { id, answeredAt: null },
       data: {
         why: object.why,
         keyPoints: object.keyPoints,

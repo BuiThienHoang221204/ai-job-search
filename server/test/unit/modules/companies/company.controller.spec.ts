@@ -1,6 +1,6 @@
 import { CompanyController } from 'src/modules/companies/company.controller.js';
 import type { CompanyFollowService } from 'src/modules/companies/services/company-follow.service.js';
-import type { CompanyService } from 'src/modules/companies/services/company.service.js';
+import { CompanyService } from 'src/modules/companies/services/company.service.js';
 import { QUEUE } from 'src/modules/queue/queue.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
 
@@ -13,28 +13,27 @@ function build(plan: unknown) {
     },
   } as unknown as QueueService;
 
-  const companies = {
-    forJob: () =>
-      Promise.resolve({
-        company: 'FPT Software',
-        researchable: true,
-        brief: null,
-        stale: false,
-      }),
-    planRefresh: () => Promise.resolve(plan),
-  } as unknown as CompanyService;
+  const companies = new CompanyService(
+    null as never,
+    null as never,
+    null as never,
+    queue,
+  );
+  jest.spyOn(companies, 'planRefresh').mockResolvedValue(plan as never);
+  jest.spyOn(companies, 'forJob').mockResolvedValue({
+    company: 'FPT Software',
+    researchable: true,
+    brief: null,
+    stale: false,
+  });
 
   return {
-    controller: new CompanyController(
-      companies,
-      {} as CompanyFollowService,
-      queue,
-    ),
+    controller: new CompanyController(companies, {} as CompanyFollowService),
     sent,
   };
 }
 
-describe('CompanyController', () => {
+describe('Làm mới tóm tắt công ty', () => {
   test('đường đọc trả thẳng bản đã lưu, không xếp việc nào', async () => {
     const { controller, sent } = build(null);
 

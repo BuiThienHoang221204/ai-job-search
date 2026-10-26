@@ -35,6 +35,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     defaultModelId: 'opencode/a',
     defaultProviderId: 'omniroute',
     fallbackModelIds: [],
+    budgetMs: 240_000,
     logger: { warn: jest.fn(), log: jest.fn() } as unknown as Logger,
     pool,
   });

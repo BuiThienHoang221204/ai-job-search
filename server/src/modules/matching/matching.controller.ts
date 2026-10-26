@@ -18,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
-import { QUEUE, QueueService } from '../queue/queue.service';
+import { SkillDictionaryService } from './ai/services/skill-dictionary.service';
 import { EvaluateJobDto, ListMatchesQueryDto } from './matching.dto';
 import { MatchingService } from './ai/services/matching.service';
 import { JobRequirementsService } from './ai/services/job-requirements.service';
@@ -36,7 +36,7 @@ export class MatchingController {
 
   constructor(
     private readonly matching: MatchingService,
-    private readonly queue: QueueService,
+    private readonly dictionary: SkillDictionaryService,
     private readonly requirements: JobRequirementsService,
     private readonly shortlist: AiShortlistService,
   ) {}
@@ -88,9 +88,8 @@ export class MatchingController {
   @Roles('ADMIN')
   @ApiOperation({ summary: 'Tái cấu trúc danh bạ kỹ năng chuẩn hóa (Admin)' })
   @Post('dictionary/rebuild')
-  async rebuildDictionary() {
-    const id = await this.queue.send(QUEUE.SKILL_CANONICALIZE, { round: 0 });
-    return { queued: true, queueJobId: id };
+  rebuildDictionary() {
+    return this.dictionary.rebuild();
   }
 
   @Roles('ADMIN')

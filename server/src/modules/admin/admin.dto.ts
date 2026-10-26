@@ -15,6 +15,7 @@ import {
   Min,
 } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
+import { MAX_RE_EXTRACT_SIZE } from './services/admin-jobs.service';
 
 const trimmed = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() || undefined : value;
@@ -218,7 +219,7 @@ export class FailureFacetsQueryDto {
 export class ReExtractJobsDto {
   @IsArray()
   @ArrayNotEmpty()
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(MAX_RE_EXTRACT_SIZE)
   @IsString({ each: true })
   jobIds: string[];
 }

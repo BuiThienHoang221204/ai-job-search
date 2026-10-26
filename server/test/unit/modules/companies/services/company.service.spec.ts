@@ -88,6 +88,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('FPT Software');
 
     expect(searched).toHaveLength(3);
@@ -112,6 +113,7 @@ describe('CompanyService.build', () => {
         prisma,
         ai as unknown as AiService,
         research,
+        null as never,
       ).build('FPT Software');
 
       expect(ai.calls[0].modelId).toBe('gemini/models/nhanh');
@@ -131,6 +133,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('FPT Software');
 
     expect(ai.calls[0].prompt).toContain('### NGUỒN 1');
@@ -157,6 +160,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('FPT Software');
 
     expect(saved[0].sources).toEqual([
@@ -180,6 +184,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('FPT Software');
 
     expect(saved[0].sources).toEqual([
@@ -210,6 +215,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('Công ty ABC');
 
     expect(ai.calls[0].prompt).toContain(snippet);
@@ -239,6 +245,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('Công ty ABC');
 
     expect(saved[0].verdict).toBe('NO_REVIEWS_YET');
@@ -257,6 +264,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('Công ty Vô Danh ABC');
 
     expect(ai.calls).toHaveLength(0);
@@ -274,6 +282,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('FPT Software');
 
     expect(searched).toEqual([]);
@@ -301,6 +310,7 @@ describe('CompanyService.build', () => {
       prisma,
       ai as unknown as AiService,
       research,
+      null as never,
     ).build('FPT Software');
 
     expect(saved[0].confidence).toBe('HIGH');
@@ -313,6 +323,7 @@ describe('CompanyService.build', () => {
       prisma,
       new FakeAi() as unknown as AiService,
       research,
+      null as never,
     );
 
     await expect(service.build('Confidential')).rejects.toThrow(/ẩn danh/);
@@ -349,6 +360,7 @@ describe('CompanyService.forJob / planRefresh', () => {
       prisma,
       new FakeAi() as unknown as AiService,
       fakeResearch([]).research,
+      null as never,
     );
     return { service, findUnique };
   }

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { messageOf } from '@/common/error-message';
 import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
 import { pageArgs, pageOf } from '@/common/pagination';
@@ -12,6 +16,8 @@ import { dateRange } from '../utils/filters';
 const JOB_COUNTS = {
   _count: { select: { matches: true, duplicates: true, applications: true } },
 } as const;
+
+export const MAX_RE_EXTRACT_SIZE = 100;
 
 @Injectable()
 export class AdminJobsService {
@@ -148,8 +154,14 @@ export class AdminJobsService {
   async reExtract(
     jobIds: string[],
   ): Promise<{ queued: number; message: string }> {
+    const ids = Array.from(new Set(jobIds));
+    if (ids.length > MAX_RE_EXTRACT_SIZE) {
+      throw new BadRequestException(
+        `Mỗi lần chỉ rút lại tối đa ${MAX_RE_EXTRACT_SIZE} tin.`,
+      );
+    }
     const jobs = await this.prisma.job.findMany({
-      where: { id: { in: Array.from(new Set(jobIds)) } },
+      where: { id: { in: ids } },
       select: { id: true },
     });
     const validIds = jobs.map((job) => job.id);

@@ -1,3 +1,4 @@
+import { QUEUE, QueueService } from '@/modules/queue/queue.service';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -59,7 +60,13 @@ export class SkillDictionaryService {
     private readonly ai: AiService,
     private readonly config: ConfigService,
     @Inject(SEMANTIC_INDEX) private readonly semantic: SemanticIndex,
+    private readonly queue: QueueService,
   ) {}
+
+  async rebuild() {
+    const id = await this.queue.send(QUEUE.SKILL_CANONICALIZE, { round: 0 });
+    return { queued: true, queueJobId: id };
+  }
 
   /** Bảng tra cách viết → kỹ năng chuẩn và kỹ năng chuẩn → các kỹ năng nó kéo theo, cache ngắn hạn trong bộ nhớ. */
   async lookup(): Promise<SkillDictionary> {

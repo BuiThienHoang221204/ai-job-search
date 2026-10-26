@@ -71,13 +71,14 @@ export class AiService implements Ai {
     config: ConfigService,
     private readonly pool: ModelPoolService,
   ) {
-    this.structuredOutputsDefault =
-      config.get<boolean>('ai.structuredOutputs') ?? false;
+    this.structuredOutputsDefault = config.get<boolean>(
+      'ai.structuredOutputs',
+    )!;
     this.chain = new ModelChain({
-      defaultModelId: config.get<string>('ai.modelId') ?? '',
-      defaultProviderId: config.get<string>('ai.provider') ?? '',
-      fallbackModelIds: config.get<string[]>('ai.fallbackModelIds') ?? [],
-      budgetMs: config.get<number>('ai.chainBudgetMs'),
+      defaultModelId: config.get<string>('ai.modelId')!,
+      defaultProviderId: config.get<string>('ai.provider')!,
+      fallbackModelIds: config.get<string[]>('ai.fallbackModelIds')!,
+      budgetMs: config.get<number>('ai.chainBudgetMs')!,
       logger: this.logger,
       pool,
     });
