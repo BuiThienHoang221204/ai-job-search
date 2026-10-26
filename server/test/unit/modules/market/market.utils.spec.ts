@@ -19,7 +19,7 @@ describe('market.utils', () => {
     expect(median([30, 10, 20, 40])).toBe(25);
   });
 
-  test('kỹ năng tính % trên tin đã rút yêu cầu, mỗi tin đếm một lần; cấp bậc bỏ UNKNOWN', () => {
+  test('kỹ năng tính % trên tin đã rút yêu cầu, mỗi tin đếm một lần, viết hoa chữ đầu; cấp bậc bỏ UNKNOWN', () => {
     const job = {
       subOccupationCode: null,
       provinceCode: null,
@@ -39,7 +39,7 @@ describe('market.utils', () => {
       analysed: 2,
       top: [
         { name: 'Java', percent: 100 },
-        { name: 'sql', percent: 50 },
+        { name: 'Sql', percent: 50 },
       ],
     });
     expect(sections.seniority[0]).toEqual({

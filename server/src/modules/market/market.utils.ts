@@ -53,6 +53,9 @@ export function median(values: number[]): number | null {
   return (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+const capitalize = (text: string) =>
+  text.charAt(0).toLocaleUpperCase('vi') + text.slice(1);
+
 const percent = (part: number, whole: number) =>
   whole ? Math.round((part / whole) * 100) : 0;
 
@@ -91,7 +94,7 @@ export function marketSections(jobs: MarketJob[], names: Map<string, string>) {
       top: countBy(skillKeys)
         .slice(0, TOP_SKILLS)
         .map(([key, count]) => ({
-          name: names.get(key) ?? key,
+          name: capitalize(names.get(key) ?? key),
           percent: percent(count, analysed.length),
         })),
     },
