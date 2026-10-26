@@ -53,7 +53,6 @@ export interface NegotiationInput {
   candidateYears: number | null;
   minYears: number | null;
   seniority: Seniority;
-  fitScore: number | null;
   postedMin: number | null;
   postedMax: number | null;
   currentSalary: number | null;
@@ -89,16 +88,21 @@ export interface SalaryGuideJob {
 }
 
 export interface SalaryGuideRequirements {
+  requiredSkills: string[];
   minYears: number | null;
   seniority: Seniority;
 }
 
 export interface SalaryGuideProfile {
   candidateYears: number | null;
+  otherOccupationYears: number | null;
   currentSalary: number | null;
+  currentSalaryIgnored: boolean;
   expectedSalary: number | null;
 }
 
 export type SalaryGuide = NegotiationRange & {
   positionSlug: string | null;
+  otherOccupationYears: number | null;
+  currentSalaryIgnored: boolean;
 };

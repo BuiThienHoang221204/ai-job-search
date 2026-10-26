@@ -1,5 +1,6 @@
 import type { JobRequirements } from 'src/modules/matching/ai/schemas/job-requirements.schema.js';
 import { matchRequirements } from 'src/modules/matching/rules/requirement-match.js';
+import { profileForJob } from 'src/modules/matching/ai/utils/requirements.js';
 import type { MatchProfile } from 'src/modules/matching/rules/types.js';
 
 const requirements = (
@@ -24,6 +25,7 @@ const profile = (overrides: Partial<MatchProfile> = {}): MatchProfile => ({
   location: 'Hà Nội',
   willingToRelocate: false,
   years: null,
+  yearsByOccupation: null,
   ...overrides,
 });
 
@@ -439,5 +441,42 @@ describe('danh bạ kỹ năng', () => {
     );
 
     expect(result.met).toBe(0);
+  });
+});
+
+describe('số năm kinh nghiệm theo ngành của tin', () => {
+  const itOnly = profile({
+    years: 1.8,
+    yearsByOccupation: new Map([['IT', 1.8]]),
+  });
+
+  test('tin khác ngành không được tính số năm ở ngành khác', () => {
+    const [check] = matchRequirements(
+      requirements({ requiredSkills: [], minYears: 1 }),
+      profileForJob(itOnly, 'LOGISTICS'),
+    ).checks;
+    expect(check).toMatchObject({ kind: 'YEARS', met: false });
+  });
+
+  test('không mục kinh nghiệm nào xếp được ngành thì vẫn dùng tổng số năm', () => {
+    const unknownField = profile({
+      years: 3,
+      yearsByOccupation: new Map([['OTHER', 3]]),
+    });
+    const [check] = matchRequirements(
+      requirements({ requiredSkills: [], minYears: 1 }),
+      profileForJob(unknownField, 'LOGISTICS'),
+    ).checks;
+    expect(check).toMatchObject({ kind: 'YEARS', met: true });
+  });
+
+  test('tin cùng ngành, hoặc chưa rõ ngành, vẫn tính như cũ', () => {
+    for (const occupation of ['IT', 'OTHER', null]) {
+      const [check] = matchRequirements(
+        requirements({ requiredSkills: [], minYears: 1 }),
+        profileForJob(itOnly, occupation),
+      ).checks;
+      expect(check).toMatchObject({ kind: 'YEARS', met: true });
+    }
   });
 });

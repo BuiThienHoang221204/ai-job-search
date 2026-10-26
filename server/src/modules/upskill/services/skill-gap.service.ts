@@ -14,6 +14,7 @@ import {
 } from '@/modules/jobs/taxonomy/sub-occupations';
 import { SkillDictionaryService } from '@/modules/matching/ai/services/skill-dictionary.service';
 import {
+  profileForJob,
   toMatchProfile,
   toRequirements,
 } from '@/modules/matching/ai/utils/requirements';
@@ -107,7 +108,10 @@ export class SkillGapService {
       this.dictionary.lookup(),
     ]);
 
-    const matchProfile = toMatchProfile(profile);
+    const matchProfile = profileForJob(
+      toMatchProfile(profile),
+      fit.occupationCode,
+    );
     const jobs: GapJob[] = requirements.map((requirement) => ({
       ...requirement.job,
       checks: matchRequirements(

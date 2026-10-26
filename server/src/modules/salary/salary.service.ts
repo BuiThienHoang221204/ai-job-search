@@ -40,14 +40,17 @@ export class SalaryService {
   async guideForJob(
     job: SalaryGuideJob,
     requirements: SalaryGuideRequirements | null,
-    fitScore: number | null,
     profile: SalaryGuideProfile | null,
   ): Promise<SalaryGuide | null> {
     const rows = await this.prisma.salaryReference.findMany({
       where: { visibility: 'PUBLIC' },
       select: INDEX_SELECT,
     });
-    const resolved = resolveJobPosition(job, buildPositionIndex(rows));
+    const resolved = resolveJobPosition(
+      job,
+      buildPositionIndex(rows),
+      requirements?.requiredSkills ?? [],
+    );
     if (!resolved) return null;
 
     const range = negotiationRange({
@@ -55,7 +58,6 @@ export class SalaryService {
       candidateYears: profile?.candidateYears ?? null,
       minYears: requirements?.minYears ?? null,
       seniority: requirements?.seniority ?? 'UNKNOWN',
-      fitScore,
       postedMin: job.salaryMin,
       postedMax: job.salaryMax,
       currentSalary: profile?.currentSalary ?? null,
@@ -69,6 +71,8 @@ export class SalaryService {
         resolved.basis === 'POSITION'
           ? resolved.positions[0].positionSlug
           : null,
+      otherOccupationYears: profile?.otherOccupationYears ?? null,
+      currentSalaryIgnored: profile?.currentSalaryIgnored ?? false,
     };
   }
 

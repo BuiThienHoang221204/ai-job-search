@@ -104,7 +104,6 @@ const input = (over: Partial<NegotiationInput> = {}): NegotiationInput => ({
   candidateYears: 2,
   minYears: 2,
   seniority: 'UNKNOWN',
-  fitScore: 50,
   postedMin: null,
   postedMax: null,
   currentSalary: null,
@@ -141,30 +140,12 @@ describe('requiredYearsOf', () => {
 });
 
 describe('negotiationRange', () => {
-  test('hồ sơ trung tính thì mục tiêu bám mức trung bình của mốc', () => {
+  test('mục tiêu là mức trung bình của mốc kinh nghiệm', () => {
     const range = negotiationRange(input());
     expect(range?.experienceLabel).toBe('1–3 năm');
     expect(range?.target).toBe(16_000_000);
     expect(range?.floor).toBe(15_000_000);
     expect(range?.ceiling).toBe(17_000_000);
-  });
-
-  test('hồ sơ mạnh nới trần nhưng không nhảy tới trần cả vị trí', () => {
-    const range = negotiationRange(input({ fitScore: 100 }));
-    expect(range?.ceiling).toBe(19_500_000);
-    expect(range?.target).toBeGreaterThan(16_000_000);
-  });
-
-  test('hồ sơ yếu hạ sàn nhưng không rơi xuống sàn cả vị trí', () => {
-    const range = negotiationRange(input({ fitScore: 10 }));
-    expect(range?.floor).toBe(13_000_000);
-    expect(range?.target).toBeLessThan(16_000_000);
-  });
-
-  test('sàn không tụt quá một bậc khi điểm phù hợp giảm', () => {
-    const neutral = negotiationRange(input({ fitScore: 50 }))!;
-    const weak = negotiationRange(input({ fitScore: 20 }))!;
-    expect(weak.floor).toBeGreaterThan(neutral.floor * 0.8);
   });
 
   test('thiếu mốc kinh nghiệm thì khoảng không được phình ra cả dải nghề', () => {
@@ -181,20 +162,6 @@ describe('negotiationRange', () => {
       }),
     )!;
     expect(range.ceiling - range.floor).toBeLessThan(range.target);
-  });
-
-  test('mục tiêu luôn nằm trong khoảng sàn - trần', () => {
-    for (const fitScore of [0, 25, 50, 75, 100]) {
-      const range = negotiationRange(input({ fitScore }));
-      expect(range!.target).toBeGreaterThanOrEqual(range!.floor);
-      expect(range!.target).toBeLessThanOrEqual(range!.ceiling);
-    }
-  });
-
-  test('thiếu điểm phù hợp thì coi như trung tính, không phải bằng 0', () => {
-    expect(negotiationRange(input({ fitScore: null }))?.target).toBe(
-      negotiationRange(input({ fitScore: 50 }))?.target,
-    );
   });
 
   test('tầng nhóm lấy trung vị của các vị trí trong nhóm', () => {
@@ -241,6 +208,15 @@ describe('negotiationRange', () => {
     expect(range?.target).toBeLessThanOrEqual(16_000_000);
   });
 
+  test('lương tối thiểu của tin cao hơn trần tham chiếu thì không bao giờ đề xuất thấp hơn mức đó', () => {
+    const range = negotiationRange(
+      input({ postedMin: 30_000_000, postedMax: 40_000_000 }),
+    );
+    expect(range?.floor).toBe(30_000_000);
+    expect(range?.target).toBe(30_000_000);
+    expect(range?.ceiling).toBe(30_000_000);
+  });
+
   test('kỳ vọng ngoài khoảng được gắn cờ chứ không bị sửa', () => {
     const above = negotiationRange(input({ expectedSalary: 40_000_000 }));
     expect(above?.expectedAboveCeiling).toBe(true);
@@ -262,7 +238,6 @@ describe('negotiationRange', () => {
         candidateYears: 1.8,
         minYears: 5,
         seniority: 'SENIOR',
-        fitScore: 68,
         currentSalary: 14_000_000,
         expectedSalary: 18_000_000,
       }),

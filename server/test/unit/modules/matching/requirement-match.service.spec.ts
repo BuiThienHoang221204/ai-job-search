@@ -1,9 +1,11 @@
-import type { JobRequirement, Prisma } from 'src/generated/prisma/client.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import type { ScoredRequirement } from 'src/modules/matching/rules/match-write.js';
 import { RequirementMatchService } from 'src/modules/matching/rules/services/requirement-match.service.js';
 import type { SkillDictionaryService } from 'src/modules/matching/ai/services/skill-dictionary.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 
-const requirement = (index: number): JobRequirement => ({
+const requirement = (index: number): ScoredRequirement => ({
+  job: { occupationCode: 'IT' },
   jobId: `job-${index}`,
   status: 'DONE',
   requiredSkills: index % 3 === 0 ? ['Kế toán'] : ['NestJS', 'PostgreSQL'],
@@ -45,14 +47,14 @@ type CreateArgs = {
 };
 
 function build(
-  requirements: JobRequirement[],
+  requirements: ScoredRequirement[],
   existing: { userId: string; jobId: string; hash: string }[] = [],
 ) {
   const prisma = {
     profile: { findMany: jest.fn().mockResolvedValue([profileRow]) },
     jobRequirement: {
       findMany: jest
-        .fn<Promise<JobRequirement[]>, [FindManyArgs]>()
+        .fn<Promise<ScoredRequirement[]>, [FindManyArgs]>()
         .mockResolvedValue(requirements),
     },
     jobRequirementMatch: {

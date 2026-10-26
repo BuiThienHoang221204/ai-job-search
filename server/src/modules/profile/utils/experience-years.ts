@@ -1,4 +1,6 @@
 import { foldTerm } from '@/common/text/vietnamese';
+import { OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
+import { resolveOccupation } from '@/modules/jobs/taxonomy/resolve';
 
 const MONTHS = [
   'jan',
@@ -94,4 +96,27 @@ export function yearsOfExperience(
   }
 
   return Math.round((totalMonths(spans) / 12) * 10) / 10;
+}
+
+export function yearsByOccupation(
+  experiences: unknown,
+  mainOccupation: string | null,
+  now: Date = new Date(),
+): Map<string, number> | null {
+  if (yearsOfExperience(experiences, now) === null) return null;
+
+  const groups = new Map<string, unknown[]>();
+  for (const entry of experiences as { position?: unknown }[]) {
+    const position = typeof entry.position === 'string' ? entry.position : '';
+    let occupation = resolveOccupation(position, []);
+    if (occupation === OTHER_CODE && mainOccupation)
+      occupation = mainOccupation;
+    groups.set(occupation, [...(groups.get(occupation) ?? []), entry]);
+  }
+
+  const years = new Map<string, number>();
+  for (const [occupation, entries] of groups) {
+    years.set(occupation, yearsOfExperience(entries, now) ?? 0);
+  }
+  return years;
 }

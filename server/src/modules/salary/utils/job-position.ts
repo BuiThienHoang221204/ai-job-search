@@ -127,6 +127,30 @@ function matchBySubOccupation(
   return positions;
 }
 
+function narrowBySkills(
+  group: ReferencePosition[],
+  requiredSkills: string[],
+): ReferencePosition[] {
+  if (group.length < 2) return [];
+  const names = group.map((position) =>
+    normalizeText(position.positionName).split(' '),
+  );
+  const shared = names[0].filter((word) =>
+    names.every((name) => name.includes(word)),
+  );
+  const skills = requiredSkills.map((skill) => normalizeText(skill).split(' '));
+
+  return group.filter((_, at) => {
+    const own = names[at].filter((word) => !shared.includes(word));
+    if (own.length === 0) return false;
+    return skills.some(
+      (words) =>
+        own.every((word) => words.includes(word)) ||
+        words.join('') === own.join(''),
+    );
+  });
+}
+
 export function resolveJobPosition(
   job: {
     title: string;
@@ -134,6 +158,7 @@ export function resolveJobPosition(
     subOccupationCode: string | null;
   },
   index: PositionIndex,
+  requiredSkills: string[],
 ): ResolvedPosition | null {
   if (job.occupationCode) {
     const exact = matchByTitle(job.title, job.occupationCode, index);
@@ -147,7 +172,16 @@ export function resolveJobPosition(
   }
 
   if (job.subOccupationCode) {
-    const group = matchBySubOccupation(job.subOccupationCode, index);
+    const all = matchBySubOccupation(job.subOccupationCode, index);
+    const picked = narrowBySkills(all, requiredSkills);
+    if (picked.length === 1) {
+      return {
+        basis: 'POSITION',
+        label: picked[0].positionName,
+        positions: picked,
+      };
+    }
+    const group = picked.length > 0 ? picked : all;
     if (group.length > 0) {
       return {
         basis: 'SUB_OCCUPATION',

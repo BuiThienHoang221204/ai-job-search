@@ -26,6 +26,7 @@ const profile = (overrides: Partial<MatchProfile> = {}): MatchProfile => ({
   location: 'Hà Nội',
   willingToRelocate: false,
   years: null,
+  yearsByOccupation: null,
   ...overrides,
 });
 

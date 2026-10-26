@@ -1,5 +1,9 @@
 import type { JobRequirement, Prisma } from '@/generated/prisma/client';
-import { toMatchProfile, toRequirements } from '../ai/utils/requirements';
+import {
+  profileForJob,
+  toMatchProfile,
+  toRequirements,
+} from '../ai/utils/requirements';
 import { matchRequirements } from './requirement-match';
 import type { Candidate, SkillDictionary } from './types';
 
@@ -7,7 +11,7 @@ export const MIN_COMPLETION_TO_SCORE = 30;
 
 const MIN_SKILLS_TO_STORE = 1;
 
-const FORMULA_VERSION = 'v4';
+const FORMULA_VERSION = 'v5';
 
 export const profileSelect = {
   userId: true,
@@ -18,6 +22,7 @@ export const profileSelect = {
   workPermit: true,
   location: true,
   willingToRelocate: true,
+  occupationCode: true,
   experiences: true,
   updatedAt: true,
 } satisfies Prisma.ProfileSelect;
@@ -29,6 +34,10 @@ export const toCandidate = (row: ProfileRow): Candidate => ({
   profile: toMatchProfile(row),
   stamp: row.updatedAt.toISOString(),
 });
+
+export type ScoredRequirement = JobRequirement & {
+  job: { occupationCode: string | null };
+};
 
 export const pairKey = (userId: string, jobId: string) => `${userId}::${jobId}`;
 
@@ -46,7 +55,7 @@ export type MatchWrites = {
 };
 
 export function planMatchWrites(
-  requirements: JobRequirement[],
+  requirements: ScoredRequirement[],
   candidates: Candidate[],
   dictionary: SkillDictionary,
   known: Map<string, string>,
@@ -62,7 +71,11 @@ export function planMatchWrites(
       const key = pairKey(candidate.userId, requirement.jobId);
       if (known.get(key) === hash) continue;
 
-      const result = matchRequirements(parsed, candidate.profile, dictionary);
+      const result = matchRequirements(
+        parsed,
+        profileForJob(candidate.profile, requirement.job.occupationCode),
+        dictionary,
+      );
       if (result.skillMet < MIN_SKILLS_TO_STORE) {
         if (known.has(key)) {
           stale.push({ userId: candidate.userId, jobId: requirement.jobId });

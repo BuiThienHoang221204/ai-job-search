@@ -1,8 +1,14 @@
 import type { JobRequirement } from 'src/generated/prisma/client.js';
-import { planMatchWrites } from 'src/modules/matching/rules/match-write.js';
+import {
+  planMatchWrites,
+  type ScoredRequirement,
+} from 'src/modules/matching/rules/match-write.js';
 import type { Candidate } from 'src/modules/matching/rules/types.js';
 
-const requirement = (overrides: Partial<JobRequirement>): JobRequirement => ({
+const requirement = (
+  overrides: Partial<JobRequirement>,
+): ScoredRequirement => ({
+  job: { occupationCode: 'IT' },
   jobId: 'job-1',
   status: 'DONE',
   requiredSkills: [],
@@ -34,6 +40,7 @@ const itDeveloper: Candidate = {
     location: null,
     willingToRelocate: false,
     years: 2,
+    yearsByOccupation: new Map([['IT', 2]]),
   },
 };
 

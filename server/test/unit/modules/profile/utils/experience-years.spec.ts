@@ -1,4 +1,7 @@
-import { yearsOfExperience } from 'src/modules/profile/utils/experience-years.js';
+import {
+  yearsByOccupation,
+  yearsOfExperience,
+} from 'src/modules/profile/utils/experience-years.js';
 
 /** Mốc "hôm nay" cố định, để test không đổi kết quả theo ngày chạy. */
 const NOW = new Date('2026-08-24T00:00:00Z');
@@ -61,6 +64,36 @@ describe('yearsOfExperience', () => {
   test('tháng ngoài 1-12 là dữ liệu hỏng, trả null', () => {
     expect(
       yearsOfExperience([{ period: '13/2020 - 01/2023' }], NOW),
+    ).toBeNull();
+  });
+});
+
+describe('yearsByOccupation', () => {
+  test('chia số năm theo ngành của chức danh; chức danh không xếp được thì theo ngành chính', () => {
+    const years = yearsByOccupation(
+      [
+        { position: 'Kế toán tổng hợp', period: '01/2020 - 12/2022' },
+        { position: 'Full Stack Developer', period: '01/2023 - 12/2023' },
+        { position: 'Thực tập sinh', period: '01/2024 - 12/2024' },
+      ],
+      'IT',
+      NOW,
+    );
+    expect(years).toEqual(
+      new Map([
+        ['FINANCE', 2.9],
+        ['IT', 1.8],
+      ]),
+    );
+  });
+
+  test('số năm đọc không chắc thì trả null', () => {
+    expect(
+      yearsByOccupation(
+        [{ position: 'Kế toán', period: 'lâu rồi' }],
+        null,
+        NOW,
+      ),
     ).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { JobRequirement, Prisma } from '@/generated/prisma/client';
+import type { Prisma } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { SkillDictionaryService } from '@/modules/matching/ai/services/skill-dictionary.service';
 import {
@@ -8,6 +8,7 @@ import {
   planMatchWrites,
   profileSelect,
   toCandidate,
+  type ScoredRequirement,
 } from '../match-write';
 import type { Candidate } from '../types';
 
@@ -30,13 +31,14 @@ export class RequirementMatchService {
     return rows.map(toCandidate);
   }
 
-  private requirements(jobId?: string): Promise<JobRequirement[]> {
+  private requirements(jobId?: string): Promise<ScoredRequirement[]> {
     return this.prisma.jobRequirement.findMany({
       where: {
         status: 'DONE',
         job: { duplicateOfId: null },
         ...(jobId ? { jobId } : {}),
       },
+      include: { job: { select: { occupationCode: true } } },
     });
   }
 
@@ -50,7 +52,7 @@ export class RequirementMatchService {
   }
 
   private async apply(
-    requirements: JobRequirement[],
+    requirements: ScoredRequirement[],
     candidates: Candidate[],
   ): Promise<number> {
     if (!requirements.length || !candidates.length) return 0;
@@ -70,7 +72,7 @@ export class RequirementMatchService {
   }
 
   private async existingHashes(
-    requirements: JobRequirement[],
+    requirements: ScoredRequirement[],
     candidates: Candidate[],
   ): Promise<Map<string, string>> {
     const rows = await this.prisma.jobRequirementMatch.findMany({

@@ -2,10 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@/generated/prisma/client';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
-import { toMatchProfile } from '../matching/ai/utils/requirements';
+import {
+  profileForJob,
+  toMatchProfile,
+} from '../matching/ai/utils/requirements';
 import { SkillDictionaryService } from '../matching/ai/services/skill-dictionary.service';
 import { SalaryService } from '../salary/salary.service';
-import { yearsOfExperience } from '../profile/utils/experience-years';
+import { salaryProfileOf } from '../salary/utils/candidate';
 import {
   jobCardSelect,
   PUBLIC_JOB_DETAIL_SELECT,
@@ -229,15 +232,16 @@ export class JobsService {
       this.salary.guideForJob(
         job,
         job.requirements?.status === 'DONE' ? job.requirements : null,
-        scored.systemMatch?.kind === 'REQUIREMENTS'
-          ? scored.systemMatch.score
-          : null,
-        profileMeta
-          ? {
-              candidateYears: yearsOfExperience(profileMeta.experiences),
+        skills && profileMeta
+          ? salaryProfileOf({
+              sameOccupationYears: profileForJob(skills, job.occupationCode)
+                .years,
+              totalYears: skills.years,
+              profileOccupation: profileMeta.occupationCode,
+              jobOccupation: job.occupationCode,
               currentSalary: profileMeta.currentSalary,
               expectedSalary: profileMeta.expectedSalary,
-            }
+            })
           : null,
       ),
       this.repostsOf(job.dedupeKey),

@@ -7,7 +7,10 @@ import type {
 import { countTerms, normalizeText } from '@/common/text/vietnamese';
 import { isStaleMatch } from '@/modules/matching/rules/staleness';
 import { withFailureKind } from '@/common/ai/failure-view';
-import { toRequirements } from '@/modules/matching/ai/utils/requirements';
+import {
+  profileForJob,
+  toRequirements,
+} from '@/modules/matching/ai/utils/requirements';
 import { matchRequirements } from '@/modules/matching/rules/requirement-match';
 import type {
   MatchProfile,
@@ -104,6 +107,7 @@ export function withSystemMatch<
   T extends {
     title: string;
     tags: string[];
+    occupationCode: string | null;
     requirements: JobRequirement | null;
   },
 >(job: T, profile: MatchProfile | null, dictionary: SkillDictionary) {
@@ -114,7 +118,7 @@ export function withSystemMatch<
   if (requirements?.status === 'DONE') {
     const result = matchRequirements(
       toRequirements(requirements),
-      profile,
+      profileForJob(profile, job.occupationCode),
       dictionary,
     );
     return {

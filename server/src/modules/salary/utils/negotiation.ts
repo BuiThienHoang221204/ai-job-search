@@ -19,19 +19,11 @@ const SENIORITY_YEARS: Record<Seniority, number | null> = {
   UNKNOWN: null,
 };
 
-const NEUTRAL_FIT = 50;
-
-const STRONG_FIT = 75;
-
-const WEAK_FIT = 40;
-
 const MIN_RAISE_OVER_CURRENT = 1.1;
 
 const ROUNDING = 500_000;
 
 const SPREAD_WITHOUT_BAND = 0.25;
-
-const STRETCH_FOR_FIT = 0.15;
 
 /** Số năm thành nhãn mốc. Chữ phải khớp ĐÚNG chữ của nguồn, xem `EXPERIENCE_LABELS`. */
 export function labelForYears(years: number | null): ExperienceLabel | null {
@@ -141,28 +133,8 @@ export function negotiationRange(
     ? (bandHigh ?? mid)
     : clamp(mid * (1 + SPREAD_WITHOUT_BAND), positionLow, positionHigh);
 
-  const fit = input.fitScore ?? NEUTRAL_FIT;
-  const lean = (fit - NEUTRAL_FIT) / NEUTRAL_FIT;
-  const rawTarget =
-    lean >= 0 ? mid + (high - mid) * lean : mid + (mid - low) * lean;
-
   let floor = low;
   let ceiling = high;
-
-  if (fit >= STRONG_FIT) {
-    const stretched = high * (1 + STRETCH_FOR_FIT);
-    ceiling =
-      positionHigh === null
-        ? stretched
-        : Math.min(stretched, Math.max(positionHigh, high));
-  }
-  if (fit <= WEAK_FIT) {
-    const stretched = low * (1 - STRETCH_FOR_FIT);
-    floor =
-      positionLow === null
-        ? stretched
-        : Math.max(stretched, Math.min(positionLow, low));
-  }
 
   let anchoredOnCurrentSalary = false;
   const current = input.currentSalary;
@@ -182,13 +154,14 @@ export function negotiationRange(
     cappedByPosting = true;
   }
   const postedMin = input.postedMin;
-  if (postedMin !== null && postedMin > 0 && postedMin > floor) {
-    floor = Math.min(postedMin, ceiling);
+  if (postedMin !== null && postedMin > 0) {
+    floor = Math.max(floor, postedMin);
+    ceiling = Math.max(ceiling, postedMin);
   }
 
   if (floor > ceiling) floor = ceiling;
 
-  const target = Math.min(Math.max(rawTarget, floor), ceiling);
+  const target = Math.min(Math.max(mid, floor), ceiling);
   const expected = input.expectedSalary;
 
   const roundedFloor = roundToStep(floor);

@@ -55,7 +55,13 @@ const resolve = (
   title: string,
   occupationCode: string | null,
   subOccupationCode: string | null = null,
-) => resolveJobPosition({ title, occupationCode, subOccupationCode }, index);
+  requiredSkills: string[] = [],
+) =>
+  resolveJobPosition(
+    { title, occupationCode, subOccupationCode },
+    index,
+    requiredSkills,
+  );
 
 describe('roleTokens', () => {
   test('giữ "kinh doanh" nhưng bỏ "kinh nghiệm"', () => {
@@ -124,6 +130,28 @@ describe('resolveJobPosition - tầng SUB_OCCUPATION', () => {
     );
     expect(resolved?.basis).toBe('SUB_OCCUPATION');
     expect(resolved?.positions.length).toBeGreaterThan(1);
+  });
+
+  test('tin đòi đúng công nghệ của một vị trí trong nhóm thì lấy riêng vị trí đó', () => {
+    expect(
+      resolve('Fullstack Software Developer', 'IT', 'IT_BACKEND', [
+        'ASP.NET Core',
+        'ReactJS',
+      ]),
+    ).toMatchObject({ basis: 'POSITION', label: 'Lập trình viên .NET' });
+  });
+
+  test('nhiều công nghệ khớp thì thu nhóm lại, JavaScript không bị nhận là Java', () => {
+    const resolved = resolve('Kỹ sư phần mềm', 'IT', 'IT_BACKEND', [
+      'NodeJS',
+      'Python',
+      'JavaScript',
+    ]);
+    expect(resolved?.basis).toBe('SUB_OCCUPATION');
+    expect(resolved?.positions.map((row) => row.positionName)).toEqual([
+      'Lập trình viên Node.js',
+      'Lập trình viên Python',
+    ]);
   });
 
   test('tầng POSITION được ưu tiên trước tầng nhóm', () => {

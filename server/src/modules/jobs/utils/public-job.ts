@@ -15,6 +15,7 @@ const GUEST_PROFILE: MatchProfile = {
   location: null,
   willingToRelocate: false,
   years: null,
+  yearsByOccupation: null,
 };
 
 type PublicJobRow = Prisma.JobGetPayload<{

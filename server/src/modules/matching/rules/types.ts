@@ -15,6 +15,7 @@ export type MatchProfile = {
   location: string | null;
   willingToRelocate: boolean;
   years: number | null;
+  yearsByOccupation: ReadonlyMap<string, number> | null;
 };
 
 export type RequirementMatch = {

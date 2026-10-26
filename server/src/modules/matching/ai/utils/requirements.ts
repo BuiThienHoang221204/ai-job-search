@@ -1,6 +1,10 @@
 import type { Job, JobRequirement } from '@/generated/prisma/client';
 import { fingerprint } from '@/common/fingerprint';
-import { yearsOfExperience } from '@/modules/profile/utils/experience-years';
+import {
+  yearsByOccupation,
+  yearsOfExperience,
+} from '@/modules/profile/utils/experience-years';
+import { OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
 import type { MatchProfile } from '@/modules/matching/rules/types';
 import type { JobRequirements } from '../schemas/job-requirements.schema';
 
@@ -72,6 +76,7 @@ export function toMatchProfile(profile: {
   workPermit: string | null;
   location: string | null;
   willingToRelocate: boolean;
+  occupationCode: string | null;
   experiences?: unknown;
 }): MatchProfile {
   return {
@@ -85,6 +90,26 @@ export function toMatchProfile(profile: {
     location: profile.location,
     willingToRelocate: profile.willingToRelocate,
     years: yearsOfExperience(profile.experiences),
+    yearsByOccupation: yearsByOccupation(
+      profile.experiences,
+      profile.occupationCode,
+    ),
+  };
+}
+
+/** Hồ sơ nhìn từ một tin: `years` chỉ còn số năm ở cùng ngành với tin; tin chưa rõ ngành, hoặc không mục kinh nghiệm nào xếp được ngành, thì giữ tổng số năm. */
+export function profileForJob(
+  profile: MatchProfile,
+  occupationCode: string | null,
+): MatchProfile {
+  const byOccupation = profile.yearsByOccupation;
+  if (!occupationCode || occupationCode === OTHER_CODE || !byOccupation) {
+    return profile;
+  }
+  if (byOccupation.size === 1 && byOccupation.has(OTHER_CODE)) return profile;
+  return {
+    ...profile,
+    years: byOccupation.get(occupationCode) ?? 0,
   };
 }
 
