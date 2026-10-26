@@ -22,7 +22,7 @@
 | Actor | Quyền trong module | Ghi chú |
 |---|---|---|
 | Người dùng đã đăng nhập (USER/ADMIN) | Đọc tổng quan và khoảng trống kỹ năng của chính mình | Guard JWT toàn cục; không có `@Public()` |
-| Khách | Không có | Layout `/dashboard` đẩy về đăng nhập, trừ `/dashboard/jobs` và `/dashboard/salary` (ADR 0008) |
+| Khách | Không có | Layout `/dashboard` đẩy về đăng nhập, trừ `/dashboard/jobs` và `/dashboard/market` (`isGuestPath`, ADR 0008) |
 
 ## 3. Business Features
 

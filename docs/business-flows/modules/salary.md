@@ -242,10 +242,10 @@ sequenceDiagram
 
 | Route FE | Vai trò | Mục đích | Hook / API client |
 |---|---|---|---|
-| `/salary` | Khách (SEO, có trong sitemap) | Tra cứu lương công khai | [app/salary/page.tsx](../../../../ui-ai-job-search/app/salary/page.tsx) → [salary-list.tsx](../../../../ui-ai-job-search/components/salary/salary-list.tsx), [salary-browser.tsx](../../../../ui-ai-job-search/components/salary/salary-browser.tsx) |
-| `/salary/[slug]` | Khách (SEO) | Chi tiết lương một vị trí | [app/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/salary/%5Bslug%5D/page.tsx) → [salary-detail.tsx](../../../../ui-ai-job-search/components/salary/salary-detail.tsx), [salary-bar.tsx](../../../../ui-ai-job-search/components/salary/salary-bar.tsx) |
-| `/dashboard/salary` | USER và khách (`isGuestPath`) | Cùng nội dung trong khung dashboard (noindex) | [app/dashboard/salary/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/page.tsx) |
-| `/dashboard/salary/[slug]` | USER và khách | Chi tiết trong khung dashboard | [app/dashboard/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/%5Bslug%5D/page.tsx) |
+| `/salary` | — | Chuyển hướng vào `/dashboard/salary` (từ 2026-10-19, R1) | [app/salary/page.tsx](../../../../ui-ai-job-search/app/salary/page.tsx) |
+| `/salary/[slug]` | — | Chuyển hướng vào `/dashboard/salary/[slug]` (từ 2026-10-19, R1) | [app/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/salary/%5Bslug%5D/page.tsx) |
+| `/dashboard/salary` | USER (không nằm trong `isGuestPath`, khách bị đưa về đăng nhập — R1) | Tra cứu lương trong khung dashboard (noindex) | [app/dashboard/salary/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/page.tsx) → [salary-list.tsx](../../../../ui-ai-job-search/components/salary/salary-list.tsx), [salary-browser.tsx](../../../../ui-ai-job-search/components/salary/salary-browser.tsx) |
+| `/dashboard/salary/[slug]` | USER | Chi tiết lương một vị trí; trang thị trường link tới đây theo `salarySlug` | [app/dashboard/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/%5Bslug%5D/page.tsx) → [salary-detail.tsx](../../../../ui-ai-job-search/components/salary/salary-detail.tsx), [salary-bar.tsx](../../../../ui-ai-job-search/components/salary/salary-bar.tsx) |
 | `/dashboard/jobs/[id]` (khối khung lương) | USER | Khung đàm phán `salaryGuide` | [salary-guide-panel.tsx](../../../../ui-ai-job-search/app/dashboard/jobs/%5Bid%5D/salary-guide-panel.tsx) |
 | sitemap | Bot tìm kiếm | Liệt kê `/salary` và mọi `/salary/<slug>` (revalidate 24h) | `app/sitemap.ts` (đã xoá 2026-10-19) |
 | API client | — | `fetch` từ server component tới `BACKEND_URL/api/salary/*`, `revalidate: 3600` | [services/salary.ts](../../../../ui-ai-job-search/services/salary.ts) |
