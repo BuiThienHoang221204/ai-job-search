@@ -77,7 +77,7 @@
   2. Đọc TOÀN BỘ `SalaryReference` PUBLIC kèm bands, dựng chỉ mục theo ngành và theo slug ([salary.service.ts:40](../../../server/src/modules/salary/salary.service.ts#L40), [job-position.ts:54](../../../server/src/modules/salary/utils/job-position.ts#L54)).
   3. `resolveJobPosition` ([job-position.ts:130](../../../server/src/modules/salary/utils/job-position.ts#L130)):
      1. Tin có ngành → so khớp tiêu đề: lấy phần đầu tiêu đề trước dấu `- – — ( [ | / ,`, chuẩn hoá bỏ dấu, bỏ cụm nhiễu ("kinh nghiem", "senior", "junior"…); chọn vị trí cùng ngành có tỉ lệ token khớp cao nhất (hoà thì chọn tên dài hơn); cần tỉ lệ ≥ 0,8 và ≥ 2 token khớp → `basis = POSITION`.
-     2. Không khớp mà tin có `subOccupationCode` → nhóm vị trí ánh xạ sẵn trong `SUB_OCCUPATION_POSITIONS` → `basis = SUB_OCCUPATION` ([sub-occupation-map.ts](../../../server/src/modules/salary/utils/sub-occupation-map.ts)).
+     2. Không khớp mà tin có `subOccupationCode` → nhóm vị trí ánh xạ sẵn trong `SUB_OCCUPATION_POSITIONS` ([sub-occupation-map.ts](../../../server/src/modules/salary/utils/sub-occupation-map.ts)). Thu nhóm theo kỹ năng bắt buộc của tin: giữ vị trí có phần tên riêng (bỏ chữ mọi vị trí trong nhóm cùng có, vd "Java", ".NET") nằm trọn trong một kỹ năng bắt buộc theo từ, hoặc trùng khi viết liền ("NodeJS" = "Node.js"). Còn đúng một vị trí → `basis = POSITION`; còn vài vị trí → nhóm thu nhỏ; không vị trí nào → cả nhóm, `basis = SUB_OCCUPATION` *(2026-10-26)*.
      3. Không có gì → không trả khung (`salaryGuide = null`).
   4. `negotiationRange` ([negotiation.ts:97](../../../server/src/modules/salary/utils/negotiation.ts#L97)):
      1. Số năm yêu cầu = `minYears` của tin, không có thì quy từ cấp bậc (INTERN/FRESHER 0, JUNIOR 1, MIDDLE 3, SENIOR/LEAD 5).
@@ -169,7 +169,7 @@ sequenceDiagram
     participant DB as Postgres
     FE->>JS: GET /api/jobs/:id
     JS->>DB: job + requirements + match + profile
-    JS->>SS: guideForJob(job, req, fit, profile)
+    JS->>SS: guideForJob(job, req, profile)
     SS->>DB: findMany salary_references PUBLIC + bands (toàn bộ)
     SS->>SS: resolveJobPosition → negotiationRange
     SS-->>JS: SalaryGuide | null
@@ -193,18 +193,18 @@ sequenceDiagram
 | BR-SAL-11 | Mốc kinh nghiệm hiển thị theo thứ tự thời gian (Dưới 1 năm, 1–3, 3–5, Trên 5), nhãn lạ xuống cuối | SV | ✅ Mềm | [salary-view.ts:10](../../../server/src/modules/salary/utils/salary-view.ts#L10) |
 | BR-SAL-12 | Bảng cùng ngành: top 6 theo lương TB, hạng tính trên toàn ngành; vị trí đang xem luôn có mặt | SV | ✅ Mềm | [salary-view.ts:28](../../../server/src/modules/salary/utils/salary-view.ts#L28) |
 | BR-SAL-13 | Ghép tin với vị trí lương: cùng ngành, tỉ lệ token khớp ≥ 0,8 và ≥ 2 token; hoà điểm thì chọn tên vị trí cụ thể hơn | SV | ✅ Mềm | [job-position.ts:71](../../../server/src/modules/salary/utils/job-position.ts#L71) |
-| BR-SAL-14 | Không khớp tiêu đề thì dùng nhóm vị trí ánh xạ sẵn theo nghề con | SV | ✅ Mềm | [job-position.ts:115](../../../server/src/modules/salary/utils/job-position.ts#L115), [sub-occupation-map.ts](../../../server/src/modules/salary/utils/sub-occupation-map.ts) |
-| BR-SAL-15 | Mốc kinh nghiệm ưu tiên số năm của ứng viên, không có thì theo tin (`minYears`, rồi quy từ cấp bậc) | SV | ✅ Mềm | [negotiation.ts:103](../../../server/src/modules/salary/utils/negotiation.ts#L103) |
+| BR-SAL-14 | Không khớp tiêu đề thì dùng nhóm vị trí ánh xạ sẵn theo nghề con, thu lại theo kỹ năng bắt buộc của tin (tin đòi ASP.NET → chỉ vị trí .NET; "JavaScript" không khớp "Java") *(2026-10-26)* | SV | ✅ Mềm | [job-position.ts](../../../server/src/modules/salary/utils/job-position.ts), [sub-occupation-map.ts](../../../server/src/modules/salary/utils/sub-occupation-map.ts) |
+| BR-SAL-15 | Mốc kinh nghiệm ưu tiên số năm của ứng viên **ở cùng ngành với tin**; chưa có năm nào cùng ngành (mà có năm ở ngành khác) thì theo tin (`minYears`, rồi quy từ cấp bậc) và trả `otherOccupationYears` để giải thích *(2026-10-26: trước đó cộng mọi năm, kể cả khác ngành)* | SV | ✅ Mềm | [candidate.ts](../../../server/src/modules/salary/utils/candidate.ts), [negotiation.ts](../../../server/src/modules/salary/utils/negotiation.ts) |
 | BR-SAL-16 | Gộp nhiều vị trí bằng TRUNG VỊ; bỏ `null` và 0 | SV | ✅ Mềm | [negotiation.ts:52](../../../server/src/modules/salary/utils/negotiation.ts#L52) |
 | BR-SAL-17 | Không có mốc kinh nghiệm thì khung = lương TB ± 25%, kẹp trong khoảng phổ biến | SV | ✅ Mềm | [negotiation.ts:136](../../../server/src/modules/salary/utils/negotiation.ts#L136) |
-| BR-SAL-18 | Độ phù hợp kéo mục tiêu: ≥ 75 nới trần +15%, ≤ 40 hạ sàn −15%; không có điểm thì coi là 50 | SV | ✅ Mềm | [negotiation.ts:144](../../../server/src/modules/salary/utils/negotiation.ts#L144) |
-| BR-SAL-19 | Sàn không thấp hơn lương hiện tại × 1,1 | SV | ✅ Mềm | [negotiation.ts:167](../../../server/src/modules/salary/utils/negotiation.ts#L167) |
-| BR-SAL-20 | Lương tối đa của tin chặn trần; lương tối thiểu của tin nâng sàn | SV | ✅ Mềm | [negotiation.ts:178](../../../server/src/modules/salary/utils/negotiation.ts#L178) |
+| BR-SAL-18 | Mục tiêu = mức trung bình của mốc kinh nghiệm; độ phù hợp hồ sơ KHÔNG còn kéo mục tiêu hay nới sàn/trần *(2026-10-26: bỏ vì % đối chiếu đo độ trùng từ khoá, và số năm đã quyết định mốc nên bị tính hai lần)* | SV | ✅ Mềm | [negotiation.ts](../../../server/src/modules/salary/utils/negotiation.ts) |
+| BR-SAL-19 | Sàn không thấp hơn lương hiện tại × 1,1 — chỉ khi ngành chính của hồ sơ trùng ngành của tin; khác ngành thì bỏ qua lương hiện tại và trả `currentSalaryIgnored` *(2026-10-26)* | SV | ✅ Mềm | [candidate.ts](../../../server/src/modules/salary/utils/candidate.ts), [negotiation.ts](../../../server/src/modules/salary/utils/negotiation.ts) |
+| BR-SAL-20 | Lương tối đa của tin chặn trần; lương tối thiểu của tin nâng sàn, và nâng cả trần nếu cao hơn — không bao giờ đề xuất thấp hơn mức tối thiểu tin công bố *(2026-10-26: trước đó sàn bị ép xuống trần tham chiếu)* | SV | ✅ Mềm | [negotiation.ts](../../../server/src/modules/salary/utils/negotiation.ts) |
 | BR-SAL-21 | Khung làm tròn bội số 500.000 VND, tối thiểu 500.000; mục tiêu luôn nằm trong [sàn, trần] | SV | ✅ Mềm | [negotiation.ts:85](../../../server/src/modules/salary/utils/negotiation.ts#L85), [:194](../../../server/src/modules/salary/utils/negotiation.ts#L194) |
 | BR-SAL-22 | Ánh xạ ngành cho dữ liệu nguồn: ưu tiên theo vị trí (vd. `data-analyst → DATA_AI`), rồi theo ngành nguồn (vd. `it-software → IT`); không có thì `null` | Script | ✅ Mềm | [reference-map.ts](../../../server/src/modules/salary/utils/reference-map.ts) |
 | BR-SAL-23 | Script crawl chỉ bỏ dữ liệu khi trang thiếu CẢ lương TB lẫn khoảng lương | Script | ✅ Mềm | [crawl-salary-reference.mjs](../../../server/scripts/crawl-salary-reference.mjs) |
 
-> **Possible Business Rule:** `salaryGuide` chỉ dùng điểm "Khớp x/y" (đối chiếu kỹ năng bằng code, `systemMatch.kind = REQUIREMENTS`) làm độ phù hợp, KHÔNG dùng `overallScore` do AI chấm ([jobs.service.ts:220](../../../server/src/modules/jobs/jobs.service.ts#L220)). Cần xác nhận đây là chủ ý.
+> *(2026-10-26)* `salaryGuide` không còn dùng độ phù hợp nào (cả điểm đối chiếu lẫn `overallScore` của AI) — xem BR-SAL-18.
 
 > **Possible Business Rule:** Theo [ADR 0005](../../adr/0005-nguon-tin-portal.md), `salaryMin/salaryMax` đang trống ở mọi portal (đếm 2026-09-29), nên BR-SAL-20 hiện gần như không bao giờ kích hoạt.
 

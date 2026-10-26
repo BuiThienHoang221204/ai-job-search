@@ -255,7 +255,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MAT-34 | Eligibility luật: tin không đòi gì → PASS; đòi quốc tịch: hồ sơ trống → UNVERIFIED, chuỗi quốc tịch hồ sơ chứa chuỗi yêu cầu → PASS, ngược lại FAIL; chỉ đòi giấy phép: có `workPermit` → PASS, không → UNVERIFIED. | SV | ✅ |
 | BR-MAT-35 | Địa điểm luật: REMOTE → khớp; thiếu thành phố/địa điểm → không xét; so mã tỉnh; khác tỉnh nhưng hồ sơ `willingToRelocate` → coi là khớp kèm ghi chú. | SV | ✅ |
 | BR-MAT-36 | Chỉ lưu cặp đối chiếu khi `skillMet ≥ 1`; cặp đã lưu mà không còn khớp kỹ năng → xoá. | SV | ✅ |
-| BR-MAT-37 | Bỏ qua tính lại cặp khi hash `v4:<sourceHash>:<profile.updatedAt>:d<số alias>i<số kỹ năng có implies>` trùng; đổi công thức phải bump `FORMULA_VERSION` (v4 từ 2026-10-26: bỏ khớp chữ chiều ngược, thêm kỹ năng kéo theo). | SV | ✅ |
+| BR-MAT-37 | Bỏ qua tính lại cặp khi hash `v5:<sourceHash>:<profile.updatedAt>:d<số alias>i<số kỹ năng có implies>` trùng; đổi công thức phải bump `FORMULA_VERSION` (v4 2026-10-26: bỏ khớp chữ chiều ngược, thêm kỹ năng kéo theo; v5 cùng ngày: số năm chỉ tính cùng ngành với tin). | SV | ✅ |
 | BR-MAT-38 | Đối chiếu toàn kho/theo tin chỉ dùng hồ sơ `completion ≥ 30` và tin rút DONE không phải bản sao. | SV | ✅ |
 | BR-MAT-39 | Ghi đối chiếu nguyên tử: `deleteMany` + `createMany skipDuplicates` trong một `$transaction`; khoá chính `(userId, jobId)`. | DB | 🔒 |
 | BR-MAT-40 | Phát suất AI chỉ chạy khi `MATCH_AI_AUTO=true` (mặc định tắt). | SV | ✅ |
@@ -507,13 +507,13 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-SAL-11 | Mốc kinh nghiệm hiển thị theo thứ tự thời gian (Dưới 1 năm, 1–3, 3–5, Trên 5), nhãn lạ xuống cuối | SV | ✅ Mềm |
 | BR-SAL-12 | Bảng cùng ngành: top 6 theo lương TB, hạng tính trên toàn ngành; vị trí đang xem luôn có mặt | SV | ✅ Mềm |
 | BR-SAL-13 | Ghép tin với vị trí lương: cùng ngành, tỉ lệ token khớp ≥ 0,8 và ≥ 2 token; hoà điểm thì chọn tên vị trí cụ thể hơn | SV | ✅ Mềm |
-| BR-SAL-14 | Không khớp tiêu đề thì dùng nhóm vị trí ánh xạ sẵn theo nghề con | SV | ✅ Mềm |
-| BR-SAL-15 | Mốc kinh nghiệm ưu tiên số năm của ứng viên, không có thì theo tin (`minYears`, rồi quy từ cấp bậc) | SV | ✅ Mềm |
+| BR-SAL-14 | Không khớp tiêu đề thì dùng nhóm vị trí ánh xạ sẵn theo nghề con, thu lại theo kỹ năng bắt buộc của tin (tin đòi ASP.NET → chỉ vị trí .NET; "JavaScript" không khớp "Java") *(2026-10-26)* | SV | ✅ Mềm |
+| BR-SAL-15 | Mốc kinh nghiệm ưu tiên số năm của ứng viên **ở cùng ngành với tin**; chưa có năm nào cùng ngành (mà có năm ở ngành khác) thì theo tin (`minYears`, rồi quy từ cấp bậc) và trả `otherOccupationYears` để giải thích *(2026-10-26: trước đó cộng mọi năm, kể cả khác ngành)* | SV | ✅ Mềm |
 | BR-SAL-16 | Gộp nhiều vị trí bằng TRUNG VỊ; bỏ `null` và 0 | SV | ✅ Mềm |
 | BR-SAL-17 | Không có mốc kinh nghiệm thì khung = lương TB ± 25%, kẹp trong khoảng phổ biến | SV | ✅ Mềm |
-| BR-SAL-18 | Độ phù hợp kéo mục tiêu: ≥ 75 nới trần +15%, ≤ 40 hạ sàn −15%; không có điểm thì coi là 50 | SV | ✅ Mềm |
-| BR-SAL-19 | Sàn không thấp hơn lương hiện tại × 1,1 | SV | ✅ Mềm |
-| BR-SAL-20 | Lương tối đa của tin chặn trần; lương tối thiểu của tin nâng sàn | SV | ✅ Mềm |
+| BR-SAL-18 | Mục tiêu = mức trung bình của mốc kinh nghiệm; độ phù hợp hồ sơ KHÔNG còn kéo mục tiêu hay nới sàn/trần *(2026-10-26: bỏ vì % đối chiếu đo độ trùng từ khoá, và số năm đã quyết định mốc nên bị tính hai lần)* | SV | ✅ Mềm |
+| BR-SAL-19 | Sàn không thấp hơn lương hiện tại × 1,1 — chỉ khi ngành chính của hồ sơ trùng ngành của tin; khác ngành thì bỏ qua lương hiện tại và trả `currentSalaryIgnored` *(2026-10-26)* | SV | ✅ Mềm |
+| BR-SAL-20 | Lương tối đa của tin chặn trần; lương tối thiểu của tin nâng sàn, và nâng cả trần nếu cao hơn — không bao giờ đề xuất thấp hơn mức tối thiểu tin công bố *(2026-10-26: trước đó sàn bị ép xuống trần tham chiếu)* | SV | ✅ Mềm |
 | BR-SAL-21 | Khung làm tròn bội số 500.000 VND, tối thiểu 500.000; mục tiêu luôn nằm trong [sàn, trần] | SV | ✅ Mềm |
 | BR-SAL-22 | Ánh xạ ngành cho dữ liệu nguồn: ưu tiên theo vị trí (vd. `data-analyst → DATA_AI`), rồi theo ngành nguồn (vd. `it-software → IT`); không có thì `null` | Script | ✅ Mềm |
 | BR-SAL-23 | Script crawl chỉ bỏ dữ liệu khi trang thiếu CẢ lương TB lẫn khoảng lương | Script | ✅ Mềm |

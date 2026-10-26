@@ -123,7 +123,7 @@ Phiên bản 1.0 — 2026-10-19.
 2. Song song: `job.findUnique({ id })` kèm `saves`, `matches`, `applications` **lọc theo `userId`** và `requirements`; `dictionary.lookup()`; `profileOf(userId)` ([jobs.service.ts:196](../../../server/src/modules/jobs/jobs.service.ts#L196)).
 3. Không thấy tin → **404** `Không tìm thấy công việc: <id>` ([jobs.service.ts:205](../../../server/src/modules/jobs/jobs.service.ts#L205)).
 4. Gắn `saved`, `application` (đơn đầu tiên của user hoặc `null`), `match` (đủ trường điểm/nhận xét, `error` được thay bằng `failureKind` qua `withFailureKind`, cờ `stale = evaluatedAt < profile.updatedAt`) ([job-view.ts:77](../../../server/src/modules/jobs/utils/job-view.ts#L77)), `systemMatch` **có** `checks`.
-5. Tính `salaryGuide` qua `SalaryService.guideForJob` (đọc bảng lương tham chiếu `PUBLIC`, không gọi AI) với `requirements` DONE, điểm `systemMatch` loại REQUIREMENTS, số năm kinh nghiệm và lương hiện tại/mong muốn của hồ sơ ([jobs.service.ts:217](../../../server/src/modules/jobs/jobs.service.ts#L217)).
+5. Tính `salaryGuide` qua `SalaryService.guideForJob` (đọc bảng lương tham chiếu `PUBLIC`, không gọi AI) với `requirements` DONE, số năm kinh nghiệm cùng ngành với tin (`salaryProfileOf`) và lương hiện tại/mong muốn của hồ sơ ([jobs.service.ts:217](../../../server/src/modules/jobs/jobs.service.ts#L217)).
 6. Trả **200** gồm toàn bộ cột `Job` (kể cả `description`, lương) + các trường trên + `profileLocation`.
 
 **Alternative Flow:** chưa có hồ sơ → `systemMatch: null`, `salaryGuide` tính với `profile = null`; chưa chấm AI → `match: null`.
