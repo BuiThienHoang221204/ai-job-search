@@ -284,7 +284,7 @@ Lỗi schema (thiếu trường bắt buộc, sai kiểu) đi theo xử lý chun
 | Method | URL | Role | Mục đích nghiệp vụ | Controller#method | Service | DTO | Response |
 |---|---|---|---|---|---|---|---|
 | GET | `/api/companies/brief/by-job/:jobId` | Public (throttle 60/phút) | Xem bản tìm hiểu công ty của tin | `CompanyController#brief` | `CompanyService.forJob` | — | 200 `BriefView { company, researchable, brief: PublicBrief \| null, stale }` |
-| POST | `/api/companies/brief/by-job/:jobId` | USER/ADMIN (`ThrottleAi` 10/phút) | Xếp việc tìm hiểu/làm mới ở nền | `CompanyController#refresh` | `CompanyService.planRefresh` → `QueueService.send` | `RefreshBriefDto` | 201 `{ queued: false, reason: 'còn hạn' }` hoặc `{ queued: true, company }` |
+| POST | `/api/companies/brief/by-job/:jobId` | USER/ADMIN (`ThrottleAi` 10/phút) | Xếp việc tìm hiểu/làm mới ở nền | `CompanyController#refresh` | `CompanyService.enqueueRefresh` (`planRefresh` → `QueueService.send`; controller không còn giữ hàng đợi — *2026-10-26*) | `RefreshBriefDto` | 201 `{ queued: false, reason: 'còn hạn' }` hoặc `{ queued: true, company }` |
 | POST | `/api/companies/brief/by-job/:jobId/stream?force=` | USER/ADMIN (`ThrottleAi` 10/phút) | Tìm hiểu/làm mới, đẩy từng phần | `CompanyController#refreshStream` | `CompanyService.planRefresh`, `streamBuild`, `forJob` | query `force` | 200 NDJSON: `partial`*, rồi `done` hoặc `error` |
 | GET | `/api/companies/follows` | USER | Công ty mình đang theo dõi *(2026-10-26)* | `CompanyController#listFollows` | `CompanyFollowService.list` | — | 200 `[{ id, companyKey, name }]` |
 | POST | `/api/companies/follows` | USER | Theo dõi công ty của một tin *(2026-10-26)* | `CompanyController#follow` | `CompanyFollowService.follow` | `FollowCompanyDto { jobId }` | 201 `{ id, companyKey, name }` |
@@ -435,7 +435,7 @@ Tin mới của công ty đang theo dõi được gộp vào thông báo 07:30 c
 
 **R5 — Sự kiện `done` của route stream có hai hình dạng.** Mức đề xuất: 🟢
 - Mô tả: nhánh "còn hạn" trả `result: BriefView` (`{ company, researchable, brief, stale }`), nhánh dựng mới trả `result: PublicBriefRow` (có `expiresAt`, không có `company`).
-- Bằng chứng: [company.controller.ts:81](../../../server/src/modules/companies/company.controller.ts#L81) và [company.service.ts:121](../../../server/src/modules/companies/services/company.service.ts#L121).
+- Bằng chứng: [company.controller.ts](../../../server/src/modules/companies/company.controller.ts) và [company.service.ts:121](../../../server/src/modules/companies/services/company.service.ts#L121).
 - Tác động: FE hiện bỏ qua `result` và tải lại bằng `GET`, nên chưa lỗi; client khác dựa vào `result` sẽ sai.
 - Đề xuất: thống nhất một hình dạng.
 

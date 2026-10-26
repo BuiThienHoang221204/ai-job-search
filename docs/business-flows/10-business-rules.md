@@ -259,7 +259,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MAT-38 | Đối chiếu toàn kho/theo tin chỉ dùng hồ sơ `completion ≥ 30` và tin rút DONE không phải bản sao. | SV | ✅ |
 | BR-MAT-39 | Ghi đối chiếu nguyên tử: `deleteMany` + `createMany skipDuplicates` trong một `$transaction`; khoá chính `(userId, jobId)`. | DB | 🔒 |
 | BR-MAT-40 | Phát suất AI chỉ chạy khi `MATCH_AI_AUTO=true` (mặc định tắt). | SV | ✅ |
-| BR-MAT-41 | Cặp được phát suất phải: `percent ≥ MATCH_MIN_PERCENT`, `rank > 0`, eligibility ≠ FAIL, chưa có `JobMatch`, tin không phải bản sao, hồ sơ `completion ≥ 30`, qua cooldown `MATCH_AI_COOLDOWN_HOURS`, tin quét sau `lastFanOutAt`, đúng nhóm ngành của hồ sơ (hồ sơ chưa có ngành hoặc `OTHER` thì không lọc). Không lọc cấp bậc. | SV | ✅ |
+| BR-MAT-41 | Tin được phát suất AI phải nằm trong "Việc làm phù hợp" của hồ sơ (cùng `whereFrom` với trang đó, nên hồ sơ chưa chọn ngành không được suất nào) và: `percent ≥ MATCH_MIN_PERCENT`, eligibility ≠ FAIL, chưa có `JobMatch`, hồ sơ `completion ≥ 30`, qua cooldown `MATCH_AI_COOLDOWN_HOURS`, tin quét sau `lastFanOutAt`; % khớp cao nhất trước *(2026-10-26)*. | SV | ✅ |
 | BR-MAT-42 | Mỗi hồ sơ tối đa `MATCH_AI_TOP_N` suất; phát theo vòng vị trí, hồ sơ lâu chưa được phát trước; trần `MATCH_AI_MAX_PER_RUN` mỗi lượt; hồ sơ được phục vụ ghi `lastFanOutAt = now`. | SV | ✅ |
 | BR-MAT-43 | Bàn giao `match.shortlist` trễ 60 giây với khoá `all`/`user:<id>` để gộp một loạt đối chiếu thành một lượt phát. | SV, DB (pg-boss) | 🔒 |
 | BR-MAT-44 | Khoá chặn trùng: `job.requirements` = vân tay danh sách id; `skill.canonicalize`/`match.requirements` = `sweep:<round>` / `job:<id>` / `user:<id>` / `all`. | DB (pg-boss) | 🔒 |
@@ -280,7 +280,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-APP-06 | Tạo đơn không bỏ qua tài liệu sinh đồng thời 1 CV ("CV - \{title\}") và 1 Thư xin việc ("Thư xin việc - \{company\}") qua hàng đợi `document.generate`. | SV | ✅ Mềm |
 | BR-APP-07 | `POST /applications` chịu throttle như route gọi model: 10 lượt/phút/người dùng. | GD | ✅ Mềm |
 | BR-APP-08 | Tập trạng thái hợp lệ là `VIEWED`, `APPLIED` (mở) và `WITHDRAWN` (cuối); giá trị khác bị DTO từ chối. | DTO | ✅ Mềm |
-| BR-APP-09 | Không được đổi sang chính trạng thái đang có (400 "Đơn đã ở trạng thái …"); mọi chuyển đổi khác giữa ba trạng thái đều được phép, kể cả mở lại đơn đã hủy. | SV | ✅ Mềm |
+| BR-APP-09 | Không được đổi sang chính trạng thái đang có (400 "Đơn đã ở đúng trạng thái này rồi…", không lộ tên trạng thái); mọi chuyển đổi khác giữa ba trạng thái đều được phép, kể cả mở lại đơn đã hủy. | SV | ✅ Mềm |
 | BR-APP-10 | `appliedAt` chỉ được ghi ở lần **đầu tiên** chuyển sang `APPLIED` và không bị xoá khi lùi trạng thái. | SV | ✅ Mềm |
 | BR-APP-11 | `closedAt` = thời điểm chuyển sang trạng thái cuối (`WITHDRAWN`); chuyển sang trạng thái mở thì `closedAt` về `null`. | SV | ✅ Mềm |
 | BR-APP-12 | Đổi trạng thái là giành chỗ có điều kiện theo trạng thái vừa đọc; thua tranh chấp trả 409, không ghi sự kiện thứ hai. | SV | ✅ Mềm |
@@ -329,7 +329,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-DOC-29c | Thư xin việc không có mẫu riêng để đổi: nó mượn `templateId`/`templateOptions` của CV `DONE` có `updatedAt` mới nhất cùng `userId` + `jobId`; không có CV nào thì dùng mẫu `classic`; không bao giờ mượn CV của người khác *(2026-10-19)*. | SV | ✅ Mềm |
 | BR-DOC-29d | Bố cục thư: phần đầu, CSS mẫu và typography dùng chung với CV; tên công ty + ngày "Ngày d tháng m năm y"; dòng "Về việc: Ứng tuyển vị trí \<vị trí\>"; lời chào; các đoạn (mở đầu bỏ lời chào lặp ở dòng đầu, thân, động lực, kết; bỏ đoạn rỗng); "Trân trọng," + tên. Mọi chữ qua `escapeHtml` *(2026-10-19)*. | SV | ✅ Mềm |
 | BR-DOC-29e | Thư mà tin đã bị xoá (`jobId = null`) không xem trước/in được: 404 `Thư xin việc bắt buộc phải gắn với một công việc` *(2026-10-19)*. | SV | ✅ Mềm |
-| BR-DOC-30 | Mail ứng tuyển không có bản trình bày: xem trước và PDF trả 422 `Tài liệu loại APPLICATION_EMAIL chưa có mẫu HTML để xem trước.` *(2026-10-19)*. | SV | ✅ Mềm |
+| BR-DOC-30 | Mail ứng tuyển không có bản trình bày: xem trước và PDF trả 422 `Loại tài liệu này không có bản xem trước để in. Hãy sao chép nội dung rồi dán vào nơi gửi.` *(2026-10-19; câu chữ đổi 2026-10-26 để không lộ tên enum)*. | SV | ✅ Mềm |
 | BR-DOC-31 | ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19): file `.tex` của CV/thư lưu trên Storage theo khoá có `documentId`; cột `Document.storageKey` đã bị drop. | DB | ✅ Mềm |
 | BR-DOC-32 | PDF > 2 trang chỉ được ghi cảnh báo log, không chặn *(2026-10-19: bỏ phần log ký tự font thiếu của LaTeX)*. | SV | ✅ Mềm |
 | BR-DOC-33 | Bóc tin từ URL chỉ tải địa chỉ công khai (kiểm ở từng chặng chuyển hướng), từ chối trang bị chặn (401/403/429), không 2xx, hoặc có \< 800 ký tự chữ; chỉ gửi model 20.000 ký tự đầu; không tạo bản ghi. | SV | ✅ Mềm |
@@ -380,7 +380,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-QB-04 | Danh sách và bộ lọc mở cho khách, giới hạn 60 lượt/phút. | GD | ✅ |
 | BR-QB-05 | Route công khai chỉ trả các trường trong danh sách trắng `LIST_FIELDS` (không có đáp án, không có `sourceText`). | SV | ✅ |
 | BR-QB-06 | Xem/sinh đáp án cần đăng nhập và giới hạn 10 lượt/phút. | GD | ✅ |
-| BR-QB-07 | Đáp án sinh một lần rồi dùng chung vĩnh viễn cho mọi người dùng; đã có `answeredAt` thì không gọi model. | SV | ✅ |
+| BR-QB-07 | Đáp án sinh một lần rồi dùng chung vĩnh viễn cho mọi người dùng; đã có `answeredAt` thì không gọi model. Lệnh ghi có điều kiện `answeredAt IS NULL`, nên hai yêu cầu cùng lúc cho một câu chưa có đáp án vẫn có thể gọi model hai lần (chấp nhận, đã có `@ThrottleAi`) nhưng bản về sau không ghi đè bản đầu hay đáp án đã duyệt *(2026-10-26)*. | SV | ✅ |
 | BR-QB-08 | Câu loại `HANH_VI` (hành vi) và `DONG_CO` (động cơ) KHÔNG có đáp án mẫu — ép `null` ở tầng mã dù model trả gì. | SV + script | ✅ |
 | BR-QB-09 | Đáp án do model sinh luôn mang `verified = false`; giao diện phải cảnh báo chưa có người rà. | SV + FE | ✅ |
 | BR-QB-10 | Đáp án gồm `why` ≤400, 3–5 `keyPoints` (tối đa 5, mỗi ý ≤220), `answerGuide` ≤900 (cắt theo trần); `sampleAnswer` ≤2000 hoặc `null`. | SV (zod) | ✅ |
@@ -726,7 +726,7 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (39)
+### 🟡 Trung bình (38)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -742,7 +742,6 @@ Không có rủi ro nào được xếp mức này.
 | [job-scraping#R3](./modules/job-scraping.md) | job-scraping | Nhịp gọi, cầu dao `BLOCKED` và danh sách portal nằm trong bộ nhớ từng tiến trình |
 | [matching#R2](./modules/matching.md) | matching | `POST /matches/evaluate` (không force) trả điểm cũ dù hồ sơ/tin đã đổi |
 | [matching#R3](./modules/matching.md) | matching | Chấm lại có `force` qua hàng đợi: FE có thể đọc ngay kết quả DONE cũ và dừng poll |
-| [matching#R4](./modules/matching.md) | matching | `job.requirements` không giành chỗ có điều kiện |
 | [matching#R5](./modules/matching.md) | matching | Luật quốc tịch so chuỗi con không bỏ dấu |
 | [matching#R6](./modules/matching.md) | matching | Hồ sơ có hơn 20 kỹ năng mới: phần dư không bao giờ vào danh bạ tự động |
 | [matching#R11](./modules/matching.md) | matching | Model free liệt kê sai kỹ năng kéo theo, admin chưa sửa được *(2026-10-26)* |
@@ -838,7 +837,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R7](./modules/platform-operations.md) | platform-operations | Thử lại của pg-boss dựa hoàn toàn vào mặc định thư viện |
 | [platform-operations#R8](./modules/platform-operations.md) | platform-operations | Cờ "lượt trước còn chạy" của cron chỉ nằm trong bộ nhớ một tiến trình |
 
-### ✅ Đã sửa (16)
+### ✅ Đã sửa (17)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -846,6 +845,7 @@ Không có rủi ro nào được xếp mức này.
 | [jobs#R1](./modules/jobs.md) | jobs | Bộ lọc "lương tối thiểu" và sắp xếp "Lương cao nhất" không có dữ liệu để chạy |
 | [job-scraping#R1](./modules/job-scraping.md) | job-scraping | Không có lương dạng số từ bất kỳ portal nào |
 | [matching#R1](./modules/matching.md) | matching | "Đối chiếu lại" sau khi admin sửa tay danh bạ không tính lại các cặp đã lưu |
+| [matching#R4](./modules/matching.md) | matching | `job.requirements` không giành chỗ có điều kiện — ✅ |
 | [applications#R6](./modules/applications.md) | applications | Nút CV ở Lịch sử ứng tuyển hiện tiêu đề rỗng và in PDF bằng LaTeX |
 | [documents#R1](./modules/documents.md) | documents | Khoá Storage `.tex` không gắn với tài liệu: nhiều tài liệu dùng chung một file |
 | [documents#R2](./modules/documents.md) | documents | PDF LaTeX (mặc định) bỏ qua mẫu, bố cục, mục ẩn; một số màn vẫn dùng LaTeX cho CV |

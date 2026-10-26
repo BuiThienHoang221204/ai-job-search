@@ -105,7 +105,7 @@
 - **Main Flow:**
   1. FE `streamModel` POST `/api/upskill/generate-stream` (không gửi body) ([use-upskill-report.ts:101](../../../../ui-ai-job-search/hooks/use-upskill-report.ts#L101)).
   2. Controller tạo báo cáo (`create`) rồi `streamNdjson`; dòng mở đầu `{"type":"partial","data":{"step":0,"reportId":...}}` ([upskill.controller.ts:79](../../../server/src/modules/upskill/upskill.controller.ts#L79)).
-  3. `streamGenerate`: giành chỗ như Luồng D; nếu không giành được → `ConflictException "Báo cáo này đang được tạo hoặc đã tạo xong, không tạo lại được."` (thành sự kiện `error` kèm `statusCode` vì chưa có sự kiện nào) ([upskill.service.ts:83](../../../server/src/modules/upskill/services/upskill.service.ts#L83), [ndjson.ts](../../../server/src/common/ndjson.ts)).
+  3. `streamGenerate(userId, reportId)`: giành chỗ như Luồng D, điều kiện và mọi lệnh ghi sau đó đều kèm `userId` *(2026-10-26)*; nếu không giành được → `ConflictException "Báo cáo này đang được tạo hoặc đã tạo xong, không tạo lại được."` (thành sự kiện `error` kèm `statusCode` vì chưa có sự kiện nào) ([upskill.service.ts:83](../../../server/src/modules/upskill/services/upskill.service.ts#L83), [ndjson.ts](../../../server/src/common/ndjson.ts)).
   4. Đẩy partial `{ step: 1, value }` trong lúc lời gọi 1 viết, lưu khoảng trống, rồi partial `{ step: 2, value }` cho lời gọi 2.
   5. Sự kiện cuối `{ type: 'done', result: <UpskillReport đã DONE> }`. FE ghi vào cache `keys.upskill()`.
   6. Server gửi dòng trống mỗi 10 giây làm heartbeat; FE bỏ cuộc nếu 40 giây không nhận gì ([model-stream.ts](../../../../ui-ai-job-search/lib/model-stream.ts)).
@@ -222,7 +222,7 @@ sequenceDiagram
     C->>S: create(userId, jobId?)
     S->>DB: INSERT upskill_reports (PENDING)
     C-->>FE: {"type":"partial","data":{"step":0,"reportId"}}
-    C->>S: streamGenerate(reportId)
+    C->>S: streamGenerate(userId, reportId)
     S->>DB: updateMany status→RUNNING WHERE PENDING/FAILED/RUNNING kẹt
     S->>DB: đọc Profile + JobMatch (≤30, điểm thấp trước)
     S->>AI: streamObject upskill.gaps

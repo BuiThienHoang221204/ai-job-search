@@ -187,7 +187,7 @@
 8. Xoá cache danh bạ; xếp `match.requirements` với cùng payload ([matching.processor.ts](../../../server/src/modules/matching/matching.processor.ts)).
 
 **Main Flow (quét toàn kho — admin `POST /api/matches/dictionary/rebuild`)**
-1. Controller xếp `skill.canonicalize { round: 0 }`, trả `{ queued: true, queueJobId }` ([matching.controller.ts:102-108](../../../server/src/modules/matching/matching.controller.ts#L102)).
+1. `SkillDictionaryService.rebuild` xếp `skill.canonicalize { round: 0 }`, trả `{ queued: true, queueJobId }` (controller chỉ gọi service — *2026-10-26*) ([skill-dictionary.service.ts](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts)).
 2. `sweepDictionary(round)`: lấy mọi chuỗi từ `JobRequirement` DONE + mọi `Profile`, `ingest(terms, 20)`; còn `remaining > 0` **và** vòng này thêm được > 0 → xếp vòng `round + 1`; ngược lại hỏi kỹ năng kéo theo cho mọi kỹ năng hồ sơ chưa hỏi rồi xếp `match.requirements {}` toàn kho ([matching.processor.ts:167-180](../../../server/src/modules/matching/matching.processor.ts#L167)).
 
 **Alternative Flow:** mọi chuỗi đã biết → `{ added: 0, remaining: 0 }`, không gọi model. Hai lượt cùng thêm một key → P2002 → bỏ qua, log "đã được lượt khác thêm trước" ([skill-dictionary.service.ts:248-253](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L248)).
@@ -201,7 +201,7 @@
 **Preconditions:** có `JobRequirement` DONE.
 
 **Main Flow**
-1. Phạm vi: `{ jobId }` → một tin × mọi hồ sơ `completion ≥ 30`; `{ userId }` → một hồ sơ (không lọc completion) × mọi tin; `{}` → toàn kho ([requirement-match.service.ts:23-50](../../../server/src/modules/matching/rules/services/requirement-match.service.ts#L23)). Tin là bản sao (`duplicateOfId` ≠ null) bị loại.
+1. Phạm vi: `{ jobId }` → một tin × mọi hồ sơ `completion ≥ 30`; chạy theo lô 100 tin × 50 hồ sơ để câu `in`/`OR` của mỗi lượt ghi không vượt trần 65.535 tham số Postgres (đo 2026-10-26: ~550 cặp/hồ sơ, nên ~60 hồ sơ là chạm trần khi chưa chia lô) *(2026-10-26)*; `{ userId }` → một hồ sơ (không lọc completion) × mọi tin; `{}` → toàn kho ([requirement-match.service.ts:23-50](../../../server/src/modules/matching/rules/services/requirement-match.service.ts#L23)). Tin là bản sao (`duplicateOfId` ≠ null) bị loại.
 2. Đọc hash cặp đã lưu và danh bạ (cache 60 giây).
 3. `planMatchWrites`: hash cặp = `v3:<sourceHash>:<profile.updatedAt>:d<số alias>`; trùng thì bỏ qua ([match-write.ts:35-41,57-63](../../../server/src/modules/matching/rules/match-write.ts#L35)).
 4. `matchRequirements` cho từng cặp ([requirement-match.ts:91-184](../../../server/src/modules/matching/rules/requirement-match.ts#L91)):
@@ -225,7 +225,7 @@
 
 **Main Flow**
 1. Từ hàng đợi (sau Luồng H) hoặc admin `POST /api/matches/shortlist/dispatch[?userId=]` (đồng bộ) ([matching.controller.ts:110-121](../../../server/src/modules/matching/matching.controller.ts#L110)).
-2. `topRows` (SQL thuần) lấy tối đa `MATCH_AI_TOP_N` (3) cặp mỗi hồ sơ thoả: `percent ≥ MATCH_MIN_PERCENT` (50), `rank > 0`, eligibility ≠ FAIL, **chưa có `JobMatch`**, tin không phải bản sao, `completion ≥ 30`, `lastFanOutAt` null hoặc cũ hơn cooldown 6 giờ, tin quét sau `lastFanOutAt`, cùng `occupationCode` (trừ hồ sơ chưa có ngành hoặc `OTHER`); xếp `rank DESC, met DESC, scrapedAt DESC, jobId DESC` ([ai-shortlist.service.ts:50-94](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts#L50)).
+2. `topRows` lấy các hồ sơ `completion ≥ 30`, `lastFanOutAt` null hoặc cũ hơn cooldown 6 giờ, đã chọn ngành; với mỗi hồ sơ dựng đúng bộ lọc của trang "Việc làm phù hợp" (`whereFrom({ scored: true, since: lastFanOutAt })`: cùng ngành, đúng nghề con và tỉnh đã chọn, cấp bậc lệch ≤ 1 bậc, tin trong 7 ngày, không phải bản sao, quét sau `lastFanOutAt`) rồi gom tất cả thành MỘT `findMany` trên `JobRequirementMatch` (`OR` theo từng hồ sơ) với `percent ≥ MATCH_MIN_PERCENT` (50), eligibility khác FAIL (kể cả null), **chưa có `JobMatch`**; xếp `userId, percent DESC, rank DESC, scrapedAt DESC` *(2026-10-26: trước đó SQL thô, lọc theo nhóm ngành chứ không theo bộ lọc "Việc làm phù hợp", xếp theo `rank`)* ([ai-shortlist.service.ts](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts)).
 3. `planShortlist`: hồ sơ lâu chưa được phát đứng trước; phát theo vòng vị trí (mọi hồ sơ lấy suất #1 trước, rồi #2…) tới trần `MATCH_AI_MAX_PER_RUN` (300) ([ai-shortlist.ts:47-74](../../../server/src/modules/matching/rules/ai-shortlist.ts#L47)).
 4. `sendMany(match.evaluate, targets)`; cập nhật `Profile.lastFanOutAt = now` cho hồ sơ được phục vụ ([ai-shortlist.service.ts:119-129](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts#L119)).
 5. Trả `{ queued, served, deferred }` (`deferred` = số **hồ sơ** không được suất nào).
@@ -393,7 +393,7 @@ sequenceDiagram
 | BR-MAT-38 | Đối chiếu toàn kho/theo tin chỉ dùng hồ sơ `completion ≥ 30` và tin rút DONE không phải bản sao. | SV | ✅ | [requirement-match.service.ts:23-41](../../../server/src/modules/matching/rules/services/requirement-match.service.ts#L23), [match-write.ts:6](../../../server/src/modules/matching/rules/match-write.ts#L6) |
 | BR-MAT-39 | Ghi đối chiếu nguyên tử: `deleteMany` + `createMany skipDuplicates` trong một `$transaction`; khoá chính `(userId, jobId)`. | DB | 🔒 | [requirement-match.service.ts:99-109](../../../server/src/modules/matching/rules/services/requirement-match.service.ts#L99), [schema.prisma:323](../../../server/prisma/schema.prisma#L323) |
 | BR-MAT-40 | Phát suất AI chỉ chạy khi `MATCH_AI_AUTO=true` (mặc định tắt). | SV | ✅ | [ai-shortlist.service.ts:26-28,97-100](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts#L97), [configuration.ts:138](../../../server/src/config/configuration.ts#L138) |
-| BR-MAT-41 | Cặp được phát suất phải: `percent ≥ MATCH_MIN_PERCENT`, `rank > 0`, eligibility ≠ FAIL, chưa có `JobMatch`, tin không phải bản sao, hồ sơ `completion ≥ 30`, qua cooldown `MATCH_AI_COOLDOWN_HOURS`, tin quét sau `lastFanOutAt`, đúng nhóm ngành của hồ sơ (hồ sơ chưa có ngành hoặc `OTHER` thì không lọc). Không lọc cấp bậc. | SV | ✅ | [ai-shortlist.service.ts:50-94](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts#L50) |
+| BR-MAT-41 | Tin được phát suất AI phải nằm trong "Việc làm phù hợp" của hồ sơ (cùng `whereFrom` với trang đó, nên hồ sơ chưa chọn ngành không được suất nào) và: `percent ≥ MATCH_MIN_PERCENT`, eligibility ≠ FAIL, chưa có `JobMatch`, hồ sơ `completion ≥ 30`, qua cooldown `MATCH_AI_COOLDOWN_HOURS`, tin quét sau `lastFanOutAt`; % khớp cao nhất trước *(2026-10-26)*. | SV | ✅ | [ai-shortlist.service.ts](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts), [job-view.ts](../../../server/src/modules/jobs/utils/job-view.ts) |
 | BR-MAT-42 | Mỗi hồ sơ tối đa `MATCH_AI_TOP_N` suất; phát theo vòng vị trí, hồ sơ lâu chưa được phát trước; trần `MATCH_AI_MAX_PER_RUN` mỗi lượt; hồ sơ được phục vụ ghi `lastFanOutAt = now`. | SV | ✅ | [ai-shortlist.ts:15-74](../../../server/src/modules/matching/rules/ai-shortlist.ts#L15), [ai-shortlist.service.ts:124-129](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts#L124) |
 | BR-MAT-43 | Bàn giao `match.shortlist` trễ 60 giây với khoá `all`/`user:<id>` để gộp một loạt đối chiếu thành một lượt phát. | SV, DB (pg-boss) | 🔒 | [matching.processor.ts:20,140-144](../../../server/src/modules/matching/matching.processor.ts#L140), [queue-key.ts:83-86](../../../server/src/modules/queue/queue-key.ts#L83) |
 | BR-MAT-44 | Khoá chặn trùng: `job.requirements` = vân tay danh sách id; `skill.canonicalize`/`match.requirements` = `sweep:<round>` / `job:<id>` / `user:<id>` / `all`. | DB (pg-boss) | 🔒 | [queue-key.ts:18-43,76-81](../../../server/src/modules/queue/queue-key.ts#L76) |
@@ -668,7 +668,8 @@ Không có. Module không gửi email, push hay thông báo trong ứng dụng; 
 - **Đề xuất:** khi `force` thì `markPending` cũng chuyển DONE → PENDING (giành chỗ có điều kiện), hoặc FE so `evaluatedAt` trước/sau.
 - **Mức đề xuất:** 🟡
 
-### R4 — `job.requirements` không giành chỗ có điều kiện
+### R4 — `job.requirements` không giành chỗ có điều kiện — ✅ **Đã sửa 2026-10-26**
+- **Đã sửa:** `claim` = `updateMany where status ≠ RUNNING` → RUNNING, không có hàng thì `create`, trùng khoá là thua; thua thì trả bản ghi hiện tại, không gọi model. Tin trong lô cũng giành chỗ từng tin trước khi vào prompt; đường rút lẻ dự phòng trong lô dùng thẳng `runSingle` vì đã giữ RUNNING. RUNNING kẹt do reconcile đánh FAILED rồi mới giành lại được.
 - **Mô tả:** `markRunning` là `upsert` vô điều kiện, không kiểm trạng thái RUNNING. Admin gọi `POST /matches/requirements/:jobId` trong lúc worker đang rút cùng tin, hoặc hai lô khác nhau chứa chung một tin (ADR 0007 thừa nhận khoá dedup không chặn được), sẽ gọi model hai lần và lượt về sau ghi đè.
 - **Bằng chứng:** [job-requirements.service.ts:37-43,94,149](../../../server/src/modules/matching/ai/services/job-requirements.service.ts#L37); quy tắc "Chuyển trạng thái việc bằng GIÀNH CHỖ có điều kiện" trong `CLAUDE.md`.
 - **Tác động:** tốn thêm lượt gọi model (`job.requirements` là khoản chi lớn nhất, ADR 0007); kết quả DONE có thể bị ghi đè bởi lượt FAILED.
@@ -733,6 +734,7 @@ Không có. Module không gửi email, push hay thông báo trong ứng dụng; 
 ### R12 — Ghi hồ sơ kéo theo lượt gọi model, không có trần theo người *(2026-10-26)*
 - Mô tả: mỗi lần ghi hồ sơ, kỹ năng chuẩn chưa hỏi được gửi `skill.implies` (lô 30). Một người tự gõ nhiều kỹ năng lạ rồi lưu liên tục sẽ đẩy thêm lượt gọi model; chỉ có trần chung 120 request/phút/người và trần `ingest` 20 cách viết mới mỗi lượt. Hai worker cùng thấy một kỹ năng chưa hỏi thì cả hai cùng gọi model; lệnh ghi có điều kiện `impliesCheckedAt IS NULL` nên chỉ câu trả lời đầu được lưu — chấp nhận tốn trùng một lượt.
 - Bằng chứng: [matching.processor.ts](../../../server/src/modules/matching/matching.processor.ts), [skill-dictionary.service.ts](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts).
+- Đã giảm *(2026-10-26)*: lưu hồ sơ xếp `skill.canonicalize` hẹn sau 10 giây (`startAfter`), khoá chặn trùng `user:<id>` gộp mọi lần lưu trong khoảng đó thành một lượt, nên mỗi người tối đa ~6 lượt/phút (ngang `@ThrottleAi`) mà không chặn thao tác sửa hồ sơ.
 - Đề xuất: nếu đo thấy lạm dụng, đặt trần số kỹ năng hỏi mỗi người mỗi ngày.
 - Mức đề xuất: 🟢
 

@@ -435,7 +435,8 @@ Không có. Phản hồi tới người dùng đi trực tiếp qua stream HTTP;
 
 **R1 — Chặn "một buổi đang chạy" là kiểm-rồi-tạo, hai request mở buổi cùng lúc đều lọt.**
 - Bằng chứng: `assertNoRunInFlight` dùng `findFirst` ([mock-interview.service.ts:26-41](../../../server/src/modules/mock-interview/services/mock-interview.service.ts#L26)) rồi `agentRun.create` ở bước riêng ([interview-turn.service.ts:52-63](../../../server/src/modules/mock-interview/services/interview-turn.service.ts#L52)); không có unique index hay giành chỗ.
-- Tác động: bấm đúp "Bắt đầu" có thể tạo hai buổi và tốn hai lượt gọi model. Throttle 10/phút không chặn được.
+- Tác động: bấm đúp "Bắt đầu" có thể tạo hai buổi và tốn hai lượt gọi model. Throttle 10/phút không chặn được. Với buổi giọng nói, hai lượt mở cùng lúc cùng tính số phút còn lại trước khi bên nào tạo buổi, nên có thể tiêu phút thưởng hai lần (tối đa ~20 phút một lần).
+- Vì sao chưa sửa *(rà 2026-10-26)*: chặn chắc cần khoá dòng hoặc unique có điều kiện (Prisma không khai được, phải SQL tay — bẫy migration ở `server/README.md`); "tạo rồi kiểm" thì vướng việc buổi bằng chữ cố ý được mở song song khi đang `WAITING_USER`. Thiệt hại nhỏ so với độ phức tạp.
 - Đề xuất: FE đã khoá nút khi `sending`; nếu cần chặn ở backend thì dùng một cơ chế giành chỗ duy nhất.
 - Mức đề xuất: 🟡
 

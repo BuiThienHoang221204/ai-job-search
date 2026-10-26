@@ -113,7 +113,7 @@
 **Main Flow** ([applications.service.ts:193](../../../server/src/modules/applications/applications.service.ts#L193))
 1. FE gọi `PUT /api/applications/:id/status { status, note? }` (dropdown ở Lịch sử ứng tuyển hoặc "Tôi đã nộp đơn" trong toast).
 2. `findFirst where { id, userId }` — không thấy → 404 `"Không tìm thấy đơn ứng tuyển"`.
-3. `status` trùng trạng thái hiện tại → 400 `` `Đơn đã ở trạng thái ${to}` ``.
+3. `status` trùng trạng thái hiện tại → 400 `Đơn đã ở đúng trạng thái này rồi, không cần đổi lại.` *(2026-10-26: trước đó lộ tên enum)*.
 4. Tính mốc thời gian bằng `timestampsFor` ([transitions.ts:20](../../../server/src/modules/applications/transitions.ts#L20)):
    - `appliedAt` = `now` nếu chuyển sang `APPLIED` **và** chưa có `appliedAt`; ngược lại giữ giá trị cũ (kể cả khi lùi về VIEWED/WITHDRAWN).
    - `closedAt` = `now` nếu trạng thái đích là trạng thái cuối (`WITHDRAWN`), ngược lại `null` (mở lại đơn xoá ngày đóng).
@@ -236,7 +236,7 @@ sequenceDiagram
 | BR-APP-06 | Tạo đơn không bỏ qua tài liệu sinh đồng thời 1 CV ("CV - \{title\}") và 1 Thư xin việc ("Thư xin việc - \{company\}") qua hàng đợi `document.generate`. | SV | ✅ Mềm | [applications.service.ts:115](../../../server/src/modules/applications/applications.service.ts#L115) |
 | BR-APP-07 | `POST /applications` chịu throttle như route gọi model: 10 lượt/phút/người dùng. | GD | ✅ Mềm | [applications.controller.ts:42](../../../server/src/modules/applications/applications.controller.ts#L42), [throttle.ts](../../../server/src/common/throttle.ts) |
 | BR-APP-08 | Tập trạng thái hợp lệ là `VIEWED`, `APPLIED` (mở) và `WITHDRAWN` (cuối); giá trị khác bị DTO từ chối. | DTO | ✅ Mềm | [transitions.ts:3](../../../server/src/modules/applications/transitions.ts#L3), [applications.dto.ts:32](../../../server/src/modules/applications/applications.dto.ts#L32) |
-| BR-APP-09 | Không được đổi sang chính trạng thái đang có (400 "Đơn đã ở trạng thái …"); mọi chuyển đổi khác giữa ba trạng thái đều được phép, kể cả mở lại đơn đã hủy. | SV | ✅ Mềm | [applications.service.ts:205](../../../server/src/modules/applications/applications.service.ts#L205) |
+| BR-APP-09 | Không được đổi sang chính trạng thái đang có (400 "Đơn đã ở đúng trạng thái này rồi…", không lộ tên trạng thái); mọi chuyển đổi khác giữa ba trạng thái đều được phép, kể cả mở lại đơn đã hủy. | SV | ✅ Mềm | [applications.service.ts:205](../../../server/src/modules/applications/applications.service.ts#L205) |
 | BR-APP-10 | `appliedAt` chỉ được ghi ở lần **đầu tiên** chuyển sang `APPLIED` và không bị xoá khi lùi trạng thái. | SV | ✅ Mềm | [transitions.ts:26](../../../server/src/modules/applications/transitions.ts#L26) |
 | BR-APP-11 | `closedAt` = thời điểm chuyển sang trạng thái cuối (`WITHDRAWN`); chuyển sang trạng thái mở thì `closedAt` về `null`. | SV | ✅ Mềm | [transitions.ts:30](../../../server/src/modules/applications/transitions.ts#L30) |
 | BR-APP-12 | Đổi trạng thái là giành chỗ có điều kiện theo trạng thái vừa đọc; thua tranh chấp trả 409, không ghi sự kiện thứ hai. | SV | ✅ Mềm | [applications.service.ts:215](../../../server/src/modules/applications/applications.service.ts#L215) |
@@ -373,7 +373,7 @@ stateDiagram-v2
 | APPLIED → VIEWED | `PUT :id/status` | như trên | giữ `appliedAt`; `closedAt = null`; event |
 | WITHDRAWN → APPLIED | `PUT :id/status` | như trên | `appliedAt` giữ hoặc = now nếu chưa từng nộp; `closedAt = null`; event |
 | WITHDRAWN → VIEWED | `PUT :id/status` | như trên | `closedAt = null`; event |
-| X → X | `PUT :id/status` | — | **Bị từ chối** 400 "Đơn đã ở trạng thái X" |
+| X → X | `PUT :id/status` | — | **Bị từ chối** 400 "Đơn đã ở đúng trạng thái này rồi…" |
 
 Không có trạng thái nào do hệ thống tự chuyển (không cron, không worker). Bảng không có `MatchStatus` nên không thuộc `ReconcileService`.
 
@@ -387,7 +387,7 @@ Không có trạng thái nào do hệ thống tự chuyển (không cron, không
 | Đơn trùng | 409 | `Bạn đã có đơn ứng tuyển cho công việc này` | [applications.service.ts:96](../../../server/src/modules/applications/applications.service.ts#L96) |
 | `jobId` không tồn tại (P2003) | 400 | `Dữ liệu tham chiếu không hợp lệ` | [prisma-exception.filter.ts](../../../server/src/common/filters/prisma-exception.filter.ts) |
 | Đơn không tồn tại / của người khác (đổi trạng thái, ngày PV) | 404 | `Không tìm thấy đơn ứng tuyển` | [applications.service.ts:203](../../../server/src/modules/applications/applications.service.ts#L203), [applications.service.ts:247](../../../server/src/modules/applications/applications.service.ts#L247) |
-| Đổi sang trạng thái đang có | 400 | `Đơn đã ở trạng thái ${to}` | [applications.service.ts:206](../../../server/src/modules/applications/applications.service.ts#L206) |
+| Đổi sang trạng thái đang có | 400 | `Đơn đã ở đúng trạng thái này rồi, không cần đổi lại.` | [applications.service.ts:206](../../../server/src/modules/applications/applications.service.ts#L206) |
 | Thua tranh chấp đổi trạng thái | 409 | `Trạng thái đơn vừa được đổi ở nơi khác. Hãy tải lại rồi thử lại.` | [applications.service.ts:221](../../../server/src/modules/applications/applications.service.ts#L221) |
 | Ngày phỏng vấn sai định dạng | 400 | `Ngày phỏng vấn phải là chuỗi ISO 8601 hoặc null` | [applications.dto.ts:46](../../../server/src/modules/applications/applications.dto.ts#L46) |
 | Vượt throttle `POST /applications` | 429 | `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` | [app.module.ts](../../../server/src/app.module.ts) |

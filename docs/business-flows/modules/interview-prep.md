@@ -82,7 +82,7 @@
 1. `POST /api/interview/prep` body `{ jobId, force? }` ([interview.controller.ts:57-64](../../../server/src/modules/interview/interview.controller.ts#L57)); `@ThrottleAi()` 10 lượt/phút.
 2. Kiểm tin tồn tại; không có → **404 `Không tìm thấy công việc: <jobId>`** ([interview.service.ts:78](../../../server/src/modules/interview/interview.service.ts#L78)).
 3. Đọc trạng thái bộ đề hiện có. Nếu `force` không bật và bộ đề đã `DONE` → trả ngay `{ queued: true, queueJobId: null }`, **không xếp việc** ([interview.service.ts:86-88](../../../server/src/modules/interview/interview.service.ts#L86)).
-4. Nếu bộ đề KHÔNG đang `PENDING`/`RUNNING` → `upsert` về `PENDING`, xoá `error` ([interview.service.ts:91-97](../../../server/src/modules/interview/interview.service.ts#L91)).
+4. Nếu bộ đề KHÔNG đang `PENDING`/`RUNNING` → giành chỗ có điều kiện: `updateMany where status IN (FAILED[, DONE khi force])` về `PENDING`, xoá `error`; không có hàng thì `create` PENDING, trùng khoá (P2002) là thua — không hạ trạng thái của worker vừa chuyển sang RUNNING. Bồi hoàn khi đẩy hàng đợi lỗi cũng chỉ ghi FAILED nếu hàng còn PENDING *(2026-10-26: trước đó `upsert` vô điều kiện)* ([interview.service.ts](../../../server/src/modules/interview/interview.service.ts)).
 5. Gửi việc vào `interview.prep` với payload `{ userId, jobId, force }`; khoá chặn trùng `singletonKey = userId:jobId`, policy `exclusive` ([queue-key.ts:55-59](../../../server/src/modules/queue/queue-key.ts#L55)).
 6. Trả `{ queued: true, queueJobId }`, HTTP 201.
 
@@ -163,7 +163,7 @@ flowchart TD
   B -- Có --> C{"!force và prep DONE?"}
   C -- Có --> R0["201 {queued:true, queueJobId:null}"]
   C -- Không --> D{"prep đang PENDING/RUNNING?"}
-  D -- Không --> U["upsert status=PENDING, error=null"]
+  D -- Không --> U["giành chỗ có điều kiện → PENDING"]
   D -- Có --> Q
   U --> Q["queue.send interview.prep (singletonKey userId:jobId)"]
   Q -- lỗi --> F1["status=FAILED 'Không xếp được vào hàng đợi'"]

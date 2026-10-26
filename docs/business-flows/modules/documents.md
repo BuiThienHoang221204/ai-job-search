@@ -174,7 +174,7 @@
 6. Trả HTML 200 với header `Content-Type: text/html`, `Content-Security-Policy: sandbox`, `X-Frame-Options: SAMEORIGIN`; tài liệu tự mang `<meta CSP script-src 'none'>` ([html.ts:26](../../../server/src/modules/documents/templates/html.ts#L26)).
 
 **Alternative Flow:** body rỗng → render đúng bản đã lưu. Thư xin việc *(2026-10-19)*: `styleOf` tìm CV `DONE` cùng `userId` + `jobId` có `updatedAt` mới nhất và mượn `templateId`/`templateOptions` của nó; không có CV nào thì dùng mẫu của chính thư (mặc định `classic`) ([documents.service.ts:313](../../../server/src/modules/documents/services/documents.service.ts#L313)). Bố cục thư: phần đầu dùng chung với CV, tên công ty + ngày "Ngày d tháng m năm y", dòng "Về việc: Ứng tuyển vị trí …", lời chào, các đoạn, "Trân trọng," + tên ([letter.ts:33](../../../server/src/modules/documents/templates/letter.ts#L33)). FE màn Thư xin việc hiện chữ trực tiếp, không gọi route này.
-**Failure Flow:** 404 không phải chủ; 422 `` `Tài liệu chưa tạo xong nên chưa xem trước được.` ``; 422 `` `Tài liệu loại ${kind} chưa có mẫu HTML để xem trước.` `` (mail ứng tuyển); 404 `Thư xin việc bắt buộc phải gắn với một công việc` (thư mà tin đã bị xoá); 400 `` `Nội dung CV không hợp lệ — …` `` / `` `Phần đầu CV không hợp lệ — …` ``; 400 DTO (`accent phải có dạng #rrggbb`, font/size ngoài danh sách, lineHeight ngoài 1.2–1.8).
+**Failure Flow:** 404 không phải chủ; 422 `` `Tài liệu chưa tạo xong nên chưa xem trước được.` ``; 422 `Loại tài liệu này không có bản xem trước để in. Hãy sao chép nội dung rồi dán vào nơi gửi.` (mail ứng tuyển); 404 `Thư xin việc bắt buộc phải gắn với một công việc` (thư mà tin đã bị xoá); 400 `` `Nội dung CV không hợp lệ — …` `` / `` `Phần đầu CV không hợp lệ — …` ``; 400 DTO (`accent phải có dạng #rrggbb`, font/size ngoài danh sách, lineHeight ngoài 1.2–1.8).
 **Postconditions:** **không ghi database** (e2e "xem trước bản nháp KHÔNG ghi gì vào database").
 
 ### Luồng J — Lưu CV đã sửa (F11)
@@ -182,7 +182,7 @@
 **Preconditions:** đã đăng nhập; tài liệu của mình, `kind = CV`, `status = DONE`.
 **Main Flow** ([documents.service.ts:208](../../../server/src/modules/documents/services/documents.service.ts#L208))
 1. Nút Lưu (`useCvActions.save`) gọi `PUT /api/documents/:id/cv { content, identity, layout }` (FE đã bỏ dòng trống trong các danh sách chữ bằng `withoutEmptyLines`).
-2. `get` (404 nếu không phải chủ) → `kind !== CV` → 422 `` `Tài liệu loại ${kind} chưa sửa được bằng đường này.` `` → `status !== DONE` → 422 `` `Tài liệu chưa tạo xong nên chưa sửa được.` ``.
+2. `get` (404 nếu không phải chủ) → `kind !== CV` → 422 `Chỉ CV mới sửa trực tiếp được ở đây.` → `status !== DONE` → 422 `` `Tài liệu chưa tạo xong nên chưa sửa được.` ``.
 3. `content` vắng → giữ; có → `parseCvEdit` (`cvEditSchema`, cho phép xoá tới rỗng). `layout` vắng → giữ; có → `parseLayoutEdit` (tên mục > 60 ký tự → 400). `identity` vắng → giữ phần đầu đã sửa; có → `parseIdentityEdit`.
 4. `update where { id, userId }` — một lệnh ghi duy nhất.
 5. ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19): bước `writeSource` render lại `.tex` và ghi `storageKey`.
@@ -198,7 +198,7 @@
 **Preconditions:** đã đăng nhập; tài liệu của mình, `kind = CV` (không yêu cầu `DONE`).
 **Main Flow** ([documents.service.ts:181](../../../server/src/modules/documents/services/documents.service.ts#L181))
 1. `PUT /api/documents/:id/template { templateId, accent?, font?, size?, lineHeight? }`.
-2. `kind !== CV` → 422 `` `Tài liệu loại ${kind} không có mẫu trình bày để đổi.` ``; `!isTemplateId` → 400 `` `Không có mẫu CV nào tên "${templateId}"` ``.
+2. `kind !== CV` → 422 `Chỉ CV mới đổi được mẫu trình bày.`; `!isTemplateId` → 400 `` `Không có mẫu CV nào tên "${templateId}"` ``.
 3. `templateOptions = resolveTemplateOptions(templateId, dto)`: mẫu không dùng accent → `accent` ép về màu của mẫu; `size = medium` không được lưu (mặc định); giá trị hỏng rơi về mặc định ([registry.ts:33](../../../server/src/modules/documents/templates/registry.ts#L33), [typography.ts:37](../../../server/src/modules/documents/templates/typography.ts#L37)).
 4. `update where { id, userId }` — không render gì; thư xin việc cùng tin mượn mẫu mới ở lần xem trước/in kế tiếp *(2026-10-19)*.
 
@@ -375,7 +375,7 @@ sequenceDiagram
 | BR-DOC-29c | Thư xin việc không có mẫu riêng để đổi: nó mượn `templateId`/`templateOptions` của CV `DONE` có `updatedAt` mới nhất cùng `userId` + `jobId`; không có CV nào thì dùng mẫu `classic`; không bao giờ mượn CV của người khác *(2026-10-19)*. | SV | ✅ Mềm | [documents.service.ts:313](../../../server/src/modules/documents/services/documents.service.ts#L313), e2e [documents-cv-template.e2e-spec.ts:292](../../../server/test/documents-cv-template.e2e-spec.ts#L292) |
 | BR-DOC-29d | Bố cục thư: phần đầu, CSS mẫu và typography dùng chung với CV; tên công ty + ngày "Ngày d tháng m năm y"; dòng "Về việc: Ứng tuyển vị trí \<vị trí\>"; lời chào; các đoạn (mở đầu bỏ lời chào lặp ở dòng đầu, thân, động lực, kết; bỏ đoạn rỗng); "Trân trọng," + tên. Mọi chữ qua `escapeHtml` *(2026-10-19)*. | SV | ✅ Mềm | [letter.ts:33](../../../server/src/modules/documents/templates/letter.ts#L33), [registry.ts:75](../../../server/src/modules/documents/templates/registry.ts#L75), [letter.spec.ts](../../../server/test/unit/modules/documents/letter.spec.ts) |
 | BR-DOC-29e | Thư mà tin đã bị xoá (`jobId = null`) không xem trước/in được: 404 `Thư xin việc bắt buộc phải gắn với một công việc` *(2026-10-19)*. | SV | ✅ Mềm | [document-renderer.service.ts:36](../../../server/src/modules/documents/services/document-renderer.service.ts#L36) |
-| BR-DOC-30 | Mail ứng tuyển không có bản trình bày: xem trước và PDF trả 422 `Tài liệu loại APPLICATION_EMAIL chưa có mẫu HTML để xem trước.` *(2026-10-19)*. | SV | ✅ Mềm | [documents.service.ts:300](../../../server/src/modules/documents/services/documents.service.ts#L300) |
+| BR-DOC-30 | Mail ứng tuyển không có bản trình bày: xem trước và PDF trả 422 `Loại tài liệu này không có bản xem trước để in. Hãy sao chép nội dung rồi dán vào nơi gửi.` *(2026-10-19; câu chữ đổi 2026-10-26 để không lộ tên enum)*. | SV | ✅ Mềm | [documents.service.ts:300](../../../server/src/modules/documents/services/documents.service.ts#L300) |
 | BR-DOC-31 | ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19): file `.tex` của CV/thư lưu trên Storage theo khoá có `documentId`; cột `Document.storageKey` đã bị drop. | DB | ✅ Mềm | [migration.sql](../../../server/prisma/migrations/20261019100000_drop_document_storage_key/migration.sql) |
 | BR-DOC-32 | PDF > 2 trang chỉ được ghi cảnh báo log, không chặn *(2026-10-19: bỏ phần log ký tự font thiếu của LaTeX)*. | SV | ✅ Mềm | [document-renderer.service.ts:70](../../../server/src/modules/documents/services/document-renderer.service.ts#L70), [seam.ts:14](../../../server/src/modules/documents/pdf/seam.ts#L14) |
 | BR-DOC-33 | Bóc tin từ URL chỉ tải địa chỉ công khai (kiểm ở từng chặng chuyển hướng), từ chối trang bị chặn (401/403/429), không 2xx, hoặc có \< 800 ký tự chữ; chỉ gửi model 20.000 ký tự đầu; không tạo bản ghi. | SV | ✅ Mềm | [job-from-url.service.ts:61](../../../server/src/modules/documents/services/job-from-url.service.ts#L61), [http-get.ts](../../../server/src/common/web/http-get.ts) |
@@ -586,12 +586,12 @@ stateDiagram-v2
 | Tin không tồn tại (thư — FK) | 400 | `Dữ liệu tham chiếu không hợp lệ` | [prisma-exception.filter.ts](../../../server/src/common/filters/prisma-exception.filter.ts) |
 | JD dán tay thiếu trường | 400 | `Cần chọn một tin tuyển dụng, hoặc dán mô tả công việc kèm tên công ty và vị trí` | [document-input.ts:60](../../../server/src/modules/documents/utils/document-input.ts#L60) |
 | Tài liệu không tồn tại / của người khác | 404 | `Không tìm thấy tài liệu: ${id}` | [documents.service.ts:176](../../../server/src/modules/documents/services/documents.service.ts#L176), [document-generator.service.ts:73](../../../server/src/modules/documents/services/document-generator.service.ts#L73) |
-| Đổi mẫu tài liệu không phải CV | 422 | `Tài liệu loại ${document.kind} không có mẫu trình bày để đổi.` | [documents.service.ts:190](../../../server/src/modules/documents/services/documents.service.ts#L190) |
+| Đổi mẫu tài liệu không phải CV | 422 | `Chỉ CV mới đổi được mẫu trình bày.` | [documents.service.ts:190](../../../server/src/modules/documents/services/documents.service.ts#L190) |
 | Mẫu không tồn tại | 400 | `Không có mẫu CV nào tên "${templateId}"` | [documents.service.ts:196](../../../server/src/modules/documents/services/documents.service.ts#L196) |
-| Sửa tài liệu không phải CV | 422 | `Tài liệu loại ${document.kind} chưa sửa được bằng đường này.` | [documents.service.ts:216](../../../server/src/modules/documents/services/documents.service.ts#L216) |
+| Sửa tài liệu không phải CV | 422 | `Chỉ CV mới sửa trực tiếp được ở đây.` | [documents.service.ts:216](../../../server/src/modules/documents/services/documents.service.ts#L216) |
 | Sửa CV chưa DONE | 422 | `Tài liệu chưa tạo xong nên chưa sửa được.` | [documents.service.ts:221](../../../server/src/modules/documents/services/documents.service.ts#L221) |
 | Xem trước / PDF khi chưa DONE | 422 | `Tài liệu chưa tạo xong nên chưa xem trước được.` | [documents.service.ts:259](../../../server/src/modules/documents/services/documents.service.ts#L259) |
-| Xem trước / PDF cho mail ứng tuyển | 422 | `Tài liệu loại ${document.kind} chưa có mẫu HTML để xem trước.` | [documents.service.ts:300](../../../server/src/modules/documents/services/documents.service.ts#L300) |
+| Xem trước / PDF cho mail ứng tuyển | 422 | `Loại tài liệu này không có bản xem trước để in. Hãy sao chép nội dung rồi dán vào nơi gửi.` | [documents.service.ts:300](../../../server/src/modules/documents/services/documents.service.ts#L300) |
 | Nội dung CV sai schema | 400 | `Nội dung CV không hợp lệ — ${issueDetail}` | [document-input.ts:22](../../../server/src/modules/documents/utils/document-input.ts#L22) |
 | Phần đầu CV sai schema | 400 | `Phần đầu CV không hợp lệ — ${issueDetail}` | [document-input.ts:30](../../../server/src/modules/documents/utils/document-input.ts#L30) |
 | Tên mục quá dài | 400 | `Tên mục tối đa ${SECTION_TITLE_MAX} ký tự — "${title.slice(0, 20)}…" quá dài` | [document-input.ts:39](../../../server/src/modules/documents/utils/document-input.ts#L39) |

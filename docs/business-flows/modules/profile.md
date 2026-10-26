@@ -66,7 +66,7 @@
 3. `ProfileService.save(userId, dto)`:
    1. `upsert` ghi các trường gửi lên (trường vắng giữ nguyên) ([profile.service.ts:39](../../../server/src/modules/profile/profile.service.ts#L39)).
    2. `update` thứ hai ghi `completion = completionPercent(saved)` và `occupationCode = occupationAfterSave(saved, data)` ([profile.service.ts:45](../../../server/src/modules/profile/profile.service.ts#L45)).
-   3. Xếp việc `skill.canonicalize { userId }` ([profile.service.ts:53](../../../server/src/modules/profile/profile.service.ts#L53)).
+   3. Xếp việc `skill.canonicalize { userId }` hẹn sau 10 giây, để mọi lần lưu liên tiếp (thêm/bỏ từng chip kỹ năng) gộp thành một lượt nhờ khoá chặn trùng `user:<id>` *(2026-10-26)* ([profile.service.ts](../../../server/src/modules/profile/profile.service.ts)).
 4. Trả **200** hồ sơ sau cập nhật. FE ghi đè cache `profile`, vá `profileCompletion`/`occupationCode` trong cache dashboard, làm mới dashboard/skill gaps/job lists/learning và hiện toast `Đã lưu` ([use-profile.ts:53](../../../../ui-ai-job-search/hooks/use-profile.ts#L53)).
 
 **Alternative Flow — suy lại nhóm ngành (BR-PRF-08):** nếu lần lưu có `headline` hoặc `primarySkills`, `occupationCode` được suy lại từ phần chức danh của headline (bỏ phần sau `|·•–—`, ngoặc, đuôi "N năm") và kỹ năng chính qua `resolveOccupation`; kết quả `OTHER` hoặc không đủ dữ liệu thì **giữ ngành cũ** ([occupation.ts:9](../../../server/src/modules/profile/utils/occupation.ts#L9), [occupation.ts:35](../../../server/src/modules/profile/utils/occupation.ts#L35)). Nếu ngành cũ do "Chọn nhanh" ghi mà chức danh mới suy ra một ngành thật khác thì ngành **bị ghi đè** ([profile-quick-start.e2e-spec.ts:103](../../../server/test/profile-quick-start.e2e-spec.ts#L103)).
