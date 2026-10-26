@@ -232,6 +232,26 @@ describe('JobRequirementsService.extractMany', () => {
 });
 
 describe('JobRequirementsService.extract', () => {
+  it('ghi cột phẳng cho thống kê và nhóm lựa chọn cho đối chiếu', async () => {
+    const { service, ai, prisma } = build([job('a')]);
+    ai.willReturn({
+      requiredSkills: [{ options: ['Kafka', 'RabbitMQ'] }, 'Git'],
+      niceToHaveSkills: [{ options: [] }],
+    });
+
+    await service.extract('a');
+
+    expect(prisma.rows.get('a')).toMatchObject({
+      status: 'DONE',
+      requiredSkills: ['Kafka', 'RabbitMQ', 'Git'],
+      niceToHaveSkills: [],
+      skillGroups: {
+        required: [['Kafka', 'RabbitMQ'], ['Git']],
+        preferred: [],
+      },
+    });
+  });
+
   it('model trả 0 kỹ năng thì ghi FAILED, KHÔNG ghi DONE', async () => {
     // Ca thật: tin giáo viên tiếng Anh ra 0 kỹ năng, chỉ còn minYears, và từng lên 100% cho hồ sơ IT.
     const { service, ai } = build([job('a')]);

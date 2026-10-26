@@ -7,6 +7,7 @@ const requirement = (overrides: Partial<JobRequirement>): JobRequirement => ({
   status: 'DONE',
   requiredSkills: [],
   niceToHaveSkills: [],
+  skillGroups: null,
   minYears: null,
   seniority: 'UNKNOWN',
   citizenshipRequired: null,
@@ -41,7 +42,7 @@ describe('planMatchWrites', () => {
     const { fresh } = planMatchWrites(
       [requirement({ requiredSkills: ['vận hành lò hơi'], minYears: 1 })],
       [itDeveloper],
-      new Map(),
+      { aliases: new Map(), implies: new Map() },
       new Map(),
     );
 
@@ -52,7 +53,7 @@ describe('planMatchWrites', () => {
     const { fresh, stale } = planMatchWrites(
       [requirement({ minYears: 1 })],
       [itDeveloper],
-      new Map(),
+      { aliases: new Map(), implies: new Map() },
       new Map([['user-1::job-1', 'v2:hash-1:old:d0']]),
     );
 
@@ -64,7 +65,7 @@ describe('planMatchWrites', () => {
     const { fresh } = planMatchWrites(
       [requirement({ requiredSkills: ['ReactJS', 'Kubernetes'], minYears: 1 })],
       [itDeveloper],
-      new Map(),
+      { aliases: new Map(), implies: new Map() },
       new Map(),
     );
 

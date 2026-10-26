@@ -330,6 +330,8 @@ model JobRequirement {
 
   requiredSkills   String[] @default([])
   niceToHaveSkills String[] @default([])
+  /// `{ required, preferred }`, mỗi phần tử là các lựa chọn thay nhau được. null ở bản rút cũ.
+  skillGroups      Json?
 
   minYears  Int?
   seniority JobSeniority @default(UNKNOWN)
@@ -425,6 +427,10 @@ model CanonicalSkill {
   embedding Unsupported("vector(768)")
 
   aliases SkillAlias[]
+
+  /// Kỹ năng mà người có kỹ năng này chắc chắn đáp ứng (`foldTerm`), do model liệt kê. Chỉ hỏi cho kỹ năng có trong hồ sơ.
+  implies          String[]  @default([])
+  impliesCheckedAt DateTime?
 
   createdAt DateTime @default(now())
 

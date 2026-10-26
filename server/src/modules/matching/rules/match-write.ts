@@ -7,7 +7,7 @@ export const MIN_COMPLETION_TO_SCORE = 30;
 
 const MIN_SKILLS_TO_STORE = 1;
 
-const FORMULA_VERSION = 'v3';
+const FORMULA_VERSION = 'v4';
 
 export const profileSelect = {
   userId: true,
@@ -35,9 +35,9 @@ export const pairKey = (userId: string, jobId: string) => `${userId}::${jobId}`;
 export function fingerprint(
   requirement: JobRequirement,
   stamp: string,
-  dictionarySize: number,
+  dictionary: SkillDictionary,
 ): string {
-  return `${FORMULA_VERSION}:${requirement.sourceHash ?? requirement.jobId}:${stamp}:d${dictionarySize}`;
+  return `${FORMULA_VERSION}:${requirement.sourceHash ?? requirement.jobId}:${stamp}:d${dictionary.aliases.size}i${dictionary.implies.size}`;
 }
 
 export type MatchWrites = {
@@ -58,7 +58,7 @@ export function planMatchWrites(
     const parsed = toRequirements(requirement);
 
     for (const candidate of candidates) {
-      const hash = fingerprint(requirement, candidate.stamp, dictionary.size);
+      const hash = fingerprint(requirement, candidate.stamp, dictionary);
       const key = pairKey(candidate.userId, requirement.jobId);
       if (known.get(key) === hash) continue;
 

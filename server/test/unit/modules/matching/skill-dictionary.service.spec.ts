@@ -7,7 +7,13 @@ import { FakeAi } from 'src/testing/fake-ai.js';
 import { FakeSemanticIndex } from 'src/testing/fake-semantic-index.js';
 
 type Alias = { key: string; raw: string; skillId: string; source: string };
-type CanonicalRow = { id: string; name: string; vector: number[] };
+type CanonicalRow = {
+  id: string;
+  name: string;
+  vector: number[];
+  implies?: string[];
+  impliesCheckedAt?: Date;
+};
 
 const uniqueViolation = () =>
   new Prisma.PrismaClientKnownRequestError('trùng khoá', {
@@ -34,6 +40,35 @@ function fakePrisma(
         }
         aliases.push(data);
         return Promise.resolve(data);
+      },
+    },
+    canonicalSkill: {
+      findMany: ({ where }: { where: { id?: { in: string[] } } }) =>
+        Promise.resolve(
+          canonicals
+            .filter((row) =>
+              where.id
+                ? where.id.in.includes(row.id) && !row.impliesCheckedAt
+                : (row.implies ?? []).length > 0,
+            )
+            .map((row) => ({
+              id: row.id,
+              name: row.name,
+              implies: row.implies ?? [],
+            })),
+        ),
+      updateMany: ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<CanonicalRow>;
+      }) => {
+        const row = canonicals.find(
+          (item) => item.id === where.id && !item.impliesCheckedAt,
+        );
+        Object.assign(row ?? {}, data);
+        return Promise.resolve({ count: row ? 1 : 0 });
       },
     },
     $transaction: async <T>(run: (tx: unknown) => Promise<T>): Promise<T> => {
@@ -245,5 +280,40 @@ describe('SkillDictionaryService.ingest', () => {
 
     await expect(service.ingest(['Excel'])).rejects.toThrow('mất kết nối');
     expect(prisma.canonicals).toHaveLength(0);
+  });
+});
+
+describe('SkillDictionaryService.inferImplications', () => {
+  test('chỉ hỏi kỹ năng hồ sơ chưa hỏi, rồi tra được kỹ năng kéo theo', async () => {
+    const excel = await canonicalNear('s-excel', 'Excel', 'Excel');
+    const { service, ai, prisma } = build(
+      [
+        { key: 'react', raw: 'React', skillId: 's-react', source: 'EXACT' },
+        { key: 'excel', raw: 'Excel', skillId: 's-excel', source: 'EXACT' },
+        {
+          key: 'javascript',
+          raw: 'JavaScript',
+          skillId: 's-js',
+          source: 'EXACT',
+        },
+      ],
+      [
+        await canonicalNear('s-react', 'React', 'React'),
+        {
+          ...excel,
+          implies: ['tin hoc van phong'],
+          impliesCheckedAt: new Date(),
+        },
+        await canonicalNear('s-js', 'JavaScript', 'JavaScript'),
+      ],
+    );
+    ai.willReturn({ skills: [{ index: 1, implies: ['JavaScript'] }] });
+
+    expect(await service.inferImplications(['React', 'Excel'])).toBe(1);
+    expect(ai.calls.map((call) => call.purpose)).toEqual(['skill.implies']);
+    expect(prisma.canonicals[0].implies).toEqual(['javascript']);
+    expect((await service.lookup()).implies.get('s-react')).toEqual(
+      new Set(['s-js']),
+    );
   });
 });

@@ -19,6 +19,15 @@ import {
   SHORTLIST,
   SYSTEM,
 } from '../prompt/skill-merge.prompt';
+import {
+  skillImpliesSchema,
+  type SkillImplies,
+} from '../schemas/skill-implies.schema';
+import {
+  IMPLIES_BATCH,
+  IMPLIES_SYSTEM,
+  skillImpliesPrompt,
+} from '../prompt/skill-implies.prompt';
 import { nearest, type Canonical } from '../utils/nearest';
 import { picksFor } from '../utils/merge-picks';
 import { messageOf } from '@/common/error-message';
@@ -52,14 +61,26 @@ export class SkillDictionaryService {
     @Inject(SEMANTIC_INDEX) private readonly semantic: SemanticIndex,
   ) {}
 
-  /** Bảng tra cách viết → kỹ năng chuẩn, cache ngắn hạn trong bộ nhớ. */
+  /** Bảng tra cách viết → kỹ năng chuẩn và kỹ năng chuẩn → các kỹ năng nó kéo theo, cache ngắn hạn trong bộ nhớ. */
   async lookup(): Promise<SkillDictionary> {
     if (this.cache && Date.now() < this.cacheUntil) return this.cache;
 
-    const rows = await this.prisma.skillAlias.findMany({
-      select: { key: true, skillId: true },
-    });
-    this.cache = new Map(rows.map((row) => [row.key, row.skillId]));
+    const [rows, implying] = await Promise.all([
+      this.prisma.skillAlias.findMany({ select: { key: true, skillId: true } }),
+      this.prisma.canonicalSkill.findMany({
+        where: { implies: { isEmpty: false } },
+        select: { id: true, implies: true },
+      }),
+    ]);
+    const aliases = new Map(rows.map((row) => [row.key, row.skillId]));
+    const implies = new Map<string, Set<string>>();
+    for (const skill of implying) {
+      const ids = skill.implies
+        .map((key) => aliases.get(key))
+        .filter((id): id is string => id !== undefined && id !== skill.id);
+      if (ids.length) implies.set(skill.id, new Set(ids));
+    }
+    this.cache = { aliases, implies };
     this.cacheUntil = Date.now() + CACHE_MS;
     return this.cache;
   }
@@ -88,6 +109,75 @@ export class SkillDictionaryService {
       terms.push(...row.primarySkills, ...row.secondarySkills);
     }
     return terms;
+  }
+
+  async profileSkills(): Promise<string[]> {
+    const profiles = await this.prisma.profile.findMany({
+      select: { primarySkills: true, secondarySkills: true },
+    });
+    return profiles.flatMap((row) => [
+      ...row.primarySkills,
+      ...row.secondarySkills,
+    ]);
+  }
+
+  /** Hỏi model các kỹ năng mà mỗi kỹ năng chuẩn của hồ sơ kéo theo; kỹ năng đã hỏi thì bỏ qua, lỗi thì để lần ghi hồ sơ sau hỏi lại. */
+  async inferImplications(skills: string[]): Promise<number> {
+    const { aliases } = await this.lookup();
+    const ids = new Set<string>();
+    for (const term of skills) {
+      const id = aliases.get(foldTerm(term));
+      if (id) ids.add(id);
+    }
+    if (!ids.size) return 0;
+
+    const pending = await this.prisma.canonicalSkill.findMany({
+      where: { id: { in: [...ids] }, impliesCheckedAt: null },
+      select: { id: true, name: true },
+    });
+
+    let asked = 0;
+    const implied: string[] = [];
+    for (let start = 0; start < pending.length; start += IMPLIES_BATCH) {
+      const chunk = pending.slice(start, start + IMPLIES_BATCH);
+      let answer: SkillImplies;
+      try {
+        const { object } = await this.ai.generateObject<SkillImplies>({
+          schema: skillImpliesSchema,
+          context: { purpose: 'skill.implies' },
+          modelId: this.config.get<string>('matching.dictionaryModelId'),
+          system: IMPLIES_SYSTEM,
+          prompt: skillImpliesPrompt(chunk.map((skill) => skill.name)),
+        });
+        answer = object;
+      } catch (error) {
+        this.logger.warn(
+          `Model không liệt kê được kỹ năng kéo theo: ${messageOf(error)}`,
+        );
+        break;
+      }
+
+      const byIndex = new Map(
+        answer.skills.map((row) => [row.index, row.implies]),
+      );
+      for (const [offset, skill] of chunk.entries()) {
+        const names = byIndex.get(offset + 1);
+        if (!names) continue;
+        await this.prisma.canonicalSkill.updateMany({
+          where: { id: skill.id, impliesCheckedAt: null },
+          data: { implies: names.map(foldTerm), impliesCheckedAt: new Date() },
+        });
+        implied.push(...names);
+        asked += 1;
+      }
+    }
+
+    if (implied.length) await this.ingest(implied);
+    this.cache = null;
+    this.logger.log(
+      `Kỹ năng kéo theo: đã hỏi ${asked}/${pending.length} kỹ năng`,
+    );
+    return asked;
   }
 
   private async loadCanonicals(): Promise<Canonical[]> {
@@ -137,7 +227,7 @@ export class SkillDictionaryService {
     rawTerms: string[],
     maxNew = Number.POSITIVE_INFINITY,
   ): Promise<IngestResult> {
-    const known = await this.lookup();
+    const { aliases: known } = await this.lookup();
     const pending = new Map<string, string>();
     for (const raw of rawTerms) {
       const key = foldTerm(raw);

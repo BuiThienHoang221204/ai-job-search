@@ -34,7 +34,7 @@ type Tally = {
 };
 
 export const skillKeyOf = (label: string, dictionary: SkillDictionary) =>
-  dictionary.get(foldTerm(label)) ?? foldTerm(label);
+  dictionary.aliases.get(foldTerm(label)) ?? foldTerm(label);
 
 const isSkillCheck = (check: RequirementCheck) =>
   check.kind === 'SKILL' || check.kind === 'NICE';

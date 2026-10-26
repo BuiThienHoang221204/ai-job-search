@@ -20,10 +20,39 @@ export function sourceHash(job: Job): string {
   ]);
 }
 
+const isGroupList = (value: unknown): value is string[][] =>
+  Array.isArray(value) &&
+  value.every(
+    (group) =>
+      Array.isArray(group) &&
+      group.every((option) => typeof option === 'string'),
+  );
+
+function groupsOf(
+  row: JobRequirement,
+): Pick<JobRequirements, 'requiredSkills' | 'niceToHaveSkills'> {
+  const stored = row.skillGroups;
+  if (
+    stored &&
+    typeof stored === 'object' &&
+    !Array.isArray(stored) &&
+    isGroupList(stored.required) &&
+    isGroupList(stored.preferred)
+  ) {
+    return {
+      requiredSkills: stored.required,
+      niceToHaveSkills: stored.preferred,
+    };
+  }
+  return {
+    requiredSkills: row.requiredSkills.map((skill) => [skill]),
+    niceToHaveSkills: row.niceToHaveSkills.map((skill) => [skill]),
+  };
+}
+
 export function toRequirements(row: JobRequirement): JobRequirements {
   return {
-    requiredSkills: row.requiredSkills,
-    niceToHaveSkills: row.niceToHaveSkills,
+    ...groupsOf(row),
     minYears: row.minYears,
     seniority: row.seniority,
     citizenshipRequired: row.citizenshipRequired,
@@ -63,7 +92,7 @@ export const NO_SKILLS_ERROR =
   'Không rút được kỹ năng nào từ tin này, nên không có căn cứ để đối chiếu hồ sơ.';
 
 export const hasSkills = (extracted: {
-  requiredSkills: string[];
-  niceToHaveSkills: string[];
+  requiredSkills: string[][];
+  niceToHaveSkills: string[][];
 }): boolean =>
   extracted.requiredSkills.length + extracted.niceToHaveSkills.length > 0;

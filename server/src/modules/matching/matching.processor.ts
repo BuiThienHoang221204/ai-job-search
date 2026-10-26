@@ -68,10 +68,13 @@ export class MatchingProcessor implements OnModuleInit {
         }
 
         let terms: string[];
+        let skills: string[] = [];
         if (data.jobId) {
           terms = await this.termsOfJob(data.jobId);
         } else if (data.userId) {
-          terms = await this.termsOfUser(data.userId);
+          const profile = await this.profileOf(data.userId);
+          skills = profile.skills;
+          terms = profile.headline ? [profile.headline, ...skills] : skills;
         } else {
           throw new Error('Payload danh bạ phải có jobId, userId hoặc round.');
         }
@@ -80,6 +83,7 @@ export class MatchingProcessor implements OnModuleInit {
         this.logger.log(
           `Danh bạ ${data.jobId ? `job=${data.jobId}` : `user=${data.userId}`}: thêm ${added}`,
         );
+        if (skills.length) await this.dictionary.inferImplications(skills);
 
         await this.queue.send(QUEUE.REQUIREMENT_MATCH, data);
       },
@@ -151,17 +155,18 @@ export class MatchingProcessor implements OnModuleInit {
     return row ? [...row.requiredSkills, ...row.niceToHaveSkills] : [];
   }
 
-  private async termsOfUser(userId: string): Promise<string[]> {
+  private async profileOf(
+    userId: string,
+  ): Promise<{ headline: string | null; skills: string[] }> {
     const row = await this.prisma.profile.findUnique({
       where: { userId },
       select: { headline: true, primarySkills: true, secondarySkills: true },
     });
-    if (!row) return [];
-    return [
-      ...(row.headline ? [row.headline] : []),
-      ...row.primarySkills,
-      ...row.secondarySkills,
-    ];
+    if (!row) return { headline: null, skills: [] };
+    return {
+      headline: row.headline,
+      skills: [...row.primarySkills, ...row.secondarySkills],
+    };
   }
 
   private async sweepDictionary(round: number): Promise<void> {
@@ -176,6 +181,9 @@ export class MatchingProcessor implements OnModuleInit {
       return;
     }
 
+    await this.dictionary.inferImplications(
+      await this.dictionary.profileSkills(),
+    );
     await this.queue.send(QUEUE.REQUIREMENT_MATCH, {});
   }
 }

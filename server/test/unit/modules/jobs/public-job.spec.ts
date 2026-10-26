@@ -28,6 +28,7 @@ const requirement = (requiredSkills: string[]) => ({
   status: 'DONE' as const,
   requiredSkills,
   niceToHaveSkills: [],
+  skillGroups: null,
   minYears: null,
   seniority: 'UNKNOWN' as const,
   citizenshipRequired: null,
@@ -59,7 +60,7 @@ describe('excerptOf', () => {
 });
 
 describe('toPublicJobDetail', () => {
-  const dictionary = new Map<string, string>();
+  const dictionary = { aliases: new Map<string, string>(), implies: new Map() };
 
   test('mô tả chỉ còn đoạn trích', () => {
     const detail = toPublicJobDetail(

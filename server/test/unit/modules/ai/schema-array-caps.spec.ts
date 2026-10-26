@@ -21,6 +21,7 @@ import {
   jobRequirementsSchema,
 } from 'src/modules/matching/ai/schemas/job-requirements.schema.js';
 import { skillMergeSchema } from 'src/modules/matching/ai/schemas/skill-merge.schema.js';
+import { skillImpliesSchema } from 'src/modules/matching/ai/schemas/skill-implies.schema.js';
 import { companyBriefSchema } from 'src/modules/companies/utils/company-brief.js';
 
 /**
@@ -101,6 +102,7 @@ const MODEL_SCHEMAS: Array<[string, ZodType]> = [
   ['jobRequirementsSchema', jobRequirementsSchema],
   ['jobRequirementsBatchSchema', jobRequirementsBatchSchema],
   ['skillMergeSchema', skillMergeSchema],
+  ['skillImpliesSchema', skillImpliesSchema],
   ['companyBriefSchema', companyBriefSchema],
 ];
 

@@ -13,7 +13,7 @@ const job = (id: string, checks: RequirementCheck[]) => ({
   checks,
 });
 
-const noDictionary = new Map<string, string>();
+const noDictionary = { aliases: new Map<string, string>(), implies: new Map() };
 const noNames = new Map<string, string>();
 
 describe('aggregateSkillGaps', () => {
@@ -47,10 +47,13 @@ describe('aggregateSkillGaps', () => {
   });
 
   test('cách viết khác nhau của cùng một kỹ năng gộp làm một qua danh bạ', () => {
-    const dictionary = new Map([
-      ['.net', 'skill-dotnet'],
-      ['asp.net core', 'skill-dotnet'],
-    ]);
+    const dictionary = {
+      aliases: new Map([
+        ['.net', 'skill-dotnet'],
+        ['asp.net core', 'skill-dotnet'],
+      ]),
+      implies: new Map(),
+    };
     const gaps = aggregateSkillGaps(
       [job('1', [missing('.NET')]), job('2', [missing('ASP.NET Core')])],
       dictionary,

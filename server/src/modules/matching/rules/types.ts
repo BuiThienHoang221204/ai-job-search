@@ -28,7 +28,10 @@ export type RequirementMatch = {
   eligibility: 'PASS' | 'FAIL' | 'UNVERIFIED';
 };
 
-export type SkillDictionary = ReadonlyMap<string, string>;
+export type SkillDictionary = {
+  aliases: ReadonlyMap<string, string>;
+  implies: ReadonlyMap<string, ReadonlySet<string>>;
+};
 
 export type Candidate = {
   userId: string;

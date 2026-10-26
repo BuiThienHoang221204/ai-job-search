@@ -37,19 +37,19 @@ function findSkill(
   required: string,
   dictionary?: SkillDictionary,
 ): SkillHit {
-  const literal = profileSkills.find(
-    (skill) => containsTerm(skill, required) || containsTerm(required, skill),
-  );
+  const literal = profileSkills.find((skill) => containsTerm(skill, required));
   if (literal) return { skill: literal, viaDictionary: false };
 
   if (!dictionary) return null;
-  const wanted = dictionary.get(foldTerm(required));
+  const wanted = dictionary.aliases.get(foldTerm(required));
   if (!wanted) return null;
 
-  const synonym = profileSkills.find(
-    (skill) => dictionary.get(foldTerm(skill)) === wanted,
-  );
-  return synonym ? { skill: synonym, viaDictionary: true } : null;
+  const owned = profileSkills.find((skill) => {
+    const id = dictionary.aliases.get(foldTerm(skill));
+    if (!id) return false;
+    return id === wanted || dictionary.implies.get(id)?.has(wanted) === true;
+  });
+  return owned ? { skill: owned, viaDictionary: true } : null;
 }
 
 function checkEligibility(
@@ -95,22 +95,25 @@ export function matchRequirements(
 ): RequirementMatch {
   const checks: RequirementCheck[] = [];
 
-  const skillCheck = (skill: string, kind: 'SKILL' | 'NICE') => {
-    const hit = findSkill(profile.skills, skill, dictionary);
+  const skillCheck = (options: string[], kind: 'SKILL' | 'NICE') => {
+    const hit =
+      options
+        .map((option) => findSkill(profile.skills, option, dictionary))
+        .find((found) => found !== null) ?? null;
     return {
-      label: skill,
+      label: options.join(' / '),
       kind,
       met: hit !== null,
       via: hit?.viaDictionary ? hit.skill : undefined,
     } satisfies RequirementCheck;
   };
 
-  for (const skill of requirements.requiredSkills) {
-    checks.push(skillCheck(skill, 'SKILL'));
+  for (const options of requirements.requiredSkills) {
+    checks.push(skillCheck(options, 'SKILL'));
   }
 
-  for (const skill of requirements.niceToHaveSkills) {
-    checks.push(skillCheck(skill, 'NICE'));
+  for (const options of requirements.niceToHaveSkills) {
+    checks.push(skillCheck(options, 'NICE'));
   }
 
   if (requirements.minYears !== null) {

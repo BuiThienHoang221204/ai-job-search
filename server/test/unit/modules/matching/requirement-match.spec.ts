@@ -5,7 +5,7 @@ import type { MatchProfile } from 'src/modules/matching/rules/types.js';
 const requirements = (
   overrides: Partial<JobRequirements> = {},
 ): JobRequirements => ({
-  requiredSkills: ['Kubernetes', 'Terraform'],
+  requiredSkills: [['Kubernetes'], ['Terraform']],
   niceToHaveSkills: [],
   minYears: null,
   seniority: 'MIDDLE',
@@ -38,7 +38,7 @@ describe('matchRequirements', () => {
 
   test('thiếu một kỹ năng thì điểm giảm và dòng đó ghi rõ', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Kubernetes', 'AWS'] }),
+      requirements({ requiredSkills: [['Kubernetes'], ['AWS']] }),
       profile(),
     );
 
@@ -50,21 +50,41 @@ describe('matchRequirements', () => {
     });
   });
 
-  test('khớp hai chiều: yêu cầu "AWS" khớp hồ sơ ghi "AWS Lambda"', () => {
+  test('nhóm lựa chọn thay nhau: hồ sơ có MỘT lựa chọn là đạt', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['AWS'] }),
+      requirements({ requiredSkills: [['Tiếng Anh', 'Tiếng Hàn']] }),
+      profile({ skills: ['Tiếng Hàn'] }),
+    );
+
+    expect(result.checks).toEqual([
+      { label: 'Tiếng Anh / Tiếng Hàn', kind: 'SKILL', met: true },
+    ]);
+  });
+
+  test('hồ sơ ghi cụ thể hơn thì khớp: yêu cầu "AWS" khớp hồ sơ ghi "AWS Lambda"', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: [['AWS']] }),
       profile({ skills: ['AWS Lambda'] }),
     );
 
     expect(result.score).toBe(100);
   });
 
+  test('hồ sơ ghi chung hơn thì KHÔNG khớp: biết "SQL" chưa đạt "SQL Server"', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: [['SQL Server']] }),
+      profile({ skills: ['SQL'] }),
+    );
+
+    expect(result.met).toBe(0);
+  });
+
   test('kỹ năng ưu tiên đáng nửa điểm so với bắt buộc', () => {
     // 1 bắt buộc đạt (1.0) + 1 ưu tiên trượt (0.5) -> 1.0 / 1.5 = 67%
     const result = matchRequirements(
       requirements({
-        requiredSkills: ['Kubernetes'],
-        niceToHaveSkills: ['Rust'],
+        requiredSkills: [['Kubernetes']],
+        niceToHaveSkills: [['Rust']],
       }),
       profile(),
     );
@@ -103,7 +123,7 @@ describe('matchRequirements', () => {
   test('số năm vẫn góp điểm, nhưng skillMet chỉ đếm dòng kỹ năng', () => {
     // Ca thật: tin lò hơi đòi 1 kỹ năng hồ sơ IT không có, số năm đạt -> met=1 nhưng skillMet=0.
     const result = matchRequirements(
-      requirements({ requiredSkills: ['vận hành lò hơi'], minYears: 1 }),
+      requirements({ requiredSkills: [['vận hành lò hơi']], minYears: 1 }),
       profile({ years: 2 }),
     );
 
@@ -241,7 +261,7 @@ describe('chức danh tham gia đối chiếu', () => {
   /// Bỏ chức danh ra ngoài thì mọi tin kế toán đều khớp 0.
   test('yêu cầu "kế toán" khớp chức danh "Kế toán tổng hợp"', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['kế toán'] }),
+      requirements({ requiredSkills: [['kế toán']] }),
       profile({ skills: ['Kế toán tổng hợp', 'Excel', 'Misa'] }),
     );
 
@@ -255,7 +275,11 @@ describe('không khớp bừa theo chuỗi con', () => {
   test('hồ sơ khai "IT" KHÔNG khớp "Digital Marketing"', () => {
     const result = matchRequirements(
       requirements({
-        requiredSkills: ['Digital Marketing', 'Quality Control', 'Security'],
+        requiredSkills: [
+          ['Digital Marketing'],
+          ['Quality Control'],
+          ['Security'],
+        ],
       }),
       profile({ skills: ['IT'] }),
     );
@@ -266,7 +290,9 @@ describe('không khớp bừa theo chuỗi con', () => {
 
   test('"Excel" không khớp "technical excellence", "SAP" không khớp "Sapphire"', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Technical excellence', 'Sapphire'] }),
+      requirements({
+        requiredSkills: [['Technical excellence'], ['Sapphire']],
+      }),
       profile({ skills: ['Excel', 'SAP'] }),
     );
 
@@ -275,7 +301,7 @@ describe('không khớp bừa theo chuỗi con', () => {
 
   test('ký hiệu vẫn khớp: ".NET" trong "ASP.NET Core"', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['.NET'] }),
+      requirements({ requiredSkills: [['.NET']] }),
       profile({ skills: ['ASP.NET Core'] }),
     );
 
@@ -284,7 +310,7 @@ describe('không khớp bừa theo chuỗi con', () => {
 
   test('hồ sơ gõ không dấu vẫn khớp tin có dấu', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Kế toán'] }),
+      requirements({ requiredSkills: [['Kế toán']] }),
       profile({ skills: ['Ke toan tong hop'] }),
     );
 
@@ -297,7 +323,7 @@ describe('mẫu số chỉ chứa yêu cầu về năng lực', () => {
   /// nó vào mẫu số thì người ở tỉnh khác bị trừ thẳng vào tỉ lệ khớp kỹ năng.
   test('địa điểm không đạt KHÔNG kéo tỉ lệ khớp xuống', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Kubernetes'], city: 'Hồ Chí Minh' }),
+      requirements({ requiredSkills: [['Kubernetes']], city: 'Hồ Chí Minh' }),
       profile({ location: 'Hà Nội' }),
     );
 
@@ -311,7 +337,7 @@ describe('mẫu số chỉ chứa yêu cầu về năng lực', () => {
   test('dòng quốc tịch vẫn hiện ra nhưng không nằm trong mẫu số', () => {
     const result = matchRequirements(
       requirements({
-        requiredSkills: ['Kubernetes'],
+        requiredSkills: [['Kubernetes']],
         citizenshipRequired: 'Việt Nam',
       }),
       profile({ citizenship: 'Việt Nam' }),
@@ -327,17 +353,21 @@ describe('mẫu số chỉ chứa yêu cầu về năng lực', () => {
 describe('danh bạ kỹ năng', () => {
   /// `Y tá` và `Điều dưỡng` không chung một ký tự nào, nên không phép so chuỗi
   /// nào bắc cầu được. Đây là lý do danh bạ tồn tại.
-  const dictionary = new Map([
-    ['y ta', 'skill-nurse'],
-    ['dieu duong', 'skill-nurse'],
-    ['nurse', 'skill-nurse'],
-    ['java', 'skill-java'],
-    ['javascript', 'skill-javascript'],
-  ]);
+  const dictionary = {
+    aliases: new Map([
+      ['y ta', 'skill-nurse'],
+      ['dieu duong', 'skill-nurse'],
+      ['nurse', 'skill-nurse'],
+      ['java', 'skill-java'],
+      ['javascript', 'skill-javascript'],
+      ['react', 'skill-react'],
+    ]),
+    implies: new Map([['skill-react', new Set(['skill-javascript'])]]),
+  };
 
   test('cùng mã thì khớp dù chữ khác hẳn nhau', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Y tá'] }),
+      requirements({ requiredSkills: [['Y tá']] }),
       profile({ skills: ['Điều dưỡng'] }),
       dictionary,
     );
@@ -347,7 +377,7 @@ describe('danh bạ kỹ năng', () => {
 
   test('dòng khớp qua danh bạ phải NÓI RÕ là khớp nhờ từ tương đương', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Y tá'] }),
+      requirements({ requiredSkills: [['Y tá']] }),
       profile({ skills: ['Điều dưỡng'] }),
       dictionary,
     );
@@ -362,8 +392,30 @@ describe('danh bạ kỹ năng', () => {
 
   test('khác mã thì KHÔNG khớp: Java không phải JavaScript', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['JavaScript'] }),
+      requirements({ requiredSkills: [['JavaScript']] }),
       profile({ skills: ['Java'] }),
+      dictionary,
+    );
+
+    expect(result.met).toBe(0);
+  });
+
+  test('kỹ năng kéo theo yêu cầu thì khớp, kèm tên kỹ năng hồ sơ', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: [['JavaScript']] }),
+      profile({ skills: ['React'] }),
+      dictionary,
+    );
+
+    expect(result.checks).toEqual([
+      { label: 'JavaScript', kind: 'SKILL', met: true, via: 'React' },
+    ]);
+  });
+
+  test('quan hệ kéo theo có chiều: biết JavaScript không đạt yêu cầu React', () => {
+    const result = matchRequirements(
+      requirements({ requiredSkills: [['React']] }),
+      profile({ skills: ['JavaScript'] }),
       dictionary,
     );
 
@@ -372,7 +424,7 @@ describe('danh bạ kỹ năng', () => {
 
   test('không truyền danh bạ thì hành vi y như cũ', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Y tá'] }),
+      requirements({ requiredSkills: [['Y tá']] }),
       profile({ skills: ['Điều dưỡng'] }),
     );
 
@@ -381,7 +433,7 @@ describe('danh bạ kỹ năng', () => {
 
   test('chuỗi chưa có trong danh bạ không làm hỏng gì', () => {
     const result = matchRequirements(
-      requirements({ requiredSkills: ['Hộ lý'] }),
+      requirements({ requiredSkills: [['Hộ lý']] }),
       profile({ skills: ['Điều dưỡng'] }),
       dictionary,
     );

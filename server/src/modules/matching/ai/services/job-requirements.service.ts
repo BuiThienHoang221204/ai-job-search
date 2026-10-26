@@ -52,8 +52,12 @@ export class JobRequirementsService {
       where: { jobId },
       data: {
         status: 'DONE',
-        requiredSkills: object.requiredSkills,
-        niceToHaveSkills: object.niceToHaveSkills,
+        requiredSkills: object.requiredSkills.flat(),
+        niceToHaveSkills: object.niceToHaveSkills.flat(),
+        skillGroups: {
+          required: object.requiredSkills,
+          preferred: object.niceToHaveSkills,
+        },
         minYears: object.minYears,
         seniority: object.seniority,
         citizenshipRequired: object.citizenshipRequired,

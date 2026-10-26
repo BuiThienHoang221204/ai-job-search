@@ -8,6 +8,7 @@ const requirement = (index: number): JobRequirement => ({
   status: 'DONE',
   requiredSkills: index % 3 === 0 ? ['Kế toán'] : ['NestJS', 'PostgreSQL'],
   niceToHaveSkills: [],
+  skillGroups: null,
   minYears: null,
   seniority: 'UNKNOWN',
   citizenshipRequired: null,
@@ -69,7 +70,9 @@ function build(
     ),
   };
   const dictionary = {
-    lookup: jest.fn().mockResolvedValue(new Map()),
+    lookup: jest
+      .fn()
+      .mockResolvedValue({ aliases: new Map(), implies: new Map() }),
   } as unknown as SkillDictionaryService;
   const service = new RequirementMatchService(
     prisma as unknown as PrismaService,

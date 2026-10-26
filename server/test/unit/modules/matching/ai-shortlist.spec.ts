@@ -34,7 +34,7 @@ const skills = (count: number, prefix = 'S') =>
 
 const rankOf = (required: string[], owned: string[]) =>
   matchRequirements(
-    requirements({ requiredSkills: required }),
+    requirements({ requiredSkills: required.map((skill) => [skill]) }),
     profile({ skills: owned }),
   ).rank;
 
@@ -54,11 +54,11 @@ describe('rank của matchRequirements', () => {
 
   test('score bằng nhau nhưng rank không bằng nhau', () => {
     const thin = matchRequirements(
-      requirements({ requiredSkills: skills(1) }),
+      requirements({ requiredSkills: skills(1).map((skill) => [skill]) }),
       profile({ skills: skills(1) }),
     );
     const thick = matchRequirements(
-      requirements({ requiredSkills: skills(8) }),
+      requirements({ requiredSkills: skills(8).map((skill) => [skill]) }),
       profile({ skills: skills(8) }),
     );
 
@@ -76,7 +76,7 @@ describe('rank của matchRequirements', () => {
   test('eligibility FAIL thì rank về 0 dù khớp hết kỹ năng', () => {
     const result = matchRequirements(
       requirements({
-        requiredSkills: skills(8),
+        requiredSkills: skills(8).map((skill) => [skill]),
         citizenshipRequired: 'Nhật Bản',
       }),
       profile({ skills: skills(8) }),
