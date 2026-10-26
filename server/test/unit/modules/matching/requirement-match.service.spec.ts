@@ -104,4 +104,23 @@ describe('RequirementMatchService.score theo hồ sơ', () => {
     expect(args.skipDuplicates).toBe(true);
     expect(args.data).toHaveLength(written);
   });
+
+  test('chấm lại toàn kho chia lô theo tin để không vượt trần tham số của Postgres', async () => {
+    const requirements = Array.from({ length: 250 }, (_, at) =>
+      requirement(at + 1),
+    );
+    const { prisma, service } = build(requirements);
+
+    const written = await service.score({});
+
+    const jobsPerLookup = prisma.jobRequirementMatch.findMany.mock.calls.map(
+      ([args]) => (args.where.jobId as { in: string[] }).in.length,
+    );
+    expect(jobsPerLookup).toEqual([100, 100, 50]);
+    const created = prisma.jobRequirementMatch.createMany.mock.calls.reduce(
+      (sum, [args]) => sum + args.data.length,
+      0,
+    );
+    expect(created).toBe(written);
+  });
 });

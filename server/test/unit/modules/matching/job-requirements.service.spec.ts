@@ -1,3 +1,4 @@
+import { Prisma } from 'src/generated/prisma/client.js';
 import { JobRequirementsService } from 'src/modules/matching/ai/services/job-requirements.service.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { AiService } from 'src/modules/ai/services/ai.service.js';
@@ -47,20 +48,29 @@ function fakePrisma(jobs: FakeJob[], requirements: FakeRequirement[] = []) {
             where.jobId.in.includes(row.jobId),
           ),
         ),
-      upsert: ({
-        where,
-        create,
-      }: {
-        where: { jobId: string };
-        create: Record<string, unknown>;
-      }) => {
+      updateMany: ({ where }: { where: { jobId: string } }) => {
         const existing = rows.get(where.jobId);
-        const next = existing
-          ? { ...existing, status: 'RUNNING', error: null }
-          : ({ sourceHash: null, error: null, ...create } as FakeRequirement);
-        rows.set(where.jobId, next);
+        if (!existing || existing.status === 'RUNNING') {
+          return Promise.resolve({ count: 0 });
+        }
+        rows.set(where.jobId, { ...existing, status: 'RUNNING', error: null });
+        return Promise.resolve({ count: 1 });
+      },
+      create: ({ data }: { data: { jobId: string; status: string } }) => {
+        if (rows.has(data.jobId)) {
+          return Promise.reject(
+            new Prisma.PrismaClientKnownRequestError('trùng khoá', {
+              code: 'P2002',
+              clientVersion: 'test',
+            }),
+          );
+        }
+        const next = { sourceHash: null, error: null, ...data };
+        rows.set(data.jobId, next);
         return Promise.resolve(next);
       },
+      findUniqueOrThrow: ({ where }: { where: { jobId: string } }) =>
+        Promise.resolve(rows.get(where.jobId)),
       update: ({
         where,
         data,
@@ -250,6 +260,18 @@ describe('JobRequirementsService.extract', () => {
         preferred: [],
       },
     });
+  });
+
+  it('tin đang được lượt khác rút thì không gọi model lần nữa', async () => {
+    const { service, ai } = build(
+      [job('a')],
+      [{ jobId: 'a', status: 'RUNNING', sourceHash: null, error: null }],
+    );
+
+    const result = await service.extract('a', true);
+
+    expect(ai.calls).toHaveLength(0);
+    expect(result.status).toBe('RUNNING');
   });
 
   it('model trả 0 kỹ năng thì ghi FAILED, KHÔNG ghi DONE', async () => {

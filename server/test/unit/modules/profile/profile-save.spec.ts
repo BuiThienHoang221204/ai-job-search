@@ -70,9 +70,11 @@ describe('ProfileService.save — ba việc đi liền lần ghi', () => {
 
     await service.save('u1', { primarySkills: ['Misa'] });
 
-    expect(send).toHaveBeenCalledWith(QUEUE.SKILL_CANONICALIZE, {
-      userId: 'u1',
-    });
+    expect(send).toHaveBeenCalledWith(
+      QUEUE.SKILL_CANONICALIZE,
+      { userId: 'u1' },
+      { startAfter: 10 },
+    );
   });
 
   it('KHÔNG suy lại ngành khi lần lưu không đụng chức danh hay kỹ năng chính', async () => {

@@ -20,7 +20,7 @@ export class UpskillProcessor implements OnModuleInit {
       QUEUE.UPSKILL_REPORT,
       async (data) => {
         this.logger.log(`Tạo báo cáo upskill ${data.reportId}`);
-        await this.upskill.generate(data.reportId);
+        await this.upskill.generate(data.userId, data.reportId);
       },
     );
   }

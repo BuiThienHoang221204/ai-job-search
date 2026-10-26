@@ -76,7 +76,7 @@ export class UpskillController {
       response,
       logger: this.logger,
       label: `upskill ${report.id}`,
-      events: this.upskill.streamGenerate(report.id),
+      events: this.upskill.streamGenerate(user.id, report.id),
       prelude: {
         type: 'partial',
         data: { step: 0, reportId: report.id },

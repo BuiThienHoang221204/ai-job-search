@@ -174,4 +174,45 @@ describe('GET /interview · danh sách chỉ trả bản tóm tắt', () => {
     ).toBeNull();
     expect(items[0]).not.toHaveProperty('steps');
   });
+
+  describe('xếp hàng soạn bộ đề', () => {
+    const enqueue = (force: boolean) =>
+      request(harness.server)
+        .post('/api/interview/prep')
+        .set(auth(user))
+        .send({ jobId, force });
+    const statusOf = async () =>
+      (
+        await harness.prisma.interviewPrep.findUniqueOrThrow({
+          where: { userId_jobId: { userId: user.id, jobId } },
+        })
+      ).status;
+
+    test('bộ đề đã xong chỉ mở lại khi bấm soạn lại (force)', async () => {
+      await seedPrep();
+
+      await enqueue(false).expect(201);
+      expect(await statusOf()).toBe('DONE');
+
+      await enqueue(true).expect(201);
+      expect(await statusOf()).toBe('PENDING');
+    });
+
+    test('bộ đề đang chạy không bị kéo về chờ', async () => {
+      await harness.prisma.interviewPrep.create({
+        data: { userId: user.id, jobId, status: 'RUNNING' },
+      });
+
+      await enqueue(true).expect(201);
+      expect(await statusOf()).toBe('RUNNING');
+    });
+
+    test('nhiều yêu cầu cùng lúc cho tin chưa có bộ đề không lỗi trùng khoá', async () => {
+      const codes = await Promise.all(
+        Array.from({ length: 5 }, () => enqueue(false).then((r) => r.status)),
+      );
+      expect(codes).toEqual([201, 201, 201, 201, 201]);
+      expect(await statusOf()).toBe('PENDING');
+    });
+  });
 });

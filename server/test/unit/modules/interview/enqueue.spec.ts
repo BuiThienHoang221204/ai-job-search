@@ -7,6 +7,7 @@ jest.mock('ai', () => ({}));
 jest.mock('@ai-sdk/openai-compatible', () => ({}));
 
 import type { MatchStatus } from 'src/generated/prisma/enums.js';
+import { Prisma } from 'src/generated/prisma/client.js';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import type { QueueService } from 'src/modules/queue/queue.service.js';
 import { InterviewService } from 'src/modules/interview/interview.service.js';
@@ -22,12 +23,33 @@ function fakes(existing: PrepRow, sendFails = false) {
     job: { findUnique: jest.fn(() => Promise.resolve({ id: 'job-1' })) },
     interviewPrep: {
       findUnique: jest.fn(() => Promise.resolve(existing)),
-      upsert: jest.fn((args: { update: Record<string, unknown> }) => {
-        upserts.push(args.update);
-        return Promise.resolve({});
-      }),
-      update: jest.fn((args: { data: Record<string, unknown> }) => {
-        updates.push(args.data);
+      updateMany: jest.fn(
+        (args: {
+          where: { status: MatchStatus | { in: MatchStatus[] } };
+          data: Record<string, unknown>;
+        }) => {
+          if (args.data.status === 'FAILED') {
+            updates.push(args.data);
+            return Promise.resolve({ count: 1 });
+          }
+          const allowed = (args.where.status as { in: MatchStatus[] }).in;
+          if (!existing || !allowed.includes(existing.status)) {
+            return Promise.resolve({ count: 0 });
+          }
+          upserts.push(args.data);
+          return Promise.resolve({ count: 1 });
+        },
+      ),
+      create: jest.fn(() => {
+        if (existing) {
+          return Promise.reject(
+            new Prisma.PrismaClientKnownRequestError('trùng khoá', {
+              code: 'P2002',
+              clientVersion: 'test',
+            }),
+          );
+        }
+        upserts.push({ status: 'PENDING', error: null });
         return Promise.resolve({});
       }),
     },

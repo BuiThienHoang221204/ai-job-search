@@ -70,7 +70,7 @@ export class UpskillService {
       });
       return { queued: true, reportId: report.id, mode: report.mode };
     } catch (queueError) {
-      await this.fail(report.id, queueError, 'Đưa vào hàng đợi');
+      await this.fail(userId, report.id, queueError, 'Đưa vào hàng đợi');
       throw queueError;
     }
   }
@@ -97,9 +97,10 @@ export class UpskillService {
   }
 
   async *streamGenerate(
+    userId: string,
     reportId: string,
   ): AsyncGenerator<ModelStreamEvent<UpskillReport>> {
-    const { report, claimed } = await this.start(reportId);
+    const { report, claimed } = await this.start(userId, reportId);
     if (!claimed) {
       throw new ConflictException(
         'Báo cáo này đang được tạo hoặc đã tạo xong, không tạo lại được.',
@@ -134,13 +135,13 @@ export class UpskillService {
         ),
       };
     } catch (error) {
-      await this.fail(reportId, error, 'Tạo báo cáo upskill (stream)');
+      await this.fail(userId, reportId, error, 'Tạo báo cáo upskill (stream)');
       yield streamFailureEvent(error);
     }
   }
 
-  async generate(reportId: string): Promise<UpskillReport> {
-    const { report, claimed } = await this.start(reportId);
+  async generate(userId: string, reportId: string): Promise<UpskillReport> {
+    const { report, claimed } = await this.start(userId, reportId);
     if (!claimed) {
       this.logger.debug(`Bỏ qua báo cáo ${reportId}: đang ${report.status}`);
       return report;
@@ -163,18 +164,20 @@ export class UpskillService {
         modelIdOf(gaps.modelId, plan.modelId),
       );
     } catch (error) {
-      return this.fail(reportId, error, 'Tạo báo cáo upskill');
+      return this.fail(userId, reportId, error, 'Tạo báo cáo upskill');
     }
   }
 
   /** Giành chỗ RUNNING chỉ khi báo cáo đang chờ, đã hỏng, hoặc RUNNING đã kẹt — báo cáo DONE không bao giờ bị chạy lại. */
   private async start(
+    userId: string,
     reportId: string,
   ): Promise<{ report: UpskillReport; claimed: boolean }> {
     const stuckBefore = new Date(Date.now() - STUCK_AFTER_MS);
     const claim = await this.prisma.upskillReport.updateMany({
       where: {
         id: reportId,
+        userId,
         OR: [
           { status: { in: ['PENDING', 'FAILED'] } },
           { status: 'RUNNING', createdAt: { lt: stuckBefore } },
@@ -183,8 +186,8 @@ export class UpskillService {
       data: { status: 'RUNNING', error: null },
     });
 
-    const report = await this.prisma.upskillReport.findUnique({
-      where: { id: reportId },
+    const report = await this.prisma.upskillReport.findFirst({
+      where: { id: reportId, userId },
     });
     if (!report)
       throw new NotFoundException(`Không tìm thấy báo cáo: ${reportId}`);
@@ -252,7 +255,7 @@ export class UpskillService {
   /** Lưu khoảng trống ngay sau lời gọi 1 để lời gọi 2 hỏng thì không mất công. */
   private saveGaps({ report, matches }: Prepared, gaps: UpskillGaps) {
     return this.prisma.upskillReport.update({
-      where: { id: report.id },
+      where: { id: report.id, userId: report.userId },
       data: {
         jobsAnalysed: matches.length,
         hardGaps: gaps.hardGaps,
@@ -268,7 +271,7 @@ export class UpskillService {
     modelId: string,
   ): Promise<UpskillReport> {
     return this.prisma.upskillReport.update({
-      where: { id: report.id },
+      where: { id: report.id, userId: report.userId },
       data: {
         status: 'DONE',
         jobsAnalysed: matches.length,
@@ -284,6 +287,7 @@ export class UpskillService {
   }
 
   private async fail(
+    userId: string,
     reportId: string,
     error: unknown,
     label: string,
@@ -291,7 +295,7 @@ export class UpskillService {
     const message = messageOf(error);
     this.logger.error(`${label} thất bại (${reportId}): ${message}`);
     return this.prisma.upskillReport.update({
-      where: { id: reportId },
+      where: { id: reportId, userId },
       data: { status: 'FAILED', error: message },
     });
   }

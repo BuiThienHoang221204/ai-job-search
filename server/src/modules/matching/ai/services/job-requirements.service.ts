@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Job, JobRequirement } from '@/generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { AiService } from '@/modules/ai/services/ai.service';
@@ -24,6 +29,9 @@ import {
   sourceHash,
 } from '../utils/requirements';
 import { messageOf } from '@/common/error-message';
+import { isUniqueViolation } from '@/prisma/prisma-errors';
+
+const MAX_EXTRACT_SIZE = 50;
 
 @Injectable()
 export class JobRequirementsService {
@@ -34,12 +42,21 @@ export class JobRequirementsService {
     private readonly ai: AiService,
   ) {}
 
-  private async markRunning(jobId: string): Promise<void> {
-    await this.prisma.jobRequirement.upsert({
-      where: { jobId },
-      create: { jobId, status: 'RUNNING' },
-      update: { status: 'RUNNING', error: null },
+  private async claim(jobId: string): Promise<boolean> {
+    const { count } = await this.prisma.jobRequirement.updateMany({
+      where: { jobId, status: { not: 'RUNNING' } },
+      data: { status: 'RUNNING', error: null },
     });
+    if (count) return true;
+    try {
+      await this.prisma.jobRequirement.create({
+        data: { jobId, status: 'RUNNING' },
+      });
+      return true;
+    } catch (error) {
+      if (isUniqueViolation(error)) return false;
+      throw error;
+    }
   }
 
   private persist(
@@ -95,8 +112,13 @@ export class JobRequirementsService {
       return existing;
     }
 
-    await this.markRunning(jobId);
+    if (!(await this.claim(jobId))) {
+      return this.prisma.jobRequirement.findUniqueOrThrow({ where: { jobId } });
+    }
+    return this.runSingle(job, hash);
+  }
 
+  private async runSingle(job: Job, hash: string): Promise<JobRequirement> {
     try {
       const { object, modelId } = await this.ai.generateObject<JobRequirements>(
         {
@@ -108,14 +130,19 @@ export class JobRequirementsService {
       );
 
       if (!hasSkills(object)) throw new Error(NO_SKILLS_ERROR);
-      return await this.persist(jobId, hash, object, modelId);
+      return await this.persist(job.id, hash, object, modelId);
     } catch (error) {
-      return this.markFailed(jobId, error);
+      return this.markFailed(job.id, error);
     }
   }
 
   async extractMany(jobIds: string[]): Promise<JobRequirement[]> {
     const uniqueIds = Array.from(new Set(jobIds));
+    if (uniqueIds.length > MAX_EXTRACT_SIZE) {
+      throw new BadRequestException(
+        `Mỗi lô chỉ rút tối đa ${MAX_EXTRACT_SIZE} tin.`,
+      );
+    }
     if (uniqueIds.length <= 1) {
       return uniqueIds.length ? [await this.extract(uniqueIds[0])] : [];
     }
@@ -142,16 +169,14 @@ export class JobRequirementsService {
         results.push(await this.extract(job.id));
         continue;
       }
-      batch.push({ job, hash });
+      if (await this.claim(job.id)) batch.push({ job, hash });
     }
 
     if (!batch.length) return results;
     if (batch.length === 1) {
-      results.push(await this.extract(batch[0].job.id));
+      results.push(await this.runSingle(batch[0].job, batch[0].hash));
       return results;
     }
-
-    for (const entry of batch) await this.markRunning(entry.job.id);
 
     try {
       const { object, modelId } =
@@ -171,7 +196,7 @@ export class JobRequirementsService {
           this.logger.warn(
             `Lô ${extracted ? 'trả 0 kỹ năng' : 'thiếu phần tử'} [${offset + 1}] cho ${entry.job.id}; rút lẻ`,
           );
-          results.push(await this.extract(entry.job.id));
+          results.push(await this.runSingle(entry.job, entry.hash));
           continue;
         }
         results.push(
@@ -195,7 +220,7 @@ export class JobRequirementsService {
         `Lô ${batch.length} tin hỏng (${message}); rút lại từng tin một`,
       );
       for (const entry of batch) {
-        results.push(await this.extract(entry.job.id));
+        results.push(await this.runSingle(entry.job, entry.hash));
       }
       return results;
     }

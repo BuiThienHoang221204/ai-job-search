@@ -3,6 +3,7 @@ import type {
   InterviewPrep,
   Job,
   JobMatch,
+  MatchStatus,
   Profile,
 } from '@/generated/prisma/client';
 import type { PaginationQueryDto } from '@/common/dto/pagination.dto';
@@ -86,15 +87,8 @@ export class InterviewService {
     if (!force && existing?.status === 'DONE') {
       return { queued: true, queueJobId: null };
     }
-    const willRun = !inFlight;
-
-    if (willRun) {
-      await this.prisma.interviewPrep.upsert({
-        where: { userId_jobId: { userId, jobId } },
-        create: { userId, jobId, status: 'PENDING' },
-        update: { status: 'PENDING', error: null },
-      });
-    }
+    const willRun =
+      !inFlight && (await this.claimPending(userId, jobId, force));
 
     try {
       const queueJobId = await this.queue.send(QUEUE.INTERVIEW_PREP, {
@@ -105,11 +99,33 @@ export class InterviewService {
       return { queued: true, queueJobId };
     } catch (error) {
       if (willRun) {
-        await this.prisma.interviewPrep.update({
-          where: { userId_jobId: { userId, jobId } },
+        await this.prisma.interviewPrep.updateMany({
+          where: { userId, jobId, status: 'PENDING' },
           data: { status: 'FAILED', error: 'Không xếp được vào hàng đợi' },
         });
       }
+      throw error;
+    }
+  }
+
+  private async claimPending(
+    userId: string,
+    jobId: string,
+    force: boolean,
+  ): Promise<boolean> {
+    const reopenable: MatchStatus[] = force ? ['DONE', 'FAILED'] : ['FAILED'];
+    const { count } = await this.prisma.interviewPrep.updateMany({
+      where: { userId, jobId, status: { in: reopenable } },
+      data: { status: 'PENDING', error: null },
+    });
+    if (count) return true;
+    try {
+      await this.prisma.interviewPrep.create({
+        data: { userId, jobId, status: 'PENDING' },
+      });
+      return true;
+    } catch (error) {
+      if (isUniqueViolation(error)) return false;
       throw error;
     }
   }

@@ -139,7 +139,7 @@ function build(options: {
         claims.push(call);
         return Promise.resolve({ count: options.claimable === false ? 0 : 1 });
       },
-      findUnique: () => Promise.resolve(report),
+      findFirst: () => Promise.resolve(report),
       update: (call: UpdateCall) => {
         updates.push(call);
         return Promise.resolve({ ...report, ...call.data });
@@ -180,7 +180,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(ai.calls.map((call) => call.purpose)).toEqual([
       'upskill.gaps',
@@ -193,7 +193,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai } = build({ mode: 'TARGETED' });
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(ai.calls).toHaveLength(2);
   });
@@ -202,7 +202,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     const [gapsCall, planCall] = ai.calls;
     expect(gapsCall.prompt).toContain(MOTA);
@@ -214,7 +214,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     const planPrompt = ai.calls[1].prompt;
     expect(planPrompt).toContain('Kubernetes');
@@ -228,7 +228,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     const planPrompt = ai.calls[1].prompt;
     expect(planPrompt.indexOf('Kubernetes')).toBeLessThan(
@@ -242,7 +242,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     });
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(ai.calls[1].prompt).toContain('Docker');
   });
@@ -251,7 +251,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai, finalUpdate } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(finalUpdate()).toMatchObject({
       status: 'DONE',
@@ -269,7 +269,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai, finalUpdate } = build({});
     ai.willFail(new Error('hết giờ'));
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(ai.calls).toHaveLength(1);
     expect(finalUpdate()).toMatchObject({ status: 'FAILED' });
@@ -279,7 +279,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
     const { service, ai, finalUpdate } = build({});
     ai.willReturn(GAPS).willFail(new Error('JSON hỏng'));
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     const data = finalUpdate();
     expect(data).toMatchObject({ status: 'FAILED' });
@@ -291,7 +291,7 @@ describe('UpskillService.generate - tách làm hai lời gọi', () => {
       matches: [matchOf('DevOps Engineer', 40), matchOf('SRE', 55)],
     });
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(ai.calls).toHaveLength(0);
     expect(finalUpdate()).toMatchObject({ status: 'FAILED' });
@@ -311,7 +311,7 @@ describe('UpskillService.generate - khung phân tích chia đôi', () => {
     const { service, ai } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     const system = ai.calls[0].system;
     expect(system).toContain('Step 3');
@@ -324,7 +324,7 @@ describe('UpskillService.generate - khung phân tích chia đôi', () => {
     const { service, ai } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     const system = ai.calls[1].system;
     expect(system).toContain('Step 6');
@@ -338,7 +338,7 @@ describe('UpskillService - giành chỗ có điều kiện', () => {
     const { service, ai, claims } = build({});
     ai.willReturn(GAPS, PLAN);
 
-    await service.generate('report-1');
+    await service.generate('user-1', 'report-1');
 
     expect(claims).toHaveLength(1);
     const where = claims[0].where as unknown as {
@@ -358,7 +358,7 @@ describe('UpskillService - giành chỗ có điều kiện', () => {
       status: 'DONE',
     });
 
-    const result = await service.generate('report-1');
+    const result = await service.generate('user-1', 'report-1');
 
     expect(result.status).toBe('DONE');
     expect(ai.calls).toHaveLength(0);
@@ -371,7 +371,7 @@ describe('UpskillService - giành chỗ có điều kiện', () => {
       status: 'RUNNING',
     });
 
-    const events = service.streamGenerate('report-1');
+    const events = service.streamGenerate('user-1', 'report-1');
 
     await expect(events.next()).rejects.toBeInstanceOf(ConflictException);
     expect(ai.calls).toHaveLength(0);

@@ -147,7 +147,10 @@ describe('Vòng đời đơn ứng tuyển', () => {
     test('đổi sang chính trạng thái đang có bị từ chối', async () => {
       const id = await seedApplication('APPLIED');
 
-      await patchStatus(id, 'APPLIED').expect(400);
+      const response = await patchStatus(id, 'APPLIED').expect(400);
+      expect((response.body as { message: string }).message).not.toContain(
+        'APPLIED',
+      );
     });
 
     /// Quy tắc 3 nhìn từ phía người dùng: họ ĐƯỢC mở lại đơn đã đóng. Chỉ nguồn

@@ -12,6 +12,10 @@ import {
 } from '../match-write';
 import type { Candidate } from '../types';
 
+const JOB_CHUNK = 100;
+
+const PROFILE_CHUNK = 50;
+
 @Injectable()
 export class RequirementMatchService {
   private readonly logger = new Logger(RequirementMatchService.name);
@@ -48,7 +52,16 @@ export class RequirementMatchService {
       this.requirements(scope.jobId),
       this.candidates(scope.userId),
     ]);
-    return this.apply(requirements, candidates);
+    let written = 0;
+    for (let job = 0; job < requirements.length; job += JOB_CHUNK) {
+      for (let user = 0; user < candidates.length; user += PROFILE_CHUNK) {
+        written += await this.apply(
+          requirements.slice(job, job + JOB_CHUNK),
+          candidates.slice(user, user + PROFILE_CHUNK),
+        );
+      }
+    }
+    return written;
   }
 
   private async apply(

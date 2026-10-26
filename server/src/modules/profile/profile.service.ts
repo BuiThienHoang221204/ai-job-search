@@ -12,6 +12,8 @@ import { REMOTE_CODE } from '@/modules/jobs/taxonomy/provinces';
 import { OTHER_CODE } from '@/modules/jobs/taxonomy/occupations';
 import type { QuickStartProfileDto } from './profile.dto';
 
+const SKILL_SETTLE_SECONDS = 10;
+
 @Injectable()
 export class ProfileService {
   constructor(
@@ -92,7 +94,11 @@ export class ProfileService {
     if (profile.occupationCode && profile.occupationCode !== OTHER_CODE) {
       await this.referrals.rewardIfDue(userId);
     }
-    await this.queue.send(QUEUE.SKILL_CANONICALIZE, { userId });
+    await this.queue.send(
+      QUEUE.SKILL_CANONICALIZE,
+      { userId },
+      { startAfter: SKILL_SETTLE_SECONDS },
+    );
     return profile;
   }
 }

@@ -213,7 +213,9 @@ export class ApplicationsService {
       throw new NotFoundException('Không tìm thấy đơn ứng tuyển');
 
     if (application.status === to) {
-      throw new BadRequestException(`Đơn đã ở trạng thái ${to}`);
+      throw new BadRequestException(
+        'Đơn đã ở đúng trạng thái này rồi, không cần đổi lại.',
+      );
     }
 
     const stamps = timestampsFor(
