@@ -241,7 +241,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MAT-20 | Rút yêu cầu bỏ qua khi bản DONE có `sourceHash` (title, description, location, workMode) trùng, trừ `force`. | SV | ✅ |
 | BR-MAT-21 | Bản rút 0 kỹ năng (bắt buộc + ưu tiên = 0) là FAILED với thông điệp "Không rút được kỹ năng nào từ tin này, nên không có căn cứ để đối chiếu hồ sơ."; chỉ có kỹ năng ưu tiên vẫn hợp lệ. | SV | ✅ |
 | BR-MAT-22 | Gộp lô `job.requirements`: tin > 6.000 ký tự đi lẻ; lô timeout 120 giây; phần tử thiếu hoặc 0 kỹ năng → rút lẻ tin đó; lô hỏng TIMEOUT/SCHEMA → FAILED cả lô; lỗi khác → rút lẻ từng tin. | SV | ✅ |
-| BR-MAT-23 | Output rút yêu cầu: tối đa 10 kỹ năng mỗi loại × 80 ký tự (cắt), `seniority`/`remotePolicy` lạ → `UNKNOWN`, `workPermitRequired` lỗi → `false`, lô tối đa 50 phần tử. | SV | ✅ |
+| BR-MAT-23 | Output rút yêu cầu: mỗi loại (bắt buộc, ưu tiên) là danh sách NHÓM, tối đa 25 nhóm × 6 lựa chọn thay nhau × 80 ký tự (cắt); model trả chuỗi trơn thì coi là nhóm một lựa chọn, nhóm rỗng bị bỏ. Lưu `skillGroups = { required, preferred }` để đối chiếu, và trải phẳng mọi lựa chọn vào `requiredSkills`/`niceToHaveSkills` cho thống kê, danh bạ, upskill *(2026-10-26, trước đó tối đa 10 kỹ năng phẳng)*. Prompt: ghi đủ mọi yêu cầu, xếp mức theo từng câu, cho rút kỹ năng nghề (giao tiếp, đàm phán) và chứng chỉ hành nghề/bằng lái tin nêu tên, không rút ngành học; `seniority`/`remotePolicy` lạ → `UNKNOWN`, `workPermitRequired` lỗi → `false`, lô tối đa 50 phần tử. | SV | ✅ |
 | BR-MAT-24 | Chỉ tin rút DONE mới được xếp `skill.canonicalize`. | SV | ✅ |
 | BR-MAT-25 | Khoá danh bạ = `foldTerm(raw)` (bỏ dấu, chữ thường); key \< 2 ký tự bị bỏ; key đã có thì không gọi model. Một key chỉ trỏ một kỹ năng chuẩn. | SV, DB | 🔒 |
 | BR-MAT-26 | Ứng viên gộp: cosine ≥ 0,72, kỹ năng chuẩn còn \< 6 cách viết, tối đa 5 ứng viên; không có ứng viên → tạo kỹ năng chuẩn mới (`EXACT`) không gọi model. | SV | ✅ |
@@ -250,12 +250,12 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MAT-29 | Chỉ so với kỹ năng chuẩn sinh bởi cùng model embedding (`CanonicalSkill.model`). | SV | ✅ |
 | BR-MAT-30 | Mỗi lượt `ingest` theo tin/hồ sơ xử lý tối đa 20 cách viết mới; quét toàn kho đi theo vòng, sang vòng sau khi còn chuỗi **và** vòng trước thêm được; xong thì đối chiếu lại toàn kho. | SV | ✅ |
 | BR-MAT-31 | Bảng tra danh bạ cache 60 giây trong bộ nhớ từng tiến trình; xoá sau mỗi `ingest`. | SV | ✅ |
-| BR-MAT-32 | Đối chiếu bằng luật không gọi model: kỹ năng khớp khi chứa nhau (hai chiều, `containsTerm`) hoặc cùng kỹ năng chuẩn qua danh bạ. | SV | ✅ |
+| BR-MAT-32 | Đối chiếu bằng luật không gọi model, một yêu cầu đạt khi một kỹ năng hồ sơ: (1) chứa chữ yêu cầu theo nguyên từ (`containsTerm(kỹ năng, yêu cầu)` — hồ sơ "AWS Lambda" đạt yêu cầu "AWS"; chiều ngược lại KHÔNG còn tính từ 2026-10-26: hồ sơ "SQL" không đạt "SQL Server"); (2) cùng kỹ năng chuẩn qua danh bạ; hoặc (3) kỹ năng chuẩn của nó có yêu cầu trong `implies` (React → JavaScript, có chiều). (2) và (3) ghi `via` = kỹ năng hồ sơ. Mỗi nhóm là một dòng, nhãn ghép các lựa chọn bằng " / ", đạt khi hồ sơ có MỘT lựa chọn bất kỳ; bản rút cũ (`skillGroups = null`) thì mỗi kỹ năng phẳng là một nhóm *(2026-10-26)*. | SV | ✅ |
 | BR-MAT-33 | `percent = round(metWeight/totalWeight·100)` với bắt buộc 1, ưu tiên 0,5, YEARS 1; dòng `met = null` không vào mẫu; ELIGIBILITY/LOCATION không tính điểm; eligibility FAIL hoặc không có dòng kỹ năng → `percent = rank = 0`; `rank = metWeight/(totalWeight+2)`. | SV | ✅ |
 | BR-MAT-34 | Eligibility luật: tin không đòi gì → PASS; đòi quốc tịch: hồ sơ trống → UNVERIFIED, chuỗi quốc tịch hồ sơ chứa chuỗi yêu cầu → PASS, ngược lại FAIL; chỉ đòi giấy phép: có `workPermit` → PASS, không → UNVERIFIED. | SV | ✅ |
 | BR-MAT-35 | Địa điểm luật: REMOTE → khớp; thiếu thành phố/địa điểm → không xét; so mã tỉnh; khác tỉnh nhưng hồ sơ `willingToRelocate` → coi là khớp kèm ghi chú. | SV | ✅ |
 | BR-MAT-36 | Chỉ lưu cặp đối chiếu khi `skillMet ≥ 1`; cặp đã lưu mà không còn khớp kỹ năng → xoá. | SV | ✅ |
-| BR-MAT-37 | Bỏ qua tính lại cặp khi hash `v3:<sourceHash>:<profile.updatedAt>:d<số alias>` trùng; đổi công thức phải bump `FORMULA_VERSION`. | SV | ✅ |
+| BR-MAT-37 | Bỏ qua tính lại cặp khi hash `v4:<sourceHash>:<profile.updatedAt>:d<số alias>i<số kỹ năng có implies>` trùng; đổi công thức phải bump `FORMULA_VERSION` (v4 từ 2026-10-26: bỏ khớp chữ chiều ngược, thêm kỹ năng kéo theo). | SV | ✅ |
 | BR-MAT-38 | Đối chiếu toàn kho/theo tin chỉ dùng hồ sơ `completion ≥ 30` và tin rút DONE không phải bản sao. | SV | ✅ |
 | BR-MAT-39 | Ghi đối chiếu nguyên tử: `deleteMany` + `createMany skipDuplicates` trong một `$transaction`; khoá chính `(userId, jobId)`. | DB | 🔒 |
 | BR-MAT-40 | Phát suất AI chỉ chạy khi `MATCH_AI_AUTO=true` (mặc định tắt). | SV | ✅ |
@@ -266,6 +266,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MAT-45 | `requirements/:jobId`, `dictionary/rebuild`, `shortlist/dispatch` chỉ dành cho ADMIN. | GD | ✅ |
 | BR-MAT-46 | Embedding: `Xenova/multilingual-e5-base` q8, tiền tố `query: `, cắt về 768 chiều và chuẩn hoá; ít hơn 768 chiều là lỗi. | SV | ✅ |
 | BR-MAT-47 | Mỗi cặp (user, job) có tối đa một `JobMatch`; mỗi tin tối đa một `JobRequirement`. | DB | 🔒 |
+| BR-MAT-48 | Kỹ năng kéo theo chỉ hỏi cho kỹ năng chuẩn xuất hiện trong `primarySkills`/`secondarySkills` của hồ sơ (không hỏi `headline`, không hỏi kỹ năng chỉ có trong tin), mỗi kỹ năng một lần cho cả hệ thống; tên model trả về mà danh bạ chưa tra được thì bị bỏ khi đối chiếu; quan hệ trỏ về chính nó bị bỏ *(2026-10-26)*. | SV | ✅ |
 
 ### Applications — Đơn ứng tuyển (Lịch sử ứng tuyển) — [modules/applications.md](./modules/applications.md#7-business-rules)
 
@@ -725,7 +726,7 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (38)
+### 🟡 Trung bình (39)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -744,6 +745,7 @@ Không có rủi ro nào được xếp mức này.
 | [matching#R4](./modules/matching.md) | matching | `job.requirements` không giành chỗ có điều kiện |
 | [matching#R5](./modules/matching.md) | matching | Luật quốc tịch so chuỗi con không bỏ dấu |
 | [matching#R6](./modules/matching.md) | matching | Hồ sơ có hơn 20 kỹ năng mới: phần dư không bao giờ vào danh bạ tự động |
+| [matching#R11](./modules/matching.md) | matching | Model free liệt kê sai kỹ năng kéo theo, admin chưa sửa được *(2026-10-26)* |
 | [applications#R3](./modules/applications.md) | applications | Tạo đơn và chuẩn bị tài liệu không nguyên tử; tài liệu luôn tạo mới |
 | [documents#R3](./modules/documents.md) | documents | CV tạo qua `/documents/cv` có tiêu đề rỗng |
 | [documents#R4](./modules/documents.md) | documents | Tài liệu tạo với `stream: true` mà không bao giờ stream vẫn bị sinh tự động sau 10 phút |
@@ -768,7 +770,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (62)
+### 🟢 Thấp (63)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -796,6 +798,7 @@ Không có rủi ro nào được xếp mức này.
 | [matching#R9](./modules/matching.md) | matching | Giá trị mặc định cấu hình bị lặp trong `AiShortlistService` |
 | [matching#R10](./modules/matching.md) | matching | Thiếu e2e cho route quản trị và tin không tồn tại |
 | [matching#R11](./modules/matching.md) | matching | Schema `skill.canonicalize` chưa theo khuôn "cắt" của ADR 0017 |
+| [matching#R12](./modules/matching.md) | matching | Ghi hồ sơ kéo theo lượt gọi model, không có trần theo người *(2026-10-26)* |
 | [applications#R1](./modules/applications.md) | applications | `skipDocuments` không có validator kiểu |
 | [applications#R2](./modules/applications.md) | applications | `transitions.ts` không ràng buộc chuyển trạng thái; comment schema lệch với enum |
 | [applications#R4](./modules/applications.md) | applications | Nhật ký `ApplicationEvent` chỉ ghi, không có đường đọc |

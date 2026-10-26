@@ -183,11 +183,12 @@
 4. Theo lô 10: mỗi chuỗi lấy tối đa 5 canonical có cosine ≥ 0,72 và còn \< 6 alias ([nearest.ts](../../../server/src/modules/matching/ai/utils/nearest.ts), [skill-merge.prompt.ts:1-3](../../../server/src/modules/matching/ai/prompt/skill-merge.prompt.ts#L1)).
 5. Chuỗi có ứng viên → hỏi model (purpose `skill.canonicalize`, model `SKILL_DICTIONARY_MODEL_ID` nếu đặt) chọn số thứ tự ứng viên trùng nghĩa hoặc 0 ([skill-dictionary.service.ts:179-207](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L179)).
 6. Ghi: chọn hợp lệ → `SkillAlias { source: 'LLM' }` trỏ canonical đó; 0/không ứng viên → tạo `CanonicalSkill` mới + `SkillAlias { source: 'EXACT' }` trong transaction ([skill-dictionary.service.ts:113-133,209-257](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L113)).
-7. Xoá cache danh bạ; xếp `match.requirements` với cùng payload ([matching.processor.ts:79-84](../../../server/src/modules/matching/matching.processor.ts#L79)).
+7. Theo hồ sơ (`userId`): `inferImplications(primarySkills + secondarySkills)`, KHÔNG gồm `headline`: kỹ năng chuẩn của hồ sơ chưa hỏi (`impliesCheckedAt = null`) được hỏi model theo lô 30 (purpose `skill.implies`) "người có kỹ năng này chắc chắn đáp ứng thêm gì"; ghi `implies` (khoá `foldTerm`) + `impliesCheckedAt`, rồi `ingest` các tên đó để tra được. Model lỗi → dừng, kỹ năng ở lại chưa hỏi cho lần ghi hồ sơ sau *(2026-10-26)* ([skill-dictionary.service.ts](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts), [skill-implies.prompt.ts](../../../server/src/modules/matching/ai/prompt/skill-implies.prompt.ts)).
+8. Xoá cache danh bạ; xếp `match.requirements` với cùng payload ([matching.processor.ts](../../../server/src/modules/matching/matching.processor.ts)).
 
 **Main Flow (quét toàn kho — admin `POST /api/matches/dictionary/rebuild`)**
 1. Controller xếp `skill.canonicalize { round: 0 }`, trả `{ queued: true, queueJobId }` ([matching.controller.ts:102-108](../../../server/src/modules/matching/matching.controller.ts#L102)).
-2. `sweepDictionary(round)`: lấy mọi chuỗi từ `JobRequirement` DONE + mọi `Profile`, `ingest(terms, 20)`; còn `remaining > 0` **và** vòng này thêm được > 0 → xếp vòng `round + 1`; ngược lại xếp `match.requirements {}` toàn kho ([matching.processor.ts:167-180](../../../server/src/modules/matching/matching.processor.ts#L167)).
+2. `sweepDictionary(round)`: lấy mọi chuỗi từ `JobRequirement` DONE + mọi `Profile`, `ingest(terms, 20)`; còn `remaining > 0` **và** vòng này thêm được > 0 → xếp vòng `round + 1`; ngược lại hỏi kỹ năng kéo theo cho mọi kỹ năng hồ sơ chưa hỏi rồi xếp `match.requirements {}` toàn kho ([matching.processor.ts:167-180](../../../server/src/modules/matching/matching.processor.ts#L167)).
 
 **Alternative Flow:** mọi chuỗi đã biết → `{ added: 0, remaining: 0 }`, không gọi model. Hai lượt cùng thêm một key → P2002 → bỏ qua, log "đã được lượt khác thêm trước" ([skill-dictionary.service.ts:248-253](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L248)).
 
@@ -374,7 +375,7 @@ sequenceDiagram
 | BR-MAT-20 | Rút yêu cầu bỏ qua khi bản DONE có `sourceHash` (title, description, location, workMode) trùng, trừ `force`. | SV | ✅ | [requirements.ts:7-21](../../../server/src/modules/matching/ai/utils/requirements.ts#L7), [job-requirements.service.ts:89-92](../../../server/src/modules/matching/ai/services/job-requirements.service.ts#L89) |
 | BR-MAT-21 | Bản rút 0 kỹ năng (bắt buộc + ưu tiên = 0) là FAILED với thông điệp "Không rút được kỹ năng nào từ tin này, nên không có căn cứ để đối chiếu hồ sơ."; chỉ có kỹ năng ưu tiên vẫn hợp lệ. | SV | ✅ | [requirements.ts:62-69](../../../server/src/modules/matching/ai/utils/requirements.ts#L62), [job-requirements.service.ts:106](../../../server/src/modules/matching/ai/services/job-requirements.service.ts#L106) |
 | BR-MAT-22 | Gộp lô `job.requirements`: tin > 6.000 ký tự đi lẻ; lô timeout 120 giây; phần tử thiếu hoặc 0 kỹ năng → rút lẻ tin đó; lô hỏng TIMEOUT/SCHEMA → FAILED cả lô; lỗi khác → rút lẻ từng tin. | SV | ✅ | [job-requirements.service.ts:113-197](../../../server/src/modules/matching/ai/services/job-requirements.service.ts#L113), [job-requirements.prompt.ts:3-5](../../../server/src/modules/matching/ai/prompt/job-requirements.prompt.ts#L3) |
-| BR-MAT-23 | Output rút yêu cầu: tối đa 10 kỹ năng mỗi loại × 80 ký tự (cắt), `seniority`/`remotePolicy` lạ → `UNKNOWN`, `workPermitRequired` lỗi → `false`, lô tối đa 50 phần tử. | SV | ✅ | [job-requirements.schema.ts:11-80](../../../server/src/modules/matching/ai/schemas/job-requirements.schema.ts#L11) |
+| BR-MAT-23 | Output rút yêu cầu: mỗi loại (bắt buộc, ưu tiên) là danh sách NHÓM, tối đa 25 nhóm × 6 lựa chọn thay nhau × 80 ký tự (cắt); model trả chuỗi trơn thì coi là nhóm một lựa chọn, nhóm rỗng bị bỏ. Lưu `skillGroups = { required, preferred }` để đối chiếu, và trải phẳng mọi lựa chọn vào `requiredSkills`/`niceToHaveSkills` cho thống kê, danh bạ, upskill *(2026-10-26, trước đó tối đa 10 kỹ năng phẳng)*. Prompt: ghi đủ mọi yêu cầu, xếp mức theo từng câu, cho rút kỹ năng nghề (giao tiếp, đàm phán) và chứng chỉ hành nghề/bằng lái tin nêu tên, không rút ngành học; `seniority`/`remotePolicy` lạ → `UNKNOWN`, `workPermitRequired` lỗi → `false`, lô tối đa 50 phần tử. | SV | ✅ | [job-requirements.schema.ts:11-80](../../../server/src/modules/matching/ai/schemas/job-requirements.schema.ts#L11) |
 | BR-MAT-24 | Chỉ tin rút DONE mới được xếp `skill.canonicalize`. | SV | ✅ | [matching.processor.ts:51-56](../../../server/src/modules/matching/matching.processor.ts#L51) |
 | BR-MAT-25 | Khoá danh bạ = `foldTerm(raw)` (bỏ dấu, chữ thường); key \< 2 ký tự bị bỏ; key đã có thì không gọi model. Một key chỉ trỏ một kỹ năng chuẩn. | SV, DB | 🔒 | [skill-dictionary.service.ts:140-147](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L140), [schema.prisma:383-398](../../../server/prisma/schema.prisma#L383) |
 | BR-MAT-26 | Ứng viên gộp: cosine ≥ 0,72, kỹ năng chuẩn còn \< 6 cách viết, tối đa 5 ứng viên; không có ứng viên → tạo kỹ năng chuẩn mới (`EXACT`) không gọi model. | SV | ✅ | [nearest.ts](../../../server/src/modules/matching/ai/utils/nearest.ts), [skill-dictionary.service.ts:180-181](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L180) |
@@ -383,12 +384,12 @@ sequenceDiagram
 | BR-MAT-29 | Chỉ so với kỹ năng chuẩn sinh bởi cùng model embedding (`CanonicalSkill.model`). | SV | ✅ | [skill-dictionary.service.ts:97-103](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L97) |
 | BR-MAT-30 | Mỗi lượt `ingest` theo tin/hồ sơ xử lý tối đa 20 cách viết mới; quét toàn kho đi theo vòng, sang vòng sau khi còn chuỗi **và** vòng trước thêm được; xong thì đối chiếu lại toàn kho. | SV | ✅ | [matching.processor.ts:18,79,167-180](../../../server/src/modules/matching/matching.processor.ts#L167) |
 | BR-MAT-31 | Bảng tra danh bạ cache 60 giây trong bộ nhớ từng tiến trình; xoá sau mỗi `ingest`. | SV | ✅ | [skill-dictionary.service.ts:26,56-65,174](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts#L56) |
-| BR-MAT-32 | Đối chiếu bằng luật không gọi model: kỹ năng khớp khi chứa nhau (hai chiều, `containsTerm`) hoặc cùng kỹ năng chuẩn qua danh bạ. | SV | ✅ | [requirement-match.ts:35-53](../../../server/src/modules/matching/rules/requirement-match.ts#L35) |
+| BR-MAT-32 | Đối chiếu bằng luật không gọi model, một yêu cầu đạt khi một kỹ năng hồ sơ: (1) chứa chữ yêu cầu theo nguyên từ (`containsTerm(kỹ năng, yêu cầu)` — hồ sơ "AWS Lambda" đạt yêu cầu "AWS"; chiều ngược lại KHÔNG còn tính từ 2026-10-26: hồ sơ "SQL" không đạt "SQL Server"); (2) cùng kỹ năng chuẩn qua danh bạ; hoặc (3) kỹ năng chuẩn của nó có yêu cầu trong `implies` (React → JavaScript, có chiều). (2) và (3) ghi `via` = kỹ năng hồ sơ. Mỗi nhóm là một dòng, nhãn ghép các lựa chọn bằng " / ", đạt khi hồ sơ có MỘT lựa chọn bất kỳ; bản rút cũ (`skillGroups = null`) thì mỗi kỹ năng phẳng là một nhóm *(2026-10-26)*. | SV | ✅ | [requirement-match.ts](../../../server/src/modules/matching/rules/requirement-match.ts) |
 | BR-MAT-33 | `percent = round(metWeight/totalWeight·100)` với bắt buộc 1, ưu tiên 0,5, YEARS 1; dòng `met = null` không vào mẫu; ELIGIBILITY/LOCATION không tính điểm; eligibility FAIL hoặc không có dòng kỹ năng → `percent = rank = 0`; `rank = metWeight/(totalWeight+2)`. | SV | ✅ | [requirement-match.ts:13-15,151-183](../../../server/src/modules/matching/rules/requirement-match.ts#L151) |
 | BR-MAT-34 | Eligibility luật: tin không đòi gì → PASS; đòi quốc tịch: hồ sơ trống → UNVERIFIED, chuỗi quốc tịch hồ sơ chứa chuỗi yêu cầu → PASS, ngược lại FAIL; chỉ đòi giấy phép: có `workPermit` → PASS, không → UNVERIFIED. | SV | ✅ | [requirement-match.ts:55-71](../../../server/src/modules/matching/rules/requirement-match.ts#L55) |
 | BR-MAT-35 | Địa điểm luật: REMOTE → khớp; thiếu thành phố/địa điểm → không xét; so mã tỉnh; khác tỉnh nhưng hồ sơ `willingToRelocate` → coi là khớp kèm ghi chú. | SV | ✅ | [requirement-match.ts:73-87,136-149](../../../server/src/modules/matching/rules/requirement-match.ts#L73) |
 | BR-MAT-36 | Chỉ lưu cặp đối chiếu khi `skillMet ≥ 1`; cặp đã lưu mà không còn khớp kỹ năng → xoá. | SV | ✅ | [match-write.ts:8,65-71](../../../server/src/modules/matching/rules/match-write.ts#L65) |
-| BR-MAT-37 | Bỏ qua tính lại cặp khi hash `v3:<sourceHash>:<profile.updatedAt>:d<số alias>` trùng; đổi công thức phải bump `FORMULA_VERSION`. | SV | ✅ | [match-write.ts:10,35-41](../../../server/src/modules/matching/rules/match-write.ts#L35) |
+| BR-MAT-37 | Bỏ qua tính lại cặp khi hash `v4:<sourceHash>:<profile.updatedAt>:d<số alias>i<số kỹ năng có implies>` trùng; đổi công thức phải bump `FORMULA_VERSION` (v4 từ 2026-10-26: bỏ khớp chữ chiều ngược, thêm kỹ năng kéo theo). | SV | ✅ | [match-write.ts](../../../server/src/modules/matching/rules/match-write.ts) |
 | BR-MAT-38 | Đối chiếu toàn kho/theo tin chỉ dùng hồ sơ `completion ≥ 30` và tin rút DONE không phải bản sao. | SV | ✅ | [requirement-match.service.ts:23-41](../../../server/src/modules/matching/rules/services/requirement-match.service.ts#L23), [match-write.ts:6](../../../server/src/modules/matching/rules/match-write.ts#L6) |
 | BR-MAT-39 | Ghi đối chiếu nguyên tử: `deleteMany` + `createMany skipDuplicates` trong một `$transaction`; khoá chính `(userId, jobId)`. | DB | 🔒 | [requirement-match.service.ts:99-109](../../../server/src/modules/matching/rules/services/requirement-match.service.ts#L99), [schema.prisma:323](../../../server/prisma/schema.prisma#L323) |
 | BR-MAT-40 | Phát suất AI chỉ chạy khi `MATCH_AI_AUTO=true` (mặc định tắt). | SV | ✅ | [ai-shortlist.service.ts:26-28,97-100](../../../server/src/modules/matching/rules/services/ai-shortlist.service.ts#L97), [configuration.ts:138](../../../server/src/config/configuration.ts#L138) |
@@ -399,6 +400,7 @@ sequenceDiagram
 | BR-MAT-45 | `requirements/:jobId`, `dictionary/rebuild`, `shortlist/dispatch` chỉ dành cho ADMIN. | GD | ✅ | [matching.controller.ts:82,102,110](../../../server/src/modules/matching/matching.controller.ts#L82) |
 | BR-MAT-46 | Embedding: `Xenova/multilingual-e5-base` q8, tiền tố `query: `, cắt về 768 chiều và chuẩn hoá; ít hơn 768 chiều là lỗi. | SV | ✅ | [local.embedder.ts:8-13](../../../server/src/modules/semantic/local.embedder.ts#L8), [semantic-index.ts:3-24](../../../server/src/modules/semantic/semantic-index.ts#L3) |
 | BR-MAT-47 | Mỗi cặp (user, job) có tối đa một `JobMatch`; mỗi tin tối đa một `JobRequirement`. | DB | 🔒 | [schema.prisma:263,493](../../../server/prisma/schema.prisma#L263) |
+| BR-MAT-48 | Kỹ năng kéo theo chỉ hỏi cho kỹ năng chuẩn xuất hiện trong `primarySkills`/`secondarySkills` của hồ sơ (không hỏi `headline`, không hỏi kỹ năng chỉ có trong tin), mỗi kỹ năng một lần cho cả hệ thống; tên model trả về mà danh bạ chưa tra được thì bị bỏ khi đối chiếu; quan hệ trỏ về chính nó bị bỏ *(2026-10-26)*. | SV | ✅ | [skill-dictionary.service.ts](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts) |
 
 > **Possible Business Rule:** `POST /matches/evaluate` không `force` trả kết quả DONE cũ mà không so `promptHash`, trong khi đường stream và worker so hash. Có thể là chủ đích (đường hàng đợi chỉ là đường dự phòng, nút "Chấm lại" luôn gửi `force`), cần chủ dự án xác nhận.
 
@@ -511,7 +513,7 @@ Index: `@@unique([userId, jobId])`, `@@index([userId, overallScore DESC])`, `@@i
 
 ### `JobRequirement` → `job_requirements` — [schema.prisma:262-292](../../../server/prisma/schema.prisma#L262)
 
-PK `jobId` (1–1 với `Job`, Cascade). `status MatchStatus`, `requiredSkills[]`, `niceToHaveSkills[]`, `minYears?`, `seniority JobSeniority`, `citizenshipRequired?`, `workPermitRequired`, `eligibilityQuote?`, `city?`, `remotePolicy RemotePolicy`, `sourceHash?`, `modelId?`, `extractedAt?`, `error?`. Index `@@index([status])`.
+PK `jobId` (1–1 với `Job`, Cascade). `status MatchStatus`, `requiredSkills[]`, `niceToHaveSkills[]`, `skillGroups Json?` (nhóm lựa chọn thay nhau, null ở bản rút trước 2026-10-26), `minYears?`, `seniority JobSeniority`, `citizenshipRequired?`, `workPermitRequired`, `eligibilityQuote?`, `city?`, `remotePolicy RemotePolicy`, `sourceHash?`, `modelId?`, `extractedAt?`, `error?`. Index `@@index([status])`.
 
 ### `JobRequirementMatch` → `job_requirement_matches` — [schema.prisma:299-328](../../../server/prisma/schema.prisma#L299)
 
@@ -519,7 +521,7 @@ PK `(userId, jobId)`; `met`, `total`, `percent` (0–100), `rank` Float, `eligib
 
 ### `CanonicalSkill` → `canonical_skills` — [schema.prisma:352-370](../../../server/prisma/schema.prisma#L352)
 
-`id`, `name` (cách viết đầu tiên), `model` (model embedding), `embedding vector(768)` (pgvector, chỉ dùng khi phân loại chuỗi mới), `createdAt`. Index `(model)`.
+`id`, `name` (cách viết đầu tiên), `model` (model embedding), `embedding vector(768)` (pgvector, chỉ dùng khi phân loại chuỗi mới), `implies text[]` (khoá `foldTerm` của kỹ năng được kéo theo, model liệt kê), `impliesCheckedAt?` (null = chưa hỏi) *(2026-10-26)*, `createdAt`. Index `(model)`.
 
 ### `SkillAlias` → `skill_aliases` — [schema.prisma:383-398](../../../server/prisma/schema.prisma#L383)
 
@@ -721,6 +723,18 @@ Không có. Module không gửi email, push hay thông báo trong ứng dụng; 
 - **Tác động:** thấp — lô 10 chuỗi chờ lượt sau.
 - **Đề xuất:** cân nhắc `.default([])` cho `decisions` (vẫn bị `picksFor` chặn khi thiếu dòng).
 - **Mức đề xuất:** 🟢
+
+### R11 — Model free liệt kê sai kỹ năng kéo theo, admin chưa sửa được *(2026-10-26)*
+- Mô tả: `implies` do chuỗi model mặc định trả lời (chưa đặt `SKILL_DICTIONARY_MODEL_ID`). Chạy thử trên DB dev, gemini-3.1-flash-lite trả "NestJS → Angular", "Docker → Linux, Shell", và "backend engineering" (từ `headline`) → "Java, Python". Đã chặn `headline` và thêm các ví dụ đó vào prompt, nhưng một quan hệ sai vẫn làm mọi hồ sơ có kỹ năng đó được tính đạt oan.
+- Bằng chứng: [skill-implies.prompt.ts](../../../server/src/modules/matching/ai/prompt/skill-implies.prompt.ts); trang admin danh bạ chưa hiện hay sửa `implies`.
+- Đề xuất: thêm vào trang admin kỹ năng danh sách kỹ năng kéo theo và nút gỡ (ghi `impliesCheckedAt` để không hỏi lại).
+- Mức đề xuất: 🟡
+
+### R12 — Ghi hồ sơ kéo theo lượt gọi model, không có trần theo người *(2026-10-26)*
+- Mô tả: mỗi lần ghi hồ sơ, kỹ năng chuẩn chưa hỏi được gửi `skill.implies` (lô 30). Một người tự gõ nhiều kỹ năng lạ rồi lưu liên tục sẽ đẩy thêm lượt gọi model; chỉ có trần chung 120 request/phút/người và trần `ingest` 20 cách viết mới mỗi lượt. Hai worker cùng thấy một kỹ năng chưa hỏi thì cả hai cùng gọi model; lệnh ghi có điều kiện `impliesCheckedAt IS NULL` nên chỉ câu trả lời đầu được lưu — chấp nhận tốn trùng một lượt.
+- Bằng chứng: [matching.processor.ts](../../../server/src/modules/matching/matching.processor.ts), [skill-dictionary.service.ts](../../../server/src/modules/matching/ai/services/skill-dictionary.service.ts).
+- Đề xuất: nếu đo thấy lạm dụng, đặt trần số kỹ năng hỏi mỗi người mỗi ngày.
+- Mức đề xuất: 🟢
 
 ## 18. Source References
 
