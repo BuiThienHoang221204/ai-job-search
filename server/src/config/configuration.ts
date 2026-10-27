@@ -194,6 +194,10 @@ const configuration = () => ({
     serviceUrl: process.env.PDF_SERVICE_URL?.replace(/\/$/, '') ?? null,
   },
 
+  documents: {
+    bulletRewriteDailyLimit: int('CV_BULLET_REWRITE_DAILY_LIMIT', 20),
+  },
+
   storage: {
     r2Endpoint: process.env.R2_ENDPOINT ?? '',
     r2Bucket: process.env.R2_BUCKET ?? '',

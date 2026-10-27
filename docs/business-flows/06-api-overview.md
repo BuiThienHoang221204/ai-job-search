@@ -30,7 +30,7 @@
 | [job-scraping](./modules/job-scraping.md#9-api-mapping) | `/api/scrape` | 2 | ADMIN |
 | [matching](./modules/matching.md#9-api-mapping) | `/api/matches` | 7 | USER + ADMIN |
 | [applications](./modules/applications.md#9-api-mapping) | `/api/applications` | 5 | USER |
-| [documents](./modules/documents.md#9-api-mapping) | `/api/documents` | 12 | USER |
+| [documents](./modules/documents.md#9-api-mapping) | `/api/documents` | 13 | USER |
 | [interview-prep](./modules/interview-prep.md#9-api-mapping) | `/api/interview` | 5 | USER |
 | [question-bank](./modules/question-bank.md#9-api-mapping) | `/api/question-bank` | 3 | Public + USER |
 | [mock-interview](./modules/mock-interview.md#9-api-mapping) | `/api/mock-interviews` | 7 | USER |
@@ -43,7 +43,7 @@
 | [admin-console](./modules/admin-console.md#9-api-mapping) | `/api/admin` | 28 | ADMIN |
 | [ai-platform](./modules/ai-platform.md#9-api-mapping) | `/api/admin/ai/models`, `/api/skills` | 4 | ADMIN |
 | [platform-operations](./modules/platform-operations.md#9-api-mapping) | `/api/health`, `/api/queue/stats` | 2 | Public + ADMIN |
-| **Tổng** | | **122** | |
+| **Tổng** | | **129** | |
 
 ## 3. Bảng tra cứu nhanh toàn bộ endpoint
 
@@ -95,90 +95,91 @@
 | 42 | GET | `/api/documents/:id` | USER | Chi tiết tài liệu | `#get` | [documents](./modules/documents.md#9-api-mapping) |
 | 43 | PUT | `/api/documents/:id/template` | USER | Lưu mẫu + thiết kế CV | `#setTemplate` | [documents](./modules/documents.md#9-api-mapping) |
 | 44 | POST | `/api/documents/:id/preview` | USER | HTML xem trước bản nháp CV / thư | `#previewDraft` | [documents](./modules/documents.md#9-api-mapping) |
-| 45 | PUT | `/api/documents/:id/cv` | USER | Lưu CV đã sửa | `#updateCv` | [documents](./modules/documents.md#9-api-mapping) |
-| 46 | GET | `/api/documents/:id/pdf` | USER (`@ThrottlePdf`) | Tải PDF | `#pdf` | [documents](./modules/documents.md#9-api-mapping) |
-| 47 | POST | `/api/documents/:id/generate-stream` | USER (`@ThrottleAi`) | Sinh nội dung dạng stream | `#generateStream` | [documents](./modules/documents.md#9-api-mapping) |
-| 48 | POST | `/api/documents/cv` | USER (`@ThrottleAi`) | Tạo CV | `#cv` | [documents](./modules/documents.md#9-api-mapping) |
-| 49 | POST | `/api/documents/cover-letter` | USER (`@ThrottleAi`) | Tạo Thư xin việc | `#coverLetter` | [documents](./modules/documents.md#9-api-mapping) |
-| 50 | POST | `/api/documents/application-email` | USER (`@ThrottleAi`) | Tạo Mail ứng tuyển | `#applicationEmail` | [documents](./modules/documents.md#9-api-mapping) |
-| 51 | GET | `/api/interview` | USER | Danh sách bộ đề kèm mức sẵn sàng | `InterviewController#list` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
-| 52 | GET | `/api/interview/:jobId` | USER | Chi tiết bộ đề + câu trả lời | `InterviewController#get` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
-| 53 | POST | `/api/interview/prep` | USER (ThrottleAi 10/phút) | Xếp soạn / soạn lại bộ đề | `InterviewController#enqueue` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
-| 54 | PUT | `/api/interview/:jobId/answers/:kind/:index` | USER | Lưu / xoá câu tự trả lời | `InterviewController#saveAnswer` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
-| 55 | POST | `/api/interview/:jobId/answers/:kind/:index/feedback` | USER (ThrottleAi 10/phút) | Lưu và nhờ AI nhận xét | `InterviewController#feedback` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
-| 56 | GET | `/api/question-bank/filters` | Public (60/phút) | Số câu theo ngành, loại, độ khó | `QuestionBankController#filters` | [question-bank](./modules/question-bank.md#9-api-mapping) |
-| 57 | GET | `/api/question-bank` | Public (60/phút) | Danh sách câu hỏi có lọc | `QuestionBankController#list` | [question-bank](./modules/question-bank.md#9-api-mapping) |
-| 58 | POST | `/api/question-bank/:id/answer` | USER (ThrottleAi 10/phút) | Lấy hoặc sinh đáp án cho câu | `QuestionBankController#answer` | [question-bank](./modules/question-bank.md#9-api-mapping) |
-| 59 | GET | `/api/mock-interviews` | USER | Danh sách buổi luyện của mình | `MockInterviewController#list` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 60 | GET | `/api/mock-interviews/:id` | USER | Chi tiết buổi luyện + các bước | `MockInterviewController#get` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 61 | POST | `/api/mock-interviews` | USER (ThrottleAi 10/phút) | Mở buổi luyện, stream câu hỏi đầu | `MockInterviewController#open` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 62 | POST | `/api/mock-interviews/:id/turn` | USER (ThrottleAi 10/phút) | Gửi câu trả lời, stream lượt tiếp | `MockInterviewController#turn` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 63 | POST | `/api/mock-interviews/:id/finish` | USER (ThrottleAi 10/phút) | Kết thúc sớm, stream lời tổng kết | `MockInterviewController#finish` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 64 | POST | `/api/mock-interviews/voice` | USER (ThrottleAi 10/phút) | Mở buổi luyện bằng giọng nói, nhận token Gemini Live | `MockInterviewController#openVoice` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 65 | POST | `/api/mock-interviews/:id/voice-turns` | USER | Lưu một lượt hỏi–đáp của buổi giọng nói | `MockInterviewController#appendVoiceTurn` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
-| 66 | GET | `/api/upskill` | USER | Báo cáo DONE mới nhất | `UpskillController#latest` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 67 | GET | `/api/upskill/in-flight` | USER | Lượt đang chạy để nối lại | `UpskillController#inFlight` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 68 | GET | `/api/upskill/:id` | USER | Chi tiết một báo cáo của mình | `UpskillController#get` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 69 | POST | `/api/upskill/generate` | USER (10/phút) | Tạo báo cáo, xếp hàng | `UpskillController#enqueue` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 70 | POST | `/api/upskill/generate-stream` | USER (10/phút) | Tạo báo cáo, stream NDJSON | `UpskillController#generateStream` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 71 | GET | `/api/learning` | USER | Kỹ năng thiếu + kế hoạch | `LearningController#overview` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 72 | PUT | `/api/learning/:key` | USER | Học/bỏ qua/cập nhật một kỹ năng | `LearningController#save` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 73 | DELETE | `/api/learning/:key` | USER | Bỏ một kỹ năng khỏi kế hoạch | `LearningController#remove` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 74 | PATCH | `/api/learning` | USER | Đổi giờ học | `LearningController#updateSettings` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 75 | GET | `/api/push/public-key` | USER | Khoá công khai VAPID | `PushController#publicKey` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 76 | POST | `/api/push/subscriptions` | USER | Đăng ký thiết bị nhận nhắc học | `PushController#subscribe` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 77 | DELETE | `/api/push/subscriptions` | USER | Huỷ một thiết bị của mình | `PushController#unsubscribe` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 78 | GET | `/api/push/preferences` | USER | Đã bật nhắc học, thông báo tìm việc chưa *(2026-10-25)* | `PushController#preferences` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 79 | PATCH | `/api/push/preferences` | USER | Bật/tắt riêng nhắc học hoặc thông báo tìm việc; trường vắng giữ nguyên, vắng cả hai → **400** `Chọn loại thông báo cần bật hoặc tắt.` *(2026-10-25)* | `PushController#setPreferences` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 80 | POST | `/api/push/test` | USER | Gửi thông báo thử tới thiết bị của mình | `PushController#sendTest` | [upskill](./modules/upskill.md#9-api-mapping) |
-| 81 | GET | `/api/companies/brief/by-job/:jobId` | Public (throttle 60/phút) | Xem bản tìm hiểu công ty của tin | `CompanyController#brief` | [company-research](./modules/company-research.md#9-api-mapping) |
-| 82 | POST | `/api/companies/brief/by-job/:jobId` | USER/ADMIN (`ThrottleAi` 10/phút) | Xếp việc tìm hiểu/làm mới ở nền | `CompanyController#refresh` | [company-research](./modules/company-research.md#9-api-mapping) |
-| 83 | POST | `/api/companies/brief/by-job/:jobId/stream?force=` | USER/ADMIN (`ThrottleAi` 10/phút) | Tìm hiểu/làm mới, đẩy từng phần | `CompanyController#refreshStream` | [company-research](./modules/company-research.md#9-api-mapping) |
-| 84 | GET | `/api/companies/follows` | USER | Công ty mình đang theo dõi *(2026-10-26)* | `CompanyController#listFollows` | [company-research](./modules/company-research.md#9-api-mapping) |
-| 85 | POST | `/api/companies/follows` | USER | Theo dõi công ty của một tin *(2026-10-26)* | `CompanyController#follow` | [company-research](./modules/company-research.md#9-api-mapping) |
-| 86 | DELETE | `/api/companies/follows/:id` | USER | Bỏ theo dõi *(2026-10-26)* | `CompanyController#unfollow` | [company-research](./modules/company-research.md#9-api-mapping) |
-| 87 | GET | `/api/salary/occupations` | Public (60/phút) | Ngành có dữ liệu lương | `SalaryController#occupations` | [salary](./modules/salary.md#9-api-mapping) |
-| 88 | GET | `/api/salary/positions` | Public (60/phút) | Danh sách vị trí + khoảng lương | `SalaryController#positions` | [salary](./modules/salary.md#9-api-mapping) |
-| 89 | GET | `/api/salary/positions/:slug` | Public (60/phút) | Chi tiết một vị trí | `SalaryController#position` | [salary](./modules/salary.md#9-api-mapping) |
-| 90 | GET | `/api/public/market` | Public (60/phút) | Ngành có báo cáo *(2026-10-26)* | `MarketController#occupations` | [market](./modules/market.md#9-api-mapping) |
-| 91 | GET | `/api/public/market/:slug` | Public (60/phút) | Báo cáo 30 ngày của một ngành *(2026-10-26)* | `MarketController#report` | [market](./modules/market.md#9-api-mapping) |
-| 92 | GET | `/api/referrals` | USER | Mã mời, số bạn đã tham gia/đang chờ, phút thưởng còn lại *(2026-10-26)* | `ReferralsController#summary` | [referrals](./modules/referrals.md#9-api-mapping) |
-| 93 | GET | `/api/dashboard` | USER | Tổng quan tìm việc | `DashboardController#overview` | [dashboard](./modules/dashboard.md#9-api-mapping) |
-| 94 | GET | `/api/dashboard/skill-gaps` | USER | 6 kỹ năng thiếu đầu | `DashboardController#skillGaps` | [dashboard](./modules/dashboard.md#9-api-mapping) |
-| 95 | GET | /api/admin/overview | ADMIN | Tổng quan vận hành + cảnh báo | AdminController#overview | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 96 | GET | /api/admin/ai-health | ADMIN | Sức khoẻ AI | AdminController#aiHealth | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 97 | GET | /api/admin/ai-failures | ADMIN | Nhật ký lỗi AI | AdminController#failures | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 98 | GET | /api/admin/ai-failures/facets | ADMIN | Giá trị lọc purpose/model | AdminController#failureFacets | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 99 | GET | /api/admin/ai-calls/:id | ADMIN | Chi tiết một lời gọi AI (che dữ liệu cá nhân) | AdminController#aiCall | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 100 | GET | /api/admin/ai-usage | ADMIN | Token theo ngày/model/tác vụ/người dùng | AdminController#aiUsage | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 101 | POST | /api/admin/scrape/run-now | ADMIN | Quét mọi portal ngay | AdminController#scrapeNow | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 102 | POST | /api/admin/scrape/run-now/:portal | ADMIN | Quét ngay một portal *(2026-10-25)* | AdminController#scrapePortalNow | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 103 | POST | /api/admin/jobs/backfill-taxonomy | ADMIN | Tính lại tỉnh/ngành/dedupe/searchText | AdminController#backfillTaxonomy | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 104 | POST | /api/admin/reconcile/run-now | ADMIN | Nhặt việc nền bị rơi ngay | AdminController#reconcileNow | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 105 | GET | /api/admin/queue/config | ADMIN | Danh sách cấu hình hàng đợi | AdminController#queueConfigList | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 106 | PUT | /api/admin/queue/config/:queueName | ADMIN | Ghi đè concurrency/serial/note | AdminController#queueConfigUpdate | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 107 | GET | /api/admin/jobs | ADMIN | Danh sách tin trong kho | AdminJobsController#list | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 108 | GET | /api/admin/jobs/sources | ADMIN | Nguồn tin + số tin | AdminJobsController#sources | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 109 | GET | /api/admin/jobs/:id | ADMIN | Chi tiết tin, yêu cầu, tin trùng | AdminJobsController#detail | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 110 | POST | /api/admin/jobs/re-extract | ADMIN | Xếp rút lại yêu cầu cho nhiều tin *(2026-10-21)* | AdminJobsController#reExtract | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 111 | GET | /api/admin/scrape/portals | ADMIN | Tình trạng từng portal | AdminScrapeController#portals | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 112 | GET | /api/admin/scrape/batches | ADMIN | Lịch sử quét gom theo lượt | AdminScrapeController#batches | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 113 | GET | /api/admin/skills/summary | ADMIN | Đếm kỹ năng và alias theo nguồn | AdminSkillsController#summary | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 114 | GET | /api/admin/skills | ADMIN | Danh sách kỹ năng chuẩn | AdminSkillsController#list | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 115 | GET | /api/admin/skills/:id | ADMIN | Chi tiết kỹ năng + láng giềng | AdminSkillsController#detail | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 116 | PUT | /api/admin/skills/:id | ADMIN | Đổi tên kỹ năng chuẩn | AdminSkillsController#rename | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 117 | POST | /api/admin/skills/aliases/move | ADMIN | Chuyển một alias | AdminSkillsController#moveAlias | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 118 | POST | /api/admin/skills/:id/merge | ADMIN | Gộp kỹ năng `:id` vào đích | AdminSkillsController#merge | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 119 | POST | /api/admin/skills/rematch | ADMIN | Xếp đối chiếu lại toàn kho | AdminSkillsController#rematch | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 120 | GET | /api/admin/users | ADMIN | Danh sách tài khoản | AdminUsersController#list | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 121 | GET | /api/admin/users/:id | ADMIN | Chi tiết tài khoản + mức dùng AI | AdminUsersController#detail | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 122 | PUT | /api/admin/users/:id/role | ADMIN | Đổi vai trò | AdminUsersController#updateRole | [admin-console](./modules/admin-console.md#9-api-mapping) |
-| 123 | GET | `/api/admin/ai/models/health` *(2026-10-19, chưa commit)* | ADMIN | Xem bể model, độ trễ probe, model đang cách ly | `ModelHealthController#status` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 124 | POST | `/api/admin/ai/models/health-check` *(2026-10-19, chưa commit)* | ADMIN | Chạy kiểm tra model ở nền, trả ngay trạng thái | `ModelHealthController#check` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 125 | GET | `/api/skills` | ADMIN | Liệt kê skill đang nạp | `SkillsController#list` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 126 | POST | `/api/skills/reload` | ADMIN | Nạp lại skill từ đĩa | `SkillsController#reload` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
-| 127 | GET | `/api/health` | Public (`@SkipThrottle`) | Liveness probe | `HealthController#live` ([health.controller.ts:18](../../server/src/modules/health/health.controller.ts#L18)) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
-| 128 | GET | `/api/queue/stats` | ADMIN | Số job chờ/chạy/tổng và concurrency từng hàng đợi | `HealthController#queueStats` ([health.controller.ts:29](../../server/src/modules/health/health.controller.ts#L29)) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
+| 45 | POST | `/api/documents/:id/rewrite-bullet` | USER (`@ThrottleAi`, 20 lượt/24 giờ) | Gợi ý viết lại một chỗ trên CV *(2026-10-26)* | `#rewriteBullet` | [documents](./modules/documents.md#9-api-mapping) |
+| 46 | PUT | `/api/documents/:id/cv` | USER | Lưu CV đã sửa | `#updateCv` | [documents](./modules/documents.md#9-api-mapping) |
+| 47 | GET | `/api/documents/:id/pdf` | USER (`@ThrottlePdf`) | Tải PDF | `#pdf` | [documents](./modules/documents.md#9-api-mapping) |
+| 48 | POST | `/api/documents/:id/generate-stream` | USER (`@ThrottleAi`) | Sinh nội dung dạng stream | `#generateStream` | [documents](./modules/documents.md#9-api-mapping) |
+| 49 | POST | `/api/documents/cv` | USER (`@ThrottleAi`) | Tạo CV | `#cv` | [documents](./modules/documents.md#9-api-mapping) |
+| 50 | POST | `/api/documents/cover-letter` | USER (`@ThrottleAi`) | Tạo Thư xin việc | `#coverLetter` | [documents](./modules/documents.md#9-api-mapping) |
+| 51 | POST | `/api/documents/application-email` | USER (`@ThrottleAi`) | Tạo Mail ứng tuyển | `#applicationEmail` | [documents](./modules/documents.md#9-api-mapping) |
+| 52 | GET | `/api/interview` | USER | Danh sách bộ đề kèm mức sẵn sàng | `InterviewController#list` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
+| 53 | GET | `/api/interview/:jobId` | USER | Chi tiết bộ đề + câu trả lời | `InterviewController#get` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
+| 54 | POST | `/api/interview/prep` | USER (ThrottleAi 10/phút) | Xếp soạn / soạn lại bộ đề | `InterviewController#enqueue` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
+| 55 | PUT | `/api/interview/:jobId/answers/:kind/:index` | USER | Lưu / xoá câu tự trả lời | `InterviewController#saveAnswer` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
+| 56 | POST | `/api/interview/:jobId/answers/:kind/:index/feedback` | USER (ThrottleAi 10/phút) | Lưu và nhờ AI nhận xét | `InterviewController#feedback` | [interview-prep](./modules/interview-prep.md#9-api-mapping) |
+| 57 | GET | `/api/question-bank/filters` | Public (60/phút) | Số câu theo ngành, loại, độ khó | `QuestionBankController#filters` | [question-bank](./modules/question-bank.md#9-api-mapping) |
+| 58 | GET | `/api/question-bank` | Public (60/phút) | Danh sách câu hỏi có lọc | `QuestionBankController#list` | [question-bank](./modules/question-bank.md#9-api-mapping) |
+| 59 | POST | `/api/question-bank/:id/answer` | USER (ThrottleAi 10/phút) | Lấy hoặc sinh đáp án cho câu | `QuestionBankController#answer` | [question-bank](./modules/question-bank.md#9-api-mapping) |
+| 60 | GET | `/api/mock-interviews` | USER | Danh sách buổi luyện của mình | `MockInterviewController#list` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 61 | GET | `/api/mock-interviews/:id` | USER | Chi tiết buổi luyện + các bước | `MockInterviewController#get` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 62 | POST | `/api/mock-interviews` | USER (ThrottleAi 10/phút) | Mở buổi luyện, stream câu hỏi đầu | `MockInterviewController#open` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 63 | POST | `/api/mock-interviews/:id/turn` | USER (ThrottleAi 10/phút) | Gửi câu trả lời, stream lượt tiếp | `MockInterviewController#turn` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 64 | POST | `/api/mock-interviews/:id/finish` | USER (ThrottleAi 10/phút) | Kết thúc sớm, stream lời tổng kết | `MockInterviewController#finish` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 65 | POST | `/api/mock-interviews/voice` | USER (ThrottleAi 10/phút) | Mở buổi luyện bằng giọng nói, nhận token Gemini Live | `MockInterviewController#openVoice` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 66 | POST | `/api/mock-interviews/:id/voice-turns` | USER | Lưu một lượt hỏi–đáp của buổi giọng nói | `MockInterviewController#appendVoiceTurn` | [mock-interview](./modules/mock-interview.md#9-api-mapping) |
+| 67 | GET | `/api/upskill` | USER | Báo cáo DONE mới nhất | `UpskillController#latest` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 68 | GET | `/api/upskill/in-flight` | USER | Lượt đang chạy để nối lại | `UpskillController#inFlight` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 69 | GET | `/api/upskill/:id` | USER | Chi tiết một báo cáo của mình | `UpskillController#get` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 70 | POST | `/api/upskill/generate` | USER (10/phút) | Tạo báo cáo, xếp hàng | `UpskillController#enqueue` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 71 | POST | `/api/upskill/generate-stream` | USER (10/phút) | Tạo báo cáo, stream NDJSON | `UpskillController#generateStream` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 72 | GET | `/api/learning` | USER | Kỹ năng thiếu + kế hoạch | `LearningController#overview` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 73 | PUT | `/api/learning/:key` | USER | Học/bỏ qua/cập nhật một kỹ năng | `LearningController#save` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 74 | DELETE | `/api/learning/:key` | USER | Bỏ một kỹ năng khỏi kế hoạch | `LearningController#remove` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 75 | PATCH | `/api/learning` | USER | Đổi giờ học | `LearningController#updateSettings` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 76 | GET | `/api/push/public-key` | USER | Khoá công khai VAPID | `PushController#publicKey` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 77 | POST | `/api/push/subscriptions` | USER | Đăng ký thiết bị nhận nhắc học | `PushController#subscribe` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 78 | DELETE | `/api/push/subscriptions` | USER | Huỷ một thiết bị của mình | `PushController#unsubscribe` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 79 | GET | `/api/push/preferences` | USER | Đã bật nhắc học, thông báo tìm việc chưa *(2026-10-25)* | `PushController#preferences` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 80 | PATCH | `/api/push/preferences` | USER | Bật/tắt riêng nhắc học hoặc thông báo tìm việc; trường vắng giữ nguyên, vắng cả hai → **400** `Chọn loại thông báo cần bật hoặc tắt.` *(2026-10-25)* | `PushController#setPreferences` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 81 | POST | `/api/push/test` | USER | Gửi thông báo thử tới thiết bị của mình | `PushController#sendTest` | [upskill](./modules/upskill.md#9-api-mapping) |
+| 82 | GET | `/api/companies/brief/by-job/:jobId` | Public (throttle 60/phút) | Xem bản tìm hiểu công ty của tin | `CompanyController#brief` | [company-research](./modules/company-research.md#9-api-mapping) |
+| 83 | POST | `/api/companies/brief/by-job/:jobId` | USER/ADMIN (`ThrottleAi` 10/phút) | Xếp việc tìm hiểu/làm mới ở nền | `CompanyController#refresh` | [company-research](./modules/company-research.md#9-api-mapping) |
+| 84 | POST | `/api/companies/brief/by-job/:jobId/stream?force=` | USER/ADMIN (`ThrottleAi` 10/phút) | Tìm hiểu/làm mới, đẩy từng phần | `CompanyController#refreshStream` | [company-research](./modules/company-research.md#9-api-mapping) |
+| 85 | GET | `/api/companies/follows` | USER | Công ty mình đang theo dõi *(2026-10-26)* | `CompanyController#listFollows` | [company-research](./modules/company-research.md#9-api-mapping) |
+| 86 | POST | `/api/companies/follows` | USER | Theo dõi công ty của một tin *(2026-10-26)* | `CompanyController#follow` | [company-research](./modules/company-research.md#9-api-mapping) |
+| 87 | DELETE | `/api/companies/follows/:id` | USER | Bỏ theo dõi *(2026-10-26)* | `CompanyController#unfollow` | [company-research](./modules/company-research.md#9-api-mapping) |
+| 88 | GET | `/api/salary/occupations` | Public (60/phút) | Ngành có dữ liệu lương | `SalaryController#occupations` | [salary](./modules/salary.md#9-api-mapping) |
+| 89 | GET | `/api/salary/positions` | Public (60/phút) | Danh sách vị trí + khoảng lương | `SalaryController#positions` | [salary](./modules/salary.md#9-api-mapping) |
+| 90 | GET | `/api/salary/positions/:slug` | Public (60/phút) | Chi tiết một vị trí | `SalaryController#position` | [salary](./modules/salary.md#9-api-mapping) |
+| 91 | GET | `/api/public/market` | Public (60/phút) | Ngành có báo cáo *(2026-10-26)* | `MarketController#occupations` | [market](./modules/market.md#9-api-mapping) |
+| 92 | GET | `/api/public/market/:slug` | Public (60/phút) | Báo cáo 30 ngày của một ngành *(2026-10-26)* | `MarketController#report` | [market](./modules/market.md#9-api-mapping) |
+| 93 | GET | `/api/referrals` | USER | Mã mời, số bạn đã tham gia/đang chờ, phút thưởng còn lại *(2026-10-26)* | `ReferralsController#summary` | [referrals](./modules/referrals.md#9-api-mapping) |
+| 94 | GET | `/api/dashboard` | USER | Tổng quan tìm việc | `DashboardController#overview` | [dashboard](./modules/dashboard.md#9-api-mapping) |
+| 95 | GET | `/api/dashboard/skill-gaps` | USER | 6 kỹ năng thiếu đầu | `DashboardController#skillGaps` | [dashboard](./modules/dashboard.md#9-api-mapping) |
+| 96 | GET | /api/admin/overview | ADMIN | Tổng quan vận hành + cảnh báo | AdminController#overview | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 97 | GET | /api/admin/ai-health | ADMIN | Sức khoẻ AI | AdminController#aiHealth | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 98 | GET | /api/admin/ai-failures | ADMIN | Nhật ký lỗi AI | AdminController#failures | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 99 | GET | /api/admin/ai-failures/facets | ADMIN | Giá trị lọc purpose/model | AdminController#failureFacets | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 100 | GET | /api/admin/ai-calls/:id | ADMIN | Chi tiết một lời gọi AI (che dữ liệu cá nhân) | AdminController#aiCall | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 101 | GET | /api/admin/ai-usage | ADMIN | Token theo ngày/model/tác vụ/người dùng | AdminController#aiUsage | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 102 | POST | /api/admin/scrape/run-now | ADMIN | Quét mọi portal ngay | AdminController#scrapeNow | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 103 | POST | /api/admin/scrape/run-now/:portal | ADMIN | Quét ngay một portal *(2026-10-25)* | AdminController#scrapePortalNow | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 104 | POST | /api/admin/jobs/backfill-taxonomy | ADMIN | Tính lại tỉnh/ngành/dedupe/searchText | AdminController#backfillTaxonomy | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 105 | POST | /api/admin/reconcile/run-now | ADMIN | Nhặt việc nền bị rơi ngay | AdminController#reconcileNow | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 106 | GET | /api/admin/queue/config | ADMIN | Danh sách cấu hình hàng đợi | AdminController#queueConfigList | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 107 | PUT | /api/admin/queue/config/:queueName | ADMIN | Ghi đè concurrency/serial/note | AdminController#queueConfigUpdate | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 108 | GET | /api/admin/jobs | ADMIN | Danh sách tin trong kho | AdminJobsController#list | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 109 | GET | /api/admin/jobs/sources | ADMIN | Nguồn tin + số tin | AdminJobsController#sources | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 110 | GET | /api/admin/jobs/:id | ADMIN | Chi tiết tin, yêu cầu, tin trùng | AdminJobsController#detail | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 111 | POST | /api/admin/jobs/re-extract | ADMIN | Xếp rút lại yêu cầu cho nhiều tin *(2026-10-21)* | AdminJobsController#reExtract | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 112 | GET | /api/admin/scrape/portals | ADMIN | Tình trạng từng portal | AdminScrapeController#portals | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 113 | GET | /api/admin/scrape/batches | ADMIN | Lịch sử quét gom theo lượt | AdminScrapeController#batches | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 114 | GET | /api/admin/skills/summary | ADMIN | Đếm kỹ năng và alias theo nguồn | AdminSkillsController#summary | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 115 | GET | /api/admin/skills | ADMIN | Danh sách kỹ năng chuẩn | AdminSkillsController#list | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 116 | GET | /api/admin/skills/:id | ADMIN | Chi tiết kỹ năng + láng giềng | AdminSkillsController#detail | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 117 | PUT | /api/admin/skills/:id | ADMIN | Đổi tên kỹ năng chuẩn | AdminSkillsController#rename | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 118 | POST | /api/admin/skills/aliases/move | ADMIN | Chuyển một alias | AdminSkillsController#moveAlias | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 119 | POST | /api/admin/skills/:id/merge | ADMIN | Gộp kỹ năng `:id` vào đích | AdminSkillsController#merge | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 120 | POST | /api/admin/skills/rematch | ADMIN | Xếp đối chiếu lại toàn kho | AdminSkillsController#rematch | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 121 | GET | /api/admin/users | ADMIN | Danh sách tài khoản | AdminUsersController#list | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 122 | GET | /api/admin/users/:id | ADMIN | Chi tiết tài khoản + mức dùng AI | AdminUsersController#detail | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 123 | PUT | /api/admin/users/:id/role | ADMIN | Đổi vai trò | AdminUsersController#updateRole | [admin-console](./modules/admin-console.md#9-api-mapping) |
+| 124 | GET | `/api/admin/ai/models/health` *(2026-10-19, chưa commit)* | ADMIN | Xem bể model, độ trễ probe, model đang cách ly | `ModelHealthController#status` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 125 | POST | `/api/admin/ai/models/health-check` *(2026-10-19, chưa commit)* | ADMIN | Chạy kiểm tra model ở nền, trả ngay trạng thái | `ModelHealthController#check` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 126 | GET | `/api/skills` | ADMIN | Liệt kê skill đang nạp | `SkillsController#list` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 127 | POST | `/api/skills/reload` | ADMIN | Nạp lại skill từ đĩa | `SkillsController#reload` | [ai-platform](./modules/ai-platform.md#9-api-mapping) |
+| 128 | GET | `/api/health` | Public (`@SkipThrottle`) | Liveness probe | `HealthController#live` ([health.controller.ts:18](../../server/src/modules/health/health.controller.ts#L18)) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
+| 129 | GET | `/api/queue/stats` | ADMIN | Số job chờ/chạy/tổng và concurrency từng hàng đợi | `HealthController#queueStats` ([health.controller.ts:29](../../server/src/modules/health/health.controller.ts#L29)) | [platform-operations](./modules/platform-operations.md#9-api-mapping) |
 
 [//]: # (/GEN:API)
 
@@ -210,7 +211,7 @@ sequenceDiagram
 
 1. `POST /api/matches/evaluate-stream/:jobId` (hoặc `POST /api/matches/evaluate` rồi poll `GET /api/matches/:jobId`).
 2. `GET /api/companies/brief/by-job/:jobId` → nếu chưa có/cũ: `POST /api/companies/brief/by-job/:jobId/stream`.
-3. `POST /api/documents/cv {jobId, stream: true}` → `POST /api/documents/:id/generate-stream` → tuỳ chọn `PUT /api/documents/:id/template`, `PUT /api/documents/:id/cv`, `POST /api/documents/:id/preview` → `GET /api/documents/:id/pdf`.
+3. `POST /api/documents/cv {jobId, stream: true}` → `POST /api/documents/:id/generate-stream` → tuỳ chọn `POST /api/documents/:id/rewrite-bullet` (gợi ý viết lại một chỗ trên CV), `PUT /api/documents/:id/template`, `PUT /api/documents/:id/cv`, `POST /api/documents/:id/preview` → `GET /api/documents/:id/pdf`.
 4. `POST /api/documents/cover-letter` / `POST /api/documents/application-email` (tương tự).
 5. `POST /api/applications {jobId}` (trạng thái `VIEWED`; nếu không `skipDocuments` thì cần `JobMatch` DONE và không `FAIL`, tự xếp sinh CV + thư) → `PUT /api/applications/:id/status {status: APPLIED}`.
 

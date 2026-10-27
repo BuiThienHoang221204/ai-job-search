@@ -52,6 +52,7 @@
 | F13 | Tải PDF CV/thư, in bằng HTML/Chromium (không còn tham số `engine`) *(2026-10-19)* | USER | `GET /api/documents/:id/pdf` |
 | F14 | ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19): xem mã nguồn `.tex` | — | — (route đã gỡ cùng LaTeX) |
 | F15 | Nhặt tài liệu kẹt | Hệ thống | `ReconcileService.run` (cron) |
+| F16 | Gợi ý viết lại một chỗ trên CV — câu Kinh nghiệm, câu Dự án (STAR/CAR), mô tả dự án, dòng Năng lực chính, đoạn giới thiệu, chức danh dưới tên — bám từ khoá của tin, số liệu để trống `[__]` *(2026-10-26)* | USER | `POST /api/documents/:id/rewrite-bullet` |
 
 ## 4. Business Flow
 
@@ -234,6 +235,22 @@
 **Failure Flow:** không đánh FAILED cho Document (khác các bảng khác).
 **Postconditions:** tài liệu kẹt được sinh lại tự động; **kể cả** CV/thư tạo với `stream: true` mà client không bao giờ gọi `generate-stream` (xem R4).
 
+### Luồng O — Gợi ý viết lại một câu hoặc đoạn giới thiệu (F16) *(2026-10-26)*
+
+**Preconditions:** CV thuộc người gọi; chữ cần viết lại là câu Kinh nghiệm, câu Dự án, mô tả dự án, dòng Năng lực chính, đoạn giới thiệu hoặc chức danh dưới tên (`kind` = `experience`/`project`/`description`/`competency`/`profile`/`headline`). Tên, liên hệ, công ty, thời gian, kỹ năng, học vấn là dữ kiện nên không có nút.
+**Main Flow** ([bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts))
+1. Người dùng bấm "Gợi ý viết lại" ở dòng "Thêm số liệu" hoặc trên chữ đang sửa của trang CV (kể cả câu đã có số). FE gửi `kind`, chữ hiện tại (kể cả chưa lưu) và một dòng ngữ cảnh (vị trí tại công ty, hoặc tên và vai trò của dự án).
+2. `findFirst({ id, userId, kind: 'CV' })` → không có → 404.
+3. Dưới 4 từ (câu, đoạn, mô tả dự án) → 400, không gọi model; chức danh và dòng Năng lực chính không có ngưỡng.
+4. Đếm `ai_calls` `purpose = 'document.bulletRewrite'`, `ok = true` của người gọi trong 24 giờ qua; đạt `CV_BULLET_REWRITE_DAILY_LIMIT` (20) → 429, không gọi model.
+5. Đọc kỹ năng hồ sơ (`primarySkills`, `secondarySkills`) và từ khoá của tin (`requiredSkills`, `niceToHaveSkills`) nếu CV nhắm tin; gọi model **một lần** (bể fast, timeout 60 giây), tối đa 3 gợi ý. Câu Kinh nghiệm/Dự án theo STAR/CAR, mỗi gợi ý ≤ 260 ký tự; đoạn giới thiệu 2–4 câu ≤ 700 ký tự, giữ nguyên số năm kinh nghiệm, công ty, khách hàng đã có; mô tả dự án 1–3 câu ≤ 500; dòng Năng lực chính ≤ 20 chữ (≤ 160 ký tự); chức danh ≤ 12 chữ (≤ 140 ký tự), không thêm số năm mới.
+6. `guardSuggestions` ([bullet-rewrite.ts](../../../server/src/modules/documents/utils/bullet-rewrite.ts)) lọc bằng code: số không có trong dòng gốc hay tên kỹ năng → `[__]`; gợi ý nhắc từ khoá của tin mà hồ sơ không có → bỏ; gợi ý tự thêm "dẫn dắt/trưởng nhóm/lãnh đạo" khi dòng gốc không có → bỏ. Mỗi gợi ý kèm danh sách từ khoá của tin nó chứa.
+7. Trả `{ suggestions: [{ text, keywords }], remaining }`; không ghi gì vào `documents`.
+8. Bấm "Dùng" ở FE chỉ thay chữ trong bản nháp (`setContent`); lưu như sửa tay. Chữ còn `[__]` (ở Kinh nghiệm, Dự án, mô tả dự án, Năng lực chính, Giới thiệu) thành việc trong mục "Cần bạn điền"; chức danh dưới tên thì không (nằm ở `identity`, checklist chỉ đọc `content`).
+
+**Failure Flow:** lọc xong không còn gợi ý → 422; model lỗi → lỗi chung của `AllExceptionsFilter` và không trừ lượt (chỉ đếm lượt `ok`).
+**Postconditions:** không đổi DB ngoài một dòng `ai_calls`.
+
 ## 5. Mermaid Flowchart
 
 ```mermaid
@@ -385,6 +402,9 @@ sequenceDiagram
 | BR-DOC-37 | Xoá người dùng xoá theo tài liệu (Cascade); xoá tin chỉ gỡ liên kết (`jobId = null`, SetNull). | DB | 🔒 Cứng | [schema.prisma:724](../../../server/prisma/schema.prisma#L724) |
 | BR-DOC-38 | ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19): trình sửa CV truyền `engine=html`, khối "Bản LaTeX" truyền `engine=latex`. Nay mọi nút gọi `documentsService.pdf(id)` không tham số. | FE | ⚠️ Chỉ frontend | [use-cv-draft.ts:279](../../../../ui-ai-job-search/hooks/use-cv-draft.ts#L279), [services/documents.ts:41](../../../../ui-ai-job-search/services/documents.ts#L41) |
 | BR-DOC-39 | FE yêu cầu JD dán tay ≥ 50 ký tự và đủ công ty, vị trí trước khi bật nút tạo; giữ ba ô qua đổi tab/tải lại (sessionStorage). | FE | ⚠️ Chỉ frontend | [use-pasted-job.ts](../../../../ui-ai-job-search/hooks/use-pasted-job.ts), [use-draft-state.ts](../../../../ui-ai-job-search/hooks/use-draft-state.ts) |
+| BR-DOC-40 | Gợi ý viết lại không bao giờ mang số liệu mà dòng gốc không có: code thay bằng `[__]`; gợi ý nhắc kỹ năng của tin mà hồ sơ không có, hoặc tự nâng vai trò, bị bỏ *(2026-10-26)* | SV | 🔒 Cứng | [bullet-rewrite.ts](../../../server/src/modules/documents/utils/bullet-rewrite.ts) |
+| BR-DOC-41 | Mỗi người tối đa `CV_BULLET_REWRITE_DAILY_LIMIT` (20) lượt gợi ý viết lại thành công trong 24 giờ; lượt lỗi không tính *(2026-10-26)* | SV | ✅ Mềm | [bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts) |
+| BR-DOC-42 | Câu Kinh nghiệm, câu Dự án hay đoạn giới thiệu còn `[__]` là việc "Cần bạn điền"; câu Kinh nghiệm đó không còn là câu thiếu số liệu *(2026-10-26)* | FE | ⚠️ Chỉ frontend | [cv-checklist.ts](../../../../ui-ai-job-search/lib/cv-checklist.ts) |
 
 > **Possible Business Rule:** JD dán tay được lưu tạm vào `content` rồi bị **ghi đè** bởi output model khi DONE — hệ thống không giữ lại JD gốc của CV/mail dán tay. Cần xác nhận có cần lưu JD (ví dụ để sinh lại hoặc hiện "CV này viết cho tin nào") không.
 
@@ -464,6 +484,14 @@ Tham số `engine` của `GET /api/documents/:id/pdf` đã gỡ cùng LaTeX; rou
 | `templateId` | bắt buộc, chuỗi 1–40, phải ∈ 6 id mẫu | SetTemplateDto + `isTemplateId` | 400 / 400 `Không có mẫu CV nào tên "<id>"` |
 | `accent` / `font` / `size` / `lineHeight` | như PreviewBodyDto | SetTemplateDto | 400 |
 
+### `RewriteBulletDto` ([documents.dto.ts](../../../server/src/modules/documents/documents.dto.ts)) *(2026-10-26)*
+
+| Field | Ràng buộc | DTO/Schema | Lỗi trả về |
+|---|---|---|---|
+| `kind` | bắt buộc, ∈ `experience`/`project`/`description`/`competency`/`profile`/`headline` | RewriteBulletDto | 400 |
+| `text` | bắt buộc, chuỗi 1–1.500 | RewriteBulletDto | 400 `Đoạn cần viết lại phải từ 1 tới 1.500 ký tự` |
+| `context` | tuỳ chọn, chuỗi ≤ 300 | RewriteBulletDto | 400 |
+
 ### Schema output model (CẮT, không từ chối — [ADR 0017](../../adr/0017-cat-chuoi-model-output.md))
 
 | Schema | Ràng buộc chính | Nguồn |
@@ -471,6 +499,7 @@ Tham số `engine` của `GET /api/documents/:id/pdf` đã gỡ cùng LaTeX; rou
 | `cvSchema(language)` | profileStatement ≤ 600; coreCompetencies ≥ 3, cắt 8; experiences (bullets ≥ 1, cắt 5); projects cắt 4 (bullets cắt 4, tools cắt 8); educations cắt 4; skillGroups cắt 6 (items ≥ 1, cắt 12) | [document.schema.ts:11](../../../server/src/modules/documents/schemas/document.schema.ts#L11) |
 | `coverLetterSchema` | salutation ≤ 120, opening ≤ 600, bodyParagraphs ≥ 1 cắt 3 (mỗi đoạn ≤ 700), motivation ≤ 600, closing ≤ 400 | [document.schema.ts:180](../../../server/src/modules/documents/schemas/document.schema.ts#L180) |
 | `applicationEmailSchema` | subject ≤ 160, greeting ≤ 120, paragraphs ≥ 2 cắt 3, attachmentNote ≤ 300, closing ≤ 300, signOff ≤ 60 | [document.schema.ts:208](../../../server/src/modules/documents/schemas/document.schema.ts#L208) |
+| `bulletRewriteSchema(language, max)` *(2026-10-26)* | suggestions cắt 3, mỗi gợi ý ≤ 260 (câu), 700 (giới thiệu), 500 (mô tả dự án), 160 (năng lực), 140 (chức danh) | [document.schema.ts](../../../server/src/modules/documents/schemas/document.schema.ts) |
 | `jobFromUrlSchema` | company ≤ 300, title ≤ 300, description ≤ 60.000 | [job-source.schema.ts](../../../server/src/modules/documents/schemas/job-source.schema.ts) |
 
 Ngoài ra: body JSON tối đa 1 MB (413 `Nội dung gửi lên quá lớn (tối đa 1MB).`), JSON hỏng → 400 `Nội dung gửi lên không đọc được. Hãy gửi JSON hợp lệ.` ([bootstrap.ts](../../../server/src/bootstrap.ts), [all-exceptions.filter.ts](../../../server/src/common/filters/all-exceptions.filter.ts), e2e [body-limit.e2e-spec.ts](../../../server/test/body-limit.e2e-spec.ts)); trường lạ → 400.
@@ -485,6 +514,7 @@ Ngoài ra: body JSON tối đa 1 MB (413 `Nội dung gửi lên quá lớn (tố
 | GET | `/api/documents/:id` | USER | Chi tiết tài liệu | `#get` | `DocumentsService.get` | — | `Document + job + failureKind` |
 | PUT | `/api/documents/:id/template` | USER | Lưu mẫu + thiết kế CV | `#setTemplate` | `DocumentsService.setTemplate` | `SetTemplateDto` | `Document + failureKind` |
 | POST | `/api/documents/:id/preview` | USER | HTML xem trước bản nháp CV / thư | `#previewDraft` | `DocumentsService.previewHtml` | `PreviewBodyDto` | 200 `text/html` + CSP sandbox |
+| POST | `/api/documents/:id/rewrite-bullet` | USER (`@ThrottleAi`, 20 lượt/24 giờ) | Gợi ý viết lại một chỗ trên CV *(2026-10-26)* | `#rewriteBullet` | `BulletRewriteService.rewrite` | `RewriteBulletDto` | 200 `{ suggestions: [{ text, keywords }], remaining }` |
 | PUT | `/api/documents/:id/cv` | USER | Lưu CV đã sửa | `#updateCv` | `DocumentsService.updateCv` | `UpdateCvDto` | `Document + failureKind` |
 | GET | `/api/documents/:id/pdf` | USER (`@ThrottlePdf`) | Tải PDF | `#pdf` | `DocumentsService.pdf` | — | `application/pdf` |
 | POST | `/api/documents/:id/generate-stream` | USER (`@ThrottleAi`) | Sinh nội dung dạng stream | `#generateStream` | `DocumentGenerator.streamGenerate` | — | `application/x-ndjson` (partial/done/error) |
@@ -515,7 +545,7 @@ Nguồn: [documents.controller.ts](../../../server/src/modules/documents/documen
 | `/dashboard/cover-letter?doc={id}` (workspace) | USER | Xem thư/mail, sao chép, mở PDF thư (HTML/Chromium, mượn mẫu CV cùng tin *(2026-10-19)*) | [letter-header.tsx](../../../../ui-ai-job-search/app/dashboard/cover-letter/workspace/letter-header.tsx) → `documentsService.pdf` |
 | `/dashboard/applications` | USER | Tạo CV cho tin của đơn, mở PDF CV | `documentsService.createCv({jobId})`, `.pdf(id)` |
 
-Hooks: [use-document-job.ts](../../../../ui-ai-job-search/hooks/use-document-job.ts) (stream hoặc poll 2 giây × 80), [use-cv-draft.ts](../../../../ui-ai-job-search/hooks/use-cv-draft.ts), [use-cv-inline-edit.ts](../../../../ui-ai-job-search/hooks/use-cv-inline-edit.ts) (contenteditable từ trang cha, iframe không `allow-scripts`), [use-cv-templates.ts](../../../../ui-ai-job-search/hooks/use-cv-templates.ts), [use-letters.ts](../../../../ui-ai-job-search/hooks/use-letters.ts), [use-pasted-job.ts](../../../../ui-ai-job-search/hooks/use-pasted-job.ts), [use-draft-state.ts](../../../../ui-ai-job-search/hooks/use-draft-state.ts). [use-latest-cv.ts](../../../../ui-ai-job-search/hooks/use-latest-cv.ts) đọc **bản đọc CV PDF của hồ sơ** (`profileDraftService.latest`), không thuộc module này — xem [cv-import.md](./cv-import.md). API client: [services/documents.ts](../../../../ui-ai-job-search/services/documents.ts).
+Hooks: [use-document-job.ts](../../../../ui-ai-job-search/hooks/use-document-job.ts) (stream hoặc poll 2 giây × 80), [use-cv-draft.ts](../../../../ui-ai-job-search/hooks/use-cv-draft.ts), [use-cv-inline-edit.ts](../../../../ui-ai-job-search/hooks/use-cv-inline-edit.ts) (contenteditable từ trang cha, iframe không `allow-scripts`), [use-cv-templates.ts](../../../../ui-ai-job-search/hooks/use-cv-templates.ts), [use-letters.ts](../../../../ui-ai-job-search/hooks/use-letters.ts), [use-pasted-job.ts](../../../../ui-ai-job-search/hooks/use-pasted-job.ts), [use-draft-state.ts](../../../../ui-ai-job-search/hooks/use-draft-state.ts). [use-latest-cv.ts](../../../../ui-ai-job-search/hooks/use-latest-cv.ts) đọc **bản đọc CV PDF của hồ sơ** (`profileDraftService.latest`), không thuộc module này — xem [cv-import.md](./cv-import.md). API client: [services/documents.ts](../../../../ui-ai-job-search/services/documents.ts). Nút "Gợi ý viết lại" trên mỗi dòng "Thêm số liệu" ([metric-row.tsx](../../../../ui-ai-job-search/app/dashboard/cv-optimizer/workspace/metric-row.tsx)) và nút nổi trên chỗ viết lại được đang sửa ngay trên trang CV (câu Kinh nghiệm/Dự án, mô tả dự án, Năng lực chính, giới thiệu, chức danh) ([line-rewrite.tsx](../../../../ui-ai-job-search/app/dashboard/cv-optimizer/line-rewrite.tsx)), cùng gọi [use-bullet-rewrite.ts](../../../../ui-ai-job-search/hooks/use-bullet-rewrite.ts) → `documentsService.rewriteBullet` *(2026-10-26)*.
 
 ## 11. Database
 
@@ -611,6 +641,10 @@ stateDiagram-v2
 | Trang render phía trình duyệt | 400 | `Trang này gần như không có chữ trong HTML (${n} ký tự), nhiều khả năng nội dung được render phía trình duyệt. Hãy copy …` | [job-from-url.service.ts:85](../../../server/src/modules/documents/services/job-from-url.service.ts#L85) |
 | Model không thấy tin | 400 | `Không tìm thấy tin tuyển dụng nào trong trang này. Hãy copy …` | [job-from-url.service.ts:52](../../../server/src/modules/documents/services/job-from-url.service.ts#L52) |
 | Model trả sai cấu trúc / quá giờ / quá tải (job-from-url) | 502 / 504 / 503 | `AI trả về kết quả không đúng cấu trúc. …` / `Quá thời gian chờ phản hồi. …` / `Nhà cung cấp AI đang quá tải hoặc đã hết lượt gọi. …` | [all-exceptions.filter.ts](../../../server/src/common/filters/all-exceptions.filter.ts) |
+| Gợi ý viết lại: CV không có / của người khác *(2026-10-26)* | 404 | `Không tìm thấy CV này.` | [bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts) |
+| Gợi ý viết lại: câu/đoạn dưới 4 từ *(2026-10-26)* | 400 | `Chỗ này chưa nói bạn đã làm gì nên AI không có gì để viết lại mà không bịa. Thêm một ý cụ thể (làm việc gì, dùng công cụ gì) rồi bấm lại.` | [bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts) |
+| Gợi ý viết lại: hết lượt *(2026-10-26)* | 429 | `Bạn đã dùng hết ${limit} lượt gợi ý viết lại trong 24 giờ qua. Bạn vẫn sửa tay được như bình thường, hoặc quay lại sau.` | [bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts) |
+| Gợi ý viết lại: lọc xong không còn gợi ý *(2026-10-26)* | 422 | `AI chưa viết được cách nào đúng sự thật cho dòng này. Thêm một ý cụ thể rồi bấm lại, hoặc sửa tay.` | [bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts) |
 | Vượt throttle | 429 | `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` | [app.module.ts](../../../server/src/app.module.ts) |
 
 ## 14. Notifications
@@ -697,6 +731,12 @@ Không có kênh thông báo (email/push/in-app). Trạng thái được phản 
 - **Mô tả:** Không code nào tạo `FORM_ANSWER` hay ghi `agentRunId`; `compose` cho `FORM_ANSWER` ném lỗi.
 - **Bằng chứng:** [schema.prisma:705](../../../server/prisma/schema.prisma#L705), [schema.prisma:753](../../../server/prisma/schema.prisma#L753), [document-composer.service.ts:66](../../../server/src/modules/documents/services/document-composer.service.ts#L66).
 - **Tác động:** Không ảnh hưởng runtime; gây hiểu nhầm khi đọc schema.
+- **Mức đề xuất:** 🟢
+
+### R9 — Gợi ý viết lại: hạn mức đếm-rồi-gọi, số viết bằng chữ lọt qua *(2026-10-26)*
+- **Mô tả:** hạn mức đếm `ai_calls` trước rồi mới gọi model, nên nhiều request song song của cùng một người có thể vượt 20 lượt một chút (chấp nhận: `@ThrottleAi` chặn 10 lượt/phút). `guardSuggestions` chỉ đục số viết bằng chữ số; "gấp đôi", "hai lần" viết bằng chữ không bị chặn, chỉ dựa vào prompt.
+- **Bằng chứng:** [bullet-rewrite.service.ts](../../../server/src/modules/documents/services/bullet-rewrite.service.ts), [bullet-rewrite.ts](../../../server/src/modules/documents/utils/bullet-rewrite.ts).
+- **Tác động:** vài lượt model vượt trần; hiếm khi một gợi ý mang con số viết bằng chữ không có thật.
 - **Mức đề xuất:** 🟢
 
 ## 18. Source References

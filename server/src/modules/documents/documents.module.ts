@@ -4,6 +4,7 @@ import { AiModule } from '../ai/ai.module';
 import { SandboxModule } from '../sandbox/sandbox.module';
 import { SANDBOX, type SandboxRunner } from '../sandbox/sandbox.interface';
 import { SkillsModule } from '../skills/skills.module';
+import { BulletRewriteService } from './services/bullet-rewrite.service';
 import { DocumentComposer } from './services/document-composer.service';
 import { DocumentRenderer } from './services/document-renderer.service';
 import { DocumentsController } from './documents.controller';
@@ -38,6 +39,7 @@ const pdfRendererProvider = {
   providers: [
     DocumentsService,
     DocumentGenerator,
+    BulletRewriteService,
     DocumentComposer,
     DocumentRenderer,
     DocumentsProcessor,

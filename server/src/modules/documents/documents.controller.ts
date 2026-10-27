@@ -30,9 +30,11 @@ import {
   JobFromUrlDto,
   ListDocumentsDto,
   PreviewBodyDto,
+  RewriteBulletDto,
   SetTemplateDto,
   UpdateCvDto,
 } from './documents.dto';
+import { BulletRewriteService } from './services/bullet-rewrite.service';
 import { DocumentGenerator } from './services/document-generator.service';
 import { DocumentsService } from './services/documents.service';
 import { JobFromUrlService } from './services/job-from-url.service';
@@ -48,6 +50,7 @@ export class DocumentsController {
   constructor(
     private readonly documents: DocumentsService,
     private readonly generator: DocumentGenerator,
+    private readonly bullets: BulletRewriteService,
     private readonly jobFromUrl: JobFromUrlService,
   ) {}
 
@@ -120,6 +123,26 @@ export class DocumentsController {
     @Body() dto: UpdateCvDto,
   ) {
     return withFailureKind(await this.documents.updateCv(user.id, id, dto));
+  }
+
+  @ThrottleAi()
+  @ApiOperation({
+    summary:
+      'Gợi ý viết lại một chỗ trên CV: câu Kinh nghiệm/Dự án, mô tả dự án, năng lực, giới thiệu, chức danh',
+  })
+  @ApiParam({ name: 'id', description: 'ID của CV' })
+  @Post(':id/rewrite-bullet')
+  @HttpCode(200)
+  rewriteBullet(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: RewriteBulletDto,
+  ) {
+    return this.bullets.rewrite(user.id, id, {
+      kind: dto.kind,
+      text: dto.text,
+      context: dto.context ?? '',
+    });
   }
 
   @ThrottlePdf()

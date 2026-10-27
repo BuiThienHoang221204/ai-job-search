@@ -339,6 +339,9 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-DOC-37 | Xoá người dùng xoá theo tài liệu (Cascade); xoá tin chỉ gỡ liên kết (`jobId = null`, SetNull). | DB | 🔒 Cứng |
 | BR-DOC-38 | ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19): trình sửa CV truyền `engine=html`, khối "Bản LaTeX" truyền `engine=latex`. Nay mọi nút gọi `documentsService.pdf(id)` không tham số. | FE | ⚠️ Chỉ frontend |
 | BR-DOC-39 | FE yêu cầu JD dán tay ≥ 50 ký tự và đủ công ty, vị trí trước khi bật nút tạo; giữ ba ô qua đổi tab/tải lại (sessionStorage). | FE | ⚠️ Chỉ frontend |
+| BR-DOC-40 | Gợi ý viết lại không bao giờ mang số liệu mà dòng gốc không có: code thay bằng `[__]`; gợi ý nhắc kỹ năng của tin mà hồ sơ không có, hoặc tự nâng vai trò, bị bỏ *(2026-10-26)* | SV | 🔒 Cứng |
+| BR-DOC-41 | Mỗi người tối đa `CV_BULLET_REWRITE_DAILY_LIMIT` (20) lượt gợi ý viết lại thành công trong 24 giờ; lượt lỗi không tính *(2026-10-26)* | SV | ✅ Mềm |
+| BR-DOC-42 | Câu Kinh nghiệm, câu Dự án hay đoạn giới thiệu còn `[__]` là việc "Cần bạn điền"; câu Kinh nghiệm đó không còn là câu thiếu số liệu *(2026-10-26)* | FE | ⚠️ Chỉ frontend |
 
 ### Interview Preparation — Chuẩn bị phỏng vấn theo tin tuyển dụng — [modules/interview-prep.md](./modules/interview-prep.md#7-business-rules)
 
@@ -489,6 +492,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-CMP-27 | Theo dõi công ty theo khoá `companyKeyOf` của tin (`POST { jobId }`), nên cùng một công ty ở nhiều portal chỉ là một lượt theo dõi; bấm lại trả bản đã có (bắt `P2002`); tin ẩn danh → 400; tối đa 50 công ty mỗi người → 400 *(2026-10-26)* | SV, DB | ✅ |
 | BR-CMP-28 | Bỏ theo dõi khoá theo `{ id, userId }`; của người khác hoặc không có → 404 *(2026-10-26)* | SV | ✅ |
 | BR-CMP-29 | `Job.companyKey` tính trong `derivedFields` khi ghi tin và khi "Tính lại toàn bộ"; tin cũ chỉ có khoá sau khi chạy lại *(2026-10-26)* | SV | ✅ |
+| BR-CMP-30 | Chữ nằm trong phần tử có class `blur` (kèm mọi thẻ con) không được đọc: đó là nội dung trang khoá sau đăng nhập, và ở ITviec là một review mẫu giống nhau cho mọi công ty *(2026-10-26)* | SV | ✅ |
 
 ### Salary — Tra cứu lương & khung đàm phán lương — [modules/salary.md](./modules/salary.md#7-business-rules)
 
@@ -769,7 +773,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (63)
+### 🟢 Thấp (64)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -805,6 +809,7 @@ Không có rủi ro nào được xếp mức này.
 | [documents#R5](./modules/documents.md) | documents | Stream của Mail ứng tuyển trả bản ghi FAILED kèm `error` thô |
 | [documents#R7](./modules/documents.md) | documents | Mã HTTP không nhất quán giữa ba route tạo khi tin không tồn tại; lỗi hạ tầng PDF trả 422 |
 | [documents#R8](./modules/documents.md) | documents | Di sản trong schema: `FORM_ANSWER`, `agentRunId` |
+| [documents#R9](./modules/documents.md) | documents | Gợi ý viết lại: hạn mức đếm-rồi-gọi, số viết bằng chữ lọt qua *(2026-10-26)* |
 | [interview-prep#R1](./modules/interview-prep.md) | interview-prep | Trong lúc soạn lại (hoặc sau khi soạn lại hỏng), người dùng không luyện được bộ đề cũ dù nội dung vẫn hiển thị |
 | [interview-prep#R2](./modules/interview-prep.md) | interview-prep | Cache `promptHash` gần như không bao giờ được dùng |
 | [interview-prep#R3](./modules/interview-prep.md) | interview-prep | Backend cho soạn bộ đề cho BẤT KỲ tin nào, không riêng tin người dùng đã lưu/ứng tuyển |
@@ -837,7 +842,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R7](./modules/platform-operations.md) | platform-operations | Thử lại của pg-boss dựa hoàn toàn vào mặc định thư viện |
 | [platform-operations#R8](./modules/platform-operations.md) | platform-operations | Cờ "lượt trước còn chạy" của cron chỉ nằm trong bộ nhớ một tiến trình |
 
-### ✅ Đã sửa (17)
+### ✅ Đã sửa (18)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -855,6 +860,7 @@ Không có rủi ro nào được xếp mức này.
 | [mock-interview#R7](./modules/mock-interview.md) | mock-interview | Model gửi lời tổng kết qua `ask_user`, buổi `DONE` mà `result.text` rỗng |
 | [upskill#R1](./modules/upskill.md) | upskill | Stream hỏng thì FE tự tạo báo cáo thứ hai và chạy AI lần nữa |
 | [company-research#R1](./modules/company-research.md) | company-research | FE tự xếp thêm một lượt dựng mỗi khi stream lỗi |
+| [company-research#R8](./modules/company-research.md) | company-research | Review mẫu bị làm mờ của ITviec lọt vào bản tìm hiểu |
 | [admin-console#R1](./modules/admin-console.md) | admin-console | Giao diện báo "Worker nhận giá trị mới trong vòng 30 giây" nhưng worker chỉ nhận sau khi khởi động lại |
 | [ai-platform#R1](./modules/ai-platform.md) | ai-platform | Lỗi sai schema đi tiếp chuỗi dự phòng, trái với bất biến đã ghi |
 | [platform-operations#R1](./modules/platform-operations.md) | platform-operations | FE báo "Worker nhận giá trị mới trong vòng 30 giây" nhưng backend chỉ áp concurrency khi khởi động lại |

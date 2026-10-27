@@ -21,6 +21,7 @@ import {
   type CvFont,
   type CvFontSize,
 } from './templates/typography';
+import { REWRITE_KINDS, type RewriteKind } from './utils/bullet-rewrite';
 
 const pastedJob = (dto: CreateCvDto): boolean =>
   !dto.jobId &&
@@ -57,6 +58,16 @@ export class UpdateCvDto {
   @IsOptional() @IsObject() content?: unknown;
   @IsOptional() @IsObject() layout?: unknown;
   @IsOptional() @IsObject() identity?: unknown;
+}
+
+export class RewriteBulletDto {
+  @IsIn(REWRITE_KINDS) kind!: RewriteKind;
+
+  @IsString()
+  @Length(1, 1500, { message: 'Đoạn cần viết lại phải từ 1 tới 1.500 ký tự' })
+  text!: string;
+
+  @IsOptional() @IsString() @MaxLength(300) context?: string;
 }
 
 export class PreviewBodyDto extends UpdateCvDto {

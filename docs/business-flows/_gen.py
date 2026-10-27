@@ -180,6 +180,7 @@ OWN = {
     "PUT /api/documents/:id/template": "`update {id, userId}`",
     "POST /api/documents/:id/preview": "`findFirst {id, userId}`",
     "PUT /api/documents/:id/cv": "`update {id, userId}`",
+    "POST /api/documents/:id/rewrite-bullet": "`findFirst {id, userId, kind: CV}`",
     "GET /api/documents/:id/pdf": "`findFirst {id, userId}`",
     "POST /api/documents/:id/generate-stream": "claim theo `userId` (404 qua sự kiện error)",
     "POST /api/documents/cv": "tạo gắn `userId`",

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  boundedList,
   cappedTextIn,
   cappedTextVi,
   unwrapStrings,
@@ -236,6 +237,20 @@ export const applicationEmailSchema = z.object({
   ),
   signOff: vn(60, 'Lời chào kết, ví dụ "Trân trọng,". Kết thúc bằng dấu phẩy.'),
 });
+
+export const bulletRewriteSchema = (language: OutputLanguage, max: number) =>
+  z.object({
+    suggestions: boundedList(
+      cappedTextIn(
+        language,
+        max,
+        'Một cách viết lại. Chỗ cần số liệu kết quả mà dòng gốc không có thì viết đúng [__].',
+      ),
+      3,
+    ).describe(
+      'Hai đến ba cách viết khác nhau về trọng tâm. Mảng rỗng nếu dòng gốc quá mơ hồ để viết lại mà không bịa.',
+    ),
+  });
 
 export type CvContentResult = z.infer<ReturnType<typeof cvSchema>>;
 export type CoverLetterResult = z.infer<typeof coverLetterSchema>;
