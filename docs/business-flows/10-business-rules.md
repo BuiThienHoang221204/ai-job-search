@@ -773,7 +773,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (64)
+### 🟢 Thấp (66)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -786,10 +786,12 @@ Không có rủi ro nào được xếp mức này.
 | [profile#R2](./modules/profile.md) | profile | `save` gồm hai lệnh ghi rời, không transaction |
 | [profile#R3](./modules/profile.md) | profile | Khối JSON không kiểm hình dạng |
 | [profile#R4](./modules/profile.md) | profile | Lưu bất kỳ trường nào cũng xếp đối chiếu kỹ năng |
-| [cv-import#R3](./modules/cv-import.md) | cv-import | Ghi Storage trước khi tạo bản ghi DB |
+| [cv-import#R3](./modules/cv-import.md) | cv-import | Chuyển file khỏi vùng tạm trước khi tạo bản ghi DB |
 | [cv-import#R4](./modules/cv-import.md) | cv-import | `finish`/`fail` ghi theo `id` không điều kiện |
 | [cv-import#R5](./modules/cv-import.md) | cv-import | Gộp danh sách ở FE có thể vượt trần 60 mục của DTO |
 | [cv-import#R6](./modules/cv-import.md) | cv-import | Phản hồi `apply` không đồng dạng với các route khác |
+| [cv-import#R7](./modules/cv-import.md) | cv-import | R2 không chặn kích thước lúc `PUT` qua URL ký sẵn |
+| [cv-import#R8](./modules/cv-import.md) | cv-import | Bấm xác nhận hai lần cùng một khoá |
 | [jobs#R3](./modules/jobs.md) | jobs | Nhãn sắp xếp "Điểm AI Match" không phải điểm AI |
 | [jobs#R4](./modules/jobs.md) | jobs | Tên portal "timviec" chưa có trong bảng tên hiển thị FE |
 | [jobs#R5](./modules/jobs.md) | jobs | Backfill taxonomy chạy đồng bộ trong một HTTP request, không transaction |

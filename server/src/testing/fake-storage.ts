@@ -9,9 +9,23 @@ export class FakeStorage implements Storage {
     return Promise.resolve(file);
   }
 
-  write(key: string, data: Buffer | string): Promise<void> {
-    const buffer = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
-    this.files.set(key, buffer);
+  size(key: string): Promise<number | null> {
+    return Promise.resolve(this.files.get(key)?.length ?? null);
+  }
+
+  move(from: string, to: string): Promise<void> {
+    const file = this.files.get(from);
+    if (!file) return Promise.reject(new Error(`Không có file: ${from}`));
+    this.files.set(to, file);
+    this.files.delete(from);
     return Promise.resolve();
+  }
+
+  uploadUrl(key: string): Promise<string> {
+    return Promise.resolve(`https://storage.test/upload/${key}`);
+  }
+
+  downloadUrl(key: string): Promise<string> {
+    return Promise.resolve(`https://storage.test/download/${key}`);
   }
 }

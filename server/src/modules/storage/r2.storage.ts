@@ -2,10 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
+  CopyObjectCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
+  NotFound,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Storage } from './storage.interface';
+
+const SIGNED_URL_TTL_SECONDS = 300;
 
 @Injectable()
 export class R2Storage implements Storage {
@@ -38,18 +45,56 @@ export class R2Storage implements Storage {
     return Buffer.concat(chunks);
   }
 
-  async write(key: string, data: Buffer | string): Promise<void> {
-    const body = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+  async size(key: string): Promise<number | null> {
+    try {
+      const head = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      return head.ContentLength ?? null;
+    } catch (error) {
+      if (error instanceof NotFound) return null;
+      throw error;
+    }
+  }
+
+  async move(from: string, to: string): Promise<void> {
     await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        CopySource: `${this.bucket}/${encodeURI(from)}`,
+        Key: to,
+      }),
+    );
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: from }),
+    );
+  }
+
+  uploadUrl(key: string, contentType: string): Promise<string> {
+    return getSignedUrl(
+      this.client,
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        Body: body,
-        ContentType: key.endsWith('.pdf')
-          ? 'application/pdf'
-          : 'application/octet-stream',
+        ContentType: contentType,
       }),
+      {
+        expiresIn: SIGNED_URL_TTL_SECONDS,
+        signableHeaders: new Set(['content-type']),
+      },
     );
-    this.logger.debug(`Wrote ${key} (${body.length} bytes)`);
+  }
+
+  downloadUrl(key: string, filename: string): Promise<string> {
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ResponseContentType: 'application/pdf',
+        ResponseContentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      }),
+      { expiresIn: SIGNED_URL_TTL_SECONDS },
+    );
   }
 }

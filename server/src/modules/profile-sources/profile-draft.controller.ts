@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,17 +9,11 @@ import {
   Put,
   Query,
   Res,
-  StreamableFile,
-  UploadedFile,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
-  ApiConsumes,
-  ApiBody,
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -29,11 +22,9 @@ import { ThrottleAi } from '@/common/throttle';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { AuthUser } from '@/common/types/auth-user';
 import { withFailureKind } from '@/common/ai/failure-view';
-import { cvPdfErrorMessage } from './cv-pdf.source';
-import { MAX_PDF_BYTES } from './utils/pdf-text';
 import { ProfileDraftService } from './services/profile-draft.service';
 import { ProfileSynthesizerService } from './services/profile-synthesizer.service';
-import { ApplyDraftDto } from './profile-draft.dto';
+import { ApplyDraftDto, ConfirmCvUploadDto } from './profile-draft.dto';
 
 @ApiTags('Profile Drafts (CV Upload)')
 @ApiBearerAuth()
@@ -47,60 +38,26 @@ export class ProfileDraftController {
   ) {}
 
   @ThrottleAi()
-  @ApiOperation({ summary: 'Nộp file CV PDF để AI trích xuất thông tin hồ sơ' })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
+  @ApiOperation({
+    summary: 'Xin URL để trình duyệt tải CV PDF thẳng lên kho lưu trữ',
+  })
+  @Post('cv/upload-url')
+  uploadUrl(@CurrentUser() user: AuthUser) {
+    return this.drafts.uploadUrl(user.id);
+  }
+
+  @ThrottleAi()
+  @ApiOperation({
+    summary:
+      'Đọc CV PDF vừa tải lên kho lưu trữ để AI trích xuất thông tin hồ sơ',
   })
   @Post('cv')
-  @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: MAX_PDF_BYTES, files: 1 } }),
-  )
-  async uploadCv(
+  uploadCv(
     @CurrentUser() user: AuthUser,
+    @Body() dto: ConfirmCvUploadDto,
     @Query('stream') stream?: string,
-    @UploadedFile() file?: Express.Multer.File,
   ) {
-    if (!file) {
-      throw new BadRequestException(
-        'Chưa có file nào được nộp. Gửi dưới dạng multipart với tên trường "file".',
-      );
-    }
-
-    if (file.mimetype !== 'application/pdf') {
-      throw new BadRequestException(
-        `Chỉ nhận file PDF. File vừa nộp khai là "${file.mimetype}".`,
-      );
-    }
-
-    try {
-      const { draftId, evidence } = await this.drafts.createFromCv(
-        user.id,
-        {
-          data: file.buffer,
-          filename: file.originalname,
-        },
-        stream === 'true',
-      );
-
-      return {
-        draftId,
-        queued: stream !== 'true',
-        extracted: evidence.map((item) => item.meta),
-      };
-    } catch (error) {
-      const message = cvPdfErrorMessage(error);
-      if (message === null) throw error;
-      throw new BadRequestException(message);
-    }
+    return this.drafts.createFromUpload(user.id, dto, stream === 'true');
   }
 
   @ApiOperation({
@@ -111,22 +68,17 @@ export class ProfileDraftController {
     return withFailureKind(await this.drafts.latest(user.id));
   }
 
-  @ApiOperation({ summary: 'Tải xuống hoặc xem file CV PDF gốc đã nộp' })
+  @ApiOperation({
+    summary: 'Chuyển tới link tải trực tiếp file CV PDF gốc đã nộp',
+  })
   @ApiParam({ name: 'id', description: 'ID của bản nháp hồ sơ' })
   @Get(':id/file')
   async file(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<StreamableFile> {
-    const { data, filename } = await this.drafts.file(user.id, id);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Length': String(data.length),
-      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(filename)}`,
-      'Cache-Control': 'private, max-age=3600',
-    });
-    return new StreamableFile(data);
+    @Res() res: Response,
+  ): Promise<void> {
+    res.redirect(await this.drafts.fileUrl(user.id, id));
   }
 
   @ApiOperation({ summary: 'Lấy chi tiết một bản nháp hồ sơ theo ID' })

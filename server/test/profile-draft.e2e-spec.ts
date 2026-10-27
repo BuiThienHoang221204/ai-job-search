@@ -73,14 +73,27 @@ const proposal: ProfileProposal = {
   notes: ['CV không ghi mức lương mong muốn.'],
 };
 
-const uploadCv = (harness: TestApp, user: TestUser, name = CV) =>
-  request(harness.server)
+/// Đi đúng ba bước của trình duyệt: xin URL, PUT thẳng lên kho (ở đây là ghi vào
+/// FakeStorage), rồi xác nhận. Trả về response của bước xác nhận.
+const uploadCv = async (
+  harness: TestApp,
+  user: TestUser,
+  data: Buffer = fixture(CV),
+): Promise<request.Response> => {
+  const auth = { Authorization: `Bearer ${user.token}` };
+  const issued = await request(harness.server)
+    .post('/api/profile-drafts/cv/upload-url')
+    .set(auth)
+    .expect(201);
+  const { key, url } = issued.body as { key: string; url: string };
+  expect(url).toContain(key);
+  harness.storage.files.set(key, data);
+
+  return request(harness.server)
     .post('/api/profile-drafts/cv')
-    .set('Authorization', `Bearer ${user.token}`)
-    .attach('file', fixture(name), {
-      filename: name,
-      contentType: 'application/pdf',
-    });
+    .set(auth)
+    .send({ key, filename: CV });
+};
 
 /// Nộp CV rồi trả về draftId đã có kiểu.
 ///
@@ -90,9 +103,9 @@ const uploadCv = (harness: TestApp, user: TestUser, name = CV) =>
 const uploadAndGetId = async (
   harness: TestApp,
   user: TestUser,
-  name = CV,
 ): Promise<string> => {
-  const response = await uploadCv(harness, user, name).expect(201);
+  const response = await uploadCv(harness, user);
+  expect(response.status).toBe(201);
   return (response.body as { draftId: string }).draftId;
 };
 
@@ -113,8 +126,9 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     user = await harness.signUp();
   });
 
-  test('nộp CV có lớp text thì tạo bản nháp và xếp việc', async () => {
-    const response = await uploadCv(harness, user).expect(201);
+  test('nộp CV có lớp text thì tạo bản nháp, chuyển file khỏi vùng tạm và xếp việc', async () => {
+    const response = await uploadCv(harness, user);
+    expect(response.status).toBe(201);
 
     const body = response.body as {
       draftId: string;
@@ -131,6 +145,59 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     expect(Number(body.extracted[0].chars)).toBeGreaterThan(500);
 
     expect(harness.queue.sentTo(QUEUE.PROFILE_SYNTHESIZE)).toHaveLength(1);
+
+    const draft = await harness.prisma.profileDraft.findUniqueOrThrow({
+      where: { id: body.draftId },
+    });
+    expect([...harness.storage.files.keys()]).toEqual([draft.storageKey]);
+    expect(draft.storageKey).toMatch(new RegExp(`^${user.id}/cv-uploads/`));
+  });
+
+  test('xác nhận file nằm trong vùng tạm của người khác là 404 và không tạo bản nháp', async () => {
+    const other = await harness.signUp();
+    const issued = await request(harness.server)
+      .post('/api/profile-drafts/cv/upload-url')
+      .set('Authorization', `Bearer ${other.token}`)
+      .expect(201);
+    const { key } = issued.body as { key: string };
+    harness.storage.files.set(key, fixture(CV));
+
+    await request(harness.server)
+      .post('/api/profile-drafts/cv')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ key, filename: CV })
+      .expect(404);
+
+    expect(await harness.prisma.profileDraft.count()).toBe(0);
+    expect(harness.storage.files.has(key)).toBe(true);
+  });
+
+  test('file lớn hơn 10MB bị từ chối trước khi đọc', async () => {
+    const response = await uploadCv(
+      harness,
+      user,
+      Buffer.alloc(10 * 1024 * 1024 + 1),
+    );
+
+    expect(response.status).toBe(400);
+    expect((response.body as { message: string }).message).toMatch(/10MB/);
+    expect(await harness.prisma.profileDraft.count()).toBe(0);
+  });
+
+  test('chủ bản nháp mở file gốc thì được chuyển tới link tải trực tiếp', async () => {
+    const draftId = await uploadAndGetId(harness, user);
+    const draft = await harness.prisma.profileDraft.findUniqueOrThrow({
+      where: { id: draftId },
+    });
+
+    const response = await request(harness.server)
+      .get(`/api/profile-drafts/${draftId}/file`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .expect(302);
+
+    expect(response.headers.location).toBe(
+      `https://storage.test/download/${draft.storageKey}`,
+    );
   });
 
   test('nộp hai lần cùng tên file thì mỗi bản nháp giữ file gốc riêng', async () => {
@@ -296,7 +363,8 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
   });
 
   test('PDF scan bị từ chối NGAY tại request, kèm lý do đọc được', async () => {
-    const response = await uploadCv(harness, user, SCAN).expect(400);
+    const response = await uploadCv(harness, user, fixture(SCAN));
+    expect(response.status).toBe(400);
 
     const message = (response.body as { message: string }).message;
     expect(message).toMatch(/bản scan|ảnh chụp/i);
@@ -313,27 +381,34 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
   });
 
   test('file không phải PDF bị từ chối', async () => {
-    const response = await request(harness.server)
-      .post('/api/profile-drafts/cv')
-      .set('Authorization', `Bearer ${user.token}`)
-      .attach('file', Buffer.from('không phải PDF'), {
-        filename: 'cv.pdf',
-        contentType: 'application/pdf',
-      })
-      .expect(400);
+    const response = await uploadCv(
+      harness,
+      user,
+      Buffer.from('không phải PDF'),
+    );
 
+    expect(response.status).toBe(400);
     expect((response.body as { message: string }).message).toMatch(
       /không phải PDF|hỏng/i,
     );
   });
 
-  test('không nộp file thì báo rõ, không nổ 500', async () => {
+  test('xác nhận khi file chưa lên tới kho thì báo rõ, không nổ 500', async () => {
+    const issued = await request(harness.server)
+      .post('/api/profile-drafts/cv/upload-url')
+      .set('Authorization', `Bearer ${user.token}`)
+      .expect(201);
+    const { key } = issued.body as { key: string };
+
     const response = await request(harness.server)
       .post('/api/profile-drafts/cv')
       .set('Authorization', `Bearer ${user.token}`)
+      .send({ key, filename: CV })
       .expect(400);
 
-    expect((response.body as { message: string }).message).toMatch(/file/i);
+    expect((response.body as { message: string }).message).toMatch(
+      /chưa tải lên xong/,
+    );
   });
 
   test('model hỏng thì bản nháp FAILED và hồ sơ vẫn nguyên', async () => {
@@ -452,13 +527,9 @@ describe('Đọc CV thành đề xuất hồ sơ', () => {
     );
   });
 
-  test('không đăng nhập thì không nộp được', async () => {
+  test('không đăng nhập thì không xin được URL tải lên', async () => {
     await request(harness.server)
-      .post('/api/profile-drafts/cv')
-      .attach('file', fixture(CV), {
-        filename: CV,
-        contentType: 'application/pdf',
-      })
+      .post('/api/profile-drafts/cv/upload-url')
       .expect(401);
   });
 });

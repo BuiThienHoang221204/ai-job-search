@@ -55,6 +55,8 @@ export type TestApp = {
   google: FakeGoogleAuth;
   /// Bản giả cấp token Gemini Live - ghi lại cấu hình phiên, không gọi mạng thật tới Google.
   liveTokens: FakeLiveTokens;
+  /// Bản giả R2. Trình duyệt tải file thẳng lên kho qua URL ký sẵn, nên test "tải lên" bằng cách ghi vào `storage.files`.
+  storage: FakeStorage;
   /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
   ///
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
@@ -106,6 +108,7 @@ export async function createTestApp(
   const sandbox = new FakeSandbox();
   const google = new FakeGoogleAuth();
   const liveTokens = new FakeLiveTokens();
+  const storage = new FakeStorage();
 
   // Đặt TRƯỚC khi compile: `ConfigModule` đọc biến môi trường lúc dựng module,
   // nên đổi sau đó thì không có tác dụng. Không dùng `overrideGuard` được -
@@ -122,7 +125,7 @@ export async function createTestApp(
     .overrideProvider(GoogleAuthService)
     .useValue(google)
     .overrideProvider(STORAGE)
-    .useValue(new FakeStorage())
+    .useValue(storage)
     .overrideProvider(LiveTokenService)
     .useValue(liveTokens)
     .compile();
@@ -211,6 +214,7 @@ export async function createTestApp(
     sandbox,
     google,
     liveTokens,
+    storage,
     signUp,
     promoteToAdmin: async (userId: string): Promise<void> => {
       await prisma.user.update({
@@ -225,6 +229,7 @@ export async function createTestApp(
       sandbox.reset();
       google.reset();
       liveTokens.reset();
+      storage.files.clear();
     },
     close: async (): Promise<void> => {
       await app.close();

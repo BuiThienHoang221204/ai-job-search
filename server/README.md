@@ -790,6 +790,31 @@ docker run -d --name ai-job-server --network <mạng-có-postgres> \
   -p 4000:4000 ai-job-server
 ```
 
+### Cấu hình bucket R2 cho tải CV (làm một lần)
+
+Trình duyệt `PUT` file CV thẳng lên R2 qua URL ký sẵn, byte không đi qua server. Bucket cần hai thứ, thiếu thì tải CV hỏng ngay ở trình duyệt:
+
+1. **CORS** cho origin của frontend (dashboard R2 → Settings → CORS Policy, tab JSON):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://app.example.com", "http://localhost:3000"],
+       "AllowedMethods": ["GET", "PUT"],
+       "AllowedHeaders": ["Content-Type"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+2. **Luật vòng đời** xoá vùng tạm `cv-tmp/` sau 1 ngày — R2 không chặn kích thước lúc `PUT`, file bỏ dở hoặc quá cỡ nằm ở đây cho tới khi bị xoá:
+
+   ```bash
+   npx wrangler r2 bucket lifecycle add <R2_BUCKET> cv-tmp-expire cv-tmp/ --expire-days 1
+   ```
+
+**Bẫy đã gặp (2026-10-27):** `getSignedUrl` của AWS SDK v3 mặc định **không ký** header `content-type`, dù `PutObjectCommand` có `ContentType` — đo trên R2 thật, URL ký kiểu đó vẫn nhận `PUT` với `Content-Type: text/plain`. `R2Storage.uploadUrl` truyền `signableHeaders: new Set(['content-type'])` nên chữ ký gồm `content-type;host` và sai loại file thì R2 trả 403. Bỏ tuỳ chọn này là mất lớp chặn đó trong im lặng — test không bắt được vì e2e dùng `FakeStorage`.
+
 ### Vài điều trong image không hiển nhiên
 
 - **Node >= 22.12 là yêu cầu cứng**, đã khai trong `engines`. `ai` và `@ai-sdk/openai-compatible` là ESM thuần không có bản CommonJS, còn `nest build` xuất ra CommonJS — ứng dụng chạy được nhờ Node cho phép `require()` một module ESM, tính năng chỉ có từ 22.12. Image cũ hơn chết lúc khởi động với thông báo không liên quan gì tới nguyên nhân.

@@ -20,14 +20,17 @@ import {
   type Storage,
 } from '@/modules/storage/storage.interface';
 import { ProfileService } from '@/modules/profile/profile.service';
-import { CvPdfSource, type CvPdfInput } from '../cv-pdf.source';
+import { CvPdfSource, cvPdfErrorMessage } from '../cv-pdf.source';
+import { MAX_PDF_BYTES } from '../utils/pdf-text';
 import type { Evidence } from '../utils/evidence';
-import type { ApplyDraftDto } from '../profile-draft.dto';
+import type { ApplyDraftDto, ConfirmCvUploadDto } from '../profile-draft.dto';
 import {
   safeFilename,
   WITHOUT_EVIDENCE,
   type DraftView,
 } from '../utils/profile-draft.utils';
+
+const UPLOAD_PREFIX = 'cv-tmp';
 
 @Injectable()
 export class ProfileDraftService {
@@ -39,20 +42,46 @@ export class ProfileDraftService {
     @Inject(STORAGE) private readonly storage: Storage,
   ) {}
 
-  async createFromCv(
+  async uploadUrl(userId: string): Promise<{ key: string; url: string }> {
+    const key = `${UPLOAD_PREFIX}/${userId}/${randomUUID()}.pdf`;
+    const url = await this.storage.uploadUrl(key, 'application/pdf');
+    return { key, url };
+  }
+
+  async createFromUpload(
     userId: string,
-    input: CvPdfInput,
+    upload: ConfirmCvUploadDto,
     stream = false,
-  ): Promise<{ draftId: string; evidence: Evidence[] }> {
-    const evidence = await this.cvPdf.collect(input);
+  ) {
+    if (!upload.key.startsWith(`${UPLOAD_PREFIX}/${userId}/`)) {
+      throw new NotFoundException(
+        'Không tìm thấy file vừa tải lên. Hãy chọn lại file CV.',
+      );
+    }
+    const size = await this.storage.size(upload.key);
+    if (size === null) {
+      throw new BadRequestException(
+        'File CV chưa tải lên xong. Hãy chọn lại file rồi thử lại.',
+      );
+    }
+    if (size > MAX_PDF_BYTES) {
+      throw new BadRequestException(
+        'File quá lớn. Giới hạn là 10MB — một CV có lớp text thường dưới 2MB.',
+      );
+    }
+
+    const evidence = await this.collectCv(
+      await this.storage.read(upload.key),
+      upload.filename,
+    );
 
     const key = userKey(
       userId,
       'cv-uploads',
       randomUUID(),
-      safeFilename(input.filename),
+      safeFilename(upload.filename),
     );
-    await this.storage.write(key, input.data);
+    await this.storage.move(upload.key, key);
 
     const draft = await this.prisma.profileDraft.create({
       data: {
@@ -60,7 +89,7 @@ export class ProfileDraftService {
         status: 'PENDING',
         evidence: evidence as unknown as Prisma.InputJsonValue,
         storageKey: key,
-        filename: input.filename,
+        filename: upload.filename,
       },
     });
 
@@ -68,21 +97,32 @@ export class ProfileDraftService {
       await this.enqueue(userId, draft.id);
     }
 
-    return { draftId: draft.id, evidence };
+    return {
+      draftId: draft.id,
+      queued: !stream,
+      extracted: evidence.map((item) => item.meta),
+    };
   }
 
-  async file(
-    userId: string,
-    draftId: string,
-  ): Promise<{ data: Buffer; filename: string }> {
+  private async collectCv(data: Buffer, filename: string): Promise<Evidence[]> {
+    try {
+      return await this.cvPdf.collect({ data, filename });
+    } catch (error) {
+      const message = cvPdfErrorMessage(error);
+      if (message === null) throw error;
+      throw new BadRequestException(message);
+    }
+  }
+
+  async fileUrl(userId: string, draftId: string): Promise<string> {
     const draft = await this.get(userId, draftId);
     if (!draft.storageKey) {
       throw new NotFoundException('Bản nháp này không giữ file gốc.');
     }
-    return {
-      data: await this.storage.read(draft.storageKey),
-      filename: draft.filename ?? 'cv.pdf',
-    };
+    return this.storage.downloadUrl(
+      draft.storageKey,
+      draft.filename ?? 'cv.pdf',
+    );
   }
 
   async latest(userId: string): Promise<DraftView> {

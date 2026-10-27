@@ -12,7 +12,7 @@
 | 3 | Serper (Google Search API) | Tìm trang review công ty | Đi | [company-research](./modules/company-research.md#15-integrations) | `SERPER_API_KEY`, `SERPER_URL`, `SERPER_MAX_RESULTS` |
 | 4 | Web công khai (fetch HTML) | Đọc trang review công ty; bóc tin từ URL người dùng dán | Đi | [company-research](./modules/company-research.md), [documents](./modules/documents.md#15-integrations) | `AGENT_FETCH_TIMEOUT_MS`, `AGENT_FETCH_MAX_BYTES` |
 | 5 | Google Identity | Đăng nhập Google (kiểm ID token) | Đi | [auth](./modules/auth.md#15-integrations) | `GOOGLE_CLIENT_ID` (+ `NEXT_PUBLIC_GOOGLE_CLIENT_ID` ở FE) |
-| 6 | Cloudflare R2 (S3 API) | Lưu CV PDF gốc người dùng nộp | Đi | [platform-operations](./modules/platform-operations.md#15-integrations), [cv-import](./modules/cv-import.md) | `R2_*` |
+| 6 | Cloudflare R2 (S3 API) | Lưu CV PDF gốc người dùng nộp; trình duyệt PUT thẳng qua URL ký sẵn, mở file gốc qua URL GET ký sẵn *(2026-10-27)* | Đi + Đến (trình duyệt) | [platform-operations](./modules/platform-operations.md#15-integrations), [cv-import](./modules/cv-import.md) | `R2_*` |
 | 7 | `pdf-service` (Chromium) | In CV và thư xin việc từ HTML ra PDF | Đi | [documents](./modules/documents.md#15-integrations) | `PDF_SERVICE_URL` |
 | 8 | ~~`latex-service` (TeX Live)~~ | ĐÃ XÁC MINH KHÔNG CÒN TRONG CODE (2026-10-19) — ADR 0004 | — | — | — |
 | 9 | Docker CLI (sandbox) | Dự phòng cho 7 khi không đặt URL (máy dev) | Đi | [platform-operations](./modules/platform-operations.md#15-integrations) | `PDF_IMAGE` |
@@ -65,7 +65,7 @@ Cơ chế: `ModelChain` thử lần lượt các mắt xích trong ngân sách `
 | Portal | Toàn lượt lỗi | `ScrapeRun.status = FAILED` + `error`; không tự chạy lại |
 | Serper | Không key / lỗi | Không có nguồn → lưu bản `UNKNOWN`, hạn 60 ngày ([company-research.md#R3](./modules/company-research.md)) |
 | Google | ID token sai | 401 `Token Google không hợp lệ` |
-| R2 | Lỗi ghi | Request đọc CV hỏng (500); có thể để file mồ côi ([cv-import.md#R3](./modules/cv-import.md)) |
+| R2 | Lỗi ghi / chuyển file | Request xác nhận CV hỏng (500); có thể để file mồ côi ([cv-import.md#R3](./modules/cv-import.md)). PUT từ trình duyệt hỏng (CORS chưa cấu hình, mạng) → FE báo không tải được, không gọi bước xác nhận |
 | pdf-service | Lỗi dịch vụ | 422 khi xuất PDF ([documents.md#R7](./modules/documents.md)) |
 
 ## 4. Bảng suy giảm khi dịch vụ chết

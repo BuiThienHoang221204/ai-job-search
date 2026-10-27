@@ -32,12 +32,12 @@
 
 | # | Tính năng | Actor | Endpoint / cơ chế |
 |---|---|---|---|
-| F1 | Nộp CV PDF, rút text, tạo bản nháp | USER | `POST /api/profile-drafts/cv[?stream=true]` |
+| F1 | Nộp CV PDF: xin URL ký sẵn, trình duyệt PUT thẳng lên R2, xác nhận để rút text và tạo bản nháp *(2026-10-27)* | USER | `POST /api/profile-drafts/cv/upload-url`, `PUT <URL R2>`, `POST /api/profile-drafts/cv[?stream=true]` |
 | F2 | Đọc CV bằng model, trả từng phần (NDJSON) | USER | `POST /api/profile-drafts/:id/synthesize-stream` |
 | F3 | Đọc CV ở nền | Worker | hàng đợi `profile.synthesize` |
 | F4 | Xem bản nháp mới nhất | USER | `GET /api/profile-drafts/latest` |
 | F5 | Xem một bản nháp | USER | `GET /api/profile-drafts/:id` |
-| F6 | Mở file CV gốc | USER | `GET /api/profile-drafts/:id/file` |
+| F6 | Mở file CV gốc (chuyển tới link tải trực tiếp từ R2) *(2026-10-27)* | USER | `GET /api/profile-drafts/:id/file` |
 | F7 | Chạy lại bản nháp hỏng | USER | `POST /api/profile-drafts/:id/retry` |
 | F8 | Duyệt và áp dụng vào hồ sơ | USER | `PUT /api/profile-drafts/:id/apply` |
 | F9 | Dọn bản nháp kẹt | Hệ thống | `ReconcileService.failStuck` |
@@ -48,31 +48,32 @@
 
 **Preconditions:** đã đăng nhập; chưa vượt 10 lượt/phút (`@ThrottleAi`, đếm theo user).
 
-**Main Flow:**
-1. FE `/dashboard/profile/upload`: người dùng chọn file trong DropZone (`accept="application/pdf,.pdf"`, nhãn "PDF, tối đa 10MB") ([upload-cards.tsx:78](../../../../ui-ai-job-search/app/dashboard/profile/upload/upload-cards.tsx#L78)); `useCvUpload().upload` gửi multipart `file` tới `POST /api/profile-drafts/cv?stream=true` ([use-cv-upload.ts:86](../../../../ui-ai-job-search/hooks/use-cv-upload.ts#L86), [profile-draft.ts:5](../../../../ui-ai-job-search/services/profile-draft.ts#L5)).
-2. `FileInterceptor('file', { fileSize: 10MB, files: 1 })` nhận file vào bộ nhớ ([profile-draft.controller.ts:64](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L64)).
-3. Controller: không có file → 400; `mimetype !== 'application/pdf'` → 400 ([profile-draft.controller.ts:72](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L72)).
-4. `CvPdfSource.collect` → `extractPdfText`: kiểm lại ≤ 10MB; `pdf-parse` đọc tối đa **10 trang đầu**; PDF được coi là có lớp text khi trung bình ≥ **120 ký tự/trang** đã đọc ([pdf-text.ts:40](../../../server/src/modules/profile-sources/utils/pdf-text.ts#L40)). Không đạt → `ScannedPdfError` ([cv-pdf.source.ts:36](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L36)).
-5. Text cắt ở **40.000 ký tự**, ghi `meta = { pages, pagesRead, chars, truncated, bytes }` ([cv-pdf.source.ts:10](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L10)).
-6. `ProfileDraftService.createFromCv`: ghi file gốc vào Storage với khoá `<userId>/cv-uploads/<uuid>/<tên file đã làm sạch>` (mỗi lần nộp một khoá riêng) ([profile-draft.service.ts:48](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L48), [profile-draft.utils.ts:19](../../../server/src/modules/profile-sources/utils/profile-draft.utils.ts#L19)).
-7. Tạo `ProfileDraft { status: PENDING, evidence, storageKey, filename }` ([profile-draft.service.ts:56](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L56)).
-8. `stream=true` → **không** xếp hàng (client sẽ gọi Luồng B); ngược lại xếp `profile.synthesize { userId, draftId }` ([profile-draft.service.ts:66](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L66)).
-9. Trả **201** `{ draftId, queued, extracted: [meta] }` ([profile-draft.controller.ts:94](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L94)).
-10. FE gọi `GET /profile-drafts/:id` rồi ngay lập tức Luồng B ([use-cv-upload.ts:94](../../../../ui-ai-job-search/hooks/use-cv-upload.ts#L94)).
+**Main Flow** *(2026-10-27)* — byte của file **không đi qua máy chủ ứng dụng**:
+1. FE `/dashboard/profile/upload`: người dùng chọn file trong DropZone (`accept="application/pdf,.pdf"`, nhãn "PDF, tối đa 10MB") ([upload-cards.tsx:78](../../../../ui-ai-job-search/app/dashboard/profile/upload/upload-cards.tsx#L78)); `useCvUpload().upload` → `profileDraftService.uploadCv` ([use-cv-upload.ts](../../../../ui-ai-job-search/hooks/use-cv-upload.ts), [profile-draft.ts](../../../../ui-ai-job-search/services/profile-draft.ts)).
+2. `POST /api/profile-drafts/cv/upload-url` (`@ThrottleAi`): server sinh khoá tạm `cv-tmp/<userId>/<uuid>.pdf` và ký URL `PUT` của R2, hạn **5 phút**, chữ ký gồm `Content-Type: application/pdf` (gửi loại khác → R2 trả 403). Trả **201** `{ key, url }` ([profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts), [r2.storage.ts](../../../server/src/modules/storage/r2.storage.ts)).
+3. Trình duyệt `PUT` file thẳng lên URL đó (cần CORS trên bucket — §15).
+4. `POST /api/profile-drafts/cv?stream=true` body `{ key, filename }` (`ConfirmCvUploadDto`: `key` khớp `^cv-tmp/<id>/<uuid>.pdf$`, `filename` 1–255 ký tự).
+5. `ProfileDraftService.createFromUpload`: `key` không bắt đầu bằng `cv-tmp/<userId>/` của người gọi → **404**; `HeadObject` không thấy file → 400; kích thước > 10MB → 400 (R2 không chặn kích thước lúc `PUT` nên kiểm ở đây).
+6. Đọc file từ R2 (R2 → server) → `CvPdfSource.collect` → `extractPdfText`: `pdf-parse` đọc tối đa **10 trang đầu**; PDF được coi là có lớp text khi trung bình ≥ **120 ký tự/trang** đã đọc ([pdf-text.ts:40](../../../server/src/modules/profile-sources/utils/pdf-text.ts#L40)). Không đạt → `ScannedPdfError`; lỗi PDF đổi thành 400 ngay trong service.
+7. Text cắt ở **40.000 ký tự**, ghi `meta = { pages, pagesRead, chars, truncated, bytes }` ([cv-pdf.source.ts:10](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L10)).
+8. Chuyển file khỏi vùng tạm (`CopyObject` + `DeleteObject`) sang `<userId>/cv-uploads/<uuid>/<tên file đã làm sạch>`, rồi tạo `ProfileDraft { status: PENDING, evidence, storageKey, filename }`.
+9. `stream=true` → **không** xếp hàng (client sẽ gọi Luồng B); ngược lại xếp `profile.synthesize { userId, draftId }`.
+10. Trả **201** `{ draftId, queued, extracted: [meta] }`; FE gọi `GET /profile-drafts/:id` rồi ngay lập tức Luồng B.
 
-**Alternative Flow:** client không gửi `stream=true` → bản nháp được worker đọc (Luồng C); `queued: true`.
+**Alternative Flow:** client không gửi `stream=true` → bản nháp được worker đọc (Luồng C); `queued: true`. File bỏ dở (xin URL mà không xác nhận, hoặc bị từ chối ở bước 5–6) nằm ở `cv-tmp/` và bị luật vòng đời của bucket xoá sau 1 ngày.
 
-**Failure Flow** (đều **400**, không tạo bản nháp, không ghi Storage — trừ lỗi Storage/DB):
-- Không có file: `Chưa có file nào được nộp. Gửi dưới dạng multipart với tên trường "file".`
-- Sai mimetype: `Chỉ nhận file PDF. File vừa nộp khai là "<mimetype>".`
+**Failure Flow** (đều **400** trừ khi ghi khác, không tạo bản nháp):
+- Khoá không đúng dạng: `Mã file tải lên không hợp lệ. Hãy chọn lại file CV.`
+- Khoá thuộc người khác: **404** `Không tìm thấy file vừa tải lên. Hãy chọn lại file CV.`
+- File chưa lên tới kho: `File CV chưa tải lên xong. Hãy chọn lại file rồi thử lại.`
+- Quá 10MB: `File quá lớn. Giới hạn là 10MB — một CV có lớp text thường dưới 2MB.`
 - PDF scan: `File này là bản scan hoặc ảnh chụp, chưa đọc được. Hãy nộp bản PDF xuất trực tiếp từ Word, LaTeX hoặc Canva.`
 - PDF có mật khẩu: `File PDF này có mật khẩu. Hãy bỏ mật khẩu rồi nộp lại.`
-- PDF hỏng: `File không phải PDF hợp lệ, hoặc đã bị hỏng trong lúc tải lên.`
-- Quá 10MB (lọt qua multer): `File quá lớn. Giới hạn là 10MB — một CV có lớp text thường dưới 2MB.`; lỗi khác của pdf-parse: `Không đọc được file PDF này.` ([cv-pdf.source.ts:57](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L57)).
-- File vượt `fileSize` của multer → 413 do `@nestjs/platform-express` sinh (thông điệp mặc định của thư viện, chưa kiểm chứng nguyên văn).
+- PDF hỏng hoặc không phải PDF: `File không phải PDF hợp lệ, hoặc đã bị hỏng trong lúc tải lên.`; lỗi khác của pdf-parse: `Không đọc được file PDF này.` ([cv-pdf.source.ts:57](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L57)).
+- `PUT` lên R2 hỏng (mạng, CORS, sai `Content-Type`): FE báo `Không tải được CV lên. Kiểm tra mạng rồi thử lại.`, không gọi bước xác nhận.
 - Vượt trần → 429.
 
-**Postconditions:** một `ProfileDraft` `PENDING`, file gốc trong Storage; hồ sơ chưa đổi.
+**Postconditions:** một `ProfileDraft` `PENDING`, file gốc ở `<userId>/cv-uploads/…` trên Storage, vùng tạm đã xoá; hồ sơ chưa đổi.
 
 ### Luồng B — Đọc CV dạng stream (F2)
 
@@ -118,7 +119,7 @@
 1. Trang upload mở ra gọi song song `GET /api/profile` và `GET /api/profile-drafts/latest` ([use-cv-upload.ts:45](../../../../ui-ai-job-search/hooks/use-cv-upload.ts#L45)).
 2. `latest`: bản nháp mới nhất theo `createdAt` của user, **bất kể trạng thái** ([profile-draft.service.ts:87](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L87)); `GET /:id`: `findFirst({ id, userId })` ([profile-draft.service.ts:97](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L97)).
 3. Cả hai bỏ cột `evidence` (`omit: WITHOUT_EVIDENCE`) và đổi cột `error` thành `failureKind` (`withFailureKind`) trước khi trả **200** ([profile-draft.controller.ts:111](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L111), [failure-view.ts:4](../../../server/src/common/ai/failure-view.ts#L4)).
-4. `GET /:id/file`: đọc bản nháp (khoá user) → đọc Storage → trả PDF `inline`, `Content-Disposition: inline; filename*=UTF-8''<tên gốc>`, `Cache-Control: private, max-age=3600` ([profile-draft.controller.ts:116](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L116)).
+4. `GET /:id/file`: đọc bản nháp (khoá user) → **302** tới URL `GET` ký sẵn của R2, hạn 5 phút, kèm `response-content-disposition: inline; filename*=UTF-8''<tên gốc>`; trình duyệt tải thẳng từ R2 *(2026-10-27)* ([profile-draft.controller.ts](../../../server/src/modules/profile-sources/profile-draft.controller.ts)).
 
 **Alternative Flow:** chưa từng nộp → `latest` trả 404, FE coi là "chưa có CV" (`null`) ([use-latest-cv.ts:9](../../../../ui-ai-job-search/hooks/use-latest-cv.ts#L9)).
 
@@ -181,16 +182,18 @@
 
 ```mermaid
 flowchart TD
-    UP["POST /profile-drafts/cv"] --> F{"Có file?"}
-    F -- "Không" --> E1["400 Chưa có file nào được nộp..."]
-    F -- "Có" --> M{"mimetype application/pdf?"}
-    M -- "Không" --> E2["400 Chỉ nhận file PDF..."]
-    M -- "Có" --> P["pdf-parse 10 trang đầu"]
+    URL["POST /profile-drafts/cv/upload-url"] --> PUT["Trình duyệt PUT thẳng lên R2 (cv-tmp/)"]
+    PUT --> UP["POST /profile-drafts/cv {key, filename}"]
+    UP --> K{"key thuộc người gọi?"}
+    K -- "Không" --> E1["404 Không tìm thấy file vừa tải lên"]
+    K -- "Có" --> H{"HeadObject: có file, <= 10MB?"}
+    H -- "Không" --> E2["400 chưa tải lên xong / quá lớn"]
+    H -- "Có" --> P["Đọc từ R2, pdf-parse 10 trang đầu"]
     P --> PE{"Mật khẩu / hỏng / quá lớn?"}
     PE -- "Có" --> E3["400 thông điệp theo loại lỗi"]
     PE -- "Không" --> TL{"Trung bình >= 120 ký tự/trang?"}
     TL -- "Không" --> E4["400 File này là bản scan..."]
-    TL -- "Có" --> S["Ghi PDF vào Storage + tạo ProfileDraft PENDING"]
+    TL -- "Có" --> S["Chuyển file sang cv-uploads + tạo ProfileDraft PENDING"]
     S --> ST{"stream=true?"}
     ST -- "Có" --> R1["201, FE gọi synthesize-stream"]
     ST -- "Không" --> Q["Xếp profile.synthesize, 201"]
@@ -221,10 +224,16 @@ sequenceDiagram
     participant AI as AiService
     participant DB as Postgres
     U->>FE: Chọn file CV.pdf
-    FE->>API: POST /api/profile-drafts/cv?stream=true (multipart)
-    API->>DS: createFromCv(userId, file, stream=true)
+    FE->>API: POST /api/profile-drafts/cv/upload-url
+    API->>DS: uploadUrl(userId)
+    DS->>ST: ký URL PUT cv-tmp/userId/uuid.pdf (5 phút)
+    API-->>FE: 201 {key, url}
+    FE->>ST: PUT file (byte không qua API)
+    FE->>API: POST /api/profile-drafts/cv?stream=true {key, filename}
+    API->>DS: createFromUpload(userId, {key, filename}, stream=true)
+    DS->>ST: HeadObject + đọc file
     DS->>PDF: collect() rút text, kiểm lớp text
-    DS->>ST: write(userId/cv-uploads/uuid/tên)
+    DS->>ST: move(cv-tmp/… → userId/cv-uploads/uuid/tên)
     DS->>DB: create ProfileDraft PENDING (evidence)
     API-->>FE: 201 {draftId, queued:false, extracted}
     FE->>API: POST /api/profile-drafts/:id/synthesize-stream
@@ -304,13 +313,15 @@ sequenceDiagram
 
 ## 8. Validation Rules
 
-**Upload (controller + `extractPdfText`)**
+**Xác nhận tải lên — `ConfirmCvUploadDto` + `createFromUpload`** *(2026-10-27)*
 
 | Field | Ràng buộc | DTO/Schema | Lỗi trả về |
 |---|---|---|---|
-| `file` (multipart) | bắt buộc | `uploadCv` | 400 `Chưa có file nào được nộp. Gửi dưới dạng multipart với tên trường "file".` |
-| `file.mimetype` | `=== 'application/pdf'` | `uploadCv` | 400 `Chỉ nhận file PDF. File vừa nộp khai là "<mimetype>".` |
-| `file.size` | ≤ 10MB (multer `limits.fileSize`, `files: 1`) và kiểm lại trong `extractPdfText` | `FileInterceptor`, [pdf-text.ts:41](../../../server/src/modules/profile-sources/utils/pdf-text.ts#L41) | 413 (multer) hoặc 400 `File quá lớn. Giới hạn là 10MB — một CV có lớp text thường dưới 2MB.` |
+| `key` | khớp `^cv-tmp/[\w-]+/<uuid>.pdf$` | ConfirmCvUploadDto | 400 `Mã file tải lên không hợp lệ. Hãy chọn lại file CV.` |
+| `key` | bắt đầu bằng `cv-tmp/<userId của người gọi>/` | `createFromUpload` | 404 `Không tìm thấy file vừa tải lên. Hãy chọn lại file CV.` |
+| `filename` | chuỗi 1–255 ký tự | ConfirmCvUploadDto | 400 `Tên file phải từ 1 tới 255 ký tự` |
+| kích thước file trên R2 | có file và ≤ 10MB (`HeadObject`) | `createFromUpload` | 400 `File CV chưa tải lên xong…` / `File quá lớn…` |
+| `Content-Type` của lệnh PUT | `application/pdf` (nằm trong chữ ký URL) | R2 | 403 từ R2, FE báo không tải được |
 | nội dung PDF | đọc được, không mật khẩu, có lớp text | `CvPdfSource` | 400 (thông điệp ở Luồng A) |
 | `stream` (query) | `'true'` bật chế độ stream; giá trị khác coi như không stream | `uploadCv` | — |
 
@@ -349,9 +360,10 @@ Model trả sai schema → lượt đọc `FAILED` với `failureKind = SCHEMA` 
 
 | Method | URL | Role | Mục đích nghiệp vụ | Controller#method | Service | DTO | Response |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/profile-drafts/cv` | USER/ADMIN | Nộp CV PDF, rút text, tạo bản nháp (`?stream=true` không xếp hàng) | `ProfileDraftController#uploadCv` | `ProfileDraftService.createFromCv`, `CvPdfSource.collect` | multipart `file` | 201 `{ draftId, queued, extracted[] }` |
+| POST | `/api/profile-drafts/cv/upload-url` | USER/ADMIN (`@ThrottleAi`) | Xin URL ký sẵn để trình duyệt PUT CV thẳng lên R2 *(2026-10-27)* | `ProfileDraftController#uploadUrl` | `ProfileDraftService.uploadUrl` | — | 201 `{ key, url }` |
+| POST | `/api/profile-drafts/cv` | USER/ADMIN (`@ThrottleAi`) | Xác nhận file đã lên R2: rút text, tạo bản nháp (`?stream=true` không xếp hàng) *(2026-10-27)* | `#uploadCv` | `ProfileDraftService.createFromUpload`, `CvPdfSource.collect` | `ConfirmCvUploadDto` | 201 `{ draftId, queued, extracted[] }` |
 | GET | `/api/profile-drafts/latest` | USER/ADMIN | Bản nháp mới nhất | `#latest` | `ProfileDraftService.latest` | — | 200 bản nháp (không `evidence`, có `failureKind`) |
-| GET | `/api/profile-drafts/:id/file` | USER/ADMIN | Mở file CV gốc | `#file` | `ProfileDraftService.file` | — | 200 `application/pdf` inline |
+| GET | `/api/profile-drafts/:id/file` | USER/ADMIN | Mở file CV gốc *(2026-10-27)* | `#file` | `ProfileDraftService.fileUrl` | — | 302 tới URL `GET` ký sẵn của R2 (5 phút) |
 | GET | `/api/profile-drafts/:id` | USER/ADMIN | Xem một bản nháp | `#get` | `ProfileDraftService.get` | — | 200 bản nháp |
 | POST | `/api/profile-drafts/:id/synthesize-stream` | USER/ADMIN | Đọc CV bằng model, đẩy từng phần | `#synthesizeStream` | `ProfileSynthesizerService.streamSynthesize` | — | 200 NDJSON `partial`… `done` / `error` |
 | POST | `/api/profile-drafts/:id/retry` | USER/ADMIN | Chạy lại bản `FAILED` qua hàng đợi | `#retry` | `ProfileDraftService.retry` | — | 200 bản nháp `PENDING` |
@@ -434,8 +446,10 @@ stateDiagram-v2
 
 | Tình huống | HTTP | Thông điệp nguyên văn | Nguồn |
 |---|---|---|---|
-| Không có file | 400 | `Chưa có file nào được nộp. Gửi dưới dạng multipart với tên trường "file".` | [profile-draft.controller.ts:73](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L73) |
-| Sai mimetype | 400 | `Chỉ nhận file PDF. File vừa nộp khai là "<mimetype>".` | [profile-draft.controller.ts:79](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L79) |
+| Khoá tải lên sai dạng *(2026-10-27)* | 400 | `Mã file tải lên không hợp lệ. Hãy chọn lại file CV.` | [profile-draft.dto.ts](../../../server/src/modules/profile-sources/profile-draft.dto.ts) |
+| Khoá tải lên của người khác *(2026-10-27)* | 404 | `Không tìm thấy file vừa tải lên. Hãy chọn lại file CV.` | [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts) |
+| File chưa lên tới R2 *(2026-10-27)* | 400 | `File CV chưa tải lên xong. Hãy chọn lại file rồi thử lại.` | [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts) |
+| File trên R2 quá 10MB *(2026-10-27)* | 400 | `File quá lớn. Giới hạn là 10MB — một CV có lớp text thường dưới 2MB.` | [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts) |
 | PDF scan | 400 | `File này là bản scan hoặc ảnh chụp, chưa đọc được. Hãy nộp bản PDF xuất trực tiếp từ Word, LaTeX hoặc Canva.` | [cv-pdf.source.ts:59](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L59) |
 | PDF có mật khẩu | 400 | `File PDF này có mật khẩu. Hãy bỏ mật khẩu rồi nộp lại.` | [cv-pdf.source.ts:65](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L65) |
 | PDF hỏng | 400 | `File không phải PDF hợp lệ, hoặc đã bị hỏng trong lúc tải lên.` | [cv-pdf.source.ts:67](../../../server/src/modules/profile-sources/cv-pdf.source.ts#L67) |
@@ -467,7 +481,7 @@ Không có thông báo ra ngoài (email/push). Người dùng chỉ thấy tiế
 | Hệ thống | Mục đích | Cấu hình / ghi chú | Nguồn |
 |---|---|---|---|
 | `pdf-parse` (pdfjs) | Rút lớp text PDF | Tối đa 10 trang; lỗi `PasswordException`/`InvalidPDFException` được phân loại | [pdf-text.ts](../../../server/src/modules/profile-sources/utils/pdf-text.ts) |
-| Storage (Cloudflare R2, seam `STORAGE`) | Lưu/đọc file PDF gốc | `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | [storage.interface.ts](../../../server/src/modules/storage/storage.interface.ts), [configuration.ts:164](../../../server/src/config/configuration.ts#L164) |
+| Storage (Cloudflare R2, seam `STORAGE`) | Nhận file CV trực tiếp từ trình duyệt qua URL `PUT` ký sẵn; server `HeadObject`, đọc, chuyển file; trả link `GET` ký sẵn để mở file gốc *(2026-10-27)* | `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. **Cấu hình bucket bắt buộc khi deploy:** CORS cho phép `PUT`, `GET` từ origin frontend với header `Content-Type`; luật vòng đời xoá tiền tố `cv-tmp/` sau 1 ngày (`npx wrangler r2 bucket lifecycle add <BUCKET> cv-tmp-expire cv-tmp/ --expire-days 1`) | [storage.interface.ts](../../../server/src/modules/storage/storage.interface.ts), [configuration.ts:164](../../../server/src/config/configuration.ts#L164) |
 | `AiService` (`generateObject` / `streamObject`) | Gọi model sinh đề xuất; ghi `AiCall` với `purpose = profile.synthesize` | Chuỗi model và timeout theo module ai-platform | [profile-synthesizer.service.ts:48](../../../server/src/modules/profile-sources/services/profile-synthesizer.service.ts#L48) |
 | pg-boss — `profile.synthesize` | Đọc CV ở nền | concurrency 3, policy `exclusive`, `singletonKey = draftId` | [queue.defaults.ts:13](../../../server/src/modules/queue/queue.defaults.ts#L13), [queue-key.ts:70](../../../server/src/modules/queue/queue-key.ts#L70) |
 | Reconcile cron | Đánh hỏng bản nháp kẹt | `RECONCILE_CRON_SCHEDULE` (mặc định mỗi 10 phút), `STUCK_AFTER_MS` 10 phút | [reconcile.service.ts:26](../../../server/src/modules/reconcile/services/reconcile.service.ts#L26), [duration.ts:10](../../../server/src/common/duration.ts#L10) |
@@ -491,13 +505,13 @@ Không có thông báo ra ngoài (email/push). Người dùng chỉ thấy tiế
 
 **R2 — Không có chính sách lưu trữ/xoá CV.** Mức đề xuất: 🟡
 - Mô tả: mỗi lần nộp lưu vĩnh viễn PDF gốc (Storage) và toàn văn (`evidence` ≤ 40.000 ký tự) trong DB; không có endpoint xoá bản nháp/file, không cron dọn. Xoá `User` chỉ cascade bản ghi DB, file trên Storage vẫn còn.
-- Bằng chứng: [profile-draft.service.ts:54](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L54)-64; [schema.prisma:596](../../../server/prisma/schema.prisma#L596); [storage.interface.ts](../../../server/src/modules/storage/storage.interface.ts) chỉ có `read`/`write`.
+- Bằng chứng: [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts); [schema.prisma:596](../../../server/prisma/schema.prisma#L596); [storage.interface.ts](../../../server/src/modules/storage/storage.interface.ts) chưa có `delete` (vùng tạm `cv-tmp/` đã được luật vòng đời xoá sau 1 ngày, file chính thức thì chưa).
 - Tác động: dữ liệu cá nhân tích luỹ không giới hạn; không đáp ứng yêu cầu "xoá dữ liệu của tôi".
 - Đề xuất: thời hạn lưu + endpoint xoá; thêm `delete` vào seam Storage.
 
-**R3 — Ghi Storage trước khi tạo bản ghi DB.** Mức đề xuất: 🟢
-- Mô tả: file được ghi trước `profileDraft.create`; nếu tạo bản ghi lỗi thì file mồ côi, không ai trỏ tới.
-- Bằng chứng: [profile-draft.service.ts:54](../../../server/src/modules/profile-sources/services/profile-draft.service.ts#L54)-64.
+**R3 — Chuyển file khỏi vùng tạm trước khi tạo bản ghi DB.** Mức đề xuất: 🟢
+- Mô tả: file được chuyển sang `cv-uploads/` trước `profileDraft.create`; nếu tạo bản ghi lỗi thì file mồ côi ngoài vùng tạm, luật vòng đời không dọn.
+- Bằng chứng: [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts) (`createFromUpload`).
 - Tác động: rác trên Storage (hiếm).
 - Đề xuất: chấp nhận được; hoặc dọn khi DB lỗi.
 
@@ -518,6 +532,18 @@ Không có thông báo ra ngoài (email/push). Người dùng chỉ thấy tiế
 - Bằng chứng: [profile-draft.controller.ts:174](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L174)-180 so với [profile-draft.controller.ts:111](../../../server/src/modules/profile-sources/profile-draft.controller.ts#L111).
 - Tác động: không lộ dữ liệu (bản `DONE` có `error = null`), nhưng kiểu `ProfileDraftRecord` phía FE không khớp phản hồi.
 - Đề xuất: bọc `withFailureKind` cho đồng bộ.
+
+**R7 — R2 không chặn kích thước lúc `PUT` qua URL ký sẵn.** Mức đề xuất: 🟢 *(2026-10-27)*
+- Mô tả: R2 không hỗ trợ upload POST có policy giới hạn kích thước; URL `PUT` chỉ ký được `Content-Type`. Người cầm URL (đúng chủ tài khoản, trong 5 phút) có thể đẩy file rất lớn vào `cv-tmp/`.
+- Bằng chứng: tài liệu R2 *Presigned URLs* (`POST` không hỗ trợ); [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts) kiểm `HeadObject` ≤ 10MB trước khi đọc.
+- Tác động: file quá cỡ bị từ chối ở bước xác nhận và bị luật vòng đời xoá sau khoảng 1–2 ngày; tốn dung lượng tạm thời. Xin URL có `@ThrottleAi` (10 lượt/phút/người).
+- Đề xuất: chấp nhận; nếu bị lạm dụng thì hạ hạn mức xin URL hoặc giảm thời hạn URL.
+
+**R8 — Bấm xác nhận hai lần cùng một khoá.** Mức đề xuất: 🟢 *(2026-10-27)*
+- Mô tả: hai request xác nhận song song cùng `key` đều qua bước `HeadObject`; request chuyển file sau sẽ lỗi vì file tạm đã bị chuyển (500), hoặc nếu tới sau hẳn thì nhận 400 "chưa tải lên xong".
+- Bằng chứng: [profile-draft.service.ts](../../../server/src/modules/profile-sources/services/profile-draft.service.ts) (`createFromUpload`).
+- Tác động: chỉ xảy ra khi client gửi trùng; FE gửi một lần mỗi lượt chọn file.
+- Đề xuất: chấp nhận.
 
 ## 18. Source References
 

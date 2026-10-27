@@ -125,7 +125,7 @@ Lệch thì chạy lại `pnpm db:seed` — nó `ON CONFLICT DO UPDATE` nên đ�
 |---|---|---|
 | `Ai` — `modules/ai/ai.service.ts` | mọi lời gọi model; **không** gọi SDK trực tiếp | `src/testing/fake-ai.ts` |
 | `Queue` — `modules/queue/queue.service.ts` | mọi việc nền | `test/support/fake-queue.ts` |
-| `Storage` — `modules/storage/` | ghi file của người dùng (R2) | `src/testing/fake-storage.ts` — e2e override `STORAGE`, không bao giờ ghi lên R2 thật |
+| `Storage` — `modules/storage/` | file của người dùng trên R2: trình duyệt tải thẳng lên qua URL ký sẵn, server chỉ đọc/chuyển file và ký URL tải (bẫy ký `content-type`: `server/README.md`) | `src/testing/fake-storage.ts` — e2e override `STORAGE`, không bao giờ ghi lên R2 thật |
 | `SkillRegistry` — `modules/skills/` | nạp khung prompt từ `.claude/skills` | — |
 | `ProfileSource` — `modules/profile-sources/` | đọc hồ sơ từ nguồn ngoài | PDF thật ở `test/fixtures/` |
 | `SandboxRunner` — `modules/sandbox/` | chạy việc nặng trong container cách ly | `src/testing/fake-sandbox.ts` |
