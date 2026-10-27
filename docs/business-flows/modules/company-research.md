@@ -118,7 +118,7 @@
 1. `TAVILY_API_KEY` và `SERPER_API_KEY` cùng rỗng → `enabled = false` → không nguồn nào ([review-research.service.ts:21](../../../server/src/modules/companies/services/review-research.service.ts#L21)) *(2026-10-22)*.
 2. Chạy song song 3 truy vấn `briefQueries` ([company-brief.prompt.ts:47](../../../server/src/modules/companies/utils/company-brief.prompt.ts#L47)): `review công ty X`, `X đánh giá nhân viên môi trường làm việc`, `có nên làm việc tại X`. Mỗi truy vấn gọi **Tavily trước** (`POST TAVILY_URL`, `max_results=SERPER_MAX_RESULTS`, `search_depth=basic`, `country=vietnam`); Tavily HTTP lỗi (gồm 432 hết hạn mức tháng) hoặc ngoại lệ → gọi **Serper** (`POST SERPER_URL`, `gl=vn`, `hl=vi`, `num=SERPER_MAX_RESULTS`). Timeout mỗi lời gọi `AGENT_FETCH_TIMEOUT_MS`. Cả hai hỏng → `[]` (chỉ log) ([review-research.service.ts:26](../../../server/src/modules/companies/services/review-research.service.ts#L26)) *(2026-10-22)*.
 3. `pickReviewSources` ([review-sources.ts:87](../../../server/src/modules/companies/utils/review-sources.ts#L87)): bỏ URL không phải http/https, bỏ mạng xã hội (`BLOCKED_HOSTS`), bỏ đường dẫn tin tuyển dụng (`JOB_PATHS`), xếp ưu tiên theo `REVIEW_HOSTS` (itviec, reviewcongty, reviewtopcongty, glassdoor, topcv, vietnamworks, careerbuilder, careerlink, jobsgo, indeed) rồi theo thứ tự kết quả, mỗi tên miền một trang, tối đa 5.
-4. Đọc song song từng trang (`readPage`): HTTP ngoài 2xx, lỗi mạng, hoặc văn bản \< 400 ký tự → ghi vào `unreachable`. Trang đọc được → `trimToReviewText` (bỏ dòng giao diện cookie/điều khoản, giữ cửa sổ quanh từ khoá đánh giá xếp theo mật độ, tổng ≤ 5.000 ký tự).
+4. Đọc song song từng trang (`readPage`): HTTP ngoài 2xx, lỗi mạng, hoặc văn bản \< 400 ký tự → ghi vào `unreachable`. `pageToText` bỏ cả khối HTML có class `blur` (phần trang làm mờ chờ đăng nhập) trước khi bóc chữ *(2026-10-26)*. Trang đọc được → `trimToReviewText` (bỏ dòng giao diện cookie/điều khoản, giữ cửa sổ quanh từ khoá đánh giá xếp theo mật độ, tổng ≤ 5.000 ký tự).
 5. `pickSnippetSources`: tối đa 2 đoạn trích tìm kiếm từ facebook.com/threads.net, dài ≥ 60 ký tự, mỗi tên miền một đoạn ([review-sources.ts:59](../../../server/src/modules/companies/utils/review-sources.ts#L59)).
 6. Nguồn = trang đọc được + đoạn trích, đánh số 1..n trong prompt; đoạn trích được ghi chú "chỉ là đoạn trích ngắn".
 7. Sau khi model trả lời, `resolveSources` ánh xạ `usedSources[].index` về nguồn, bỏ số ngoài khoảng và số trùng, rồi nối thêm nguồn `unreachable` với `usedFor: null` ([company-brief.ts:141](../../../server/src/modules/companies/utils/company-brief.ts#L141)).
@@ -249,6 +249,7 @@ sequenceDiagram
 | BR-CMP-27 | Theo dõi công ty theo khoá `companyKeyOf` của tin (`POST { jobId }`), nên cùng một công ty ở nhiều portal chỉ là một lượt theo dõi; bấm lại trả bản đã có (bắt `P2002`); tin ẩn danh → 400; tối đa 50 công ty mỗi người → 400 *(2026-10-26)* | SV, DB | ✅ | [company-follow.service.ts](../../../server/src/modules/companies/services/company-follow.service.ts) |
 | BR-CMP-28 | Bỏ theo dõi khoá theo `{ id, userId }`; của người khác hoặc không có → 404 *(2026-10-26)* | SV | ✅ | [company-follow.service.ts](../../../server/src/modules/companies/services/company-follow.service.ts) |
 | BR-CMP-29 | `Job.companyKey` tính trong `derivedFields` khi ghi tin và khi "Tính lại toàn bộ"; tin cũ chỉ có khoá sau khi chạy lại *(2026-10-26)* | SV | ✅ | [resolve.ts](../../../server/src/modules/jobs/taxonomy/resolve.ts) |
+| BR-CMP-30 | Chữ nằm trong phần tử có class `blur` (kèm mọi thẻ con) không được đọc: đó là nội dung trang khoá sau đăng nhập, và ở ITviec là một review mẫu giống nhau cho mọi công ty *(2026-10-26)* | SV | ✅ | [html-text.ts](../../../server/src/common/web/html-text.ts) |
 
 > **Possible Business Rule:** Bản rỗng (khi Serper tắt hoặc không tìm thấy gì) có hạn 60 ngày như bản thật. Có thể chủ dự án muốn bản rỗng hết hạn sớm hơn để lần sau tự thử lại — cần xác nhận.
 
@@ -449,6 +450,12 @@ Tin mới của công ty đang theo dõi được gộp vào thông báo 07:30 c
 - Mô tả: `briefCall` đặt `context: { purpose: 'company.brief' }` không có `userId`, nên chi phí tìm hiểu công ty không quy được về người dùng trong trang thống kê admin.
 - Bằng chứng: [company-brief.prompt.ts:62](../../../server/src/modules/companies/utils/company-brief.prompt.ts#L62).
 - Đề xuất: truyền `userId` của người bấm (nếu cần đo theo người dùng).
+
+**R8 — Review mẫu bị làm mờ của ITviec lọt vào bản tìm hiểu.** ✅ **Đã sửa 2026-10-26** (mức cũ: 🟠)
+- `pageToText` bỏ khối có class `blur` trước khi bóc chữ ([html-text.ts](../../../server/src/common/web/html-text.ts)).
+- Mô tả: với khách chưa đăng nhập, trang `itviec.com/.../danh-gia` đặt trong `div.details-review.blur` CÙNG một review mẫu cho mọi công ty ("the manager always tries to increase my salary before I request", "training courses … celebrated by the CEO", "Boss is like a sun. Way too hot sometimes"). CSS làm mờ nó nhưng HTML vẫn chứa chữ, nên model đọc như review thật.
+- Bằng chứng: 8/29 bản trong DB dev ngày 2026-10-26 (ZIGExN, Money Forward, F88, Lampart, Aviron, CoverGo, FPT Software, FPT Corporation) có điểm tốt "quản lý chủ động tăng lương trước khi nhân viên yêu cầu", "khoá đào tạo do CEO tổ chức", điểm hạn chế "sếp quá nóng".
+- Tác động: điểm tốt/hạn chế sai hiển thị cho người dùng; sửa code không tự sửa bản đã lưu — 8 bản đó cần dựng lại.
 
 ## 18. Source References
 

@@ -24,13 +24,44 @@ export function htmlToText(html: string): string {
 const CHROME =
   /<(script|style|noscript|svg|nav|header|footer|form|select|template|iframe|button)\b[\s\S]*?<\/\1>/gi;
 
+const BLURRED =
+  /<([a-z][a-z0-9]*)\b[^>]*\bclass\s*=\s*(["'])(?:[^"']*\s)?blur(?:\s[^"']*)?\2[^>]*>/gi;
+
+function closingEnd(html: string, tag: string, from: number): number {
+  const tags = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi');
+  tags.lastIndex = from;
+  let depth = 1;
+  let match = tags.exec(html);
+  while (match) {
+    depth += match[1] ? -1 : 1;
+    if (depth === 0) return tags.lastIndex;
+    match = tags.exec(html);
+  }
+  return html.length;
+}
+
+function dropBlurred(html: string): string {
+  const kept: string[] = [];
+  let from = 0;
+  BLURRED.lastIndex = 0;
+  let open = BLURRED.exec(html);
+  while (open) {
+    kept.push(html.slice(from, open.index));
+    from = closingEnd(html, open[1], BLURRED.lastIndex);
+    BLURRED.lastIndex = from;
+    open = BLURRED.exec(html);
+  }
+  kept.push(html.slice(from));
+  return kept.join(' ');
+}
+
 const UNRENDERED = /\{\{|\}\}/;
 
 const DEDUPE_UNDER = 80;
 
-/** Bóc chữ một trang web: bỏ khung giao diện, khuôn Vue chưa render và dòng menu lặp. */
+/** Bóc chữ một trang web: bỏ khung giao diện, phần bị làm mờ chờ đăng nhập, khuôn Vue chưa render và dòng menu lặp. */
 export function pageToText(html: string): string {
-  const text = htmlToText(html.replace(CHROME, ' '));
+  const text = htmlToText(dropBlurred(html).replace(CHROME, ' '));
   const seen = new Set<string>();
   const lines: string[] = [];
 

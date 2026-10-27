@@ -31,6 +31,19 @@ describe('pageToText', () => {
     expect(pageToText(html)).toBe(`Xem chi tiết\n${dai}\n${dai}`);
   });
 
+  it('bỏ cả khối bị làm mờ chờ đăng nhập, kể cả thẻ lồng bên trong', () => {
+    const html = [
+      '<h3>Môi trường vui vẻ</h3>',
+      "<div class='details-review blur slight-blur'>",
+      '<div><p>Boss is like a sun.</p></div>',
+      '<div><p>The manager always tries to increase my salary.</p></div>',
+      '</div>',
+      '<div class="backdrop-blur"><p>Khuyến khích</p></div>',
+    ].join('');
+
+    expect(pageToText(html)).toBe('Môi trường vui vẻ\nKhuyến khích');
+  });
+
   it('trả chuỗi rỗng cho trang chỉ có khung', () => {
     expect(
       pageToText('<nav><a>Trang chủ</a></nav><script>var a=1</script>'),
