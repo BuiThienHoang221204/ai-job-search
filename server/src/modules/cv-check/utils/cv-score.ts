@@ -40,9 +40,9 @@ const METRIC_TARGET = 0.5;
 
 const GARBLED = /\(cid:\d+\)|�/;
 
-const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/;
+export const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/;
 
-const PHONE = /(?:\+?\d[\s.()-]?){9,13}\d/;
+export const PHONE = /(?:\+?\d[\s.()-]?){9,13}\d/;
 
 const ACTION_VERBS = [
   'xây dựng',
@@ -122,7 +122,7 @@ const SECTION_LABELS: Record<CvSection, string> = {
 const REQUIRED_SECTIONS: CvSection[] = ['experience', 'education', 'skills'];
 
 const GROUP_LABELS: Record<CheckGroup, string> = {
-  ats: 'Máy lọc đọc được',
+  ats: 'ATS đọc được',
   content: 'Nội dung',
   structure: 'Cấu trúc',
 };

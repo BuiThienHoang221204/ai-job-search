@@ -10,6 +10,7 @@ export const CV_CHECK_SYSTEM = [
   'Phần 1 — tách CV (để hệ thống tự chấm điểm, bạn KHÔNG chấm điểm):',
   '- sections: các mục CV có, trong experience, education, skills, projects, summary, certifications.',
   '- bullets: chép NGUYÊN VĂN từng gạch đầu dòng mô tả việc đã làm trong mục Kinh nghiệm và Dự án. Không sửa, không dịch, không tóm tắt. Gạch đầu dòng bị ngắt sang dòng sau thì nối lại bằng một dấu cách. Bỏ ký hiệu đầu dòng.',
+  '- name, jobs, education, skills: những gì máy lọc tách ra thành trường dữ liệu — họ tên; từng vị trí (chức danh, công ty, mốc thời gian); từng trường học (tên trường, ngành, mốc thời gian); từng kỹ năng. Chép NGUYÊN VĂN, không thấy thì null hoặc bỏ qua.',
   '',
   'Phần 2 — nhận xét toàn CV, viết tiếng Việt có dấu:',
   '- summary: 2-3 câu: CV hợp vị trí gì, điểm mạnh nhất, chỗ hụt lớn nhất. targetRole và level: vị trí và cấp độ CV đang hướng tới.',

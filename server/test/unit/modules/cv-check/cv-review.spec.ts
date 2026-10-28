@@ -95,4 +95,48 @@ describe('verifyReview', () => {
       'spelling',
     ]);
   });
+
+  test('trường máy lọc tách ra chỉ giữ chữ có thật trong CV, email và số điện thoại đọc bằng code', () => {
+    const text = [
+      'Nguyễn Văn An',
+      'an.nguyen@mail.com · 0901 234 567',
+      'Backend Developer — Công ty A — 03/2024 – nay',
+      'ĐH Bách khoa',
+      'NestJS, Redis',
+    ].join('\n');
+    const result = verifyReview(
+      cvReviewSchema.parse({
+        sections: [],
+        bullets: [],
+        name: 'Nguyễn Văn An',
+        jobs: [
+          {
+            title: 'Backend Developer',
+            company: 'Công ty A',
+            dates: '2024 – hiện tại',
+          },
+          { title: 'Tech Lead', company: 'Công ty B', dates: null },
+        ],
+        education: [
+          { school: 'ĐH Bách khoa', degree: 'Kỹ sư phần mềm', dates: null },
+        ],
+        skills: ['NestJS', 'Kubernetes', 'Redis'],
+        summary: 'Tóm tắt',
+        targetRole: 'Backend',
+        level: 'junior',
+        review: [],
+        ats: [],
+      }),
+      text,
+    );
+
+    expect(result.parsed).toEqual({
+      name: 'Nguyễn Văn An',
+      email: 'an.nguyen@mail.com',
+      phone: '0901 234 567',
+      jobs: [{ title: 'Backend Developer', company: 'Công ty A', dates: null }],
+      education: [{ school: 'ĐH Bách khoa', degree: null, dates: null }],
+      skills: ['NestJS', 'Redis'],
+    });
+  });
 });

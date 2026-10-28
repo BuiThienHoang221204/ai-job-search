@@ -51,6 +51,18 @@ const questionSchema = z.object({
   hint: cappedTextVi(400, 'Gợi ý ý chính nên trả lời.'),
 });
 
+const jobSchema = z.object({
+  title: cappedText(100, 'Chức danh, chép nguyên văn.'),
+  company: optionalCappedText(100, 'Tên công ty, chép nguyên văn.'),
+  dates: optionalCappedText(40, 'Mốc thời gian, chép nguyên văn.'),
+});
+
+const educationSchema = z.object({
+  school: cappedText(120, 'Tên trường, chép nguyên văn.'),
+  degree: optionalCappedText(120, 'Ngành hoặc bằng cấp, chép nguyên văn.'),
+  dates: optionalCappedText(40, 'Mốc thời gian, chép nguyên văn.'),
+});
+
 const atsSchema = z.object({
   key: looseEnum([...ATS_CHECKS, 'other'], 'other'),
   status: looseEnum(['pass', 'warn', 'fail'], 'warn'),
@@ -68,6 +80,21 @@ export const cvReviewSchema = z.object({
   ).describe(
     'Mọi gạch đầu dòng trong mục Kinh nghiệm và Dự án, chép nguyên văn.',
   ),
+  name: optionalCappedText(80, 'Họ tên ứng viên, chép nguyên văn.'),
+  jobs: z
+    .array(jobSchema)
+    .describe('Từng vị trí trong mục Kinh nghiệm.')
+    .transform((items) => items.slice(0, 8))
+    .default([]),
+  education: z
+    .array(educationSchema)
+    .describe('Từng trường trong mục Học vấn.')
+    .transform((items) => items.slice(0, 4))
+    .default([]),
+  skills: boundedList(
+    cappedText(50, 'Một kỹ năng, chép nguyên văn.'),
+    30,
+  ).default([]),
   summary: cappedTextVi(
     600,
     'Nhận xét chung 2-3 câu: CV hợp vị trí gì, điểm mạnh nhất, chỗ hụt lớn nhất.',

@@ -1,6 +1,7 @@
 import { holeUnknownNumbers } from '@/common/text/number-holes';
 import type { CvReviewOutput } from '../cv-check.schema';
 import { normalizeText } from './cv-lines';
+import { EMAIL, PHONE } from './cv-score';
 
 export const REVIEW_SECTIONS = [
   'contact',
@@ -45,11 +46,22 @@ export type CvReview = {
   strengths: string[];
   improvements: string[];
   questions: CvReviewOutput['questions'];
+  parsed: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    jobs: CvReviewOutput['jobs'];
+    education: CvReviewOutput['education'];
+    skills: string[];
+  };
 };
 
 const QUOTE_MARKS = /^["“”'‘’]+|["“”'‘’]+$/g;
 
-/** Giữ nhận xét của model trong khuôn: bỏ ý có câu trích không có thật trong CV, đục số tự đặt trong câu viết mẫu, gộp mục trùng và xếp mục theo thứ tự cố định. */
+const verbatim = (value: string | null, haystack: string) =>
+  value && haystack.includes(normalizeText(value)) ? value : null;
+
+/** Giữ nhận xét của model trong khuôn: bỏ ý có câu trích không có thật trong CV, đục số tự đặt trong câu viết mẫu, gộp mục trùng, xếp mục theo thứ tự cố định; trường máy lọc tách ra chỉ giữ chữ có nguyên văn trong CV, email và số điện thoại đọc bằng code. */
 export function verifyReview(output: CvReviewOutput, text: string): CvReview {
   const haystack = normalizeText(text);
   const sections: CvReview['sections'] = [];
@@ -90,5 +102,25 @@ export function verifyReview(output: CvReviewOutput, text: string): CvReview {
     strengths: output.strengths,
     improvements: output.improvements,
     questions: output.questions,
+    parsed: {
+      name: verbatim(output.name, haystack),
+      email: EMAIL.exec(text)?.[0] ?? null,
+      phone: PHONE.exec(text)?.[0].trim() ?? null,
+      jobs: output.jobs
+        .filter((job) => verbatim(job.title, haystack))
+        .map((job) => ({
+          title: job.title,
+          company: verbatim(job.company, haystack),
+          dates: verbatim(job.dates, haystack),
+        })),
+      education: output.education
+        .filter((item) => verbatim(item.school, haystack))
+        .map((item) => ({
+          school: item.school,
+          degree: verbatim(item.degree, haystack),
+          dates: verbatim(item.dates, haystack),
+        })),
+      skills: output.skills.filter((skill) => verbatim(skill, haystack)),
+    },
   };
 }

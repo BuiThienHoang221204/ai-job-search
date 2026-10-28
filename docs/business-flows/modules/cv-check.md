@@ -41,9 +41,9 @@
 1. FE `/dashboard/cv-check`: người dùng chọn PDF (≤ 10 MB, kiểm ở trình duyệt). `readPdfText` (pdf.js) đọc tối đa 10 trang, nối chữ theo dòng; chữ cắt ở 40.000 ký tự rồi gửi `POST /api/cv-check { text, pages, pagesRead }` ([cv-check-view.tsx](../../../../ui-ai-job-search/app/dashboard/cv-check/cv-check-view.tsx), [pdf-browser.ts](../../../../ui-ai-job-search/lib/pdf-browser.ts)).
 2. Trung bình < 120 ký tự/trang đã đọc → chấm nhanh, `reason: no-text`, không giữ lượt, không gọi model.
 3. `GuestQuotaService.claim(HMAC(IP), ngày VN)`: giữ lượt trần tổng (`cv-check-total`/`all`, 50) trước; hết → `daily-limit`. Rồi giữ lượt của khách (`cv-check-guest`/HMAC, 4); hết → trả lại lượt tổng, `guest-limit`. Mỗi lần giữ là một câu `INSERT … ON CONFLICT DO UPDATE … WHERE count < trần RETURNING count` ([guest-quota.service.ts](../../../server/src/modules/cv-check/guest-quota.service.ts)).
-4. Có lượt → một lời gọi model (`guest.cvCheck`, bể fast, 90 giây mỗi model, `redactResponse`): `sections`, `bullets` chép nguyên văn (≤ 60), và phần nhận xét: `summary`, `targetRole`, `level`, `review` (từng mục CV: `verdict` ok/fix/missing, `note`, ≤ 4 `issues` mỗi mục, mỗi issue có `quote` nguyên văn và `rewrite`), `ats` (5 điểm: `readingOrder`, `headings`, `dates`, `jobTitles`, `spelling`; pass/warn/fail), `strengths` và `improvements` (mỗi bên ≤ 3), `questions` (≤ 4 câu hỏi phỏng vấn dự đoán: câu hỏi, chủ đề, độ khó, lý do, gợi ý trả lời) *(sửa 2026-10-27)*.
+4. Có lượt → một lời gọi model (`guest.cvCheck`, bể fast, 90 giây mỗi model, `redactResponse`): `sections`, `bullets` chép nguyên văn (≤ 60), các trường máy lọc tách ra (`name`, `jobs` ≤ 8 gồm chức danh/công ty/mốc thời gian, `education` ≤ 4, `skills` ≤ 30; *thêm 2026-10-28*), và phần nhận xét: `summary`, `targetRole`, `level`, `review` (từng mục CV: `verdict` ok/fix/missing, `note`, ≤ 4 `issues` mỗi mục, mỗi issue có `quote` nguyên văn và `rewrite`), `ats` (5 điểm: `readingOrder`, `headings`, `dates`, `jobTitles`, `spelling`; pass/warn/fail), `strengths` và `improvements` (mỗi bên ≤ 3), `questions` (≤ 4 câu hỏi phỏng vấn dự đoán: câu hỏi, chủ đề, độ khó, lý do, gợi ý trả lời) *(sửa 2026-10-27)*.
 5. `keepVerbatim` giữ gạch đầu dòng ≥ 10 ký tự có thật trong chữ CV (so sau khi gộp khoảng trắng, không phân biệt hoa thường). Không còn dòng nào → lấy dòng do `segmentByLayout` tách.
-5a. `verifyReview` bỏ issue có `quote` không có thật trong chữ CV, đục số trong `rewrite` không có trong `quote` thành `[__]`, gộp mục/điểm ATS trùng, bỏ mục lạ, xếp theo thứ tự cố định *(2026-10-27)*.
+5a. `verifyReview` bỏ issue có `quote` không có thật trong chữ CV, đục số trong `rewrite` không có trong `quote` thành `[__]`, gộp mục/điểm ATS trùng, bỏ mục lạ, xếp theo thứ tự cố định *(2026-10-27)*. Trả thêm `review.parsed`: trường máy lọc tách ra chỉ giữ chữ có nguyên văn trong CV, vị trí/trường học có chức danh/tên trường không khớp thì bỏ cả mục; `email`, `phone` đọc bằng regex của code *(2026-10-28)*.
 6. `scoreCv` chấm 8 phép kiểm (§7), trả `{ score, groups, checks, flags (3 phép mất nhiều điểm nhất), mode: 'ai', reason: null, review, aiRemaining }`.
 
 **Alternative Flow:** không giữ được lượt → `segmentByLayout` (dòng có ký hiệu đầu dòng, tiêu đề mục ≤ 40 ký tự khớp từ khoá Việt/Anh) rồi chấm, `mode: 'quick'`, `review: null`, kèm `reason`.
@@ -107,6 +107,9 @@ sequenceDiagram
 | BR-CVC-05 | File không rời trình duyệt; máy chủ chỉ nhận chữ ≤ 40.000 ký tự, không lưu; `ai_calls` của khách không lưu `responseText` *(2026-10-27)* | FE, SV | ✅ | [pdf-browser.ts](../../../../ui-ai-job-search/lib/pdf-browser.ts), [ai-call-log.ts](../../../server/src/modules/ai/services/ai-call-log.ts) |
 | BR-CVC-06 | Thẻ chia sẻ chỉ có điểm và tên các lỗi, không thứ hạng, không tên người; link luôn mở trang Phân tích CV, của người đã đăng nhập kèm `?ref=<mã giới thiệu>` *(2026-10-27)* | FE | ⚠️ Chỉ frontend | [cv-share.tsx](../../../../ui-ai-job-search/app/dashboard/cv-check/cv-share.tsx) |
 | BR-CVC-07 | Nhận xét của AI chỉ giữ ý có câu trích nguyên văn trong CV (hoặc không trích); câu viết mẫu không được mang số liệu mới — số không có trong đoạn trích thành `[__]` *(2026-10-27)* | SV | 🔒 Cứng | [cv-review.ts](../../../server/src/modules/cv-check/utils/cv-review.ts) |
+| BR-CVC-08 | "ATS đọc ra gì" (`review.parsed`) chỉ hiện chữ có nguyên văn trong CV; email và số điện thoại do code đọc, không qua model *(2026-10-28)* | SV | 🔒 Cứng | [cv-review.ts](../../../server/src/modules/cv-check/utils/cv-review.ts) |
+| BR-CVC-09 | Bố cục nhiều cột/bảng đo trong trình duyệt từ toạ độ chữ của pdf.js (≥ 8 dòng và ≥ 20% số dòng cùng bắt đầu ở một mép trái nằm quá 25% bề ngang trang); kết quả thay mục `readingOrder` của AI, không tính điểm, không gửi lên máy chủ; CV dán chữ thì không đo *(2026-10-28)* | FE | ⚠️ Chỉ frontend | [pdf-browser.ts](../../../../ui-ai-job-search/lib/pdf-browser.ts) |
+| BR-CVC-10 | "Xem phân tích mẫu" hiện báo cáo của một CV giả định viết sẵn ở FE, không gọi API, không tốn lượt; khi xem mẫu ẩn nút Chia sẻ *(2026-10-28)* | FE | ⚠️ Chỉ frontend | [cv-check.ts](../../../../ui-ai-job-search/lib/cv-check.ts) |
 
 ## 8. Validation Rules
 
@@ -201,7 +204,7 @@ Không có.
 **R4 — CV dán chữ không kiểm được file PDF.** Mức đề xuất: 🟢 *(2026-10-27)*
 - Mô tả: tab "Dán văn bản CV" gửi chữ với số trang ước theo độ dài; ba tiêu chí "File có lớp chữ", "Không có ký tự hỏng", "Độ dài 1–2 trang" khi đó nói về chữ đã dán chứ không về file người dùng sẽ nộp.
 - Bằng chứng: [use-cv-check.ts](../../../../ui-ai-job-search/hooks/use-cv-check.ts) (`runText`, `pagesOfText`).
-- Tác động: điểm nhóm "Máy lọc đọc được" có thể cao hơn thực tế với CV là ảnh quét.
+- Tác động: điểm nhóm "ATS đọc được" có thể cao hơn thực tế với CV là ảnh quét.
 - Đề xuất: giao diện đã ghi rõ ở tab dán chữ; nếu cần thì gửi kèm cờ nguồn để backend bỏ qua ba tiêu chí này.
 
 ## 18. Source References

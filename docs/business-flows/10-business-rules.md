@@ -546,6 +546,9 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-CVC-05 | File không rời trình duyệt; máy chủ chỉ nhận chữ ≤ 40.000 ký tự, không lưu; `ai_calls` của khách không lưu `responseText` *(2026-10-27)* | FE, SV | ✅ |
 | BR-CVC-06 | Thẻ chia sẻ chỉ có điểm và tên các lỗi, không thứ hạng, không tên người; link luôn mở trang Phân tích CV, của người đã đăng nhập kèm `?ref=<mã giới thiệu>` *(2026-10-27)* | FE | ⚠️ Chỉ frontend |
 | BR-CVC-07 | Nhận xét của AI chỉ giữ ý có câu trích nguyên văn trong CV (hoặc không trích); câu viết mẫu không được mang số liệu mới — số không có trong đoạn trích thành `[__]` *(2026-10-27)* | SV | 🔒 Cứng |
+| BR-CVC-08 | "ATS đọc ra gì" (`review.parsed`) chỉ hiện chữ có nguyên văn trong CV; email và số điện thoại do code đọc, không qua model *(2026-10-28)* | SV | 🔒 Cứng |
+| BR-CVC-09 | Bố cục nhiều cột/bảng đo trong trình duyệt từ toạ độ chữ của pdf.js (≥ 8 dòng và ≥ 20% số dòng cùng bắt đầu ở một mép trái nằm quá 25% bề ngang trang); kết quả thay mục `readingOrder` của AI, không tính điểm, không gửi lên máy chủ; CV dán chữ thì không đo *(2026-10-28)* | FE | ⚠️ Chỉ frontend |
+| BR-CVC-10 | "Xem phân tích mẫu" hiện báo cáo của một CV giả định viết sẵn ở FE, không gọi API, không tốn lượt; khi xem mẫu ẩn nút Chia sẻ *(2026-10-28)* | FE | ⚠️ Chỉ frontend |
 
 ### Referrals — Mời bạn bè — [modules/referrals.md](./modules/referrals.md#7-business-rules)
 
