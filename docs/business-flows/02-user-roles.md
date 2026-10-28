@@ -86,7 +86,7 @@ Bảng `users` **không có cột trạng thái** (không có khoá/kích hoạt
 
 | Frontend | Ai dùng | Cách chặn | Mức |
 |---|---|---|---|
-| `ui-ai-job-search` (Careelot, :3000) | Khách + USER + ADMIN | `SessionProvider` gọi `/auth/me`; khách chỉ vào được `/dashboard/jobs`, `/dashboard/salary`, `/salary/*`, `/login`, `/register` | ⚠️ Chỉ FE (backend vẫn chặn bằng guard) |
+| `ui-ai-job-search` (Careelot, :3000) | Khách + USER + ADMIN | `SessionProvider` gọi `/auth/me`; khách chỉ vào được các trang `isGuestPath` (`/dashboard` trang chào, việc làm, thị trường, tra cứu lương, Phân tích CV); `/login`, `/register` chỉ chuyển về trang chủ và mở modal *(sửa 2026-10-27)* | ⚠️ Chỉ FE (backend vẫn chặn bằng guard) |
 | `ui-admin-job-search` (:3001) | ADMIN | `AdminGate` chỉ render console khi `role = ADMIN`; tài khoản USER thấy "Tài khoản này không có quyền quản trị." nhưng không bị đăng xuất | ⚠️ Chỉ FE; mọi route admin vẫn có `RolesGuard` |
 
 ## Source References

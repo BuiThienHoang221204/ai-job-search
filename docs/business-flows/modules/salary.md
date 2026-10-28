@@ -64,11 +64,11 @@
 - **Main Flow:**
   1. `GET /api/salary/positions/:slug` ([salary.controller.ts:32](../../../server/src/modules/salary/salary.controller.ts#L32)).
   2. `findFirst({ positionSlug: slug, visibility: 'PUBLIC' })` kèm `bands` ([salary.service.ts:111](../../../server/src/modules/salary/salary.service.ts#L111)).
-  3. Trả: `positionSlug, positionName, occupationCode, occupationName, provider: 'x-interview'` (cố định), `providerUrl = sourceUrl`, `updatedAt = fetchedAt`, `sampleSize: null`, `currency, avgMonthly, rangeMin, rangeMax`, `bands` xếp theo mốc kinh nghiệm (Dưới 1 năm → 1–3 → 3–5 → Trên 5; nhãn lạ xuống cuối) ([salary-view.ts](../../../server/src/modules/salary/utils/salary-view.ts)).
+  3. Trả: `positionSlug, positionName, occupationCode, occupationName`, `currency, avgMonthly, rangeMin, rangeMax`, `bands` xếp theo mốc kinh nghiệm (Dưới 1 năm → 1–3 → 3–5 → Trên 5; nhãn lạ xuống cuối) ([salary-view.ts](../../../server/src/modules/salary/utils/salary-view.ts)).
   4. `peers`: mọi vị trí PUBLIC cùng ngành có `avgMonthly`, sắp giảm dần; trả top 6 kèm hạng toàn ngành, và nếu vị trí đang xem không lọt top thì nối thêm nó với hạng thật, đánh dấu `isCurrent` ([salary.service.ts:138](../../../server/src/modules/salary/salary.service.ts#L138), [salary-view.ts:28](../../../server/src/modules/salary/utils/salary-view.ts#L28)).
 - **Alternative Flow:** vị trí không có ngành → `peers = []`.
 - **Failure Flow:** không có bản ghi PUBLIC → `404 "Không có dữ liệu lương cho vị trí này"`; FE `loadSalaryPosition` nuốt lỗi và gọi `notFound()` ([salary-detail.tsx](../../../../ui-ai-job-search/components/salary/salary-detail.tsx)).
-- **Postconditions:** không ghi gì. FE luôn hiện dải ghi nguồn "Nguồn: x-interview · cập nhật \<ngày\>" kèm link `providerUrl`.
+- **Postconditions:** không ghi gì. FE luôn hiện dải "Số liệu chỉ mang tính tham khảo…"; không hiện tên hay link nguồn *(sửa 2026-10-27)*.
 
 ### Luồng D — Khung lương đàm phán trong chi tiết tin (F4)
 - **Preconditions:** người dùng đăng nhập mở `GET /api/jobs/:id` (xem [jobs.md](./jobs.md)).
@@ -156,7 +156,7 @@ sequenceDiagram
     else có
         S->>DB: findMany cùng ngành, avgMonthly ≠ null
         S-->>N: chi tiết + bands + peers
-        N-->>B: HTML (nguồn x-interview + link)
+        N-->>B: HTML (kèm dải chỉ mang tính tham khảo)
     end
 ```
 
@@ -189,7 +189,7 @@ sequenceDiagram
 | BR-SAL-07 | Ba route `/salary/*` mở cho khách và giới hạn 60 lượt/phút | GD | ✅ Mềm | [salary.controller.ts:10](../../../server/src/modules/salary/salary.controller.ts#L10) |
 | BR-SAL-08 | Danh sách vị trí trả tối đa 1.000 dòng, chỉ các trường trong danh sách trắng, sắp lương TB giảm rồi tên | SV | ✅ Mềm | [salary.service.ts:91](../../../server/src/modules/salary/salary.service.ts#L91) |
 | BR-SAL-09 | Danh mục ngành sắp theo số vị trí có dữ liệu giảm dần | SV | ✅ Mềm | [salary.service.ts:75](../../../server/src/modules/salary/salary.service.ts#L75) |
-| BR-SAL-10 | Chi tiết luôn ghi nguồn (`provider`, `providerUrl`, `updatedAt = fetchedAt`) và `sampleSize = null` (không bịa cỡ mẫu) | SV | ✅ Mềm | [salary.service.ts:120](../../../server/src/modules/salary/salary.service.ts#L120) |
+| BR-SAL-10 | Chi tiết KHÔNG trả tên, link nguồn hay ngày lấy số (đã gỡ `provider`, `providerUrl`, `updatedAt`, `sampleSize`); giao diện chỉ ghi số liệu mang tính tham khảo *(sửa 2026-10-27)* | SV | ✅ Mềm | [salary.service.ts](../../../server/src/modules/salary/salary.service.ts) |
 | BR-SAL-11 | Mốc kinh nghiệm hiển thị theo thứ tự thời gian (Dưới 1 năm, 1–3, 3–5, Trên 5), nhãn lạ xuống cuối | SV | ✅ Mềm | [salary-view.ts:10](../../../server/src/modules/salary/utils/salary-view.ts#L10) |
 | BR-SAL-12 | Bảng cùng ngành: top 6 theo lương TB, hạng tính trên toàn ngành; vị trí đang xem luôn có mặt | SV | ✅ Mềm | [salary-view.ts:28](../../../server/src/modules/salary/utils/salary-view.ts#L28) |
 | BR-SAL-13 | Ghép tin với vị trí lương: cùng ngành, tỉ lệ token khớp ≥ 0,8 và ≥ 2 token; hoà điểm thì chọn tên vị trí cụ thể hơn | SV | ✅ Mềm | [job-position.ts:71](../../../server/src/modules/salary/utils/job-position.ts#L71) |
@@ -228,7 +228,7 @@ sequenceDiagram
 |---|---|---|---|---|---|---|---|
 | GET | `/api/salary/occupations` | Public (60/phút) | Ngành có dữ liệu lương | `SalaryController#occupations` | `SalaryService.occupations` | — | `{ code, name, positionCount }[]` |
 | GET | `/api/salary/positions` | Public (60/phút) | Danh sách vị trí + khoảng lương | `SalaryController#positions` | `SalaryService.positions` | `ListPositionsQueryDto` | `{ positionSlug, positionName, occupationCode, occupationName, avgMonthly, rangeMin, rangeMax, currency }[]` (≤ 1.000) |
-| GET | `/api/salary/positions/:slug` | Public (60/phút) | Chi tiết một vị trí | `SalaryController#position` | `SalaryService.position`, `peers` | — | `{ positionSlug, positionName, occupationCode, occupationName, provider, providerUrl, updatedAt, sampleSize, currency, avgMonthly, rangeMin, rangeMax, bands[], peers[] }` / 404 |
+| GET | `/api/salary/positions/:slug` | Public (60/phút) | Chi tiết một vị trí | `SalaryController#position` | `SalaryService.position`, `peers` | — | `{ positionSlug, positionName, occupationCode, occupationName, currency, avgMonthly, rangeMin, rangeMax, bands[], peers[] }` / 404 |
 
 **Endpoint ở module khác tác động lên / dùng module này**
 
@@ -244,10 +244,10 @@ sequenceDiagram
 |---|---|---|---|
 | `/salary` | — | Chuyển hướng vào `/dashboard/salary` (từ 2026-10-19, R1) | [app/salary/page.tsx](../../../../ui-ai-job-search/app/salary/page.tsx) |
 | `/salary/[slug]` | — | Chuyển hướng vào `/dashboard/salary/[slug]` (từ 2026-10-19, R1) | [app/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/salary/%5Bslug%5D/page.tsx) |
-| `/dashboard/salary` | USER (không nằm trong `isGuestPath`, khách bị đưa về đăng nhập — R1) | Tra cứu lương trong khung dashboard (noindex) | [app/dashboard/salary/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/page.tsx) → [salary-list.tsx](../../../../ui-ai-job-search/components/salary/salary-list.tsx), [salary-browser.tsx](../../../../ui-ai-job-search/components/salary/salary-browser.tsx) |
-| `/dashboard/salary/[slug]` | USER | Chi tiết lương một vị trí; trang thị trường link tới đây theo `salarySlug` | [app/dashboard/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/%5Bslug%5D/page.tsx) → [salary-detail.tsx](../../../../ui-ai-job-search/components/salary/salary-detail.tsx), [salary-bar.tsx](../../../../ui-ai-job-search/components/salary/salary-bar.tsx) |
+| `/dashboard/salary` | Khách, USER (nằm trong `isGuestPath` từ 2026-10-27) | Tra cứu lương; Google index (`robots: index`, ghi đè `noindex` của khung dashboard) | [app/dashboard/salary/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/page.tsx) |
+| `/dashboard/salary/[slug]` | Khách, USER | Chi tiết lương một vị trí, Google index; không có vị trí thì `notFound()`; trang thị trường link tới đây theo `salarySlug` *(sửa 2026-10-27)* | [app/dashboard/salary/[slug]/page.tsx](../../../../ui-ai-job-search/app/dashboard/salary/%5Bslug%5D/page.tsx) |
 | `/dashboard/jobs/[id]` (khối khung lương) | USER | Khung đàm phán `salaryGuide` | [salary-guide-panel.tsx](../../../../ui-ai-job-search/app/dashboard/jobs/%5Bid%5D/salary-guide-panel.tsx) |
-| sitemap | Bot tìm kiếm | Liệt kê `/salary` và mọi `/salary/<slug>` (revalidate 24h) | `app/sitemap.ts` (đã xoá 2026-10-19) |
+| sitemap | Bot tìm kiếm | Liệt kê `/dashboard/salary` và mọi `/dashboard/salary/<slug>` *(thêm lại 2026-10-27)* | [app/sitemap.ts](../../../../ui-ai-job-search/app/sitemap.ts) |
 | API client | — | `fetch` từ server component tới `BACKEND_URL/api/salary/*`, `revalidate: 3600` | [services/salary.ts](../../../../ui-ai-job-search/services/salary.ts) |
 
 Thuật ngữ UI ↔ backend: "Tra cứu lương" = `/salary/positions`; "Khoảng lương phổ biến" = `rangeMin–rangeMax`; "Lương trung bình" = `avgMonthly`; mốc "Dưới 1 năm…" = `SalaryReferenceBand.experienceLabel`; "Khung lương/đàm phán" = `salaryGuide` (`floor/target/ceiling`).
@@ -260,7 +260,7 @@ Thuật ngữ UI ↔ backend: "Tra cứu lương" = `/salary/positions`; "Khoả
 |---|---|---|
 | `id` | cuid | PK |
 | `source` | String | hiện chỉ `x-interview`; cột cho phép rút cả nguồn |
-| `sourceUrl` | String | trả ra dưới tên `providerUrl` |
+| `sourceUrl` | String | chỉ lưu nội bộ, không trả ra API *(2026-10-27)* |
 | `fetchedAt` | DateTime | trả ra dưới tên `updatedAt` |
 | `visibility` | `SalaryRefVisibility` mặc định `INTERNAL` | |
 | `industrySlug`, `positionSlug`, `positionName` | String | slug theo nguồn |
@@ -338,6 +338,7 @@ Không có. Module chỉ đọc; không có sự kiện nào đẩy cho người
 ## 17. ⚠️ Sai lệch / Rủi ro nghiệp vụ
 
 ### R1 — Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index
+- *(2026-10-27)* **Chủ dự án quyết định mở công khai trở lại:** `/dashboard/salary` và từng vị trí vào `isGuestPath`, Google index, có trong sitemap; đồng thời gỡ tên và link nguồn khỏi API và giao diện (BR-SAL-10). Rủi ro điều khoản của x-interview vì thế tăng chứ không giảm: dữ liệu của họ được đăng lại không ghi nguồn và cạnh tranh thứ hạng tìm kiếm với chính họ. Mức đề xuất giữ 🟠.
 - *(2026-10-19)* **Đã làm phương án (a), rủi ro giảm nhưng chưa hết:** bỏ `sitemap.ts`, trang `/salary` và `/salary/:slug` chuyển hướng vào `/dashboard/salary` (có `noindex` từ layout dashboard), `/dashboard/salary` không còn là trang khách (`isGuestPath`). **Còn lại:** API `/api/salary/*` vẫn `@Public`, và HTML server-render của trang dashboard vẫn chứa dữ liệu trước khi FE chuyển khách về đăng nhập. Muốn khoá hẳn phải chuyển trang lương sang lấy dữ liệu phía trình duyệt kèm phiên đăng nhập.
 - **Mô tả:** toàn bộ bảng lương lấy bằng crawler từ x-interview.com, hiện cho khách ở `/salary/*` và liệt kê trong sitemap. ADR 0006 ghi điều khoản x-interview cấm *"trích xuất… tin tuyển dụng bằng công cụ tự động"* và họ là đối thủ trực tiếp; chưa có ADR nào xét riêng việc crawl và công bố **bảng lương** của họ. Script tự mô tả là "thesis research".
 - **Bằng chứng:** [crawl-salary-reference.mjs](../../../server/scripts/crawl-salary-reference.mjs) (UA, `BASE = 'https://x-interview.com'`), [salary.service.ts:125](../../../server/src/modules/salary/salary.service.ts#L125), `app/sitemap.ts` (đã xoá 2026-10-19), [ADR 0006](../../adr/0006-dieu-khoan-portal.md).
@@ -350,13 +351,13 @@ Không có. Module chỉ đọc; không có sự kiện nào đẩy cho người
 - **Bằng chứng:** grep `salary` trong `server/test/*.e2e-spec.ts` chỉ ra các trường `salaryMin/salaryMax` của jobs; [unit/modules/salary/](../../../server/test/unit/modules/salary/salary.service.spec.ts).
 - **Tác động:** `@Public()` hoặc `@Throttle` bị gỡ nhầm sẽ không có test đỏ; trang `/salary` (SEO) gãy âm thầm vì `loadSalaryPosition` nuốt lỗi thành 404.
 - **Đề xuất:** thêm một e2e gọi 3 route không token, kèm kiểm bản `INTERNAL` không lọt ra.
-- **Mức đề xuất:** 🟡
+- **Mức đề xuất:** ✅ **Đã sửa 2026-10-27** — [salary.e2e-spec.ts](../../../server/test/salary.e2e-spec.ts) gọi cả 3 route không token, kiểm bản `INTERNAL` không lọt ra và chi tiết không trả tên/link nguồn.
 
 ### R3 — Nguồn bị ghi cứng, chi tiết đọc theo slug không kèm nguồn
-- **Mô tả:** `position()` dùng `findFirst({ positionSlug })` trong khi khoá duy nhất là `(source, positionSlug)`, và luôn trả `provider: 'x-interview'` thay vì `row.source`.
+- **Mô tả:** `position()` dùng `findFirst({ positionSlug })` trong khi khoá duy nhất là `(source, positionSlug)`, (trước 2026-10-27 còn luôn trả `provider: 'x-interview'`; nay không trả nguồn nữa).
 - **Bằng chứng:** [salary.service.ts:112-125](../../../server/src/modules/salary/salary.service.ts#L112), [schema.prisma:1220](../../../server/prisma/schema.prisma#L1220).
 - **Tác động:** hiện chỉ có một nguồn nên đúng; thêm nguồn thứ hai trùng slug thì chi tiết lấy bản ghi bất kỳ và ghi sai nguồn.
-- **Đề xuất:** khi thêm nguồn thứ hai, trả `row.source` và xác định thứ tự ưu tiên nguồn.
+- **Đề xuất:** khi thêm nguồn thứ hai, xác định thứ tự ưu tiên nguồn.
 - **Mức đề xuất:** 🟢
 
 ### R4 — Khung đàm phán đọc toàn bộ bảng lương mỗi lần mở chi tiết tin

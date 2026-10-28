@@ -4,6 +4,7 @@ import type { ZodType } from 'zod';
 export type AiCallContext = {
   purpose: string;
   userId?: string;
+  redactResponse?: boolean;
 };
 
 export type GenerateObjectOptions<T> = {
@@ -15,6 +16,7 @@ export type GenerateObjectOptions<T> = {
   fallbackModelIds?: string[];
   maxRetries?: number;
   timeoutMs?: number;
+  maxOutputTokens?: number;
 };
 
 export type StreamTextResult = ReturnType<typeof streamText>;

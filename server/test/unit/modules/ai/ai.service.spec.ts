@@ -20,6 +20,7 @@ type GenerateObjectArgs = {
   model: { id: string };
   system: string;
   maxRetries: number;
+  maxOutputTokens?: number;
   abortSignal?: AbortSignal;
 };
 
@@ -336,6 +337,20 @@ describe('AiService.generateObject - chuỗi dự phòng khi hết hạn mức',
       ['b-free', true],
     ]);
     expect(recorded[0].failureKind).toBe('UPSTREAM');
+  });
+
+  test('trần token đầu ra của chỗ gọi đi xuống SDK ở mọi mắt xích', async () => {
+    generateObjectMock
+      .mockRejectedValueOnce(rateLimit('a-free'))
+      .mockResolvedValueOnce({ object: { diem: 5 }, usage: {} });
+
+    const { service } = build({ fallbackModelIds: ['b-free'] });
+
+    await service.generateObject({ ...call('a-free'), maxOutputTokens: 6000 });
+
+    expect(
+      generateObjectMock.mock.calls.map((_, i) => argsOf(i).maxOutputTokens),
+    ).toEqual([6000, 6000]);
   });
 });
 

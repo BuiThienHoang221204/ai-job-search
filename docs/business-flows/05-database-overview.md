@@ -38,6 +38,7 @@ PostgreSQL 17 + extension `vector` (pgvector) và `pg_trgm`. 29 model Prisma, kh
 | 27 | `queue_configs` | QueueConfig | Nền tảng | [platform-operations](./modules/platform-operations.md#11-database) | Concurrency/serial từng hàng đợi |
 | 28 | `push_subscriptions` | PushSubscription | Phát triển | [upskill](./modules/upskill.md#11-database) | Thiết bị nhận thông báo đẩy |
 | 29 | `company_follows` | CompanyFollow | Ứng tuyển | [company-research](./modules/company-research.md#11-database) | Công ty người dùng theo dõi *(2026-10-26)* |
+| 30 | `usage_counters` | UsageCounter | Nền tảng | [cv-check](./modules/cv-check.md#11-database) | Bộ đếm hạn mức theo ngày (lượt AI của khách), không khoá ngoại *(2026-10-27)* |
 | — | schema `pgboss` | (pg-boss) | Nền tảng | [platform-operations](./modules/platform-operations.md) | Bảng job/queue của pg-boss, không có model Prisma |
 
 ## 2. ER Diagram

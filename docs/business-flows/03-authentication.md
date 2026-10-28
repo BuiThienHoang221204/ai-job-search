@@ -71,7 +71,7 @@ sequenceDiagram
 
 - Axios `withCredentials: true`; interceptor gặp 401 thì gọi `POST /auth/refresh` **một lần dùng chung** cho mọi request đang chờ, rồi chạy lại request gốc một lần; không áp cho `/auth/refresh`, `/auth/login`, `/auth/register` ([ui-ai-job-search/lib/axios.ts](../../../ui-ai-job-search/lib/axios.ts), [ui-admin-job-search/lib/axios.ts](../../../ui-admin-job-search/lib/axios.ts)).
 - Route stream dùng `fetch` (không qua interceptor): 401 thì báo `Phiên đăng nhập đã hết hạn.` ([model-stream.ts](../../../ui-ai-job-search/lib/model-stream.ts)).
-- `SessionProvider` gọi `/auth/me`; khách chỉ ở lại được các trang `isGuestPath`, còn lại chuyển `/login?next=…`; `next` chỉ nhận đường dẫn nội bộ (BR-AUTH-23).
+- `SessionProvider` gọi `/auth/me`; khách chỉ ở lại được các trang `isGuestPath` (`/dashboard` — trang chào, việc làm, thị trường, tra cứu lương, phân tích CV), còn lại chuyển `/login?next=…`, đường dẫn này chuyển tiếp về `/dashboard?auth=login&next=…` và mở modal đăng nhập (không còn trang đăng nhập riêng, *2026-10-27*); `next` chỉ nhận đường dẫn nội bộ (BR-AUTH-23). Đăng nhập qua modal gọi `SessionProvider.refresh` và `resetQueries` thay cho tải lại trang *(2026-10-27)*.
 - Admin: `AdminGate` chặn console khi `role ≠ ADMIN`.
 
 ## 6. Auth realtime

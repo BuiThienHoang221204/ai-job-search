@@ -1,6 +1,6 @@
 # Referrals — Mời bạn bè
 
-> **Phạm vi:** `server/src/modules/referrals/**` (`ReferralsController`, `ReferralsService`, `referrals.utils.ts`); các cột `users.referralCode`, `referredById`, `referralRewardedAt`, `bonusVoiceMinutes`. Điểm chạm ở module khác: đăng ký (`AuthService`), ghi hồ sơ (`ProfileService.save`), mở buổi giọng nói (`VoiceSessionService.open`). Frontend: thẻ "Mời bạn bè" ở `/dashboard/settings`, dòng lời mời ở `/register?ref=`.
+> **Phạm vi:** `server/src/modules/referrals/**` (`ReferralsController`, `ReferralsService`, `referrals.utils.ts`); các cột `users.referralCode`, `referredById`, `referralRewardedAt`, `bonusVoiceMinutes`. Điểm chạm ở module khác: đăng ký (`AuthService`), ghi hồ sơ (`ProfileService.save`), mở buổi giọng nói (`VoiceSessionService.open`). Frontend: thẻ "Mời bạn bè" ở `/dashboard/settings`, dòng lời mời ở `/register?ref=` và trong modal đăng ký khi trang mở bằng `?ref=` (link chia sẻ của Phân tích CV) *(2026-10-27)*.
 > **Nguyên tắc:** tài liệu mô tả hệ thống **as-is**. Code là nguồn sự thật duy nhất.
 
 ## 1. Purpose
@@ -99,7 +99,9 @@ sequenceDiagram
 | Route FE | Vai trò | Mục đích | Hook / API client |
 |---|---|---|---|
 | `/dashboard/settings` — thẻ "Mời bạn bè" ([referral-card.tsx](../../../../ui-ai-job-search/app/dashboard/settings/referral-card.tsx)) *(2026-10-26)* | USER | Chép link mời, xem số bạn đã tham gia, phút thưởng còn lại | `useReferrals` ([hooks/use-referrals.ts](../../../../ui-ai-job-search/hooks/use-referrals.ts)) |
-| `/register?ref=` ([register-view.tsx](../../../../ui-ai-job-search/app/register/register-view.tsx)) *(2026-10-26)* | Khách | Dòng lời mời phía trên form; mã gửi kèm đăng ký email và Google | `authService.register`, `authService.google` |
+| `/register?ref=` → `/dashboard?auth=register&ref=` ([login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx)) *(2026-10-26, sửa 2026-10-27)* | Khách | Modal tạo tài khoản mở trên trang chủ, dòng lời mời phía trên form; mã gửi kèm đăng ký email và Google | `authService.register`, `authService.google` |
+| Modal đăng ký trên trang có `?ref=` ([login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx)) *(2026-10-27)* | Khách | Link chia sẻ kết quả Phân tích CV là `/dashboard/cv-check?ref=<mã>`: khách phân tích CV trước, bấm đăng ký thì modal hiện dòng lời mời và gửi mã kèm đăng ký | `RegisterForm` (`referral`) |
+| Nút "Chia sẻ" ở chi tiết tin ([job-share-button.tsx](../../../../ui-ai-job-search/app/dashboard/jobs/[id]/job-share-button.tsx)) *(2026-10-28)* | Khách, USER | Link `/dashboard/jobs?job=<id>`; người đã đăng nhập thì kèm `&ref=<mã>`, bạn bè mở tin rồi đăng ký trong modal là được ghi người mời | `jobShareUrl` ([public-job.ts](../../../../ui-ai-job-search/lib/public-job.ts)), `useReferrals` |
 
 ## 11. Database
 

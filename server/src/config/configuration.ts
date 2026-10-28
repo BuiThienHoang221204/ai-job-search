@@ -198,6 +198,13 @@ const configuration = () => ({
     bulletRewriteDailyLimit: int('CV_BULLET_REWRITE_DAILY_LIMIT', 20),
   },
 
+  cvCheck: {
+    aiPerGuestPerDay: int('CV_CHECK_AI_PER_GUEST_PER_DAY', 10),
+    aiPerDay: int('CV_CHECK_AI_PER_DAY', 100),
+    guestKeySecret:
+      process.env.GUEST_KEY_SECRET ?? process.env.JWT_SECRET ?? '',
+  },
+
   storage: {
     r2Endpoint: process.env.R2_ENDPOINT ?? '',
     r2Bucket: process.env.R2_BUCKET ?? '',

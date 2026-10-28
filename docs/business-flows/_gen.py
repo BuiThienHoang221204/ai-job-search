@@ -8,7 +8,7 @@ MOD = ROOT / "modules"
 
 ORDER = ["auth", "profile", "cv-import", "jobs", "job-scraping", "matching", "applications",
          "documents", "interview-prep", "question-bank", "mock-interview", "upskill",
-         "company-research", "salary", "market", "referrals", "dashboard", "admin-console", "ai-platform", "platform-operations"]
+         "company-research", "salary", "market", "cv-check", "referrals", "dashboard", "admin-console", "ai-platform", "platform-operations"]
 
 
 def section(text, num):
@@ -219,6 +219,7 @@ OWN = {
     "DELETE /api/learning/:key": "`deleteMany {userId, skillKey}`",
     "GET /api/dashboard": "mọi truy vấn lọc `userId`",
     "GET /api/dashboard/skill-gaps": "`userId`",
+    "POST /api/cv-check": "không đọc dữ liệu người dùng; trần AI theo HMAC(IP) và trần tổng",
 }
 
 
@@ -234,6 +235,7 @@ THR = {
     "POST /api/matches/evaluate": "ThrottleAi 10/phút",
     "POST /api/matches/evaluate-stream/:jobId": "ThrottleAi 10/phút",
     "POST /api/matches/requirements/:jobId": "ThrottleAi 10/phút",
+    "POST /api/cv-check": "10/10 phút theo IP",
 }
 
 

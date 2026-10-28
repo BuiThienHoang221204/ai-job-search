@@ -210,6 +210,7 @@ export class AiService implements Ai {
         system: this.systemFor(options, structuredOutputs),
         prompt: options.prompt,
         maxRetries: options.maxRetries ?? 2,
+        maxOutputTokens: options.maxOutputTokens,
         abortSignal: AbortSignal.timeout(
           options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         ),

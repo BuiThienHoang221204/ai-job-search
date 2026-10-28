@@ -42,7 +42,9 @@ export class AiCallLog {
           cachedTokens: entry.cachedTokens ?? null,
           outputTokens: entry.outputTokens ?? null,
           finishReason: entry.finishReason ?? null,
-          responseText: entry.responseText ?? null,
+          responseText: entry.context.redactResponse
+            ? null
+            : (entry.responseText ?? null),
         },
       });
     } catch (error) {

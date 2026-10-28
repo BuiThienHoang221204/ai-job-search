@@ -119,7 +119,7 @@ describe('SalaryService', () => {
     ]);
   });
 
-  it('báo rõ số đến từ nguồn ngoài và không bịa ra cỡ mẫu', async () => {
+  it('không trả tên hay link của nguồn dữ liệu ra ngoài', async () => {
     const { prisma } = fakePrisma({
       findFirst: jest.fn(() =>
         Promise.resolve({
@@ -141,9 +141,8 @@ describe('SalaryService', () => {
       'marketing-seo-executive',
     );
 
-    expect(result.provider).toBe('x-interview');
-    expect(result.providerUrl).toBe('https://example.test/seo');
-    expect(result.sampleSize).toBeNull();
+    expect(result).not.toHaveProperty('provider');
+    expect(JSON.stringify(result)).not.toContain('example.test');
   });
 });
 

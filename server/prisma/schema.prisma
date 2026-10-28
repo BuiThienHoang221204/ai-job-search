@@ -947,6 +947,22 @@ enum AiFailureKind {
   OTHER
 }
 
+/// Bộ đếm hạn mức theo ngày (giờ Việt Nam). Tăng bằng một câu
+/// `INSERT ... ON CONFLICT DO UPDATE ... WHERE count < trần RETURNING` để hai
+/// request song song không thể cùng lọt qua trần. Không khoá ngoại: `key` là
+/// HMAC của IP khách hoặc 'all' cho trần tổng, không phải bản ghi nào.
+model UsageCounter {
+  scope     String
+  key       String
+  day       DateTime @db.Date
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([scope, key, day])
+  @@index([day])
+  @@map("usage_counters")
+}
+
 /// Mỗi lần gọi model, kể cả lần hỏng.
 ///
 /// `modelId` đã nằm rải rác ở 5 bảng kết quả, nhưng những lần HỎNG thì không để

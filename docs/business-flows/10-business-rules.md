@@ -165,7 +165,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-29 | Mọi đường ghi tin phải lấy trọn bộ cột dẫn xuất từ `derivedFields`. | SV | ✅ |
 | BR-JOB-30 | Backfill mặc định chỉ xử lý tin `searchText IS NULL`; `all=true` tính lại toàn bộ, lô 500, tuần tự. | SV | ✅ |
 | BR-JOB-31 | Một tin là duy nhất theo `(source, externalId)`. | DB | 🔒 |
-| BR-JOB-32 | Khách bấm "Việc làm phù hợp" bị chặn ở FE với lời mời đăng nhập; mọi nút, mục sidebar và thẻ hành động cần tài khoản mở modal đăng nhập/đăng ký ngay trên trang (không chuyển sang `/login`), đăng nhập xong nạp lại đúng trang hoặc tới mục đã bấm. *(2026-10-23)* | FE | ⚠️ |
+| BR-JOB-32 | Khách bấm "Việc làm phù hợp" bị chặn ở FE với lời mời đăng nhập; mọi nút, mục sidebar và thẻ hành động cần tài khoản mở modal đăng nhập/đăng ký ngay trên trang (không chuyển sang `/login`), đăng nhập xong **làm mới phiên và dữ liệu tại chỗ, không tải lại trang** (trạng thái đang có như bảng điểm CV còn nguyên), rồi tới mục đã bấm nếu có *(2026-10-27)*. *(2026-10-23)* | FE | ⚠️ |
 | BR-JOB-33 | `since=<ISO>` (chỉ người đã đăng nhập) lọc `scrapedAt ≥ since` — tin lần đầu được quét sau mốc đó; là link trong thông báo "tin mới" *(2026-10-25)*. | SV | ✅ |
 | BR-JOB-34 | Báo tin mới mỗi sáng (`JOB_ALERT_CRON_SCHEDULE`, mặc định 07:30 giờ VN): chỉ người đã bật `User.jobNotifications` (mặc định TẮT) và có thiết bị đăng ký Web Push; mỗi người tối đa một lần một ngày nhờ giành chỗ `updateMany where jobAlertSentAt < 00:00 VN hôm nay`; đếm bằng đúng `whereFrom(scored)` của "Việc làm phù hợp" cộng `scrapedAt > lần báo trước` (lần đầu: 24 giờ); không có tin mới thì không gửi; nội dung nêu 2 tin mới nhất và số còn lại; thông báo sống 12 giờ. Không gọi AI. *(2026-10-25)* Từ 2026-10-26 gộp thêm tin mới (`scrapedAt > lần báo trước`) của công ty đang theo dõi, **không qua cổng ngành**: dòng "Công ty bạn theo dõi: N tin mới từ A, B và K công ty khác."; chỉ có tin của công ty theo dõi thì link mở `?followed=1&since=…`. | SV (cron) | ✅ |
 | BR-JOB-35 | `followed=true` (cần đăng nhập) chỉ trả tin có `companyKey` thuộc công ty người gọi đang theo dõi, không qua cổng ngành; khách gửi tham số này nhận 400 vì `PublicJobsQueryDto` không có nó *(2026-10-26)* | SV | ✅ |
@@ -507,7 +507,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-SAL-07 | Ba route `/salary/*` mở cho khách và giới hạn 60 lượt/phút | GD | ✅ Mềm |
 | BR-SAL-08 | Danh sách vị trí trả tối đa 1.000 dòng, chỉ các trường trong danh sách trắng, sắp lương TB giảm rồi tên | SV | ✅ Mềm |
 | BR-SAL-09 | Danh mục ngành sắp theo số vị trí có dữ liệu giảm dần | SV | ✅ Mềm |
-| BR-SAL-10 | Chi tiết luôn ghi nguồn (`provider`, `providerUrl`, `updatedAt = fetchedAt`) và `sampleSize = null` (không bịa cỡ mẫu) | SV | ✅ Mềm |
+| BR-SAL-10 | Chi tiết KHÔNG trả tên, link nguồn hay ngày lấy số (đã gỡ `provider`, `providerUrl`, `updatedAt`, `sampleSize`); giao diện chỉ ghi số liệu mang tính tham khảo *(sửa 2026-10-27)* | SV | ✅ Mềm |
 | BR-SAL-11 | Mốc kinh nghiệm hiển thị theo thứ tự thời gian (Dưới 1 năm, 1–3, 3–5, Trên 5), nhãn lạ xuống cuối | SV | ✅ Mềm |
 | BR-SAL-12 | Bảng cùng ngành: top 6 theo lương TB, hạng tính trên toàn ngành; vị trí đang xem luôn có mặt | SV | ✅ Mềm |
 | BR-SAL-13 | Ghép tin với vị trí lương: cùng ngành, tỉ lệ token khớp ≥ 0,8 và ≥ 2 token; hoà điểm thì chọn tên vị trí cụ thể hơn | SV | ✅ Mềm |
@@ -534,6 +534,18 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-MKT-06 | Không trả tên công ty, chỉ số công ty khác nhau; không gọi model *(2026-10-26)* | SV | ✅ |
 | BR-MKT-07 | Không so với 30 ngày trước: kho mới quét đầy đủ gần đây nên số kỳ trước thấp giả (193 so với 739 tin IT, đo 2026-10-26) *(2026-10-26)* | SV | ✅ |
 | BR-MKT-08 | Route công khai throttle 60 lượt/phút/IP; trang Next làm mới mỗi ngày *(2026-10-26)* | GD, FE | ✅ |
+
+### CV Check — Phân tích CV cho khách — [modules/cv-check.md](./modules/cv-check.md#7-business-rules)
+
+| Mã | Quy tắc | Nơi thực thi | Mức |
+|---|---|---|---|
+| BR-CVC-01 | Điểm = tổng 8 phép kiểm bằng code: lớp chữ 15, không ký tự hỏng 10, email + số điện thoại 5; tỉ lệ dòng có số liệu 20 (đủ điểm từ 50%), mở đầu bằng động từ hành động 15, dòng ≤ 35 chữ 10; đủ mục Kinh nghiệm/Học vấn/Kỹ năng 15 (5 mỗi mục), 1–2 trang 10 *(2026-10-27)* | SV | ✅ |
+| BR-CVC-02 | Model không chấm điểm; schema không có trường điểm. Gạch đầu dòng model trả chỉ được tính khi có thật trong chữ CV *(2026-10-27)* | SV | 🔒 Cứng |
+| BR-CVC-03 | Mỗi khách (HMAC-SHA256 của IP) 4 lượt AI/ngày, toàn bộ khách 50 lượt/ngày, ngày theo giờ Việt Nam; giữ lượt tổng trước rồi tới lượt khách *(2026-10-27)* | SV, DB | 🔒 Cứng |
+| BR-CVC-04 | Hết lượt, model lỗi hay PDF không có chữ thì vẫn trả điểm (chấm nhanh, `mode: quick`, kèm `reason`); model lỗi trả lại lượt *(2026-10-27)* | SV | ✅ |
+| BR-CVC-05 | File không rời trình duyệt; máy chủ chỉ nhận chữ ≤ 40.000 ký tự, không lưu; `ai_calls` của khách không lưu `responseText` *(2026-10-27)* | FE, SV | ✅ |
+| BR-CVC-06 | Thẻ chia sẻ chỉ có điểm và tên các lỗi, không thứ hạng, không tên người; link luôn mở trang Phân tích CV, của người đã đăng nhập kèm `?ref=<mã giới thiệu>` *(2026-10-27)* | FE | ⚠️ Chỉ frontend |
+| BR-CVC-07 | Nhận xét của AI chỉ giữ ý có câu trích nguyên văn trong CV (hoặc không trích); câu viết mẫu không được mang số liệu mới — số không có trong đoạn trích thành `[__]` *(2026-10-27)* | SV | 🔒 Cứng |
 
 ### Referrals — Mời bạn bè — [modules/referrals.md](./modules/referrals.md#7-business-rules)
 
@@ -760,7 +772,7 @@ Không có rủi ro nào được xếp mức này.
 | [upskill#R3](./modules/upskill.md) | upskill | Lỗi tiền điều kiện chỉ lộ ra sau khi đã tạo báo cáo và xếp hàng |
 | [company-research#R2](./modules/company-research.md) | company-research | Hai lượt stream cùng công ty không được gộp |
 | [company-research#R3](./modules/company-research.md) | company-research | Bản rỗng khi Serper tắt bị "đóng băng" 60 ngày |
-| [salary#R2](./modules/salary.md) | salary | Route công khai chưa có e2e gọi không token |
+| [cv-check#R2](./modules/cv-check.md) | cv-check | Trần tổng dùng chung bể model với người đăng nhập |
 | [referrals#R1](./modules/referrals.md) | referrals | Tài khoản ảo lấy phút thưởng |
 | [admin-console#R2](./modules/admin-console.md) | admin-console | Chốt "admin cuối cùng" không nguyên tử; hai admin hạ quyền nhau đồng thời có thể để hệ thống còn 0 ADMIN |
 | [admin-console#R4](./modules/admin-console.md) | admin-console | `PUT /admin/queue/config/:queueName` nhận tên hàng đợi bất kỳ và ghi đè trường vắng về mặc định |
@@ -773,7 +785,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (66)
+### 🟢 Thấp (69)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -831,6 +843,9 @@ Không có rủi ro nào được xếp mức này.
 | [salary#R3](./modules/salary.md) | salary | Nguồn bị ghi cứng, chi tiết đọc theo slug không kèm nguồn |
 | [salary#R4](./modules/salary.md) | salary | Khung đàm phán đọc toàn bộ bảng lương mỗi lần mở chi tiết tin |
 | [salary#R5](./modules/salary.md) | salary | Nạp dữ liệu không nguyên tử và không có công cụ vận hành |
+| [cv-check#R1](./modules/cv-check.md) | cv-check | Trần theo IP chặn nhầm người dùng chung IP, không chặn kẻ đổi IP |
+| [cv-check#R3](./modules/cv-check.md) | cv-check | Số đo "máy lọc đọc được" do trình duyệt gửi |
+| [cv-check#R4](./modules/cv-check.md) | cv-check | CV dán chữ không kiểm được file PDF |
 | [dashboard#R1](./modules/dashboard.md) | dashboard | Một phần lớn payload không có màn hình nào dùng |
 | [dashboard#R2](./modules/dashboard.md) | dashboard | Mỗi lần mở Tổng quan chạy lại toàn bộ phép tính khoảng trống kỹ năng |
 | [dashboard#R3](./modules/dashboard.md) | dashboard | Hai danh sách "mới nhất" xử lý `evaluatedAt = null` khác nhau |
@@ -844,7 +859,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R7](./modules/platform-operations.md) | platform-operations | Thử lại của pg-boss dựa hoàn toàn vào mặc định thư viện |
 | [platform-operations#R8](./modules/platform-operations.md) | platform-operations | Cờ "lượt trước còn chạy" của cron chỉ nằm trong bộ nhớ một tiến trình |
 
-### ✅ Đã sửa (18)
+### ✅ Đã sửa (19)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -863,6 +878,7 @@ Không có rủi ro nào được xếp mức này.
 | [upskill#R1](./modules/upskill.md) | upskill | Stream hỏng thì FE tự tạo báo cáo thứ hai và chạy AI lần nữa |
 | [company-research#R1](./modules/company-research.md) | company-research | FE tự xếp thêm một lượt dựng mỗi khi stream lỗi |
 | [company-research#R8](./modules/company-research.md) | company-research | Review mẫu bị làm mờ của ITviec lọt vào bản tìm hiểu |
+| [salary#R2](./modules/salary.md) | salary | Route công khai chưa có e2e gọi không token |
 | [admin-console#R1](./modules/admin-console.md) | admin-console | Giao diện báo "Worker nhận giá trị mới trong vòng 30 giây" nhưng worker chỉ nhận sau khi khởi động lại |
 | [ai-platform#R1](./modules/ai-platform.md) | ai-platform | Lỗi sai schema đi tiếp chuỗi dự phòng, trái với bất biến đã ghi |
 | [platform-operations#R1](./modules/platform-operations.md) | platform-operations | FE báo "Worker nhận giá trị mới trong vòng 30 giây" nhưng backend chỉ áp concurrency khi khởi động lại |

@@ -1,10 +1,7 @@
 import { LANGUAGE_RULE, type OutputLanguage } from '@/common/model-output';
-
-const HOLE = '[__]';
+import { NUMBER_HOLE, holeUnknownNumbers } from '@/common/text/number-holes';
 
 export const BULLET_REWRITE_TIMEOUT_MS = 60_000;
-
-const NUMBER = /(?<![\p{L}\d.,])\d+(?:[.,]\d+)*/gu;
 
 const LEAD = /dẫn dắt|trưởng nhóm|lãnh đạo|team lead|led (a|the) team/i;
 
@@ -116,7 +113,7 @@ export function bulletRewritePrompt(
     TASK[input.kind],
     'Quy tắc không được phá:',
     '- Chỉ dùng sự kiện có trong dòng gốc. Không thêm việc, dự án, khách hàng hay vai trò mới.',
-    `- KHÔNG tự đặt con số. Chỗ cần số liệu kết quả thì viết đúng ${HOLE} để người dùng tự điền, ví dụ "giảm thời gian phản hồi ${HOLE}%". Số đã có trong dòng gốc thì giữ nguyên.`,
+    `- KHÔNG tự đặt con số. Chỗ cần số liệu kết quả thì viết đúng ${NUMBER_HOLE} để người dùng tự điền, ví dụ "giảm thời gian phản hồi ${NUMBER_HOLE}%". Số đã có trong dòng gốc thì giữ nguyên.`,
     '- Chỉ nhắc kỹ năng, công cụ nằm trong "Kỹ năng trong hồ sơ" hoặc đã có trong dòng gốc.',
     '- Kỹ năng nào vừa có trong hồ sơ vừa là từ khoá của tin thì dùng đúng chữ của tin.',
     '- Không nâng vai trò (dẫn dắt, trưởng nhóm, lãnh đạo) nếu dòng gốc không nói vậy.',
@@ -146,7 +143,6 @@ export function guardSuggestions(
   const known = [original, ...facts.profileSkills, ...facts.jobSkills].join(
     ' ',
   );
-  const knownNumbers = new Set(known.match(NUMBER) ?? []);
   const foreign = facts.jobSkills.filter(
     (skill) =>
       !mentions(original, skill) &&
@@ -161,9 +157,7 @@ export function guardSuggestions(
     if (foreign.some((skill) => mentions(suggestion, skill))) continue;
     if (!originalLeads && LEAD.test(suggestion)) continue;
 
-    const text = suggestion.replace(NUMBER, (number) =>
-      knownNumbers.has(number) ? number : HOLE,
-    );
+    const text = holeUnknownNumbers(suggestion, known);
     kept.push({
       text,
       keywords: facts.jobSkills.filter((skill) => mentions(text, skill)),

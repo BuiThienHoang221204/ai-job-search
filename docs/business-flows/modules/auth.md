@@ -53,18 +53,18 @@
 **Preconditions:** người dùng chưa đăng nhập; email chưa tồn tại; chưa vượt 10 lượt/phút/IP.
 
 **Main Flow:**
-1. FE `/register` kiểm tra mật khẩu ≥ 8 ký tự và hai lần nhập khớp ([register-view.tsx:44](../../../../ui-ai-job-search/app/register/register-view.tsx#L44)), rồi gọi `POST /api/auth/register` với `{ email, password, name }`.
+1. Form tạo tài khoản trong modal kiểm tra mật khẩu ≥ 8 ký tự và hai lần nhập khớp ([register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx)), rồi gọi `POST /api/auth/register` với `{ email, password, name }`.
 2. `UserThrottlerGuard` áp trần `@ThrottleAuth` 10/phút, khoá `ip:<ip>` (route public nên chưa có `request.user`) ([user-throttler.guard.ts:7](../../../server/src/common/guards/user-throttler.guard.ts#L7)).
 3. `ValidationPipe` (whitelist + forbidNonWhitelisted) chạy `RegisterDto`: email được `trim().toLowerCase()` rồi `@IsEmail`; mật khẩu 8–72 ký tự; tên 1–200 ký tự ([auth.dto.ts:7](../../../server/src/modules/auth/auth.dto.ts#L7)).
 4. `AuthService.register` băm mật khẩu bcrypt cost 12 và tạo `User` kèm `Profile` rỗng trong một nested write ([auth.service.ts:42](../../../server/src/modules/auth/auth.service.ts#L42)).
 5. Ký access + refresh với `ver = tokenVersion` (0) ([auth.service.ts:142](../../../server/src/modules/auth/auth.service.ts#L142)).
 6. Controller đặt cookie `aijob_token` và `aijob_refresh`, trả **HTTP 201** `{ user: { id, email, name } }` ([auth.controller.ts:30](../../../server/src/modules/auth/auth.controller.ts#L30)).
-7. FE điều hướng tới `next` (đã lọc bằng `safeNextPath`) ([register-view.tsx:33](../../../../ui-ai-job-search/app/register/register-view.tsx#L33)).
+7. Modal nạp lại phiên tại chỗ rồi chuyển tới `next` nếu có (đã lọc bằng `safeNextPath`) ([login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx)).
 
 **Alternative Flow:** đăng ký bằng nút Google trên cùng trang → Luồng C.
 
 **Failure Flow:**
-- Email trùng (kể cả khác hoa/thường) → Prisma `P2002` bị bắt → **409** `Email đã được đăng ký` ([auth.service.ts:53](../../../server/src/modules/auth/auth.service.ts#L53)); FE hiện khung "Email này đã được đăng ký. Đăng nhập thay vì tạo mới" ([register-view.tsx:58](../../../../ui-ai-job-search/app/register/register-view.tsx#L58)).
+- Email trùng (kể cả khác hoa/thường) → Prisma `P2002` bị bắt → **409** `Email đã được đăng ký` ([auth.service.ts:53](../../../server/src/modules/auth/auth.service.ts#L53)); FE hiện khung "Email này đã được đăng ký. Đăng nhập thay vì tạo mới" ([register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx)).
 - Sai định dạng → **400** (thông điệp xem §8/§13).
 - Vượt trần → **429** `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` ([app.module.ts:31](../../../server/src/app.module.ts#L31)).
 
@@ -138,7 +138,7 @@
 **Main Flow:**
 1. FE gọi `POST /api/auth/logout` (lỗi bị nuốt) ([session-provider.tsx:68](../../../../ui-ai-job-search/providers/session-provider.tsx#L68)).
 2. Backend `clearCookie` cả `aijob_token` (path `/`) và `aijob_refresh` (path `/api/auth/refresh`), trả **200** `{ ok: true }` ([auth.controller.ts:82](../../../server/src/modules/auth/auth.controller.ts#L82), [auth.cookie.ts:36](../../../server/src/modules/auth/auth.cookie.ts#L36)).
-3. FE người dùng `router.replace('/login')` + `router.refresh()`; FE admin `window.location.assign('/login')` (nạp lại cả trang để xoá cache React Query) ([session.tsx:34](../../../../ui-admin-job-search/components/shell/session.tsx#L34)).
+3. FE người dùng xoá cache TanStack Query, chuyển sang trạng thái khách và `router.replace('/dashboard')` (trang chào cho khách) *(sửa 2026-10-27)*; FE admin `window.location.assign('/login')` (nạp lại cả trang để xoá cache React Query) ([session.tsx:34](../../../../ui-admin-job-search/components/shell/session.tsx#L34)).
 
 **Alternative Flow:** không có.
 
@@ -206,7 +206,7 @@
 **Main Flow (FE người dùng):**
 1. `SessionProvider` (bọc `app/dashboard/layout.tsx`) gọi `/auth/me` một lần; trong lúc chờ chỉ hiện spinner ([session-provider.tsx:43](../../../../ui-ai-job-search/providers/session-provider.tsx#L43), [layout.tsx:18](../../../../ui-ai-job-search/app/dashboard/layout.tsx#L18)).
 2. 401 → đánh dấu `anonymous`; nếu đường dẫn không phải trang khách (`/dashboard/jobs`, `/dashboard/jobs/:id`, `/dashboard/salary`, `/dashboard/salary/:x` — [public-job.ts:14](../../../../ui-ai-job-search/lib/public-job.ts#L14)) thì `router.replace('/login?next=…')` ([session-provider.tsx:62](../../../../ui-ai-job-search/providers/session-provider.tsx#L62)).
-3. Trang `/login` đọc `next` qua `safeNextPath` (chỉ nhận đường dẫn nội bộ bắt đầu bằng `/`, loại ký tự điều khiển/`\`, phải cùng origin giả) ([redirect.ts:4](../../../../ui-ai-job-search/lib/redirect.ts#L4)).
+3. `/login` và `/register` không còn giao diện riêng: chuyển về `/dashboard?auth=login|register` giữ `next`, `ref` ([redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`)); trang chủ mở modal tương ứng, gỡ `auth`/`next` khỏi URL, đã đăng nhập thì đi thẳng tới `next` *(2026-10-27)*. `next` lọc qua `safeNextPath` (chỉ nhận đường dẫn nội bộ bắt đầu bằng `/`, loại ký tự điều khiển/`\`, phải cùng origin giả) ([redirect.ts:4](../../../../ui-ai-job-search/lib/redirect.ts#L4)).
 
 **Main Flow (FE admin):**
 1. Trang `/login` admin gọi `login` rồi `/auth/me`; `role !== 'ADMIN'` → hiện `Tài khoản này không có quyền quản trị.` và **không** đăng xuất (cookie dùng chung với app người dùng) ([page.tsx:30](../../../../ui-admin-job-search/app/login/page.tsx#L30)).
@@ -326,8 +326,8 @@ sequenceDiagram
 | BR-AUTH-20 | Vai trò và tên trả về `/auth/me` (và trong `request.user`) luôn đọc tươi từ DB, không lấy từ claim | GD | ✅ Mềm | [jwt.strategy.ts:37](../../../server/src/modules/auth/jwt.strategy.ts#L37) |
 | BR-AUTH-21 | `register`, `login`, `google`, `refresh` giới hạn 10 lượt/phút, đếm theo IP | GD | ✅ Mềm | [throttle.ts:9](../../../server/src/common/throttle.ts#L9), [auth.controller.ts:31](../../../server/src/modules/auth/auth.controller.ts#L31) |
 | BR-AUTH-22 | Ứng dụng từ chối khởi động khi `JWT_SECRET` rỗng hoặc còn giá trị mẫu bắt đầu bằng `thay-bang` | SV (bootstrap) | ✅ Mềm | [main.ts:23](../../../server/src/main.ts#L23) |
-| BR-AUTH-23 | Sau đăng nhập/đăng ký chỉ chuyển tới `next` nếu là đường dẫn nội bộ an toàn; mặc định `/dashboard` (FE người dùng), `/` (FE admin) | FE | ⚠️ Chỉ FE | [redirect.ts:4](../../../../ui-ai-job-search/lib/redirect.ts#L4), [login-view.tsx:20](../../../../ui-ai-job-search/app/login/login-view.tsx#L20) |
-| BR-AUTH-24 | Đăng ký trên FE yêu cầu nhập lại mật khẩu khớp | FE | ⚠️ Chỉ FE | [register-view.tsx:48](../../../../ui-ai-job-search/app/register/register-view.tsx#L48) |
+| BR-AUTH-23 | Sau đăng nhập/đăng ký chỉ chuyển tới `next` nếu là đường dẫn nội bộ an toàn; mặc định `/dashboard` (FE người dùng), `/` (FE admin) | FE | ⚠️ Chỉ FE | [redirect.ts:4](../../../../ui-ai-job-search/lib/redirect.ts#L4), [login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx) |
+| BR-AUTH-24 | Đăng ký trên FE yêu cầu nhập lại mật khẩu khớp | FE | ⚠️ Chỉ FE | [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx) |
 | BR-AUTH-25 | FE tự refresh một lần khi gặp 401 (gộp các request song song), không áp cho `/auth/refresh`, `/auth/login`, `/auth/register` | FE | ⚠️ Chỉ FE | [axios.ts:25](../../../../ui-ai-job-search/lib/axios.ts#L25) |
 | BR-AUTH-26 | Khu `/dashboard` không render khi chưa xác định đã đăng nhập; khách chỉ xem được trang việc làm và tra cứu lương | FE | ⚠️ Chỉ FE | [session-provider.tsx:78](../../../../ui-ai-job-search/providers/session-provider.tsx#L78), [public-job.ts:14](../../../../ui-ai-job-search/lib/public-job.ts#L14) |
 | BR-AUTH-27 | Console admin chỉ hiển thị nội dung khi `role = ADMIN`; tài khoản USER đăng nhập admin không bị đăng xuất khỏi app người dùng | FE | ⚠️ Chỉ FE | [page.tsx:34](../../../../ui-admin-job-search/app/login/page.tsx#L34), [admin-gate.tsx:30](../../../../ui-admin-job-search/components/shell/admin-gate.tsx#L30) |
@@ -369,9 +369,9 @@ Mọi DTO chạy qua `ValidationPipe({ whitelist, transform, forbidNonWhiteliste
 
 | Field | Ràng buộc | Nơi | Lỗi hiển thị |
 |---|---|---|---|
-| password (register) | ≥ 8 ký tự | [register-view.tsx:44](../../../../ui-ai-job-search/app/register/register-view.tsx#L44) | `Mật khẩu cần ít nhất 8 ký tự` |
-| confirm | bằng password | [register-view.tsx:48](../../../../ui-ai-job-search/app/register/register-view.tsx#L48) | `Hai lần nhập mật khẩu không khớp` |
-| email/password/name | `required`, `type=email` của HTML | login-view, register-view | Trình duyệt |
+| password (register) | ≥ 8 ký tự | [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx) | `Mật khẩu cần ít nhất 8 ký tự` |
+| confirm | bằng password | [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx) | `Hai lần nhập mật khẩu không khớp` |
+| email/password/name | `required`, `type=email` của HTML | login-form, register-form | Trình duyệt |
 
 ## 9. API Mapping
 
@@ -395,8 +395,8 @@ Mọi DTO chạy qua `ValidationPipe({ whitelist, transform, forbidNonWhiteliste
 
 | Route FE | Vai trò | Mục đích | Hook / API client |
 |---|---|---|---|
-| `/login` (user) | Khách | Đăng nhập email/mật khẩu hoặc Google, quay về `next` | [login-view.tsx](../../../../ui-ai-job-search/app/login/login-view.tsx), `authService.login`, [google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx) |
-| `/register` (user) | Khách | Tạo tài khoản, xử lý 409 trùng email | [register-view.tsx](../../../../ui-ai-job-search/app/register/register-view.tsx), `authService.register` |
+| `/login` (user) | Khách | Chỉ chuyển hướng tới `/dashboard?auth=login` (giữ `next`), trang chủ mở modal đăng nhập email/mật khẩu hoặc Google *(sửa 2026-10-27)* | [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx), `authService.login`, [google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx) |
+| `/register` (user) | Khách | Chỉ chuyển hướng tới `/dashboard?auth=register` (giữ `next`, `ref`), trang chủ mở modal tạo tài khoản, xử lý 409 trùng email *(sửa 2026-10-27)* | [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx), `authService.register` |
 | `/dashboard/**` (user) | USER | Khung đã đăng nhập; chặn render tới khi `/auth/me` trả lời | [session-provider.tsx](../../../../ui-ai-job-search/providers/session-provider.tsx), [use-session.ts](../../../../ui-ai-job-search/hooks/use-session.ts) |
 | Sidebar, `/dashboard/settings` (user) | USER | Nút đăng xuất; hiển thị tên/email/vai trò | `useSession().logout`, [settings-view.tsx](../../../../ui-ai-job-search/app/dashboard/settings/settings-view.tsx) |
 | (mọi request) | — | Tự refresh token khi 401 | [axios.ts](../../../../ui-ai-job-search/lib/axios.ts), [query-provider.tsx](../../../../ui-ai-job-search/providers/query-provider.tsx) |
@@ -590,7 +590,7 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 - Test: [auth-refresh.e2e-spec.ts](../../../server/test/auth-refresh.e2e-spec.ts), [auth-google.e2e-spec.ts](../../../server/test/auth-google.e2e-spec.ts), [security.e2e-spec.ts](../../../server/test/security.e2e-spec.ts), [throttle.e2e-spec.ts](../../../server/test/throttle.e2e-spec.ts)
 
 **Frontend người dùng**
-- [app/login/login-view.tsx](../../../../ui-ai-job-search/app/login/login-view.tsx), [app/register/register-view.tsx](../../../../ui-ai-job-search/app/register/register-view.tsx)
+- [app/login/page.tsx](../../../../ui-ai-job-search/app/login/page.tsx), [app/register/page.tsx](../../../../ui-ai-job-search/app/register/page.tsx), [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx), [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx)
 - [components/auth/google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx)
 - [services/auth.ts](../../../../ui-ai-job-search/services/auth.ts), [hooks/use-session.ts](../../../../ui-ai-job-search/hooks/use-session.ts)
 - [providers/session-provider.tsx](../../../../ui-ai-job-search/providers/session-provider.tsx), [providers/query-provider.tsx](../../../../ui-ai-job-search/providers/query-provider.tsx)
