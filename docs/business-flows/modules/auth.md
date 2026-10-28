@@ -40,6 +40,7 @@
 | F4 | Gia hạn phiên bằng refresh token | Khách (cookie refresh) | `POST /api/auth/refresh` + interceptor axios FE |
 | F5 | Đăng xuất khỏi thiết bị hiện tại | Khách/USER | `POST /api/auth/logout` |
 | F6 | Lấy thông tin tài khoản hiện tại | USER/ADMIN | `GET /api/auth/me` |
+| F12 | Xoá tài khoản và mọi dữ liệu của chính mình *(2026-10-28)* | USER | `DELETE /api/auth/account` |
 | F7 | Xác thực mọi request (mặc định đóng) | Hệ thống | `JwtAuthGuard` + `JwtStrategy` |
 | F8 | Phân quyền theo vai trò | Hệ thống | `@Roles` + `RolesGuard` |
 | F9 | Giới hạn tần suất | Hệ thống | `UserThrottlerGuard` + `@ThrottleAuth/@ThrottleAi/@ThrottleScrape/@ThrottlePdf` |
@@ -332,6 +333,8 @@ sequenceDiagram
 | BR-AUTH-26 | Khu `/dashboard` không render khi chưa xác định đã đăng nhập; khách chỉ xem được trang việc làm và tra cứu lương | FE | ⚠️ Chỉ FE | [session-provider.tsx:78](../../../../ui-ai-job-search/providers/session-provider.tsx#L78), [public-job.ts:14](../../../../ui-ai-job-search/lib/public-job.ts#L14) |
 | BR-AUTH-27 | Console admin chỉ hiển thị nội dung khi `role = ADMIN`; tài khoản USER đăng nhập admin không bị đăng xuất khỏi app người dùng | FE | ⚠️ Chỉ FE | [page.tsx:34](../../../../ui-admin-job-search/app/login/page.tsx#L34), [admin-gate.tsx:30](../../../../ui-admin-job-search/components/shell/admin-gate.tsx#L30) |
 | BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./referrals.md)) *(2026-10-26)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
+| BR-AUTH-29 | Đăng ký email và Google bắt buộc gửi `acceptTerms: true` (thiếu → 400 "Hãy đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục."); tài khoản mới lưu `termsAcceptedAt` làm bằng chứng đồng ý. FE: form tạo tài khoản khoá nút gửi và nút Google tới khi tick ô đồng ý; form đăng nhập ghi "Khi đăng nhập, bạn đồng ý…" *(2026-10-28)* | DTO, SV, FE | ✅ | [auth.dto.ts](../../../server/src/modules/auth/auth.dto.ts), [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx) |
+| BR-AUTH-30 | `DELETE /api/auth/account` xoá đúng tài khoản của người gọi: trong một transaction xoá `ai_calls` của user (khoá ngoại để SetNull) rồi xoá `User` (bảng con xoá dây chuyền; `ScrapeRun`, người được giới thiệu giữ lại với khoá SetNull); sau đó xoá file dưới `<userId>/` và `cv-tmp/<userId>/` trên kho lưu trữ, rồi xoá cookie. Xoá file lỗi thì chỉ ghi log, tài khoản vẫn đã xoá *(2026-10-28)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts), [r2.storage.ts](../../../server/src/modules/storage/r2.storage.ts) |
 
 > Các quy tắc **xuyên suốt** (mặc định đóng bằng `JwtAuthGuard` toàn cục + `@Public`; `RolesGuard` toàn cục + `@Roles('ADMIN')`; throttle mặc định 120/phút đếm theo user hoặc IP; ValidationPipe whitelist/forbidNonWhitelisted) được agent chính đánh mã `BR-SYS-nn`; ở đây chỉ mô tả cơ chế (§4 Luồng G, H, I).
 
@@ -383,6 +386,7 @@ Mọi DTO chạy qua `ValidationPipe({ whitelist, transform, forbidNonWhiteliste
 | POST | `/api/auth/refresh` | Public (cần cookie refresh) | Đổi refresh lấy cặp token mới | `AuthController#refresh` | `AuthService.refresh` | — (cookie `aijob_refresh`) | 200 `{ user }` + 2 cookie |
 | POST | `/api/auth/logout` | Public | Xoá cookie phiên trên trình duyệt này | `AuthController#logout` | — | — | 200 `{ ok: true }` + xoá 2 cookie |
 | GET | `/api/auth/me` | USER/ADMIN | Lấy tài khoản hiện tại kèm vai trò | `AuthController#me` | `JwtStrategy.validate` | — | 200 `{ id, email, name, role }` |
+| DELETE | `/api/auth/account` | USER | Xoá tài khoản và mọi dữ liệu *(2026-10-28)* | `AuthController#deleteAccount` | `AuthService.deleteAccount` | — | 200 `{ ok: true }` + xoá 2 cookie |
 
 **Endpoint ở module khác tác động lên module này**
 
@@ -397,6 +401,8 @@ Mọi DTO chạy qua `ValidationPipe({ whitelist, transform, forbidNonWhiteliste
 |---|---|---|---|
 | `/login` (user) | Khách | Chỉ chuyển hướng tới `/dashboard?auth=login` (giữ `next`), trang chủ mở modal đăng nhập email/mật khẩu hoặc Google *(sửa 2026-10-27)* | [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx), `authService.login`, [google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx) |
 | `/register` (user) | Khách | Chỉ chuyển hướng tới `/dashboard?auth=register` (giữ `next`, `ref`), trang chủ mở modal tạo tài khoản, xử lý 409 trùng email *(sửa 2026-10-27)* | [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx), `authService.register` |
+| `/dashboard/settings` (user) — thẻ Xoá tài khoản | USER | Mở hộp xác nhận, phải gõ "XOÁ" mới bấm được; xoá xong gọi `logout()` về `/dashboard` *(2026-10-28)* | [delete-account-card.tsx](../../../../ui-ai-job-search/app/dashboard/settings/delete-account-card.tsx), `authService.deleteAccount` |
+| `/dashboard/chinh-sach-bao-mat`, `/dashboard/dieu-khoan-su-dung` (user) | Khách/USER | Chính sách bảo mật và Điều khoản sử dụng: trang công khai (`isGuestPath`), Google index, có trong sitemap; thông tin bên vận hành lấy từ `OPERATOR` *(2026-10-28)* | [legal-page.tsx](../../../../ui-ai-job-search/components/legal/legal-page.tsx), [legal.ts](../../../../ui-ai-job-search/lib/legal.ts) |
 | `/dashboard/**` (user) | USER | Khung đã đăng nhập; chặn render tới khi `/auth/me` trả lời | [session-provider.tsx](../../../../ui-ai-job-search/providers/session-provider.tsx), [use-session.ts](../../../../ui-ai-job-search/hooks/use-session.ts) |
 | Sidebar, `/dashboard/settings` (user) | USER | Nút đăng xuất; hiển thị tên/email/vai trò | `useSession().logout`, [settings-view.tsx](../../../../ui-ai-job-search/app/dashboard/settings/settings-view.tsx) |
 | (mọi request) | — | Tự refresh token khi 401 | [axios.ts](../../../../ui-ai-job-search/lib/axios.ts), [query-provider.tsx](../../../../ui-ai-job-search/providers/query-provider.tsx) |
@@ -418,6 +424,7 @@ Không có `middleware.ts`/`proxy.ts` Next.js ở cả hai frontend — chặn h
 | googleId | String? | `@unique` | `sub` của Google |
 | tokenVersion | Int | `@default(0)` | Tăng để vô hiệu mọi token đã phát |
 | name | String | — | Tên hiển thị |
+| termsAcceptedAt | DateTime? | — | Lúc đồng ý Điều khoản và Chính sách bảo mật; null với tài khoản tạo trước 2026-10-28 *(2026-10-28)* |
 | createdAt / updatedAt | DateTime | `now()` / `@updatedAt` | — |
 
 Quan hệ: `profile` (1–1) và mọi bảng dữ liệu người dùng (`JobMatch`, `Document`, `Application`, `ProfileDraft`, `AiCall`…) đều trỏ về `User`. Index: unique `email`, unique `googleId`.
@@ -565,6 +572,18 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 - Bằng chứng: [google-sign-in-button.tsx:31](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx#L31).
 - Tác động: người dùng không biết vì sao không đăng nhập được.
 - Đề xuất: dùng `apiErrorMessage`.
+
+**R12 — Tài khoản tạo trước 2026-10-28 chưa có bằng chứng đồng ý.** Mức đề xuất: 🟡 *(2026-10-28)*
+- Mô tả: `termsAcceptedAt` chỉ ghi khi tạo tài khoản mới; tài khoản cũ đăng nhập tiếp mà không được hỏi đồng ý lại.
+- Bằng chứng: [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) (`register`, nhánh `create` của `loginWithGoogle`).
+- Tác động: Luật Bảo vệ dữ liệu cá nhân 91/2025 đòi bên kiểm soát chứng minh được sự đồng ý.
+- Đề xuất: khi `termsAcceptedAt` null thì hiện hộp đồng ý một lần sau đăng nhập.
+
+**R13 — Xoá file của tài khoản lỗi thì không thử lại.** Mức đề xuất: 🟢 *(2026-10-28)*
+- Mô tả: `deleteAccount` xoá dữ liệu trong DB trước rồi mới xoá file; xoá file lỗi chỉ ghi log.
+- Bằng chứng: [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) (`deleteAccount`).
+- Tác động: file CV của tài khoản đã xoá có thể còn trên R2, không ai đọc được vì không còn bản ghi trỏ tới.
+- Đề xuất: khi gặp log lỗi này thì xoá tay theo tiền tố `<userId>/`.
 
 ## 18. Source References
 

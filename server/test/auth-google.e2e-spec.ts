@@ -20,7 +20,9 @@ describe('POST /api/auth/google', () => {
   });
 
   const google = (idToken: string) =>
-    request(harness.server).post('/api/auth/google').send({ idToken });
+    request(harness.server)
+      .post('/api/auth/google')
+      .send({ idToken, acceptTerms: true });
 
   test('token không khớp profile nào trả 401', async () => {
     await google('token-khong-ton-tai').expect(401);
@@ -151,6 +153,7 @@ describe('POST /api/auth/google', () => {
         email: '  Hoa.Thuong@Test.Local ',
         password: 'MatKhau123!',
         name: 'Hoa Thường',
+        acceptTerms: true,
       })
       .expect(201);
     const id = (registered.body as { user: { id: string } }).user.id;
@@ -161,6 +164,7 @@ describe('POST /api/auth/google', () => {
         email: 'hoa.thuong@test.local',
         password: 'MatKhau456!',
         name: 'Trùng',
+        acceptTerms: true,
       })
       .expect(409);
 

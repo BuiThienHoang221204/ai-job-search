@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Post,
@@ -87,6 +88,19 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   logout(@Res({ passthrough: true }) response: Response) {
+    clearAuthCookies(response);
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xoá tài khoản và mọi dữ liệu của người gọi' })
+  @Delete('account')
+  @HttpCode(200)
+  async deleteAccount(
+    @CurrentUser() user: AuthUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.auth.deleteAccount(user.id);
     clearAuthCookies(response);
     return { ok: true };
   }

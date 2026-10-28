@@ -16,6 +16,7 @@ import {
 } from '@/modules/queue/queue.service';
 import {
   STORAGE,
+  uploadKey,
   userKey,
   type Storage,
 } from '@/modules/storage/storage.interface';
@@ -30,8 +31,6 @@ import {
   type DraftView,
 } from '../utils/profile-draft.utils';
 
-const UPLOAD_PREFIX = 'cv-tmp';
-
 @Injectable()
 export class ProfileDraftService {
   constructor(
@@ -43,7 +42,7 @@ export class ProfileDraftService {
   ) {}
 
   async uploadUrl(userId: string): Promise<{ key: string; url: string }> {
-    const key = `${UPLOAD_PREFIX}/${userId}/${randomUUID()}.pdf`;
+    const key = uploadKey(userId, `${randomUUID()}.pdf`);
     const url = await this.storage.uploadUrl(key, 'application/pdf');
     return { key, url };
   }
@@ -53,7 +52,7 @@ export class ProfileDraftService {
     upload: ConfirmCvUploadDto,
     stream = false,
   ) {
-    if (!upload.key.startsWith(`${UPLOAD_PREFIX}/${userId}/`)) {
+    if (!upload.key.startsWith(uploadKey(userId, ''))) {
       throw new NotFoundException(
         'Không tìm thấy file vừa tải lên. Hãy chọn lại file CV.',
       );

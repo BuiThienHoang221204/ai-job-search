@@ -148,6 +148,7 @@ export async function createTestApp(
         email: address,
         name: `Người dùng ${userCounter}`,
         password: TEST_PASSWORD,
+        acceptTerms: true,
         ref,
       });
 

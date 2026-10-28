@@ -28,4 +28,11 @@ export class FakeStorage implements Storage {
   downloadUrl(key: string): Promise<string> {
     return Promise.resolve(`https://storage.test/download/${key}`);
   }
+
+  deletePrefix(prefix: string): Promise<void> {
+    for (const key of [...this.files.keys()]) {
+      if (key.startsWith(prefix)) this.files.delete(key);
+    }
+    return Promise.resolve();
+  }
 }

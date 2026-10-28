@@ -1,14 +1,23 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { compare, hash } from 'bcryptjs';
+import { messageOf } from '@/common/error-message';
 import { isUniqueViolation } from '@/prisma/prisma-errors';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReferralsService } from '@/modules/referrals/referrals.service';
+import {
+  STORAGE,
+  uploadKey,
+  userKey,
+  type Storage,
+} from '@/modules/storage/storage.interface';
 import { GoogleAuthService } from './google-auth.service';
 import type { LoginDto, RegisterDto } from './auth.dto';
 import {
@@ -33,13 +42,32 @@ type SignedUser = { id: string; email: string; name: string };
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly google: GoogleAuthService,
     private readonly referrals: ReferralsService,
+    @Inject(STORAGE) private readonly storage: Storage,
   ) {}
+
+  /** Xoá tài khoản cùng mọi dữ liệu: bảng con xoá dây chuyền theo khoá ngoại, nhật ký gọi AI xoá riêng vì khoá ngoại của nó để SetNull, rồi dọn file trên kho lưu trữ. */
+  async deleteAccount(userId: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.aiCall.deleteMany({ where: { userId } }),
+      this.prisma.user.deleteMany({ where: { id: userId } }),
+    ]);
+    try {
+      await this.storage.deletePrefix(userKey(userId, ''));
+      await this.storage.deletePrefix(uploadKey(userId, ''));
+    } catch (error) {
+      this.logger.error(
+        `Đã xoá tài khoản ${userId} nhưng chưa xoá được file: ${messageOf(error)}`,
+      );
+    }
+  }
 
   async register(dto: RegisterDto): Promise<AuthResult> {
     const user = await this.prisma.user
@@ -48,6 +76,7 @@ export class AuthService {
           email: dto.email,
           name: dto.name,
           passwordHash: await hash(dto.password, BCRYPT_ROUNDS),
+          termsAcceptedAt: new Date(),
           referredById: await this.referrals.referrerOf(dto.ref),
           profile: { create: {} },
         },
@@ -105,6 +134,7 @@ export class AuthService {
           email,
           name: profile.name,
           googleId: profile.googleId,
+          termsAcceptedAt: new Date(),
           referredById: await this.referrals.referrerOf(ref),
           profile: { create: {} },
         },

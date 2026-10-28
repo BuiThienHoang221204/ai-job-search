@@ -6,6 +6,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   NotFound,
   PutObjectCommand,
 } from '@aws-sdk/client-s3';
@@ -13,6 +14,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Storage } from './storage.interface';
 
 const SIGNED_URL_TTL_SECONDS = 300;
+
+const SAFE_PREFIX = /^([\w-]+\/){1,2}$/;
 
 @Injectable()
 export class R2Storage implements Storage {
@@ -96,5 +99,28 @@ export class R2Storage implements Storage {
       }),
       { expiresIn: SIGNED_URL_TTL_SECONDS },
     );
+  }
+
+  /** Xoá mọi file dưới một thư mục của người dùng; chặn tiền tố rỗng hay không kết thúc bằng `/` vì kho R2 dùng chung với production. */
+  async deletePrefix(prefix: string): Promise<void> {
+    if (!SAFE_PREFIX.test(prefix)) {
+      throw new Error(`Tiền tố không an toàn để xoá: "${prefix}"`);
+    }
+    let token: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+        }),
+      );
+      for (const item of page.Contents ?? []) {
+        await this.client.send(
+          new DeleteObjectCommand({ Bucket: this.bucket, Key: item.Key }),
+        );
+      }
+      token = page.NextContinuationToken;
+    } while (token);
   }
 }

@@ -236,6 +236,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
           email: user.email,
           name: 'Người khác',
           password: 'MatKhau12345',
+          acceptTerms: true,
         })
         .expect(409);
     });
@@ -254,6 +255,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
                 email: `moi-${user.email}`,
                 name: 'Mới',
                 password: 'MatKhau12345',
+                acceptTerms: true,
               }
             : { email: user.email, password: user.password };
 
@@ -276,7 +278,7 @@ describe('Phân quyền và cách ly dữ liệu', () => {
     ])('%s trả 400', async (_label, fields) => {
       await request(harness.server)
         .post('/api/auth/register')
-        .send({ email: 'dai-qua@test.local', ...fields })
+        .send({ email: 'dai-qua@test.local', acceptTerms: true, ...fields })
         .expect(400);
     });
   });

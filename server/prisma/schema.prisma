@@ -64,6 +64,8 @@ model User {
   referralRewardedAt DateTime?
   /// Tổng phút giọng nói được thưởng từ trước tới nay; số còn lại = tổng này trừ phần các buổi đã dùng.
   bonusVoiceMinutes  Int       @default(0)
+  /// Lúc người dùng đồng ý Điều khoản và Chính sách bảo mật; null với tài khoản tạo trước khi có hai trang này.
+  termsAcceptedAt    DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

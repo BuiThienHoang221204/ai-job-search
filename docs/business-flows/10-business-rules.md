@@ -74,6 +74,8 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AUTH-26 | Khu `/dashboard` không render khi chưa xác định đã đăng nhập; khách chỉ xem được trang việc làm và tra cứu lương | FE | ⚠️ Chỉ FE |
 | BR-AUTH-27 | Console admin chỉ hiển thị nội dung khi `role = ADMIN`; tài khoản USER đăng nhập admin không bị đăng xuất khỏi app người dùng | FE | ⚠️ Chỉ FE |
 | BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./modules/referrals.md)) *(2026-10-26)* | SV | ✅ |
+| BR-AUTH-29 | Đăng ký email và Google bắt buộc gửi `acceptTerms: true` (thiếu → 400 "Hãy đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục."); tài khoản mới lưu `termsAcceptedAt` làm bằng chứng đồng ý. FE: form tạo tài khoản khoá nút gửi và nút Google tới khi tick ô đồng ý; form đăng nhập ghi "Khi đăng nhập, bạn đồng ý…" *(2026-10-28)* | DTO, SV, FE | ✅ |
+| BR-AUTH-30 | `DELETE /api/auth/account` xoá đúng tài khoản của người gọi: trong một transaction xoá `ai_calls` của user (khoá ngoại để SetNull) rồi xoá `User` (bảng con xoá dây chuyền; `ScrapeRun`, người được giới thiệu giữ lại với khoá SetNull); sau đó xoá file dưới `<userId>/` và `cv-tmp/<userId>/` trên kho lưu trữ, rồi xoá cookie. Xoá file lỗi thì chỉ ghi log, tài khoản vẫn đã xoá *(2026-10-28)* | SV | ✅ |
 
 ### Profile — Hồ sơ ứng viên — [modules/profile.md](./modules/profile.md#7-business-rules)
 
@@ -723,6 +725,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-OPS-35 | Log request: ≥ 500 → error, ≥ 1000ms → warn "(chậm)", ≥ 400 → warn. | GD | ✅ |
 | BR-OPS-36 | Kết nối Postgres của Prisma hết hạn sau 10 giây nếu không lập được. | SV | ✅ |
 | BR-OPS-37 | Xếp việc do người dùng/admin bấm đi qua method `enqueue`/`start` của service, không từ controller. Ghi bản ghi `PENDING` rồi `queue.send` ném lỗi → bản ghi thành `FAILED` (`Không thể đưa vào hàng đợi: …` hoặc lỗi gốc) và lỗi đi tiếp ra request; không còn bản ghi `PENDING` không có việc. `send` trả `null` vì trùng `singletonKey` không phải lỗi. *(2026-10-21)* | SV | ✅ |
+| BR-OPS-38 | Mỗi lượt cron nhặt việc rơi cũng xoá `ai_calls` có `createdAt` và `usage_counters` có `day` cũ hơn 90 ngày — đúng thời hạn ghi trong Chính sách bảo mật *(2026-10-28)* | SV | ✅ |
 
 [//]: # (/GEN:BR)
 
@@ -745,7 +748,7 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (38)
+### 🟡 Trung bình (39)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -754,6 +757,7 @@ Không có rủi ro nào được xếp mức này.
 | [auth#R3](./modules/auth.md) | auth | Không xác thực email, không quên/đổi mật khẩu |
 | [auth#R6](./modules/auth.md) | auth | Throttle auth theo IP phụ thuộc `TRUST_PROXY`; không khoá theo tài khoản |
 | [auth#R8](./modules/auth.md) | auth | FE người dùng treo spinner khi `/auth/me` lỗi khác 401 |
+| [auth#R12](./modules/auth.md) | auth | Tài khoản tạo trước 2026-10-28 chưa có bằng chứng đồng ý |
 | [cv-import#R1](./modules/cv-import.md) | cv-import | Trang upload treo ở "Đang đọc" khi bản nháp mới nhất đang PENDING/RUNNING |
 | [cv-import#R2](./modules/cv-import.md) | cv-import | Không có chính sách lưu trữ/xoá CV |
 | [jobs#R2](./modules/jobs.md) | jobs | Tin không bao giờ hết hạn |
@@ -788,7 +792,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (69)
+### 🟢 Thấp (70)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -798,6 +802,7 @@ Không có rủi ro nào được xếp mức này.
 | [auth#R9](./modules/auth.md) | auth | Thông điệp validation tuỳ biến bị lặp nhãn trường |
 | [auth#R10](./modules/auth.md) | auth | Logout FE người dùng không xoá cache React Query |
 | [auth#R11](./modules/auth.md) | auth | FE nuốt lý do lỗi Google |
+| [auth#R13](./modules/auth.md) | auth | Xoá file của tài khoản lỗi thì không thử lại |
 | [profile#R2](./modules/profile.md) | profile | `save` gồm hai lệnh ghi rời, không transaction |
 | [profile#R3](./modules/profile.md) | profile | Khối JSON không kiểm hình dạng |
 | [profile#R4](./modules/profile.md) | profile | Lưu bất kỳ trường nào cũng xếp đối chiếu kỹ năng |

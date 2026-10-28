@@ -66,6 +66,7 @@ describe('Bộ khung test tích hợp', () => {
         email: 'a@test.local',
         name: 'A',
         password: 'MatKhauTest123!',
+        acceptTerms: true,
         role: 'ADMIN',
       })
       .expect(400);
