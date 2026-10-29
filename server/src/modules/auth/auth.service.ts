@@ -21,6 +21,7 @@ import {
 import { GoogleAuthService } from './google-auth.service';
 import type { LoginDto, RegisterDto } from './auth.dto';
 import {
+  isAccessPayload,
   isRefreshPayload,
   type JwtPayload,
   type TokenType,
@@ -142,6 +143,22 @@ export class AuthService {
     }
 
     return this.sign(user, user.tokenVersion);
+  }
+
+  /** Đăng xuất: tăng `tokenVersion` để thu hồi mọi token đã phát (kể cả refresh còn hạn 7 ngày và access đang còn hạn), đóng lỗ "token sau đăng xuất vẫn dùng được". Access token không còn hợp lệ thì bỏ qua, controller vẫn xoá cookie. */
+  async logout(accessToken: string | undefined): Promise<void> {
+    if (!accessToken) return;
+    let payload: unknown = null;
+    try {
+      payload = this.jwt.verify(accessToken);
+    } catch {
+      return;
+    }
+    if (!isAccessPayload(payload)) return;
+    await this.prisma.user.updateMany({
+      where: { id: payload.sub, tokenVersion: payload.ver },
+      data: { tokenVersion: { increment: 1 } },
+    });
   }
 
   async refresh(token: string | undefined): Promise<AuthResult> {

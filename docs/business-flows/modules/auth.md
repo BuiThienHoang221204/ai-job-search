@@ -16,7 +16,7 @@
 **Điểm mấu chốt:**
 - Toàn bộ API **mặc định đóng**: `JwtAuthGuard` là guard toàn cục, route nào muốn mở phải gắn `@Public()` ([common.module.ts:17](../../../server/src/common/common.module.ts#L17), [jwt-auth.guard.ts:19](../../../server/src/common/guards/jwt-auth.guard.ts#L19)).
 - Access và refresh ký **cùng một bí mật**; chỉ claim `typ` phân biệt chúng ([jwt-payload.ts:13](../../../server/src/modules/auth/jwt-payload.ts#L13)).
-- Không có đổi mật khẩu, quên mật khẩu, xác thực email hay "đăng xuất mọi thiết bị" trong code hiện tại.
+- Không có đổi mật khẩu, quên mật khẩu hay xác thực email trong code hiện tại. Đăng xuất nay thu hồi mọi phiên (tăng `tokenVersion`), coi như "đăng xuất mọi thiết bị" *(2026-10-28)*.
 
 ## 2. Actors
 
@@ -323,7 +323,7 @@ sequenceDiagram
 | BR-AUTH-16 | Access token không đổi được token mới; refresh token không dùng làm Bearer (claim `typ`) | SV, GD | ✅ Mềm | [jwt-payload.ts:20](../../../server/src/modules/auth/jwt-payload.ts#L20), [auth.service.ts:122](../../../server/src/modules/auth/auth.service.ts#L122), [jwt.strategy.ts:35](../../../server/src/modules/auth/jwt.strategy.ts#L35) |
 | BR-AUTH-17 | Thu hồi phiên bằng `tokenVersion`: lệch `ver` thì cả access đang còn hạn lẫn refresh đều bị từ chối ngay | SV, GD | ✅ Mềm | [jwt.strategy.ts:47](../../../server/src/modules/auth/jwt.strategy.ts#L47), [auth.service.ts:135](../../../server/src/modules/auth/auth.service.ts#L135) |
 | BR-AUTH-18 | Refresh thành công phát lại CẢ HAI token; refresh token cũ vẫn hợp lệ tới hết hạn (không xoay vòng/không phát hiện tái sử dụng) | SV | ✅ Mềm | [auth.service.ts:113](../../../server/src/modules/auth/auth.service.ts#L113) |
-| BR-AUTH-19 | Đăng xuất chỉ xoá cookie của trình duyệt gọi, không tăng `tokenVersion`; route `@Public` | SV | ✅ Mềm | [auth.controller.ts:82](../../../server/src/modules/auth/auth.controller.ts#L82) |
+| BR-AUTH-19 | Đăng xuất xoá cookie của trình duyệt gọi VÀ tăng `tokenVersion` (nếu access token còn hợp lệ) để thu hồi mọi token đã phát — refresh còn hạn 7 ngày và access đang còn hạn đều hết tác dụng ngay. Route `@Public`; access token hết hạn lúc gọi thì chỉ xoá cookie *(2026-10-28)* | SV | ✅ | [auth.controller.ts](../../../server/src/modules/auth/auth.controller.ts), [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
 | BR-AUTH-20 | Vai trò và tên trả về `/auth/me` (và trong `request.user`) luôn đọc tươi từ DB, không lấy từ claim | GD | ✅ Mềm | [jwt.strategy.ts:37](../../../server/src/modules/auth/jwt.strategy.ts#L37) |
 | BR-AUTH-21 | `register`, `login`, `google`, `refresh` giới hạn 10 lượt/phút, đếm theo IP | GD | ✅ Mềm | [throttle.ts:9](../../../server/src/common/throttle.ts#L9), [auth.controller.ts:31](../../../server/src/modules/auth/auth.controller.ts#L31) |
 | BR-AUTH-22 | Ứng dụng từ chối khởi động khi `JWT_SECRET` rỗng hoặc còn giá trị mẫu bắt đầu bằng `thay-bang` | SV (bootstrap) | ✅ Mềm | [main.ts:23](../../../server/src/main.ts#L23) |
@@ -507,11 +507,11 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 
 ## 17. ⚠️ Sai lệch / Rủi ro nghiệp vụ
 
-**R1 — Đăng xuất không thu hồi được token; không có "đăng xuất mọi thiết bị".** Mức đề xuất: 🟡
-- Mô tả: logout chỉ xoá cookie trình duyệt hiện tại; `tokenVersion` chỉ tăng trong nhánh liên kết Google. Không có route đổi mật khẩu/đăng xuất toàn bộ/khoá tài khoản.
-- Bằng chứng: [auth.controller.ts:86](../../../server/src/modules/auth/auth.controller.ts#L86); `tokenVersion: { increment: 1 }` chỉ xuất hiện ở [auth.service.ts:99](../../../server/src/modules/auth/auth.service.ts#L99).
-- Tác động: refresh token bị lộ (log, máy dùng chung) dùng được tới 7 ngày; người dùng không tự cắt được phiên trên máy khác.
-- Đề xuất: thêm route "đăng xuất mọi thiết bị" tăng `tokenVersion`; cân nhắc tăng `tokenVersion` khi admin hạ quyền/khoá.
+**R1 — ✅ Đã sửa 2026-10-28: đăng xuất thu hồi token.** (Trước đó 🟡)
+- Vấn đề cũ: logout chỉ xoá cookie, refresh token lộ ra dùng được tới 7 ngày dù đã đăng xuất (pentest black-box xác nhận trên prod).
+- Đã sửa: `AuthService.logout` tăng `tokenVersion` từ access token gửi kèm, thu hồi mọi phiên. Test ở [auth-refresh.e2e-spec.ts](../../../server/test/auth-refresh.e2e-spec.ts).
+- Hệ quả hành vi: đăng xuất ở một máy giờ cắt phiên trên MỌI máy (chủ đích, đổi so với trước).
+- Rủi ro còn lại 🟢: nếu access token đã hết hạn đúng lúc bấm đăng xuất thì không tăng được `tokenVersion`, refresh cũ còn sống tới khi hết hạn. Hiếm, và vẫn chưa có đổi/quên mật khẩu.
 
 **R2 — Refresh token không xoay vòng.** Mức đề xuất: 🟡
 - Mô tả: mỗi lần refresh phát refresh mới nhưng cái cũ vẫn hợp lệ tới hết hạn; không phát hiện tái sử dụng.

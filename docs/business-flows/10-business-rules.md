@@ -64,7 +64,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AUTH-16 | Access token không đổi được token mới; refresh token không dùng làm Bearer (claim `typ`) | SV, GD | ✅ Mềm |
 | BR-AUTH-17 | Thu hồi phiên bằng `tokenVersion`: lệch `ver` thì cả access đang còn hạn lẫn refresh đều bị từ chối ngay | SV, GD | ✅ Mềm |
 | BR-AUTH-18 | Refresh thành công phát lại CẢ HAI token; refresh token cũ vẫn hợp lệ tới hết hạn (không xoay vòng/không phát hiện tái sử dụng) | SV | ✅ Mềm |
-| BR-AUTH-19 | Đăng xuất chỉ xoá cookie của trình duyệt gọi, không tăng `tokenVersion`; route `@Public` | SV | ✅ Mềm |
+| BR-AUTH-19 | Đăng xuất xoá cookie của trình duyệt gọi VÀ tăng `tokenVersion` (nếu access token còn hợp lệ) để thu hồi mọi token đã phát — refresh còn hạn 7 ngày và access đang còn hạn đều hết tác dụng ngay. Route `@Public`; access token hết hạn lúc gọi thì chỉ xoá cookie *(2026-10-28)* | SV | ✅ |
 | BR-AUTH-20 | Vai trò và tên trả về `/auth/me` (và trong `request.user`) luôn đọc tươi từ DB, không lấy từ claim | GD | ✅ Mềm |
 | BR-AUTH-21 | `register`, `login`, `google`, `refresh` giới hạn 10 lượt/phút, đếm theo IP | GD | ✅ Mềm |
 | BR-AUTH-22 | Ứng dụng từ chối khởi động khi `JWT_SECRET` rỗng hoặc còn giá trị mẫu bắt đầu bằng `thay-bang` | SV (bootstrap) | ✅ Mềm |
@@ -748,11 +748,10 @@ Không có rủi ro nào được xếp mức này.
 | [question-bank#R2](./modules/question-bank.md) | question-bank | Rủi ro pháp lý của dữ liệu nguồn `X_INTERVIEW` |
 | [salary#R1](./modules/salary.md) | salary | Dữ liệu lương của bên thứ ba được hiển thị công khai và mời Google index |
 
-### 🟡 Trung bình (39)
+### 🟡 Trung bình (38)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
-| [auth#R1](./modules/auth.md) | auth | Đăng xuất không thu hồi được token; không có "đăng xuất mọi thiết bị" |
 | [auth#R2](./modules/auth.md) | auth | Refresh token không xoay vòng |
 | [auth#R3](./modules/auth.md) | auth | Không xác thực email, không quên/đổi mật khẩu |
 | [auth#R6](./modules/auth.md) | auth | Throttle auth theo IP phụ thuộc `TRUST_PROXY`; không khoá theo tài khoản |
@@ -867,10 +866,11 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R7](./modules/platform-operations.md) | platform-operations | Thử lại của pg-boss dựa hoàn toàn vào mặc định thư viện |
 | [platform-operations#R8](./modules/platform-operations.md) | platform-operations | Cờ "lượt trước còn chạy" của cron chỉ nằm trong bộ nhớ một tiến trình |
 
-### ✅ Đã sửa (19)
+### ✅ Đã sửa (20)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
+| [auth#R1](./modules/auth.md) | auth | ✅ Đã sửa 2026-10-28: đăng xuất thu hồi token |
 | [profile#R1](./modules/profile.md) | profile | `subOccupationCode` không được kiểm và có thể lệch với `occupationCode` |
 | [jobs#R1](./modules/jobs.md) | jobs | Bộ lọc "lương tối thiểu" và sắp xếp "Lương cao nhất" không có dữ liệu để chạy |
 | [job-scraping#R1](./modules/job-scraping.md) | job-scraping | Không có lương dạng số từ bất kỳ portal nào |

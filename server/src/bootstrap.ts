@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import express, {
+  type Express,
   type NextFunction,
   type Request,
   type Response,
@@ -20,6 +21,7 @@ const HELMET_OPTIONS = {
 
 export function configureApp(app: INestApplication): void {
   app.setGlobalPrefix('api');
+  (app.getHttpAdapter().getInstance() as Express).disable('x-powered-by');
 
   app.use(express.json({ strict: false, limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));

@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService, type AuthResult } from './auth.service';
 import {
+  AUTH_COOKIE,
   REFRESH_COOKIE,
   clearAuthCookies,
   setAccessCookie,
@@ -87,7 +88,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Đăng xuất khỏi hệ thống' })
   @Post('logout')
   @HttpCode(200)
-  logout(@Res({ passthrough: true }) response: Response) {
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const cookies = request.cookies as Record<string, string> | undefined;
+    await this.auth.logout(cookies?.[AUTH_COOKIE]);
     clearAuthCookies(response);
     return { ok: true };
   }

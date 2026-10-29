@@ -183,10 +183,20 @@ describe('Refresh token và thu hồi phiên', () => {
       );
     });
 
-    // `logout` chỉ chạm cookie của đúng trình duyệt gọi nó - phiên trên máy khác (refresh token đang giữ) phải còn sống.
-    test('logout KHÔNG giết phiên trên thiết bị khác', async () => {
-      await logout().expect(200);
+    // Đổi 2026-10-28 (vá lỗ hổng pentest): logout tăng `tokenVersion` nên thu hồi
+    // MỌI phiên — refresh token cũ (kể cả đang giữ ở máy khác) hết tác dụng. Trước
+    // đó token sau logout vẫn gọi được `/refresh` suốt 7 ngày.
+    test('logout thu hồi mọi phiên: refresh token cũ hết tác dụng', async () => {
       await refresh(user.refreshCookie).expect(200);
+      await logout().expect(200);
+      await refresh(user.refreshCookie).expect(401);
+    });
+
+    // Access token đang còn hạn cũng chết theo, không phải chờ hết 15 phút.
+    test('logout vô hiệu access token đang còn hạn', async () => {
+      await me(user.token).expect(200);
+      await logout().expect(200);
+      await me(user.token).expect(401);
     });
   });
 });
