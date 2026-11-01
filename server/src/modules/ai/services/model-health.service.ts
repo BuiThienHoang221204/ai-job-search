@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { messageOf } from '@/common/error-message';
 import { isProbeCandidate } from '../utils/model-pool';
 import { AiService } from './ai.service';
+import { ModelBlacklistService } from './model-blacklist.service';
 import { ModelCatalogService } from './model-catalog.service';
 import { ModelPoolService, type ModelPoolStatus } from './model-pool.service';
 
@@ -37,6 +38,7 @@ export class ModelHealthService
     private readonly catalog: ModelCatalogService,
     private readonly ai: AiService,
     private readonly pool: ModelPoolService,
+    private readonly blacklist: ModelBlacklistService,
   ) {}
 
   private get enabled(): boolean {
@@ -120,7 +122,10 @@ export class ModelHealthService
     for (const providerId of providers) {
       const refs = await this.catalog.discoverModelsFor(providerId);
       const fresh = refs.filter(
-        (ref) => isProbeCandidate(ref) && !seeds.includes(ref),
+        (ref) =>
+          isProbeCandidate(ref) &&
+          !this.blacklist.blocks(ref) &&
+          !seeds.includes(ref),
       );
       found.push(...fresh);
     }

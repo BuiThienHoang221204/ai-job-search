@@ -153,28 +153,21 @@ describe('Lõi omniroute — gateway không ép được response_format', () =>
     expect(opencode.baseURLEnv).toBe('OPENCODE_SERVICE_URL');
   });
 
-  test('filterModel: nhận ddgw (trừ claude), cfp, antigravity (agy) và các model free; loại bỏ auto/*, oc/*, router alias và CLI khác', () => {
+  // Chỉ còn luật "offer gì" của omniroute. Các lệnh CẤM (claude-haiku, router
+  // alias, auto/oc/... hỏng, agy/antigravity gemini-3.7…) đã chuyển sang mục
+  // `manual` của model-blacklist.json — kiểm ở model-blacklist.spec (isBlocked).
+  test('filterModel: nhận ddgw/cfp/antigravity/agy và model free; bỏ thứ không khớp luật offer', () => {
     const filter = omniroute.filterModel!;
     expect(filter('ddgw/mistral-small-2603')).toBe(true);
-    expect(filter('ddgw/gpt-5.4-mini')).toBe(true);
     expect(filter('cfp/zai-org/glm-5.2')).toBe(true);
     expect(filter('antigravity/claude-sonnet-4-6')).toBe(true);
-    expect(filter('agy/claude-sonnet-4-6')).toBe(true);
     expect(filter('agy/gemini-3.1-flash-lite')).toBe(true);
     expect(filter('any-provider/qwen-free')).toBe(true);
-    expect(filter('ddgw/claude-haiku-4-5')).toBe(false);
-    expect(filter('kc/openrouter/free')).toBe(false);
-    expect(filter('other/openrouter/auto')).toBe(false);
-    expect(filter('auto/fast')).toBe(false);
-    expect(filter('auto/coding:free')).toBe(false);
     expect(filter('oc/big-pickle')).toBe(false);
     expect(filter('dva/swe-1-7')).toBe(false);
-    expect(filter('aug/sonnet4.6')).toBe(false);
+    expect(filter('auto/fast')).toBe(false);
+    expect(filter('other/openrouter/auto')).toBe(false);
     expect(filter('tllm/GPT_5_4')).toBe(false);
-    expect(filter('antigravity/gemini-3.7-flash-high')).toBe(false);
-    expect(filter('antigravity/gemini-pro-agent')).toBe(false);
-    expect(filter('agy/gemini-pro-agent')).toBe(false);
-    expect(filter('agy/claude-sonnet-4-6-high')).toBe(false);
   });
 });
 

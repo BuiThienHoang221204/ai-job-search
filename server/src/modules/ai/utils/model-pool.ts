@@ -24,8 +24,6 @@ const NOT_CHAT_WORDS = [
   'bunny',
 ];
 
-const ROUTER_MODELS = ['openrouter/free', 'openrouter/auto'];
-
 const PAID_PROVIDERS = ['openrouter', 'unorouter', 'kilo', 'opencode'];
 
 const UNMEASURED_MS = Number.MAX_SAFE_INTEGER;
@@ -40,22 +38,27 @@ function providerRank(ref: string, providers: string[]): number {
   return index === -1 ? providers.length : index;
 }
 
+/** Nhà cung cấp con trong một lõi, ví dụ `agy` trong `omniroute/agy/gemini-3-flash`; id chỉ có hai đoạn thì trả rỗng. */
+function vendorOf(ref: string): string {
+  const parts = ref.split('/');
+  return parts.length > 2 ? parts[1] : '';
+}
+
 /** Model quét được có đáng probe không: bỏ model không phải chat, lõi trả phí thì chỉ lấy bản free. */
 export function isProbeCandidate(ref: string): boolean {
   const lower = ref.toLowerCase();
   if (NOT_CHAT_WORDS.some((word) => lower.includes(word))) return false;
-  if (ROUTER_MODELS.some((suffix) => lower.endsWith(suffix))) return false;
-
   if (PAID_PROVIDERS.includes(providerOf(lower))) return lower.includes('free');
   return true;
 }
 
-/** Thứ tự chuỗi: model trượt probe xuống cuối, model khai trong .env trước model quét được, rồi theo thứ tự lõi, rồi độ trễ. */
+/** Thứ tự chuỗi: model trượt probe xuống cuối, model khai trong .env trước model quét được, rồi theo thứ tự lõi, trong cùng lõi thì vendor được ưu tiên trước, rồi độ trễ. */
 export function rankModels(
   candidates: string[],
   providers: string[],
   seeds: string[],
   health: Map<string, ModelHealth>,
+  preferredVendors: string[] = [],
 ): string[] {
   return [...new Set(candidates)].sort((a, b) => {
     const infoA = health.get(a);
@@ -71,6 +74,10 @@ export function rankModels(
     const rankA = providerRank(a, providers);
     const rankB = providerRank(b, providers);
     if (rankA !== rankB) return rankA - rankB;
+
+    const prefA = preferredVendors.includes(vendorOf(a)) ? 0 : 1;
+    const prefB = preferredVendors.includes(vendorOf(b)) ? 0 : 1;
+    if (prefA !== prefB) return prefA - prefB;
 
     return (
       (infoA?.latencyMs || UNMEASURED_MS) - (infoB?.latencyMs || UNMEASURED_MS)

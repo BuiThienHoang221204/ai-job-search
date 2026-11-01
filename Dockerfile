@@ -76,6 +76,10 @@ COPY --from=build /app/server/dist ./dist
 COPY server/prisma ./prisma
 COPY server/prisma.config.ts ./prisma.config.ts
 
+# Blacklist model chết (ADR 0012): ModelHealthService đọc lúc khởi động để loại
+# khỏi probe. Resolve theo process.cwd()=/app/server, khớp MODEL_BLACKLIST_FILE.
+COPY server/model-blacklist.json ./model-blacklist.json
+
 # Đọc lúc KHỞI ĐỘNG, không phải tài nguyên tuỳ chọn: thiếu `.claude/skills` thì
 # SkillRegistry không dựng được prompt nào, thiếu `.agents/skills` thì không portal
 # nào được đăng ký và việc quét im lặng không làm gì.

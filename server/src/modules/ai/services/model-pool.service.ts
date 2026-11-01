@@ -90,6 +90,7 @@ export class ModelPoolService {
       this.mainProviders,
       seeds,
       this.health,
+      this.config.get<string[]>('ai.mainPreferredVendors'),
     );
   }
 

@@ -49,6 +49,11 @@ const configuration = () => ({
       'MAIN_TASK_PROVIDERS',
       'omniroute,opencode-direct,opencode,openrouter',
     ),
+    mainPreferredVendors: csv('MAIN_PREFERRED_VENDORS', 'agy,antigravity'),
+    modelBlacklistFile: fromServerRoot(
+      process.env.MODEL_BLACKLIST_FILE ?? 'model-blacklist.json',
+    ),
+    blacklistSchedule: process.env.BLACKLIST_REGEN_SCHEDULE ?? '',
     fastProviders: csv(
       'FAST_TASK_PROVIDERS',
       'groq,gemini,unorouter,omniroute,kilo,openrouter',

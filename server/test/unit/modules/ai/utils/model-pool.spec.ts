@@ -27,13 +27,6 @@ describe('isProbeCandidate', () => {
     expect(isProbeCandidate('opencode/gpt-4o')).toBe(false);
     expect(isProbeCandidate('opencode/deepseek-v4.1-flash-free')).toBe(true);
   });
-
-  test('bỏ bộ định tuyến tự chọn model hộ: mỗi lượt một model khác nên điểm probe vô nghĩa', () => {
-    expect(isProbeCandidate('openrouter/openrouter/free')).toBe(false);
-    expect(isProbeCandidate('omniroute/kc/openrouter/free')).toBe(false);
-    expect(isProbeCandidate('kilo/openrouter/auto')).toBe(false);
-    expect(isProbeCandidate('openrouter/qwen/qwen3-coder:free')).toBe(true);
-  });
 });
 
 describe('rankModels', () => {
@@ -61,5 +54,41 @@ describe('rankModels', () => {
   test('chưa probe thì giữ nguyên thứ tự .env trong cùng lõi', () => {
     const seeds = ['opencode/a', 'opencode/b'];
     expect(rankModels(seeds, providers, seeds, new Map())).toEqual(seeds);
+  });
+
+  test('trong cùng lõi, vendor ưu tiên đứng trước dù độ trễ cao hơn', () => {
+    const candidates = [
+      'omniroute/ddgw/mistral',
+      'omniroute/agy/gemini-3-flash',
+    ];
+    const health = new Map([
+      ['omniroute/ddgw/mistral', probed('omniroute/ddgw/mistral', true, 100)],
+      [
+        'omniroute/agy/gemini-3-flash',
+        probed('omniroute/agy/gemini-3-flash', true, 400),
+      ],
+    ]);
+    expect(rankModels(candidates, providers, [], health, ['agy'])).toEqual([
+      'omniroute/agy/gemini-3-flash',
+      'omniroute/ddgw/mistral',
+    ]);
+  });
+
+  test('không khai vendor ưu tiên thì vẫn xếp theo độ trễ', () => {
+    const candidates = [
+      'omniroute/ddgw/mistral',
+      'omniroute/agy/gemini-3-flash',
+    ];
+    const health = new Map([
+      ['omniroute/ddgw/mistral', probed('omniroute/ddgw/mistral', true, 100)],
+      [
+        'omniroute/agy/gemini-3-flash',
+        probed('omniroute/agy/gemini-3-flash', true, 400),
+      ],
+    ]);
+    expect(rankModels(candidates, providers, [], health)).toEqual([
+      'omniroute/ddgw/mistral',
+      'omniroute/agy/gemini-3-flash',
+    ]);
   });
 });
