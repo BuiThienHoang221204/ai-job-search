@@ -7,6 +7,7 @@ import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { CvCheckModule } from './modules/cv-check/cv-check.module';
+import { ExtModule } from './modules/ext/ext.module';
 import { AiModule } from './modules/ai/ai.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { MockInterviewModule } from './modules/mock-interview/mock-interview.module';
@@ -80,6 +81,7 @@ export const THROTTLED_MESSAGE =
     PushModule,
     AdminModule,
     CvCheckModule,
+    ExtModule,
   ],
 })
 export class AppModule {}

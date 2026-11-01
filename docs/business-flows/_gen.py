@@ -8,7 +8,7 @@ MOD = ROOT / "modules"
 
 ORDER = ["auth", "profile", "cv-import", "jobs", "job-scraping", "matching", "applications",
          "documents", "interview-prep", "question-bank", "mock-interview", "upskill",
-         "company-research", "salary", "market", "cv-check", "referrals", "dashboard", "admin-console", "ai-platform", "platform-operations"]
+         "company-research", "salary", "market", "cv-check", "referrals", "ext", "dashboard", "admin-console", "ai-platform", "platform-operations"]
 
 
 def section(text, num):

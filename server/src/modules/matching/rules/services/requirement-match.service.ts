@@ -39,7 +39,7 @@ export class RequirementMatchService {
     return this.prisma.jobRequirement.findMany({
       where: {
         status: 'DONE',
-        job: { duplicateOfId: null },
+        job: { duplicateOfId: null, source: { not: 'extension' } },
         ...(jobId ? { jobId } : {}),
       },
       include: { job: { select: { occupationCode: true } } },

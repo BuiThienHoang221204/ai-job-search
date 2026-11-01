@@ -133,6 +133,7 @@ export class JobAlertService implements OnModuleInit {
           by: ['companyKey'],
           where: {
             duplicateOfId: null,
+            source: { not: 'extension' },
             companyKey: { in: [...names.keys()] },
             scrapedAt: { gte: since },
           },

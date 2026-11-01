@@ -31,6 +31,7 @@ const configuration = () => ({
 
     jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
+    jwtExtExpiresIn: process.env.JWT_EXT_EXPIRES_IN ?? '30d',
 
     googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   },

@@ -39,6 +39,11 @@ export type AuthResult = {
   user: { id: string; email: string; name: string };
 };
 
+export type ExtAuthResult = {
+  token: string;
+  user: { id: string; email: string; name: string };
+};
+
 type SignedUser = { id: string; email: string; name: string };
 
 @Injectable()
@@ -93,6 +98,26 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResult> {
+    const user = await this.verifyCredentials(dto);
+    return this.sign(user, user.tokenVersion);
+  }
+
+  async extLogin(dto: LoginDto): Promise<ExtAuthResult> {
+    const user = await this.verifyCredentials(dto);
+    return this.extResult(user, user.tokenVersion);
+  }
+
+  async issueExtToken(userId: string): Promise<ExtAuthResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, tokenVersion: true },
+    });
+    if (!user) throw new UnauthorizedException('Phiên đăng nhập đã kết thúc');
+    return this.extResult(user, user.tokenVersion);
+  }
+
+  /** So mật khẩu kể cả khi email không tồn tại (một hash giả) để thời gian phản hồi không lộ email nào đã đăng ký. Dùng chung cho đăng nhập web và extension. */
+  private async verifyCredentials(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -103,7 +128,7 @@ export class AuthService {
     if (!user || !matches) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
     }
-    return this.sign(user, user.tokenVersion);
+    return user;
   }
 
   async loginWithGoogle(idToken: string, ref?: string): Promise<AuthResult> {
@@ -198,13 +223,24 @@ export class AuthService {
     };
   }
 
+  private extResult(user: SignedUser, ver: number): ExtAuthResult {
+    return {
+      token: this.token(user, ver, 'ext'),
+      user: { id: user.id, email: user.email, name: user.name },
+    };
+  }
+
+  private expiryKey(typ: TokenType): string {
+    if (typ === 'access') return 'auth.jwtAccessExpiresIn';
+    if (typ === 'refresh') return 'auth.jwtRefreshExpiresIn';
+    return 'auth.jwtExtExpiresIn';
+  }
+
   private token(user: SignedUser, ver: number, typ: TokenType): string {
     const payload: JwtPayload = { sub: user.id, email: user.email, typ, ver };
     return this.jwt.sign(payload, {
       expiresIn: this.config.get<string>(
-        typ === 'access'
-          ? 'auth.jwtAccessExpiresIn'
-          : 'auth.jwtRefreshExpiresIn',
+        this.expiryKey(typ),
       ) as `${number}${'s' | 'm' | 'h' | 'd'}`,
     });
   }

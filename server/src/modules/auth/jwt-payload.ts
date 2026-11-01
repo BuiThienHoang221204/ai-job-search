@@ -1,4 +1,4 @@
-export type TokenType = 'access' | 'refresh';
+export type TokenType = 'access' | 'refresh' | 'ext';
 
 export type JwtPayload = {
   sub: string;
@@ -22,3 +22,6 @@ export const isAccessPayload = (value: unknown): value is JwtPayload =>
 
 export const isRefreshPayload = (value: unknown): value is JwtPayload =>
   isPayloadOfType(value, 'refresh');
+
+export const isExtPayload = (value: unknown): value is JwtPayload =>
+  isPayloadOfType(value, 'ext');

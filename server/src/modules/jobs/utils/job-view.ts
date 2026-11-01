@@ -195,6 +195,7 @@ export function whereFrom(
 
   return {
     duplicateOfId: null,
+    ...(query.saved || query.applied ? {} : { source: { not: 'extension' } }),
     ...(and.length ? { AND: and } : {}),
     ...(needle ? { searchText: { contains: needle } } : {}),
     ...(query.province?.length ? { provinceCode: { in: query.province } } : {}),

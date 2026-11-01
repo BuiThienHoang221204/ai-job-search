@@ -174,8 +174,8 @@ export class JobsService {
 
   async publicGet(id: string) {
     const [job, dictionary] = await Promise.all([
-      this.prisma.job.findUnique({
-        where: { id },
+      this.prisma.job.findFirst({
+        where: { id, source: { not: 'extension' } },
         select: PUBLIC_JOB_DETAIL_SELECT,
       }),
       this.dictionary.lookup(),

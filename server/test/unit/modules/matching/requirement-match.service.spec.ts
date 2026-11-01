@@ -91,7 +91,7 @@ describe('RequirementMatchService.score theo hồ sơ', () => {
 
     expect(prisma.jobRequirement.findMany.mock.calls[0][0].where).toEqual({
       status: 'DONE',
-      job: { duplicateOfId: null },
+      job: { duplicateOfId: null, source: { not: 'extension' } },
     });
   });
 

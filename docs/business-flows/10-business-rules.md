@@ -172,6 +172,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-34 | Báo tin mới mỗi sáng (`JOB_ALERT_CRON_SCHEDULE`, mặc định 07:30 giờ VN): chỉ người đã bật `User.jobNotifications` (mặc định TẮT) và có thiết bị đăng ký Web Push; mỗi người tối đa một lần một ngày nhờ giành chỗ `updateMany where jobAlertSentAt < 00:00 VN hôm nay`; đếm bằng đúng `whereFrom(scored)` của "Việc làm phù hợp" cộng `scrapedAt > lần báo trước` (lần đầu: 24 giờ); không có tin mới thì không gửi; nội dung nêu 2 tin mới nhất và số còn lại; thông báo sống 12 giờ. Không gọi AI. *(2026-10-25)* Từ 2026-10-26 gộp thêm tin mới (`scrapedAt > lần báo trước`) của công ty đang theo dõi, **không qua cổng ngành**: dòng "Công ty bạn theo dõi: N tin mới từ A, B và K công ty khác."; chỉ có tin của công ty theo dõi thì link mở `?followed=1&since=…`. | SV (cron) | ✅ |
 | BR-JOB-35 | `followed=true` (cần đăng nhập) chỉ trả tin có `companyKey` thuộc công ty người gọi đang theo dõi, không qua cổng ngành; khách gửi tham số này nhận 400 vì `PublicJobsQueryDto` không có nó *(2026-10-26)* | SV | ✅ |
 | BR-JOB-36 | Tín hiệu "đăng lại" trên chi tiết tin: đếm các tin gốc (`duplicateOfId = null`) cùng `dedupeKey` (cùng tên vị trí, công ty, tỉnh); chỉ trả `reposts { count, firstAt, dates }` khi có từ 2 lần đăng và lần đầu cách lần cuối ít nhất 14 ngày, còn lại `null`. Ngày của mỗi lần lấy `postedAt`, thiếu thì `scrapedAt`. Bản trùng cùng đợt ở portal khác đã gộp nên không tính. Không gọi AI. Đo 2026-10-26: 41 nhóm, 85 tin; kho mới có từ 18/08 *(2026-10-26)* | SV | ✅ |
+| BR-JOB-37 | Tin nguồn extension (`source='extension'`, người dùng lưu từ tiện ích) bị loại khỏi feed, "Việc làm phù hợp", trang công khai, chấm điểm và nhắc tin theo công ty; chỉ hiện ở view đã lưu hoặc đã ứng tuyển của chủ. *(2026-11-01)* | SV | ✅ |
 
 ### Job Scraping — Quét tin tuyển dụng từ portal — [modules/job-scraping.md](./modules/job-scraping.md#7-business-rules)
 
@@ -562,6 +563,17 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-REF-04 | Mỗi bên +15 phút giọng nói; người mời chỉ được thưởng cho 10 bạn đầu tiên, người được mời luôn được *(2026-10-26)* | SV | ✅ |
 | BR-REF-05 | Phút thưởng không hết hạn, chỉ dùng khi phần ngày (30 phút/24 giờ) không đủ một buổi; tính theo thời lượng thật nên dừng sớm không mất phút *(2026-10-26)* | SV | ✅ |
 
+### Ext — Tiện ích trình duyệt (Chrome extension) — [modules/ext.md](./modules/ext.md#7-business-rules)
+
+| Mã | Quy tắc | Nơi thực thi | Mức |
+|---|---|---|---|
+| BR-EXT-01 | Ext token là JWT `typ='ext'`, hạn 30 ngày (`JWT_EXT_EXPIRES_IN`), mang `ver = User.tokenVersion`; đăng xuất web / đổi mật khẩu (tăng `tokenVersion`) thu hồi ngay cả ext token *(2026-11-01)* | SV | ✅ |
+| BR-EXT-02 | Xác thực email/mật khẩu dùng chung `verifyCredentials` với web (một hash giả khi email không tồn tại để không lộ email đã đăng ký) *(2026-11-01)* | SV | ✅ |
+| BR-EXT-03 | Lưu tin tạo Job `source='extension'` với `externalId = fingerprint(url)`; tìm trước theo `url` để tái dùng Job đã có; `create` + bắt `P2002` nên hai lần lưu đồng thời cùng url chỉ sinh một Job *(2026-11-01)* | SV, DB | ✅ |
+| BR-EXT-04 | Tin `source='extension'` bị loại khỏi feed / "phù hợp" / public / chọn job matching; chỉ hiện ở view đã lưu / đã ứng tuyển của chủ (`whereFrom` bỏ khi `saved`/`applied`) *(2026-11-01)* | SV | ✅ |
+| BR-EXT-05 | "Soi kỹ" luôn lưu tin về tài khoản người gọi trước khi chấm, nên chỉ chấm tin của chính chủ — kết quả `JobMatch` khoá theo `userId`, không rò sang người khác *(2026-11-01)* | SV | ✅ |
+| BR-EXT-06 | Lưu tin nhận thêm `logoUrl`/`locationText`/`salaryText`/`postedText` (client trích từ JSON-LD của trang) và lưu vào `companyLogo`/`location`/`salaryRaw`/`postedAt`; `postedText` chỉ nhận khi là ngày hợp lệ, còn lại để trống (FE hiện "Thu thập …") *(2026-11-01)* | SV | ✅ |
+
 ### Dashboard — Trang Tổng quan — [modules/dashboard.md](./modules/dashboard.md#7-business-rules)
 
 | Mã | Quy tắc | Nơi thực thi | Mức |
@@ -791,7 +803,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (70)
+### 🟢 Thấp (72)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -853,6 +865,8 @@ Không có rủi ro nào được xếp mức này.
 | [cv-check#R1](./modules/cv-check.md) | cv-check | Trần theo IP chặn nhầm người dùng chung IP, không chặn kẻ đổi IP |
 | [cv-check#R3](./modules/cv-check.md) | cv-check | Số đo "máy lọc đọc được" do trình duyệt gửi |
 | [cv-check#R4](./modules/cv-check.md) | cv-check | CV dán chữ không kiểm được file PDF |
+| [ext#R1](./modules/ext.md) | ext | Người khác xem tin extension của chủ nếu có đúng `jobId` |
+| [ext#R2](./modules/ext.md) | ext | Soi kỹ tốn một lượt AI mỗi tin mới |
 | [dashboard#R1](./modules/dashboard.md) | dashboard | Một phần lớn payload không có màn hình nào dùng |
 | [dashboard#R2](./modules/dashboard.md) | dashboard | Mỗi lần mở Tổng quan chạy lại toàn bộ phép tính khoảng trống kỹ năng |
 | [dashboard#R3](./modules/dashboard.md) | dashboard | Hai danh sách "mới nhất" xử lý `evaluatedAt = null` khác nhau |

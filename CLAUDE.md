@@ -168,6 +168,7 @@ Mỗi ADR giữ nguyên văn số đo, lý do và bẫy đã sập của một c
 - **Sửa phỏng vấn bằng giọng nói (`VoiceSessionService`, `LiveTokenService`, `MOCK_INTERVIEW_VOICE_*`) hoặc làm giao diện thoại ở FE** → `docs/adr/0019-phong-van-giong-noi.md` (Gemini Live: token khoá cấu hình, hạn mức, tạp âm và kết thúc sớm đã đo)
 - **Sửa prompt/schema `job.requirements`, `skillGroups`, cách đối chiếu kỹ năng (`findSkill`), `skill.implies`, hoặc muốn dùng vector để quyết định "đạt"** → `docs/adr/0020-doi-chieu-yeu-cau.md` (Đối chiếu yêu cầu: nhóm lựa chọn, rút đủ yêu cầu, kỹ năng kéo theo)
 - **Sửa chấm CV cho khách (`modules/cv-check`), bảng `usage_counters`, hoặc mở thêm route công khai có gọi model** → `docs/adr/0021-cham-cv-cho-khach.md` (AI tách dòng, code chấm; trần theo HMAC của IP và trần tổng, giữ lượt bằng một câu SQL)
+- **Sửa `modules/ext`, `ExtAuthGuard`, ext token (`extLogin`/`issueExtToken`), luồng `/connect-extension`, hoặc lọc `source='extension'`** → `docs/adr/0022-ext-token-tien-ich.md` (Token riêng cho tiện ích: `typ='ext'` 30 ngày thu hồi qua `tokenVersion`, Google qua `launchWebAuthFlow`, tin nguồn extension cô lập khỏi bảng chung)
 
 ## Ranh giới không được xê dịch
 
