@@ -12,6 +12,15 @@ describe('cleanUrl', () => {
     ).toBe('https://itviec.com/it-jobs/dev-123');
   });
 
+  it('hai lần bấm TopCV cùng tin (u_sr_id phiên khác nhau) cho cùng một khoá', () => {
+    const a =
+      'https://www.topcv.vn/viec-lam/x/2325079.html?ta_source=JobSearchList_LinkDetail&u_sr_id=E1t3_1793515559';
+    const b =
+      'https://www.topcv.vn/viec-lam/x/2325079.html?ta_source=JobSearchList_LinkDetail&u_sr_id=Zz99_1793517755';
+    expect(cleanUrl(a)).toBe('https://www.topcv.vn/viec-lam/x/2325079.html');
+    expect(cleanUrl(a)).toBe(cleanUrl(b));
+  });
+
   it('giữ tham số thật (không phải tracking), ví dụ id tin', () => {
     expect(cleanUrl('https://x.com/job?id=123&utm_source=fb')).toBe(
       'https://x.com/job?id=123',

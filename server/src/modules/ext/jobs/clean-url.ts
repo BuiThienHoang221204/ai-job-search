@@ -9,6 +9,7 @@ const TRACKING_EXACT = new Set([
   'source',
   'campaign',
   'ta_source',
+  'u_sr_id',
   'click_source',
   'spm',
   'from',
