@@ -90,6 +90,32 @@ describe('Ext jobs (/api/ext/jobs/save)', () => {
     expect(await app.prisma.job.count({ where: { url: JOB.url } })).toBe(1);
   });
 
+  it('URL có tham số tracking vẫn ghép vào tin đã có (chuẩn hoá url)', async () => {
+    const user = await app.signUp();
+    const token = await extToken(app, user.email, user.password);
+    const clean = 'https://topcv.vn/viec-lam/khop-123.html';
+    const scraped = await app.prisma.job.create({
+      data: {
+        source: 'topcv',
+        externalId: 'tc-track',
+        url: clean,
+        title: 'Backend (scraped)',
+        company: 'Acme',
+        description: 'mô tả tin scrape',
+      },
+      select: { id: true },
+    });
+
+    const res = await request(app.server)
+      .post('/api/ext/jobs/save')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...JOB, url: `${clean}?ta_source=BoxFeatureJob&utm_medium=cpc` })
+      .expect(200);
+
+    expect((res.body as SaveBody).jobId).toBe(scraped.id);
+    expect(await app.prisma.job.count({ where: { url: clean } })).toBe(1);
+  });
+
   it('hai lần lưu ĐỒNG THỜI cùng url mới chỉ tạo một Job', async () => {
     const user = await app.signUp();
     const token = await extToken(app, user.email, user.password);
@@ -177,5 +203,15 @@ describe('Ext jobs (/api/ext/jobs/save)', () => {
       where: { id: (res.body as SaveBody).jobId },
     });
     expect(job?.postedAt).toBeNull();
+  });
+
+  it('từ chối url không phải http(s) (chống javascript:/data:)', async () => {
+    const user = await app.signUp();
+    const token = await extToken(app, user.email, user.password);
+    await request(app.server)
+      .post('/api/ext/jobs/save')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...JOB, url: 'javascript:alert(1)' })
+      .expect(400);
   });
 });

@@ -39,7 +39,7 @@
 
 ### Luồng B — Lưu tin (F5)
 
-1. `ExtJobsService.save`: `jobIdFor` tìm Job cùng `url` (đã scrape hoặc lưu trước) để tái dùng; chưa có thì `create` Job `source='extension'`, `externalId = fingerprint(url)`, trường taxonomy từ `derivedFields`. Các trường tuỳ chọn client gửi được lưu: `logoUrl→companyLogo`, `locationText→location` (suy `provinceCode`), `salaryText→salaryRaw` (suy `salaryMin/Max`), `postedText→postedAt` (chỉ nhận ngày hợp lệ). Hai lần lưu đồng thời cùng url: `create` đua, lần thua bắt `P2002` rồi đọc lại → một Job duy nhất.
+1. `ExtJobsService.save`: `jobIdFor` **chuẩn hoá url** (`cleanUrl`) rồi tìm Job cùng url (tin đã crawl hoặc đã lưu trước) để tái dùng — khớp cả khi URL có tham số tracking; chưa có thì `create` Job `source='extension'`, `externalId = fingerprint(url chuẩn hoá)`, trường taxonomy từ `derivedFields`. Các trường tuỳ chọn client gửi được lưu: `logoUrl→companyLogo`, `locationText→location` (suy `provinceCode`), `salaryText→salaryRaw` (suy `salaryMin/Max`), `postedText→postedAt` (chỉ nhận ngày hợp lệ). Hai lần lưu đồng thời cùng url: `create` đua, lần thua bắt `P2002` rồi đọc lại → một Job duy nhất.
 2. `JobsService.save` thêm `SavedJob(userId, jobId)`. Tin `source='extension'` bị `whereFrom` loại khỏi feed / "phù hợp" / public / match của người khác; chỉ hiện ở view **đã lưu / đã ứng tuyển** của chủ.
 
 ### Luồng C — Soi kỹ bằng AI (F6)
@@ -89,7 +89,7 @@ sequenceDiagram
 |---|---|---|---|---|
 | BR-EXT-01 | Ext token là JWT `typ='ext'`, hạn 30 ngày (`JWT_EXT_EXPIRES_IN`), mang `ver = User.tokenVersion`; đăng xuất web / đổi mật khẩu (tăng `tokenVersion`) thu hồi ngay cả ext token *(2026-11-01)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts), [resolve-user.ts](../../../server/src/modules/auth/resolve-user.ts) |
 | BR-EXT-02 | Xác thực email/mật khẩu dùng chung `verifyCredentials` với web (một hash giả khi email không tồn tại để không lộ email đã đăng ký) *(2026-11-01)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
-| BR-EXT-03 | Lưu tin tạo Job `source='extension'` với `externalId = fingerprint(url)`; tìm trước theo `url` để tái dùng Job đã có; `create` + bắt `P2002` nên hai lần lưu đồng thời cùng url chỉ sinh một Job *(2026-11-01)* | SV, DB | ✅ | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts) |
+| BR-EXT-03 | Lưu tin **chuẩn hoá url** (`cleanUrl`: bỏ tham số tracking như `utm_*`/`ta_source`/`click_source`, bỏ fragment và dấu "/" cuối) rồi tìm Job cùng url để tái dùng — kể cả **tin đã crawl** của hệ thống; chưa có thì tạo Job `source='extension'` với `externalId = fingerprint(url đã chuẩn hoá)`; `create` + bắt `P2002` nên hai lần lưu đồng thời cùng url chỉ sinh một Job *(2026-11-01)* | SV, DB | ✅ | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts), [clean-url.ts](../../../server/src/modules/ext/jobs/clean-url.ts) |
 | BR-EXT-04 | Tin `source='extension'` bị loại khỏi feed / "phù hợp" / public / chọn job matching; chỉ hiện ở view đã lưu / đã ứng tuyển của chủ (`whereFrom` bỏ khi `saved`/`applied`) *(2026-11-01)* | SV | ✅ | [job-view.ts](../../../server/src/modules/jobs/utils/job-view.ts) |
 | BR-EXT-05 | "Soi kỹ" luôn lưu tin về tài khoản người gọi trước khi chấm, nên chỉ chấm tin của chính chủ — kết quả `JobMatch` khoá theo `userId`, không rò sang người khác *(2026-11-01)* | SV | ✅ | [ext-match.service.ts](../../../server/src/modules/ext/match/ext-match.service.ts) |
 | BR-EXT-06 | Lưu tin nhận thêm `logoUrl`/`locationText`/`salaryText`/`postedText` (client trích từ JSON-LD của trang) và lưu vào `companyLogo`/`location`/`salaryRaw`/`postedAt`; `postedText` chỉ nhận khi là ngày hợp lệ, còn lại để trống (FE hiện "Thu thập …") *(2026-11-01)* | SV | ✅ | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts) |
@@ -141,6 +141,7 @@ Không có máy trạng thái riêng. `JobMatch.status` (`PENDING→RUNNING→DO
 | Sai email/mật khẩu | 401 | `Email hoặc mật khẩu không đúng` | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
 | Thiếu / sai / hết hạn ext token | 401 | *(trống — 401 chung)* | [ext-auth.guard.ts](../../../server/src/modules/ext/auth/ext-auth.guard.ts) |
 | Poll tin chưa chấm | 404 | `Chưa chấm điểm công việc này` | [matching.service.ts](../../../server/src/modules/matching/ai/services/matching.service.ts) |
+| Lưu tin có `url` không phải http(s) | 400 | `Link tin không hợp lệ.` | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts) |
 
 ## 14. Notifications
 
@@ -160,6 +161,7 @@ Không gọi dịch vụ ngoài trực tiếp; "Soi kỹ" đi qua `MatchingServi
 | Lạm dụng AI | `POST /ext/match/quick` có `@ThrottleAi`; `getMatch` cache theo `promptHash` nên soi lại cùng tin không gọi AI mới |
 | XSS | Chữ của model (`strengths`/`gaps`) được escape HTML trước khi render trong widget |
 | `logoUrl` do người dùng gửi | Chỉ lưu chuỗi và render làm `src` ảnh trong view đã lưu của chính chủ (tải phía client, không phải server fetch); tin extension không lọt sang người khác nên URL ảnh cũng vậy |
+| `url` do người dùng gửi | Chuẩn hoá (`cleanUrl`) rồi **chặn ở service nếu không phải http(s)** → 400; tránh lưu `javascript:`/`data:` vì FE mở link bằng `window.open(job.url)` |
 | Chống brute-force | `POST /ext/auth/login` có `@ThrottleAuth` (đếm theo IP) |
 
 ## 17. ⚠️ Sai lệch / Rủi ro nghiệp vụ

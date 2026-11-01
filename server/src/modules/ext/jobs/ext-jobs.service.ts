@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { fingerprint } from '@/common/fingerprint';
 import { JobsService } from '@/modules/jobs/jobs.service';
 import { derivedFields } from '@/modules/jobs/taxonomy/resolve';
 import { isUniqueViolation } from '@/prisma/prisma-errors';
 import { PrismaService } from '@/prisma/prisma.service';
+import { cleanUrl } from './clean-url';
 import type { ExtSaveJobDto } from './ext-jobs.dto';
 
 @Injectable()
@@ -24,8 +25,12 @@ export class ExtJobsService {
 
   /** Dùng lại Job sẵn có cùng `url` (đã scrape hoặc lưu trước) để khỏi nhân đôi; chưa có thì tạo Job nguồn `extension`. Khoá `(source, externalId=fingerprint(url))` + bắt `P2002` để hai lần lưu đồng thời cùng url không sinh hai Job (`upsert` của Prisma không atomic đáng tin). */
   private async jobIdFor(dto: ExtSaveJobDto): Promise<string> {
+    const url = cleanUrl(dto.url);
+    if (!/^https?:\/\//i.test(url)) {
+      throw new BadRequestException('Link tin không hợp lệ.');
+    }
     const existing = await this.prisma.job.findFirst({
-      where: { url: dto.url },
+      where: { OR: [{ url }, { url: dto.url }] },
       select: { id: true },
     });
     if (existing) return existing.id;
@@ -36,13 +41,13 @@ export class ExtJobsService {
     const salaryRaw = dto.salaryText?.trim() || null;
     const posted = dto.postedText ? new Date(dto.postedText) : null;
     const postedAt = posted && !Number.isNaN(posted.getTime()) ? posted : null;
-    const externalId = fingerprint([dto.url]);
+    const externalId = fingerprint([url]);
     try {
       const created = await this.prisma.job.create({
         data: {
           source: 'extension',
           externalId,
-          url: dto.url,
+          url,
           title,
           company,
           companyLogo: dto.logoUrl?.trim() || null,
