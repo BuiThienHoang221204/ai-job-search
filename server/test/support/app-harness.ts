@@ -114,6 +114,10 @@ export async function createTestApp(
   // nên đổi sau đó thì không có tác dụng. Không dùng `overrideGuard` được -
   // ThrottlerGuard đăng ký qua token APP_GUARD, ngoài tầm với của nó.
   process.env.THROTTLE_DISABLED = options.throttle ? 'false' : 'true';
+  // Ghim trần cv-check về giá trị test giả định; `.env` dev bump lên 1000 để demo khỏi
+  // cạn lượt, sẽ rò vào e2e nếu không đặt cứng ở đây (dotenv không ghi đè biến đã có).
+  process.env.CV_CHECK_AI_PER_GUEST_PER_DAY = '4';
+  process.env.CV_CHECK_AI_PER_DAY = '50';
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(AiService)
