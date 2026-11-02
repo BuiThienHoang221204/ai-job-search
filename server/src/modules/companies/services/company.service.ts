@@ -58,15 +58,15 @@ export class CompanyService {
       select: { company: true },
     });
     if (!job) throw new NotFoundException(`Không tìm thấy tin: ${jobId}`);
+    return this.forCompany(job.company);
+  }
 
-    const nameKey = companyKeyOf(job.company);
+  /** Bản tóm tắt theo TÊN công ty (chung, cache theo `nameKey`). Tên ẩn danh / không rõ
+   * (`companyKeyOf` trả null) → không nghiên cứu được, trả về sớm để không tốn lượt AI. */
+  async forCompany(company: string): Promise<BriefView> {
+    const nameKey = companyKeyOf(company);
     if (!nameKey) {
-      return {
-        company: job.company,
-        researchable: false,
-        brief: null,
-        stale: false,
-      };
+      return { company, researchable: false, brief: null, stale: false };
     }
 
     const row = await this.prisma.companyBrief.findUnique({
@@ -74,22 +74,35 @@ export class CompanyService {
       select: PUBLIC_BRIEF_SELECT,
     });
 
-    return briefViewOf(job.company, row, Date.now());
+    return briefViewOf(company, row, Date.now());
   }
 
   async enqueueRefresh(jobId: string, force: boolean) {
-    const payload = await this.planRefresh(jobId, force);
-    if (!payload) return { queued: false, reason: 'còn hạn' };
+    return this.enqueuePlanned(await this.planRefresh(jobId, force));
+  }
 
+  async enqueueRefreshByName(company: string, force: boolean) {
+    return this.enqueuePlanned(await this.planRefreshByName(company, force));
+  }
+
+  private async enqueuePlanned(payload: CompanyBriefPayload | null) {
+    if (!payload) return { queued: false, reason: 'còn hạn' };
     await this.queue.send(QUEUE.COMPANY_BRIEF, payload);
     return { queued: true, company: payload.company };
   }
 
-  async planRefresh(
-    jobId: string,
+  async planRefresh(jobId: string, force: boolean) {
+    return this.planFromView(await this.forJob(jobId), force);
+  }
+
+  async planRefreshByName(company: string, force: boolean) {
+    return this.planFromView(await this.forCompany(company), force);
+  }
+
+  private planFromView(
+    view: BriefView,
     force: boolean,
-  ): Promise<CompanyBriefPayload | null> {
-    const view = await this.forJob(jobId);
+  ): CompanyBriefPayload | null {
     if (!view.researchable) {
       throw new BadRequestException(
         `Tin này không ghi rõ công ty: "${view.company}"`,

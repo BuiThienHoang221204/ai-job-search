@@ -573,6 +573,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-EXT-04 | Tin `source='extension'` bị loại khỏi feed / "phù hợp" / public / chọn job matching; chỉ hiện ở view đã lưu / đã ứng tuyển của chủ (`whereFrom` bỏ khi `saved`/`applied`) *(2026-11-01)* | SV | ✅ |
 | BR-EXT-05 | "Soi kỹ" luôn lưu tin về tài khoản người gọi trước khi chấm, nên chỉ chấm tin của chính chủ — kết quả `JobMatch` khoá theo `userId`, không rò sang người khác *(2026-11-01)* | SV | ✅ |
 | BR-EXT-06 | Lưu tin nhận thêm `logoUrl`/`locationText`/`salaryText`/`postedText` (client trích từ JSON-LD của trang) và lưu vào `companyLogo`/`location`/`salaryRaw`/`postedAt`; `postedText` chỉ nhận khi là ngày hợp lệ, còn lại để trống (FE hiện "Thu thập …") *(2026-11-01)* | SV | ✅ |
+| BR-EXT-07 | "Tìm hiểu công ty" chạy theo **tên công ty**, KHÔNG lưu tin (không sinh Job rác/trùng). Tên ẩn danh/không rõ (`companyKeyOf`→null) trả về sớm, **không xếp hàng AI**; bản tóm tắt là chung theo công ty (cache `nameKey`) nên bấm lại cùng công ty không gọi AI mới và đọc không cần khoá `userId` *(2026-11-02)* | SV | ✅ |
 
 ### Dashboard — Trang Tổng quan — [modules/dashboard.md](./modules/dashboard.md#7-business-rules)
 

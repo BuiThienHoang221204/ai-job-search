@@ -1,6 +1,6 @@
 # Ext — Tiện ích trình duyệt (Chrome extension)
 
-> **Phạm vi:** `server/src/modules/ext/**` (`auth/` — `ExtAuthController`, `ExtAuthGuard`, `@ExtAuth`; `profile/`, `jobs/`, `match/`); các method `AuthService.extLogin` / `issueExtToken` / `verifyCredentials`, `resolveAuthUser`, loại token `ext` trong `jwt-payload.ts`; cột `User.tokenVersion` (dùng lại), `Job.source = 'extension'`, model `SavedJob` và `JobMatch` (dùng lại). Điểm chạm module khác: `ProfileService.get`, `JobsService.save`, `MatchingService.enqueue/getMatch`, `whereFrom` (lọc `source`). Frontend: extension Chrome ([careelot-extension/](../../../../careelot-extension/README.md)) + trang [`/connect-extension`](../../../../ui-ai-job-search/app/connect-extension/page.tsx).
+> **Phạm vi:** `server/src/modules/ext/**` (`auth/` — `ExtAuthController`, `ExtAuthGuard`, `@ExtAuth`; `profile/`, `jobs/`, `match/`, `company/`); các method `AuthService.extLogin` / `issueExtToken` / `verifyCredentials`, `resolveAuthUser`, loại token `ext` trong `jwt-payload.ts`; cột `User.tokenVersion` (dùng lại), `Job.source = 'extension'`, model `SavedJob` và `JobMatch` (dùng lại). Điểm chạm module khác: `ProfileService.get`, `JobsService.save`, `MatchingService.enqueue/getMatch`, `CompanyService.enqueueRefresh/forJob`, `whereFrom` (lọc `source`). Frontend: extension Chrome ([careelot-extension/](../../../../careelot-extension/README.md)) + trang [`/connect-extension`](../../../../ui-ai-job-search/app/connect-extension/page.tsx).
 > **Nguyên tắc:** tài liệu mô tả hệ thống **as-is**. Code là nguồn sự thật duy nhất.
 
 ## 1. Purpose
@@ -10,6 +10,7 @@
 | Đăng nhập Careelot từ extension | Không dán token tay: email/mật khẩu hoặc Google, nhận **ext token** riêng (hạn dài, phạm vi hẹp) *(2026-11-01)* |
 | Lưu tin từ MỌI trang về Careelot | Một cú bấm trên trang tuyển dụng bất kỳ → tạo/tái dùng Job + thêm vào danh sách đã lưu |
 | Soi độ hợp ngay tại chỗ | Kéo kỹ năng hồ sơ để soi nhanh (client); "Soi kỹ" chấm sâu bằng AI với hồ sơ |
+| Tìm hiểu công ty tại chỗ | Một cú bấm → AI tóm tắt công ty (kết luận, điểm tốt/hạn chế, điểm sao, nguồn) *(2026-11-02)* |
 
 ## 2. Actors
 
@@ -29,6 +30,7 @@
 | F4 | Lấy kỹ năng hồ sơ để soi nhanh *(2026-11-01)* | USER | `GET /api/ext/profile` |
 | F5 | Lưu tin từ trang về Careelot *(2026-11-01)* | USER | `POST /api/ext/jobs/save` |
 | F6 | Soi kỹ bằng AI + poll kết quả *(2026-11-01)* | USER | `POST /api/ext/match/quick`, `GET /api/ext/match/:jobId` |
+| F7 | Tìm hiểu công ty bằng AI + poll kết quả *(2026-11-02)* | USER | `POST /api/ext/company/review`, `GET /api/ext/company/:jobId` |
 
 ## 4. Business Flow
 
@@ -46,6 +48,11 @@
 
 1. `ExtMatchService.quick`: lưu tin (Luồng B) → `MatchingService.enqueue` chấm cặp (hồ sơ người gọi, tin). Chấm AI đọc trực tiếp `job.description`, không cần trích requirements.
 2. Widget poll `GET /api/ext/match/:jobId` → `getMatch` tới khi `status='DONE'` → hiện `overallScore` + `strengths`/`gaps`.
+
+### Luồng D — Tìm hiểu công ty (F7)
+
+1. `ExtCompanyService.review`: nhận **tên công ty** (widget đọc từ trang, không lưu tin) → `CompanyService.forCompany(company)`. Tên ẩn danh/không rõ (`companyKeyOf` trả null: "không rõ", "confidential"…) → `researchable=false`, **trả về sớm, không xếp hàng AI**. Còn lại → `enqueueRefreshByName` (dùng lại hệ thống "tìm hiểu công ty", bản tóm tắt **chung theo công ty** cache theo `nameKey` — xem [companies.md](./companies.md)): bản còn hạn thì `queued=false` trả cache, thiếu/hết hạn mới xếp hàng.
+2. Widget poll `GET /api/ext/company?company=…` → `forCompany` tới khi `brief` khác null → hiện kết luận (`verdict`), tóm tắt, `pros`/`cons`, `rating`/`reviewCount`, độ tin cậy và nguồn. **Không tạo Job**, nên không sinh tin rác/trùng.
 
 ## 5. Mermaid Flowchart
 
@@ -93,6 +100,7 @@ sequenceDiagram
 | BR-EXT-04 | Tin `source='extension'` bị loại khỏi feed / "phù hợp" / public / chọn job matching; chỉ hiện ở view đã lưu / đã ứng tuyển của chủ (`whereFrom` bỏ khi `saved`/`applied`) *(2026-11-01)* | SV | ✅ | [job-view.ts](../../../server/src/modules/jobs/utils/job-view.ts) |
 | BR-EXT-05 | "Soi kỹ" luôn lưu tin về tài khoản người gọi trước khi chấm, nên chỉ chấm tin của chính chủ — kết quả `JobMatch` khoá theo `userId`, không rò sang người khác *(2026-11-01)* | SV | ✅ | [ext-match.service.ts](../../../server/src/modules/ext/match/ext-match.service.ts) |
 | BR-EXT-06 | Lưu tin nhận thêm `logoUrl`/`locationText`/`salaryText`/`postedText` (client trích từ JSON-LD của trang) và lưu vào `companyLogo`/`location`/`salaryRaw`/`postedAt`; `postedText` chỉ nhận khi là ngày hợp lệ, còn lại để trống (FE hiện "Thu thập …") *(2026-11-01)* | SV | ✅ | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts) |
+| BR-EXT-07 | "Tìm hiểu công ty" chạy theo **tên công ty**, KHÔNG lưu tin (không sinh Job rác/trùng). Tên ẩn danh/không rõ (`companyKeyOf`→null) trả về sớm, **không xếp hàng AI**; bản tóm tắt là chung theo công ty (cache `nameKey`) nên bấm lại cùng công ty không gọi AI mới và đọc không cần khoá `userId` *(2026-11-02)* | SV | ✅ | [ext-company.service.ts](../../../server/src/modules/ext/company/ext-company.service.ts), [company.service.ts](../../../server/src/modules/companies/services/company.service.ts) |
 
 ## 8. Validation Rules
 
@@ -106,6 +114,7 @@ sequenceDiagram
 | `locationText` | Tuỳ chọn, chuỗi ≤ 300 ký tự | [ext-jobs.dto.ts](../../../server/src/modules/ext/jobs/ext-jobs.dto.ts) |
 | `salaryText` | Tuỳ chọn, chuỗi ≤ 200 ký tự | [ext-jobs.dto.ts](../../../server/src/modules/ext/jobs/ext-jobs.dto.ts) |
 | `postedText` | Tuỳ chọn, chuỗi ≤ 40 ký tự (ngày hợp lệ mới nhận) | [ext-jobs.dto.ts](../../../server/src/modules/ext/jobs/ext-jobs.dto.ts) |
+| `company` (tìm hiểu công ty) | Chuỗi 1–200 ký tự (body POST và query GET) | [ext-company.dto.ts](../../../server/src/modules/ext/company/ext-company.dto.ts) |
 
 ## 9. API Mapping
 
@@ -118,6 +127,8 @@ sequenceDiagram
 | POST | `/api/ext/jobs/save` | USER | Lưu tin từ trang về Careelot *(2026-11-01)* | `ExtJobsController#save` | `ExtJobsService.save` | `ExtSaveJobDto` | `{ jobId, saved }` |
 | POST | `/api/ext/match/quick` | USER | Soi kỹ: lưu tin + chấm AI với hồ sơ *(2026-11-01)* | `ExtMatchController#quick` | `ExtMatchService.quick` | `ExtSaveJobDto` | `{ jobId, queued, alreadyScored }` |
 | GET | `/api/ext/match/:jobId` | USER | Poll kết quả chấm *(2026-11-01)* | `ExtMatchController#result` | `MatchingService.getMatch` | — | `JobMatch` |
+| POST | `/api/ext/company/review` | USER | Tìm hiểu công ty theo tên + xếp hàng AI *(2026-11-02)* | `ExtCompanyController#review` | `ExtCompanyService.review` | `ExtCompanyDto` | `{ queued, company, researchable, brief, stale }` |
+| GET | `/api/ext/company?company=` | USER | Poll bản tóm tắt công ty *(2026-11-02)* | `ExtCompanyController#result` | `CompanyService.forCompany` | `ExtCompanyDto` | `{ company, researchable, brief, stale }` |
 
 ## 10. Frontend Mapping
 
@@ -149,7 +160,7 @@ Không có.
 
 ## 15. Integrations
 
-Không gọi dịch vụ ngoài trực tiếp; "Soi kỹ" đi qua `MatchingService` → `AiService` (xem [ai-platform.md](./ai-platform.md)).
+"Soi kỹ" đi qua `MatchingService` → `AiService`; "Tìm hiểu công ty" đi qua `CompanyService` → tìm kiếm web (Serper/Tavily) + `AiService` (xem [companies.md](./companies.md), [ai-platform.md](./ai-platform.md)). Chỉ gửi **tên công ty** ra ngoài, không gửi dữ liệu người dùng.
 
 ## 16. Security
 
@@ -158,7 +169,8 @@ Không gọi dịch vụ ngoài trực tiếp; "Soi kỹ" đi qua `MatchingServi
 | Ext token hạn dài (30 ngày) | Thu hồi được qua `tokenVersion` (đăng xuất web huỷ luôn); phạm vi hẹp — chỉ dùng cho `/api/ext/*`, không thay session web |
 | Chèn dữ liệu vào bảng chung | Job `source='extension'` (title/company/description do người dùng nhập) bị loại khỏi mọi bề mặt chia sẻ (feed, "phù hợp", public, matching, job alert); chỉ ở danh sách đã lưu của chủ |
 | IDOR | Mọi route khoá theo `userId` của ext token; `GET /ext/match/:jobId` chỉ trả match của chính người gọi; id Job extension không lộ ở list nào nên người khác không lấy được |
-| Lạm dụng AI | `POST /ext/match/quick` có `@ThrottleAi`; `getMatch` cache theo `promptHash` nên soi lại cùng tin không gọi AI mới |
+| Lạm dụng AI | `POST /ext/match/quick` có `@ThrottleAi`; `getMatch` cache theo `promptHash` nên soi lại cùng tin không gọi AI mới. `POST /ext/company/review` có `@ThrottleAi`; công ty ẩn danh/không rõ bị chặn trước khi xếp hàng (`companyKeyOf`→null), và bản tóm tắt cache chung theo `nameKey` nên bấm lại cùng công ty không gọi AI mới. Route poll `GET /ext/company` KHÔNG gọi AI (chỉ đọc cache) |
+| Tin rác / tạo Job thừa | "Tìm hiểu công ty" chạy theo tên, **không** tạo Job — không thể dùng để bơm tin rác hay tin trùng vào DB |
 | XSS | Chữ của model (`strengths`/`gaps`) được escape HTML trước khi render trong widget |
 | `logoUrl` do người dùng gửi | Chỉ lưu chuỗi và render làm `src` ảnh trong view đã lưu của chính chủ (tải phía client, không phải server fetch); tin extension không lọt sang người khác nên URL ảnh cũng vậy |
 | `url` do người dùng gửi | Chuẩn hoá (`cleanUrl`) rồi **chặn ở service nếu không phải http(s)** → 400; tránh lưu `javascript:`/`data:` vì FE mở link bằng `window.open(job.url)` |
