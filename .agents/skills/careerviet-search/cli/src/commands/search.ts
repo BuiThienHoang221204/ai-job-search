@@ -16,6 +16,11 @@ export interface SearchOptions {
   remote?: "remote" | "hybrid" | "onsite"
 }
 
+/** Sort tin MỚI NHẤT trước (postedAt ISO giảm dần, tin không ngày xuống cuối). Trang keyword
+ * trả theo độ liên quan nên tin mới bị chìm; lượt quét hệ thống cần tin mới. */
+const byNewest = (cards: JobCard[]): JobCard[] =>
+  [...cards].sort((a, b) => (b.postedAt ?? "").localeCompare(a.postedAt ?? ""))
+
 export async function search(options: SearchOptions): Promise<JobCard[]> {
   const url = searchUrl({ query: options.query, page: options.page })
   if (!url) {
@@ -33,5 +38,5 @@ export async function search(options: SearchOptions): Promise<JobCard[]> {
     jobs = jobs.filter((job) => matchesLocation(job.location, options.location!))
   }
 
-  return options.limit ? jobs.slice(0, options.limit) : jobs
+  return options.limit ? byNewest(jobs).slice(0, options.limit) : byNewest(jobs)
 }

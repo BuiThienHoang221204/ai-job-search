@@ -501,16 +501,6 @@ export function relevantTo(card: JobCard, query: string, phrases: readonly strin
   return [query, ...phrases].some((phrase) => containsPhrase(card.title, phrase) !== -1)
 }
 
-/** Trang ngành còn lẫn tin trả phí của ngành khác; xếp tin có chữ của từ khoá trong chức danh lên đầu, giữ thứ tự gốc khi hoà. */
-export function rankByQuery(cards: JobCard[], query: string): JobCard[] {
-  const words = fold(query).trim().split(" ").filter((word) => word.length > 1)
-  const score = (card: JobCard) => words.filter((word) => fold(card.title).includes(` ${word} `)).length
-  return cards
-    .map((card, index) => ({ card, index, score: score(card) }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map(({ card }) => card)
-}
-
 /** "TP.HCM", "Hồ Chí Minh", "Sài Gòn" là MỘT nơi; portal ghi "TP.HCM" còn hồ sơ gửi "Ho Chi Minh". */
 const PLACE_ALIASES: Record<string, string> = {
   " tp hcm ": " ho chi minh ",

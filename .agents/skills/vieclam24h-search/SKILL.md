@@ -51,7 +51,8 @@ Nên `--query` đi qua HAI tầng, và **không có ngành mặc định**:
 2. **Trang NGÀNH CHA** `/viec-lam-<nganh>-o<id>.html` (`occupationFor`, bảng 53
    ngành + bí danh chức danh; cụm đứng trước thắng, so theo ranh giới từ). Tin
    được **lọc** (`relevantTo` - trang "IT Phần mềm" lẫn cả "Giáo viên Tin học",
-   mỗi tin lạc đề tốn một lượt rút yêu cầu) rồi **xếp lại** (`rankByQuery`).
+   mỗi tin lạc đề tốn một lượt rút yêu cầu) rồi **xếp theo ngày đăng mới nhất**
+   (`byNewest`) vì lượt quét hệ thống cần tin mới chứ không phải tin liên quan.
 
 Không tầng nào khớp thì trả `[]` và báo `NO_CATEGORY` trên stderr.
 

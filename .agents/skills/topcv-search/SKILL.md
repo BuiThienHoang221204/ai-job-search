@@ -9,6 +9,8 @@ description: >
   TopCV, tim viec lam Viet Nam, job search Vietnam, TopCV jobs.
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
+maxJobs: 150  # trần tin riêng mỗi lượt quét
+listing: true  # /tim-viec-lam-moi-nhat = listing mọi ngành; lượt hệ thống quét THẲNG tin mới nhất (query rỗng) + CLI sort theo ngày, thay vì tìm từ khoá (relevance)
 allowed-tools: Bash(bun run .agents/skills/topcv-search/cli/src/cli.ts *)
 ---
 

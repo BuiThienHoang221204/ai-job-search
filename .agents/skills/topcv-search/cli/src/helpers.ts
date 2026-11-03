@@ -501,13 +501,20 @@ const slugify = (text: string): string =>
  */
 export function searchUrl(options: { query?: string; page?: number }): string {
   const keyword = options.query ? slugify(options.query) : ""
-  const path = keyword ? `/tim-viec-lam-${keyword}` : "/tim-viec-lam"
-
   const params = new URLSearchParams()
   if (options.page && options.page > 1) params.set("page", String(options.page))
 
+  // Không từ khoá → trang "việc làm mới nhất" (listing mọi ngành). KHÔNG dùng /tim-viec-lam:
+  // trang đó render markup khác nên parser trả 0 tin. Trang này sort lộn (sba chèn tin tài
+  // trợ) nên CLI tự sort lại theo ngày (byNewest).
+  if (!keyword) {
+    params.set("type_keyword", "1")
+    params.set("sba", "1")
+    return `${BASE_URL}/tim-viec-lam-moi-nhat?${params.toString()}`
+  }
+
   const qs = params.toString()
-  return `${BASE_URL}${path}${qs ? `?${qs}` : ""}`
+  return `${BASE_URL}/tim-viec-lam-${keyword}${qs ? `?${qs}` : ""}`
 }
 
 /**

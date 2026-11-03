@@ -35,6 +35,7 @@ export type PortalEntry = {
   delayMs: number | null;
   maxJobs: number | null;
   occupations: string[] | null;
+  listing: boolean;
   description: string;
 };
 

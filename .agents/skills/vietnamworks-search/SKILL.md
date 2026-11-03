@@ -10,6 +10,8 @@ description: >
   Vietnam, VietnamWorks jobs.
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
+maxJobs: 150  # trần tin riêng mỗi lượt quét
+listing: true  # API không query = danh sách sort theo ngày đăng → lượt hệ thống quét THẲNG tin mới nhất (query rỗng) thay vì tìm theo từ khoá (relevance, bỏ sót tin mới)
 allowed-tools: Bash(bun run .agents/skills/vietnamworks-search/cli/src/cli.ts *)
 ---
 

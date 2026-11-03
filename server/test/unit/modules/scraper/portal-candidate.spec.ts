@@ -44,6 +44,7 @@ describe('evaluateCandidate', () => {
         delayMs: null,
         maxJobs: null,
         occupations: null,
+        listing: false,
         description: '',
       },
     });
@@ -78,6 +79,16 @@ describe('evaluateCandidate', () => {
       frontmatter: { jobAge: true },
     });
     expect('entry' in result && result.entry.supportsJobAge).toBe(true);
+  });
+
+  test('khai listing: true thì portal quét thẳng danh sách mới nhất', () => {
+    const result = evaluateCandidate({
+      ...base,
+      frontmatter: { listing: true },
+    });
+    expect('entry' in result && result.entry.listing).toBe(true);
+    const off = evaluateCandidate({ ...base, frontmatter: {} });
+    expect('entry' in off && off.entry.listing).toBe(false);
   });
 
   test('khai occupations là mảng chuỗi thì portal bị giới hạn ngành', () => {

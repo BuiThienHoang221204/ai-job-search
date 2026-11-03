@@ -46,6 +46,7 @@ export function evaluateCandidate(input: {
     delayMs?: unknown;
     maxJobs?: unknown;
     occupations?: unknown;
+    listing?: unknown;
     description?: unknown;
   };
 }): { entry: PortalEntry } | { skip: string } {
@@ -64,6 +65,7 @@ export function evaluateCandidate(input: {
       delayMs: positiveIntFrom(input.frontmatter.delayMs),
       maxJobs: positiveIntFrom(input.frontmatter.maxJobs),
       occupations: occupationsFrom(input.frontmatter.occupations),
+      listing: input.frontmatter.listing === true,
       description:
         typeof input.frontmatter.description === 'string'
           ? input.frontmatter.description

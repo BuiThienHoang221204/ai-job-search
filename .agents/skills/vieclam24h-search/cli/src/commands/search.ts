@@ -5,13 +5,17 @@ import {
   matchesLocation,
   occupationFor,
   parseJobCards,
-  rankByQuery,
   relevantTo,
   textFetch,
   writeError,
   type JobCard,
 } from "../helpers.ts"
 import { loadSubPages, subPageFor } from "../sub-occupations.ts"
+
+/** Sort tin MỚI NHẤT trước (ngày đăng ISO giảm dần, tin không ngày xuống cuối). Lượt quét
+ * hệ thống cần tin mới, không cần relevance theo từ khoá (ngành đã chọn đúng qua category). */
+const byNewest = (cards: JobCard[]): JobCard[] =>
+  [...cards].sort((a, b) => (b.postedAt ?? "").localeCompare(a.postedAt ?? ""))
 
 export interface SearchOptions {
   query?: string
@@ -42,13 +46,12 @@ export async function search(options: SearchOptions): Promise<JobCard[]> {
     // Phân trang phía server không đổi nội dung (xem sub-occupations.ts), nên chỉ trang 1 có nghĩa.
     if (options.page && options.page > 1) return []
     const html = await htmlFetch(`${BASE_URL}${subPath}`)
-    jobs = rankByQuery(parseJobCards(html), query)
+    jobs = byNewest(parseJobCards(html))
   } else if (occupation) {
     if (options.page && options.page > 1) return []
     const html = await htmlFetch(categoryUrl(occupation))
-    jobs = rankByQuery(
+    jobs = byNewest(
       parseJobCards(html).filter((card) => relevantTo(card, query, occupation.phrases)),
-      query,
     )
   } else {
     writeError(

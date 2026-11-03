@@ -12,7 +12,6 @@ import {
   parseDetail,
   parseJobCards,
   toCard,
-  rankByQuery,
   relevantTo,
   salaryText,
   zenrowsFetch,
@@ -126,18 +125,6 @@ describe("toCard - tên tỉnh", () => {
       },
     )
     expect(card?.location).toBe("TP.HCM")
-  })
-})
-
-describe("rankByQuery", () => {
-  test("tin có chữ của từ khoá trong chức danh lên đầu, giữ thứ tự gốc khi hoà", () => {
-    const cards = parseJobCards(categoryHtml)
-    const ranked = rankByQuery(cards, "kế toán tổng hợp")
-    expect(ranked).toHaveLength(cards.length)
-    expect(ranked[0]!.title.toLowerCase()).toContain("tổng hợp")
-    const firstMiss = ranked.findIndex((card) => !card.title.toLowerCase().includes("kế toán"))
-    const lastHit = ranked.findLastIndex((card) => card.title.toLowerCase().includes("kế toán"))
-    if (firstMiss !== -1) expect(firstMiss).toBeGreaterThan(lastHit)
   })
 })
 

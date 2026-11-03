@@ -845,6 +845,7 @@ const itOnlyPortal: PortalEntry = {
   delayMs: null,
   maxJobs: null,
   occupations: ['IT'],
+  listing: false,
   description: '',
 };
 
@@ -889,6 +890,27 @@ describe('ScraperService.run - portal giới hạn ngành', () => {
 
     expect(queries.length).toBeGreaterThan(0);
     expect(queries.every((q) => q.rationale.includes('IT'))).toBe(true);
+  });
+
+  test('portal listing: lượt hệ thống quét danh sách mới nhất bằng query rỗng, không dùng cụm nghề', async () => {
+    const prisma = industriesPrisma({ IT: 2 });
+    const { router, calls } = fakePortals({ 1: [card('a')] }, undefined, [
+      { ...itOnlyPortal, listing: true },
+    ]);
+    const service = buildService(prisma, router, fakeQueue());
+
+    await runScrape(service);
+
+    expect(calls.some((c) => c.query === '')).toBe(true);
+    const call = prisma.scrapeRun.update.mock.calls.find(
+      (args) => (args[0].data as { queries?: unknown }).queries !== undefined,
+    );
+    const queries = (
+      call![0].data as { queries: Array<{ query: string; rationale: string }> }
+    ).queries;
+    expect(queries).toHaveLength(1);
+    expect(queries[0].query).toBe('');
+    expect(queries[0].rationale).toContain('mới nhất');
   });
 
   test('lượt NGƯỜI DÙNG ngành khác kết thúc DONE kèm lý do, không gọi portal', async () => {

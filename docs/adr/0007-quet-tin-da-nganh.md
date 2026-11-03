@@ -43,6 +43,21 @@ Nay `scraper.service` xếp hàng theo **lô 5 tin** (`REQUIREMENTS_BATCH`) và 
 Hai chỗ dùng nó, và cả hai đều LỌC TRƯỚC khi xoay vòng/gọi model, không lọc sau:
 
 - **Lượt hệ thống** (`QueryPlanner.forSystem(portal, occupations)`): lọc `clusters` (cả hồ sơ thật lẫn sàn phủ taxonomy) theo `occupationGroupOf(clusterCode)` **trước** khi sắp theo `crawledAt`. Lọc SAU xoay vòng sẽ để nghề portal không phục vụ chiếm suất mãi mãi — nó không bao giờ được `markCrawled` nên `crawledAt` luôn là 0, luôn thắng tie-break "cũ nhất trước", và đè luôn nghề portal thật sự phục vụ ra khỏi `systemQueryLimit` slot sau đêm đầu tiên.
+
+**Tìm theo từ khoá sort theo ĐỘ LIÊN QUAN, bỏ sót tin mới — hai cách sửa (2026-11-03).** Mọi portal (đo CLI 2026-11-03) mặc định tìm theo từ khoá trả **relevance**, không theo ngày: ITviec keyword "reactjs" → "3/4/5 ngày"; VNW keyword "ke toan" → "39 phút/14 ngày/6 ngày" (lộn xộn); vieclam24h keyword → ngày lộn xộn. Nên mỗi đêm trả về **cùng tập tin phổ biến** (đo ITviec: ~50 lấy về, chỉ ~8 mới). Hai hướng theo cấu trúc portal:
+
+- **`listing: true` — portal có listing-tất-cả sort theo ngày** (lượt HỆ THỐNG dùng **một truy vấn rỗng** `query: ''` → CLI đánh thẳng listing mới nhất, phân trang; chỉ lượt hệ thống; nâng `maxJobs` →150):
+  - **ITviec** `/it-jobs/vietnam` (sort sẵn theo ngày — đo "42 phút trước").
+  - **VietnamWorks** empty-query API (sort sẵn theo ngày — đo "59 giây / 3 phút trước").
+  - **TopCV** `/tim-viec-lam-moi-nhat?type_keyword=1&sba=1` (trang "việc mới nhất", parser đọc được 44 tin; **KHÔNG** dùng `/tim-viec-lam` — markup khác, trả `[]`). Trang này chèn tin tài trợ nên **CLI tự sort lại theo ngày** (`ageMinutes` → "1 ngày trước" lên đầu). Keyword `/tim-viec-lam-<kw>` không có param ép sort (đọc link "Mới nhất" trong HTML ra `/tim-viec-lam-moi-nhat`).
+- **Sort theo ngày Ở CLI — portal không có all-listing** (tìm theo từ khoá/ngành rồi CLI sort `postedAt` giảm dần): **vieclam24h** (trang ngành, bỏ `rankByQuery`→`byNewest`; đo "ke toan" → 11-02 ×4, 11-01…); **careerviet** (trang keyword, thêm `byNewest`; đo trước: 10-12/10-30/10-23 lộn, sau: 11-02 ×5); **timviec** (ĐÃ sẵn `newestFirst`, không sửa — `+1` vì site nhỏ); **topdev** (thêm `byNewest` với `sortKey` nhận cả ISO lẫn `DD-MM-YYYY`, format lạ trả "" để GIỮ NGUYÊN — an toàn. **Chưa verify** vì dev lỗi cert `published.date`; cần chạy thử trên prod). `sortKey` chỉ sắp khi nhận ra định dạng ngày.
+
+**Chưa sửa được (ghi lý do, 2026-11-03):**
+- **joboko**: thẻ tin **không có `postedAt`** — đã soi HTML: ngày chỉ nằm ở DROPDOWN LỌC ("24h/3 ngày/7 ngày trước"), thẻ không hiện ngày. Chỉ sửa được qua param lọc ngày của trang ngành (select dùng chung class `op-quocgia` với lọc địa điểm, phải tách cẩn thận) hoặc đọc ngày từ trang chi tiết.
+- **123job**: **403 BLOCKED** (đúng với `+0`) → vấn đề là bị chặn (cần proxy/ScrapingAnt như TopCV), không phải sort.
+- **linkedin**: cấu trúc riêng + rủi ro ToS (cấm tự động) → để ngoài phạm vi.
+
+Hướng robust lâu dài cho portal đa ngành lớn: crawl THEO NHÃN (map `SUB_OCCUPATIONS` → trang ngành từng portal, sort theo ngày) thay vì từ khoá — chính xác hơn, phủ nhiều hơn. Hiện TopCV/VNW dùng listing-tất-cả (đơn giản, đủ lấy tin mới).
 - **Lượt người dùng** (`ScraperService.run`): so `Profile.occupationCode` với `occupations` của portal **trước khi gọi `forUser`** — khớp cổng `occupationGate` đã có ở đường đọc: hồ sơ chưa rõ ngành (`occupationCode: null`) thì không bị chặn, vì không có căn cứ để biết "ngành của họ". Không khớp thì trả `DONE` ngay với `jobsFound: 0` và `error` giải thích rõ, **không gọi portal, không tốn lượt AI tinh chỉnh truy vấn** — đây chính là "0 tin vì portal không phục vụ ngành này" tách khỏi "0 tin vì hỏng" mà đoạn trước còn nợ.
 
 `occupationGroupOf` (`query-plan.ts`) suy nhóm cha từ `SUB_OCCUPATION_PARENT`; mã đã là mã nhóm (nhánh lùi) thì trả về chính nó.
