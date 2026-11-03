@@ -8,7 +8,11 @@ type ReviewBody = {
   brief: { verdict: string; summary: string } | null;
 };
 
-async function extToken(app: TestApp, email: string, password: string): Promise<string> {
+async function extToken(
+  app: TestApp,
+  email: string,
+  password: string,
+): Promise<string> {
   const res = await request(app.server)
     .post('/api/ext/auth/login')
     .send({ email, password })

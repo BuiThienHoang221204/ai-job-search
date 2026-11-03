@@ -118,6 +118,8 @@ export async function createTestApp(
   // cạn lượt, sẽ rò vào e2e nếu không đặt cứng ở đây (dotenv không ghi đè biến đã có).
   process.env.CV_CHECK_AI_PER_GUEST_PER_DAY = '4';
   process.env.CV_CHECK_AI_PER_DAY = '50';
+  process.env.EXT_AUTOFILL_ANSWER_DAILY_LIMIT = '2';
+  process.env.EXT_UPSKILL_PLAN_DAILY_LIMIT = '2';
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(AiService)

@@ -12,8 +12,8 @@ export class ExtCompanyController {
   @Post('review')
   @ThrottleAi()
   @HttpCode(200)
-  review(@Body() dto: ExtCompanyDto) {
-    return this.company.review(dto.company);
+  review(@Body() dto: ExtCompanyDto, @Query('force') force?: string) {
+    return this.company.review(dto.company, force === '1' || force === 'true');
   }
 
   @Get()

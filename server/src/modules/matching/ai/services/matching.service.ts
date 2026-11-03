@@ -330,6 +330,19 @@ export class MatchingService {
     return withStaleFlag(match, updatedAt);
   }
 
+  /** Bản đã chấm xong của một cặp (người, tin) để ĐỌC auto-hiện; chưa chấm/chưa xong trả null (không ném, không chấm lại). */
+  async findMatch(userId: string, jobId: string) {
+    const [match, updatedAt] = await Promise.all([
+      this.prisma.jobMatch.findUnique({
+        where: { userId_jobId: { userId, jobId } },
+        select: MATCH_DETAIL_FIELDS,
+      }),
+      this.profileUpdatedAt(userId),
+    ]);
+    if (!match || match.status !== 'DONE') return null;
+    return withStaleFlag(match, updatedAt);
+  }
+
   async findDoneScore(userId: string, jobId: string) {
     return this.prisma.jobMatch.findFirst({
       where: { userId, jobId, status: 'DONE' },

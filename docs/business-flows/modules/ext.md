@@ -1,6 +1,6 @@
 # Ext — Tiện ích trình duyệt (Chrome extension)
 
-> **Phạm vi:** `server/src/modules/ext/**` (`auth/` — `ExtAuthController`, `ExtAuthGuard`, `@ExtAuth`; `profile/`, `jobs/`, `match/`, `company/`); các method `AuthService.extLogin` / `issueExtToken` / `verifyCredentials`, `resolveAuthUser`, loại token `ext` trong `jwt-payload.ts`; cột `User.tokenVersion` (dùng lại), `Job.source = 'extension'`, model `SavedJob` và `JobMatch` (dùng lại). Điểm chạm module khác: `ProfileService.get`, `JobsService.save`, `MatchingService.enqueue/getMatch`, `CompanyService.enqueueRefresh/forJob`, `whereFrom` (lọc `source`). Frontend: extension Chrome ([careelot-extension/](../../../../careelot-extension/README.md)) + trang [`/connect-extension`](../../../../ui-ai-job-search/app/connect-extension/page.tsx).
+> **Phạm vi:** `server/src/modules/ext/**` (`auth/` — `ExtAuthController`, `ExtAuthGuard`, `@ExtAuth`; `profile/`, `jobs/`, `match/`, `company/`, `autofill/`, `upskill/`, `lookup/`); các method `AuthService.extLogin` / `issueExtToken` / `verifyCredentials`, `resolveAuthUser`, loại token `ext` trong `jwt-payload.ts`; cột `User.tokenVersion` (dùng lại), `Job.source = 'extension'`, model `SavedJob` và `JobMatch` (dùng lại). Điểm chạm module khác: `ProfileService.get`, `JobsService.save`, `MatchingService.enqueue/getMatch`, `CompanyService.enqueueRefresh/forJob`, `JobRequirementsService.extract`, `SkillDictionaryService.lookup`, `matchRequirements` (rules, không AI), `whereFrom` (lọc `source`). Frontend: extension Chrome ([careelot-extension/](../../../../careelot-extension/README.md)) + trang [`/connect-extension`](../../../../ui-ai-job-search/app/connect-extension/page.tsx).
 > **Nguyên tắc:** tài liệu mô tả hệ thống **as-is**. Code là nguồn sự thật duy nhất.
 
 ## 1. Purpose
@@ -30,7 +30,12 @@
 | F4 | Lấy kỹ năng hồ sơ để soi nhanh *(2026-11-01)* | USER | `GET /api/ext/profile` |
 | F5 | Lưu tin từ trang về Careelot *(2026-11-01)* | USER | `POST /api/ext/jobs/save` |
 | F6 | Soi kỹ bằng AI + poll kết quả *(2026-11-01)* | USER | `POST /api/ext/match/quick`, `GET /api/ext/match/:jobId` |
-| F7 | Tìm hiểu công ty bằng AI + poll kết quả *(2026-11-02)* | USER | `POST /api/ext/company/review`, `GET /api/ext/company/:jobId` |
+| F7 | Tìm hiểu công ty bằng AI + poll kết quả *(2026-11-02)* | USER | `POST /api/ext/company/review`, `GET /api/ext/company?company=` |
+| F8 | Lấy bộ trường hồ sơ để tự điền form ứng tuyển *(2026-11-02)* | USER | `GET /api/ext/profile/autofill` |
+| F9 | Nhờ AI soạn câu trả lời tự luận trong đơn *(2026-11-02)* | USER | `POST /api/ext/autofill/answer` |
+| F10 | Kỹ năng còn thiếu cho tin đang mở (đối chiếu bằng code) *(2026-11-03)* | USER | `POST /api/ext/upskill/gaps` |
+| F11 | Gợi ý lộ trình học (AI) cho các kỹ năng còn thiếu *(2026-11-03)* | USER | `POST /api/ext/upskill/plan` |
+| F12 | Tự hiện lại kết quả ĐÃ CÓ của tin khi mở widget (match/kỹ năng/công ty) *(2026-11-03)* | USER | `POST /api/ext/lookup` |
 
 ## 4. Business Flow
 
@@ -47,12 +52,28 @@
 ### Luồng C — Soi kỹ bằng AI (F6)
 
 1. `ExtMatchService.quick`: lưu tin (Luồng B) → `MatchingService.enqueue` chấm cặp (hồ sơ người gọi, tin). Chấm AI đọc trực tiếp `job.description`, không cần trích requirements.
-2. Widget poll `GET /api/ext/match/:jobId` → `getMatch` tới khi `status='DONE'` → hiện `overallScore` + `strengths`/`gaps`.
+2. Widget poll `GET /api/ext/match/:jobId` → `getMatch` tới khi `status='DONE'` → hiện `overallScore` + `strengths`/`gaps`. `getMatch` trả cờ `stale` (so `Profile.updatedAt` > `evaluatedAt`): hồ sơ đổi sau lần chấm → widget hiện nhắc "điểm có thể lỗi thời" + nút **Chấm lại** = `POST /api/ext/match/quick?force=1` → `enqueue(force)` chấm lại theo hồ sơ mới; `enqueue(force=false)` thấy đã `DONE` thì **trả điểm cũ không chấm lại**, nên không force sẽ không làm mới. Poll lượt force chờ tới khi `status='DONE'` **và** `stale=false`.
 
 ### Luồng D — Tìm hiểu công ty (F7)
 
 1. `ExtCompanyService.review`: nhận **tên công ty** (widget đọc từ trang, không lưu tin) → `CompanyService.forCompany(company)`. Tên ẩn danh/không rõ (`companyKeyOf` trả null: "không rõ", "confidential"…) → `researchable=false`, **trả về sớm, không xếp hàng AI**. Còn lại → `enqueueRefreshByName` (dùng lại hệ thống "tìm hiểu công ty", bản tóm tắt **chung theo công ty** cache theo `nameKey` — xem [companies.md](./companies.md)): bản còn hạn thì `queued=false` trả cache, thiếu/hết hạn mới xếp hàng.
-2. Widget poll `GET /api/ext/company?company=…` → `forCompany` tới khi `brief` khác null → hiện kết luận (`verdict`), tóm tắt, `pros`/`cons`, `rating`/`reviewCount`, độ tin cậy và nguồn. **Không tạo Job**, nên không sinh tin rác/trùng.
+2. Widget poll `GET /api/ext/company?company=…` → `forCompany` tới khi `brief` khác null → hiện kết luận (`verdict`), tóm tắt, `pros`/`cons`, `rating`/`reviewCount`, độ tin cậy, **nguồn đã dùng** (`sources` kèm `usedFor` + `status`; nguồn không mở được ghi "không mở được"), **ngày cập nhật** (`updatedAt`) và nút **Làm mới** = `POST /api/ext/company/review?force=1` → `enqueueRefreshByName(force)` (vẫn bị `forceTooSoon` chặn nếu vừa làm gần đây → `queued=false`, giữ bản hiện có); widget poll lượt force tới khi `stale=false`. **Không tạo Job**, nên không sinh tin rác/trùng.
+
+### Luồng E — Tự điền form ứng tuyển (F8, F9)
+
+1. **Field chuẩn (không AI):** tiện ích gọi `GET /api/ext/profile/autofill` → `ExtProfileService.autofill` gom `User.name/email` + `Profile` thành bộ trường (`fullName`, `email`, `phone`, `location`, `headline`, `skills`…) rồi khớp heuristic vào input của form (autocomplete/label/name). Không gọi AI.
+2. **Ô tự luận (AI):** người dùng bấm "nhờ AI viết" ở một ô → `POST /api/ext/autofill/answer` → `ExtAutofillService.answer`: chặn trước bằng hạn mức theo người (đếm `aiCall` 24h, trần `EXT_AUTOFILL_ANSWER_DAILY_LIMIT`), rồi `AiService.generateObject` sinh câu trả lời **chỉ từ hồ sơ người gọi** (không bịa). Chỉ chạy khi người dùng chủ động bấm, mỗi lần một ô. Tiện ích điền vào ô, **không tự submit**.
+
+### Luồng F — Kỹ năng còn thiếu cho tin (F10)
+
+1. Người dùng bấm "Kỹ năng còn thiếu" → `POST /api/ext/upskill/gaps` → `ExtUpskillService.gaps`: lưu tin về tài khoản (tái dùng `ExtJobsService.save`), đảm bảo đã rút yêu cầu của tin (`JobRequirementsService.extract` — **cache theo tin, dùng chung mọi người**, chỉ gọi model lần đầu), rồi đối chiếu hồ sơ người gọi với yêu cầu **bằng CODE** (`matchRequirements`, không gọi model).
+2. Trả khung "mức sẵn sàng": kỹ năng **đã đạt** / **còn thiếu bắt buộc** / **nên có thêm** + mốc kinh nghiệm. Danh sách kỹ năng do code sinh (chính xác theo yêu cầu đã rút), không để model tự liệt kê nên không bịa kỹ năng ngoài tin.
+3. **Lộ trình học (AI):** người dùng bấm "Gợi ý lộ trình học" → `POST /api/ext/upskill/plan` → `ExtUpskillService.plan`: chặn trước bằng hạn mức theo người (đếm `aiCall` 24h, trần `EXT_UPSKILL_PLAN_DAILY_LIMIT`), rồi `AiService.generateObject` gợi ý cách bổ sung **đúng danh sách kỹ năng tiện ích gửi lên** (vốn do code chốt ở bước 1), hướng dẫn ngắn gọn tổng quát — không bịa tên khoá/link/con số. Chỉ chạy khi người dùng chủ động bấm.
+
+### Luồng G — Tự hiện kết quả đã có (F12)
+
+1. Khi widget mở trên một trang tin, tiện ích gọi `POST /api/ext/lookup` (url + tên công ty) → `ExtLookupService.lookup`: tìm Job đã có theo url (`findJobIdByUrl`, **không tạo tin**); nếu có → trả `JobMatch` **đã `DONE`** (`findMatch`, null nếu chưa chấm/chưa xong) + kỹ năng còn thiếu **nếu tin đã rút yêu cầu** (`gapsForJob`, đối chiếu bằng code, null nếu chưa có yêu cầu); kèm bản tóm tắt công ty đã cache (`forCompany`). **Đọc-thuần, KHÔNG gọi model, không tạo/ghi gì.**
+2. Widget chỉ **điền vào ô trống** (không đè kết quả người dùng vừa chạy): tin đã soi/đã phân tích kỹ năng/đã tìm hiểu công ty thì hiện lại ngay, đỡ phải bấm lại; chưa có thì vẫn hiện nút như cũ.
 
 ## 5. Mermaid Flowchart
 
@@ -98,9 +119,14 @@ sequenceDiagram
 | BR-EXT-02 | Xác thực email/mật khẩu dùng chung `verifyCredentials` với web (một hash giả khi email không tồn tại để không lộ email đã đăng ký) *(2026-11-01)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
 | BR-EXT-03 | Lưu tin **chuẩn hoá url** (`cleanUrl`: bỏ tham số tracking như `utm_*`/`ta_source`/`click_source`, bỏ fragment và dấu "/" cuối) rồi tìm Job cùng url để tái dùng — kể cả **tin đã crawl** của hệ thống; chưa có thì tạo Job `source='extension'` với `externalId = fingerprint(url đã chuẩn hoá)`; `create` + bắt `P2002` nên hai lần lưu đồng thời cùng url chỉ sinh một Job *(2026-11-01)* | SV, DB | ✅ | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts), [clean-url.ts](../../../server/src/modules/ext/jobs/clean-url.ts) |
 | BR-EXT-04 | Tin `source='extension'` bị loại khỏi feed / "phù hợp" / public / chọn job matching; chỉ hiện ở view đã lưu / đã ứng tuyển của chủ (`whereFrom` bỏ khi `saved`/`applied`) *(2026-11-01)* | SV | ✅ | [job-view.ts](../../../server/src/modules/jobs/utils/job-view.ts) |
-| BR-EXT-05 | "Soi kỹ" luôn lưu tin về tài khoản người gọi trước khi chấm, nên chỉ chấm tin của chính chủ — kết quả `JobMatch` khoá theo `userId`, không rò sang người khác *(2026-11-01)* | SV | ✅ | [ext-match.service.ts](../../../server/src/modules/ext/match/ext-match.service.ts) |
+| BR-EXT-05 | "Soi kỹ" luôn lưu tin về tài khoản người gọi trước khi chấm, nên chỉ chấm tin của chính chủ — kết quả `JobMatch` khoá theo `userId`, không rò sang người khác. Lượt thường `force=false` (đã `DONE` thì trả cache, không chấm lại); "Chấm lại" gửi `?force=1` để chấm lại khi hồ sơ đã đổi (cờ `stale`) *(2026-11-03)* | SV | ✅ | [ext-match.service.ts](../../../server/src/modules/ext/match/ext-match.service.ts) |
 | BR-EXT-06 | Lưu tin nhận thêm `logoUrl`/`locationText`/`salaryText`/`postedText` (client trích từ JSON-LD của trang) và lưu vào `companyLogo`/`location`/`salaryRaw`/`postedAt`; `postedText` chỉ nhận khi là ngày hợp lệ, còn lại để trống (FE hiện "Thu thập …") *(2026-11-01)* | SV | ✅ | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts) |
-| BR-EXT-07 | "Tìm hiểu công ty" chạy theo **tên công ty**, KHÔNG lưu tin (không sinh Job rác/trùng). Tên ẩn danh/không rõ (`companyKeyOf`→null) trả về sớm, **không xếp hàng AI**; bản tóm tắt là chung theo công ty (cache `nameKey`) nên bấm lại cùng công ty không gọi AI mới và đọc không cần khoá `userId` *(2026-11-02)* | SV | ✅ | [ext-company.service.ts](../../../server/src/modules/ext/company/ext-company.service.ts), [company.service.ts](../../../server/src/modules/companies/services/company.service.ts) |
+| BR-EXT-07 | "Tìm hiểu công ty" chạy theo **tên công ty**, KHÔNG lưu tin (không sinh Job rác/trùng). Tên ẩn danh/không rõ (`companyKeyOf`→null) trả về sớm, **không xếp hàng AI**; bản tóm tắt là chung theo công ty (cache `nameKey`) nên bấm lại cùng công ty không gọi AI mới và đọc không cần khoá `userId`. Nút "Làm mới" gửi `?force=1` → `enqueueRefreshByName(force)`, nhưng `forceTooSoon` vẫn chặn nếu vừa làm mới gần đây (không cho spam lượt AI) *(2026-11-03)* | SV | ✅ | [ext-company.service.ts](../../../server/src/modules/ext/company/ext-company.service.ts), [company.service.ts](../../../server/src/modules/companies/services/company.service.ts) |
+| BR-EXT-08 | `GET /ext/profile/autofill` chỉ trả hồ sơ **của chính người gọi** (`userId` từ ext token): `User.name/email` + trường `Profile`; không chứa dữ liệu người khác *(2026-11-02)* | SV | ✅ | [ext-profile.service.ts](../../../server/src/modules/ext/profile/ext-profile.service.ts) |
+| BR-EXT-09 | "Nhờ AI viết" có **hạn mức theo người** (đếm `aiCall` 24h so với `EXT_AUTOFILL_ANSWER_DAILY_LIMIT`, mặc định 30) → vượt thì 429; prompt chỉ dùng hồ sơ người gọi, chạy theo từng lần người dùng bấm (không tự động toàn form) *(2026-11-02)* | SV | ✅ | [ext-autofill.service.ts](../../../server/src/modules/ext/autofill/ext-autofill.service.ts) |
+| BR-EXT-10 | "Kỹ năng còn thiếu" đối chiếu hồ sơ người gọi với yêu cầu tin **bằng code** (`matchRequirements`), danh sách kỹ năng không do model sinh nên không bịa; yêu cầu tin rút qua `JobRequirementsService.extract` **cache theo tin** nên đường đọc thường **không gọi model** (chỉ lần đầu của tin); lưu tin và đọc hồ sơ đều khoá theo `userId` người gọi *(2026-11-03)* | SV | ✅ | [ext-upskill.service.ts](../../../server/src/modules/ext/upskill/ext-upskill.service.ts) |
+| BR-EXT-11 | "Gợi ý lộ trình học" có **hạn mức theo người** (đếm `aiCall` 24h so với `EXT_UPSKILL_PLAN_DAILY_LIMIT`, mặc định 20) → vượt thì 429; AI chỉ gợi ý cách bổ sung cho **danh sách kỹ năng do code chốt** (tiện ích gửi lên), service khử trùng + chặn trần số lượng, prompt cấm bịa tên khoá/link/số liệu *(2026-11-03)* | SV | ✅ | [ext-upskill.service.ts](../../../server/src/modules/ext/upskill/ext-upskill.service.ts) |
+| BR-EXT-12 | `POST /ext/lookup` **đọc-thuần, KHÔNG gọi model, không tạo/ghi tin**: tìm Job theo url (không tạo), trả match **chỉ khi đã `DONE`** + kỹ năng thiếu **chỉ khi tin đã rút yêu cầu** (đối chiếu bằng code) + công ty đã cache; match/kỹ năng khoá theo `userId` người gọi *(2026-11-03)* | SV | ✅ | [ext-lookup.service.ts](../../../server/src/modules/ext/lookup/ext-lookup.service.ts) |
 
 ## 8. Validation Rules
 
@@ -115,6 +141,10 @@ sequenceDiagram
 | `salaryText` | Tuỳ chọn, chuỗi ≤ 200 ký tự | [ext-jobs.dto.ts](../../../server/src/modules/ext/jobs/ext-jobs.dto.ts) |
 | `postedText` | Tuỳ chọn, chuỗi ≤ 40 ký tự (ngày hợp lệ mới nhận) | [ext-jobs.dto.ts](../../../server/src/modules/ext/jobs/ext-jobs.dto.ts) |
 | `company` (tìm hiểu công ty) | Chuỗi 1–200 ký tự (body POST và query GET) | [ext-company.dto.ts](../../../server/src/modules/ext/company/ext-company.dto.ts) |
+| `question` (nhờ AI viết) | Chuỗi 3–500 ký tự | [ext-autofill.dto.ts](../../../server/src/modules/ext/autofill/ext-autofill.dto.ts) |
+| `role` / `company` (nhờ AI viết) | Tuỳ chọn, chuỗi ≤ 200 ký tự | [ext-autofill.dto.ts](../../../server/src/modules/ext/autofill/ext-autofill.dto.ts) |
+| `skills` (lộ trình học) | Mảng ≤ 20 phần tử, mỗi chuỗi ≤ 80 ký tự | [ext-upskill.dto.ts](../../../server/src/modules/ext/upskill/ext-upskill.dto.ts) |
+| `url` (lookup) | Chuỗi 1–2048 ký tự; `company` tuỳ chọn ≤ 200 | [ext-lookup.dto.ts](../../../server/src/modules/ext/lookup/ext-lookup.dto.ts) |
 
 ## 9. API Mapping
 
@@ -125,10 +155,15 @@ sequenceDiagram
 | GET | `/api/ext/auth/me` | USER | Kiểm ext token, trả tài khoản *(2026-11-01)* | `ExtAuthController#me` | — | — | `{ user }` |
 | GET | `/api/ext/profile` | USER | Kỹ năng hồ sơ để soi nhanh *(2026-11-01)* | `ExtProfileController#get` | `ProfileService.get` | — | `{ skills }` |
 | POST | `/api/ext/jobs/save` | USER | Lưu tin từ trang về Careelot *(2026-11-01)* | `ExtJobsController#save` | `ExtJobsService.save` | `ExtSaveJobDto` | `{ jobId, saved }` |
-| POST | `/api/ext/match/quick` | USER | Soi kỹ: lưu tin + chấm AI với hồ sơ *(2026-11-01)* | `ExtMatchController#quick` | `ExtMatchService.quick` | `ExtSaveJobDto` | `{ jobId, queued, alreadyScored }` |
+| POST | `/api/ext/match/quick` (`?force=1` để chấm lại) | USER | Soi kỹ: lưu tin + chấm AI với hồ sơ *(2026-11-01)* | `ExtMatchController#quick` | `ExtMatchService.quick` | `ExtSaveJobDto` | `{ jobId, queued, alreadyScored }` |
 | GET | `/api/ext/match/:jobId` | USER | Poll kết quả chấm *(2026-11-01)* | `ExtMatchController#result` | `MatchingService.getMatch` | — | `JobMatch` |
-| POST | `/api/ext/company/review` | USER | Tìm hiểu công ty theo tên + xếp hàng AI *(2026-11-02)* | `ExtCompanyController#review` | `ExtCompanyService.review` | `ExtCompanyDto` | `{ queued, company, researchable, brief, stale }` |
+| POST | `/api/ext/company/review` (`?force=1` để làm mới) | USER | Tìm hiểu công ty theo tên + xếp hàng AI *(2026-11-02)* | `ExtCompanyController#review` | `ExtCompanyService.review` | `ExtCompanyDto` | `{ queued, company, researchable, brief, stale }` |
 | GET | `/api/ext/company?company=` | USER | Poll bản tóm tắt công ty *(2026-11-02)* | `ExtCompanyController#result` | `CompanyService.forCompany` | `ExtCompanyDto` | `{ company, researchable, brief, stale }` |
+| GET | `/api/ext/profile/autofill` | USER | Bộ trường hồ sơ để tự điền form *(2026-11-02)* | `ExtProfileController#autofill` | `ExtProfileService.autofill` | — | `AutofillData` |
+| POST | `/api/ext/autofill/answer` | USER | Nhờ AI soạn câu trả lời tự luận *(2026-11-02)* | `ExtAutofillController#answer` | `ExtAutofillService.answer` | `AutofillAnswerDto` | `{ answer, remaining }` |
+| POST | `/api/ext/upskill/gaps` | USER | Kỹ năng còn thiếu cho tin (đối chiếu bằng code) *(2026-11-03)* | `ExtUpskillController#gaps` | `ExtUpskillService.gaps` | `ExtSaveJobDto` | `{ jobId, readiness, have, missingRequired, missingNice, years }` |
+| POST | `/api/ext/upskill/plan` | USER | Gợi ý lộ trình học (AI) cho kỹ năng thiếu *(2026-11-03)* | `ExtUpskillController#plan` | `ExtUpskillService.plan` | `UpskillPlanDto` | `{ items, remaining }` |
+| POST | `/api/ext/lookup` | USER | Tự hiện kết quả đã có (đọc-thuần, không AI) *(2026-11-03)* | `ExtLookupController#find` | `ExtLookupService.lookup` | `ExtLookupDto` | `{ match, gaps, company }` |
 
 ## 10. Frontend Mapping
 
@@ -152,6 +187,7 @@ Không có máy trạng thái riêng. `JobMatch.status` (`PENDING→RUNNING→DO
 | Sai email/mật khẩu | 401 | `Email hoặc mật khẩu không đúng` | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
 | Thiếu / sai / hết hạn ext token | 401 | *(trống — 401 chung)* | [ext-auth.guard.ts](../../../server/src/modules/ext/auth/ext-auth.guard.ts) |
 | Poll tin chưa chấm | 404 | `Chưa chấm điểm công việc này` | [matching.service.ts](../../../server/src/modules/matching/ai/services/matching.service.ts) |
+| Hết hạn mức nhờ AI viết trong 24h | 429 | `Bạn đã dùng hết N lượt nhờ AI viết trong 24 giờ qua. Quay lại sau nhé.` | [ext-autofill.service.ts](../../../server/src/modules/ext/autofill/ext-autofill.service.ts) |
 | Lưu tin có `url` không phải http(s) | 400 | `Link tin không hợp lệ.` | [ext-jobs.service.ts](../../../server/src/modules/ext/jobs/ext-jobs.service.ts) |
 
 ## 14. Notifications
@@ -160,7 +196,7 @@ Không có.
 
 ## 15. Integrations
 
-"Soi kỹ" đi qua `MatchingService` → `AiService`; "Tìm hiểu công ty" đi qua `CompanyService` → tìm kiếm web (Serper/Tavily) + `AiService` (xem [companies.md](./companies.md), [ai-platform.md](./ai-platform.md)). Chỉ gửi **tên công ty** ra ngoài, không gửi dữ liệu người dùng.
+"Soi kỹ" đi qua `MatchingService` → `AiService`; "Tìm hiểu công ty" đi qua `CompanyService` → tìm kiếm web (Serper/Tavily) + `AiService` (xem [companies.md](./companies.md), [ai-platform.md](./ai-platform.md)). Chỉ gửi **tên công ty** ra ngoài, không gửi dữ liệu người dùng. "Nhờ AI viết" (`POST /ext/autofill/answer`) đi qua `AiService` với prompt chứa hồ sơ người gọi — cùng loại luồng AI như soạn CV/thư xin việc, không thêm bên nhận dữ liệu mới. "Kỹ năng còn thiếu" (`POST /ext/upskill/gaps`) đối chiếu **bằng code**, chỉ rút yêu cầu từ MÔ TẢ TIN (như matching), **không gửi hồ sơ ra AI**; "Gợi ý lộ trình học" (`POST /ext/upskill/plan`) gửi **tên các kỹ năng còn thiếu** (lấy từ yêu cầu tin, không phải dữ liệu cá nhân) cho `AiService` — không thêm bên nhận dữ liệu mới.
 
 ## 16. Security
 
@@ -169,7 +205,7 @@ Không có.
 | Ext token hạn dài (30 ngày) | Thu hồi được qua `tokenVersion` (đăng xuất web huỷ luôn); phạm vi hẹp — chỉ dùng cho `/api/ext/*`, không thay session web |
 | Chèn dữ liệu vào bảng chung | Job `source='extension'` (title/company/description do người dùng nhập) bị loại khỏi mọi bề mặt chia sẻ (feed, "phù hợp", public, matching, job alert); chỉ ở danh sách đã lưu của chủ |
 | IDOR | Mọi route khoá theo `userId` của ext token; `GET /ext/match/:jobId` chỉ trả match của chính người gọi; id Job extension không lộ ở list nào nên người khác không lấy được |
-| Lạm dụng AI | `POST /ext/match/quick` có `@ThrottleAi`; `getMatch` cache theo `promptHash` nên soi lại cùng tin không gọi AI mới. `POST /ext/company/review` có `@ThrottleAi`; công ty ẩn danh/không rõ bị chặn trước khi xếp hàng (`companyKeyOf`→null), và bản tóm tắt cache chung theo `nameKey` nên bấm lại cùng công ty không gọi AI mới. Route poll `GET /ext/company` KHÔNG gọi AI (chỉ đọc cache) |
+| Lạm dụng AI | `POST /ext/match/quick` có `@ThrottleAi`; `getMatch` cache theo `promptHash` nên soi lại cùng tin không gọi AI mới. `POST /ext/company/review` có `@ThrottleAi`; công ty ẩn danh/không rõ bị chặn trước khi xếp hàng (`companyKeyOf`→null), và bản tóm tắt cache chung theo `nameKey` nên bấm lại cùng công ty không gọi AI mới. Route poll `GET /ext/company` KHÔNG gọi AI (chỉ đọc cache). `POST /ext/autofill/answer` có `@ThrottleAi` **và** hạn mức theo người (`EXT_AUTOFILL_ANSWER_DAILY_LIMIT`, đếm `aiCall` 24h) → vượt thì 429; chỉ chạy theo từng lần người dùng bấm, không tự động toàn form. `POST /ext/upskill/gaps` đối chiếu bằng code (chỉ rút yêu cầu tin lần đầu, cache theo tin dùng chung) nên gần như không gọi AI; `POST /ext/upskill/plan` có `@ThrottleAi` **và** hạn mức theo người (`EXT_UPSKILL_PLAN_DAILY_LIMIT`, mặc định 20) → vượt thì 429, chỉ chạy theo lần bấm |
 | Tin rác / tạo Job thừa | "Tìm hiểu công ty" chạy theo tên, **không** tạo Job — không thể dùng để bơm tin rác hay tin trùng vào DB |
 | XSS | Chữ của model (`strengths`/`gaps`) được escape HTML trước khi render trong widget |
 | `logoUrl` do người dùng gửi | Chỉ lưu chuỗi và render làm `src` ảnh trong view đã lưu của chính chủ (tải phía client, không phải server fetch); tin extension không lọt sang người khác nên URL ảnh cũng vậy |

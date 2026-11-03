@@ -11,10 +11,10 @@ export class ExtMatchService {
     private readonly matching: MatchingService,
   ) {}
 
-  /** Lưu tin về tài khoản (tạo/tái dùng Job + SavedJob) rồi xếp hàng chấm điểm AI cho chính người gọi — luôn là tin của chủ nên không rò sang người khác. */
-  async quick(userId: string, dto: ExtSaveJobDto) {
+  /** Lưu tin về tài khoản (tạo/tái dùng Job + SavedJob) rồi xếp hàng chấm điểm AI cho chính người gọi — luôn là tin của chủ nên không rò sang người khác. `force` chấm lại khi hồ sơ đã đổi (điểm cũ lỗi thời). */
+  async quick(userId: string, dto: ExtSaveJobDto, force = false) {
     const { jobId } = await this.extJobs.save(userId, dto);
-    const result = await this.matching.enqueue(userId, jobId, false);
+    const result = await this.matching.enqueue(userId, jobId, force);
     return { jobId, ...result };
   }
 

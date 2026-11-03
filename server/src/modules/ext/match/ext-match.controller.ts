@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { ThrottleAi } from '@/common/throttle';
 import type { AuthUser } from '@/common/types/auth-user';
@@ -14,8 +22,12 @@ export class ExtMatchController {
   @Post('quick')
   @ThrottleAi()
   @HttpCode(200)
-  quick(@CurrentUser() user: AuthUser, @Body() dto: ExtSaveJobDto) {
-    return this.match.quick(user.id, dto);
+  quick(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ExtSaveJobDto,
+    @Query('force') force?: string,
+  ) {
+    return this.match.quick(user.id, dto, force === '1' || force === 'true');
   }
 
   @Get(':jobId')

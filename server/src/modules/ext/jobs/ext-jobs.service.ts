@@ -23,17 +23,25 @@ export class ExtJobsService {
     return { jobId, saved: true };
   }
 
+  /** Tìm Job đã có cùng `url` (chuẩn hoá) mà KHÔNG tạo mới — cho đường ĐỌC (lookup auto-hiện). */
+  async findJobIdByUrl(rawUrl: string): Promise<string | null> {
+    const url = cleanUrl(rawUrl);
+    if (!/^https?:\/\//i.test(url)) return null;
+    const existing = await this.prisma.job.findFirst({
+      where: { OR: [{ url }, { url: rawUrl }] },
+      select: { id: true },
+    });
+    return existing?.id ?? null;
+  }
+
   /** Dùng lại Job sẵn có cùng `url` (đã scrape hoặc lưu trước) để khỏi nhân đôi; chưa có thì tạo Job nguồn `extension`. Khoá `(source, externalId=fingerprint(url))` + bắt `P2002` để hai lần lưu đồng thời cùng url không sinh hai Job (`upsert` của Prisma không atomic đáng tin). */
   private async jobIdFor(dto: ExtSaveJobDto): Promise<string> {
     const url = cleanUrl(dto.url);
     if (!/^https?:\/\//i.test(url)) {
       throw new BadRequestException('Link tin không hợp lệ.');
     }
-    const existing = await this.prisma.job.findFirst({
-      where: { OR: [{ url }, { url: dto.url }] },
-      select: { id: true },
-    });
-    if (existing) return existing.id;
+    const existing = await this.findJobIdByUrl(dto.url);
+    if (existing) return existing;
 
     const title = dto.title.trim();
     const company = dto.company?.trim() || 'Không rõ';

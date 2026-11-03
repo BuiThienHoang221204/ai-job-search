@@ -204,6 +204,14 @@ const configuration = () => ({
     bulletRewriteDailyLimit: int('CV_BULLET_REWRITE_DAILY_LIMIT', 20),
   },
 
+  autofill: {
+    answerDailyLimit: int('EXT_AUTOFILL_ANSWER_DAILY_LIMIT', 30),
+  },
+
+  upskill: {
+    planDailyLimit: int('EXT_UPSKILL_PLAN_DAILY_LIMIT', 20),
+  },
+
   cvCheck: {
     aiPerGuestPerDay: int('CV_CHECK_AI_PER_GUEST_PER_DAY', 10),
     aiPerDay: int('CV_CHECK_AI_PER_DAY', 100),
