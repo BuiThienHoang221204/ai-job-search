@@ -18,8 +18,8 @@ export class BlockedError extends Error {}
 /** Dấu hiệu trang thử thách chống bot. Một widget reCAPTCHA trong form KHÔNG đủ - bẫy đã sập ở joboko-search. */
 const CHALLENGE = /hcaptcha\.com|g-recaptcha|challenges\.cloudflare\.com|<title>Just a moment|<title>Attention Required/i
 
-/** Có nội dung thật: thẻ tin hoặc JSON-LD của một tin. */
-const HAS_CONTENT = /js-item-job|"JobPosting"/
+/** Có nội dung thật: thẻ tin trên trang danh sách, hoặc khối mô tả trên trang chi tiết. */
+const HAS_CONTENT = /relative flex items-start gap-3|data-collapsible/
 
 /** Trang chặn = có dấu hiệu thử thách VÀ không có nội dung thật; trang chặn thường vẫn là HTTP 200 (xem ADR 0005). */
 export const isBlockedPage = (html: string): boolean => CHALLENGE.test(html) && !HAS_CONTENT.test(html)
@@ -62,7 +62,7 @@ export async function htmlFetch(url: string): Promise<string> {
 }
 
 export interface JobCard {
-  /** `data-id` số của thẻ, ổn định, dùng làm externalId. */
+  /** Mã hash cuối slug (`/viec-lam/<ten-tin>-<hash>`), ổn định, dùng làm externalId. */
   id: string
   /** Dạng "<ten-tin>-<hash>" - đúng đường dẫn `/viec-lam/<slug>`. */
   slug: string
@@ -75,7 +75,7 @@ export interface JobCard {
   workMode: string | null
   /** "Đang cập nhật"/"Thỏa thuận" được trả về null. */
   salary: string | null
-  /** `data-time` của thẻ (yyyy-mm-dd) - chính là mốc "Đăng N giờ trước". */
+  /** Chuỗi "Đăng" của thẻ, tương đối ("24 giờ trước") - backend tự đổi ra ngày. */
   postedAt: string | null
   tags: string[]
   url: string
@@ -167,37 +167,44 @@ export function searchUrl(options: { query?: string; page?: number }): string | 
   return `${BASE_URL}/tuyen-dung?${params.toString().replace(/%20/g, "+")}`
 }
 
-/** Mỗi thẻ tin bắt đầu bằng `<div class="job__list-item js-item-job ...`; cắt theo mốc đó. */
+/** Mỗi thẻ tin mở bằng `<div class="relative flex items-start gap-3">`; cắt theo mốc đó. */
 export function splitJobCards(html: string): string[] {
-  const starts = [...html.matchAll(/<div class="job__list-item js-item-job[^"]*"/g)].map((match) => match.index!)
-  return starts.map((start, index) => html.slice(start, starts[index + 1] ?? start + 6_000))
+  const starts = [...html.matchAll(/<div class="relative flex items-start gap-3">/g)].map((match) => match.index!)
+  return starts.map((start, index) => html.slice(start, starts[index + 1] ?? start + 4_500))
 }
 
-/** "Đang cập nhật"/"Thỏa thuận"/"Thương lượng" là không công bố lương. */
+/** "__" (chưa công bố trên thẻ)/"Đang cập nhật"/"Thỏa thuận"/"Thương lượng" là không công bố lương. */
 export const salaryOf = (text: string | null | undefined): string | null => {
   const value = text ? nfc(text).trim() : ""
-  if (!value || /dang cap nhat|thoa thuan|thuong luong|canh tranh|negotiable/.test(fold(value))) return null
+  if (!value || value === "__" || /dang cap nhat|thoa thuan|thuong luong|canh tranh|negotiable/.test(fold(value))) {
+    return null
+  }
   return value
 }
 
-const labelText = (card: string, className: string): string | null => {
-  const raw = card.match(new RegExp(`<div class="${className}"[^>]*>\\s*<label>([\\s\\S]*?)</label>`))?.[1]
-  const text = raw ? clean(raw) : ""
-  return text || null
+/** Mã hash cuối slug (`ke-toan-tong-hop-JDaj4kwX9G` -> `JDaj4kwX9G`). */
+const hashOf = (slug: string): string | undefined => slug.match(/-([A-Za-z0-9]{6,})$/)?.[1]
+
+/** URL logo tuyệt đối; ảnh giữ chỗ `no_company` coi như không có logo. */
+const logoUrl = (src: string | undefined): string | null => {
+  if (!src || src.includes("no_company")) return null
+  return src.startsWith("http") ? src : BASE_URL + src
 }
 
 export function parseJobCard(card: string): JobCard | null {
-  const id = card.match(/data-id="(\d+)"/)?.[1]
-  const link = card.match(/<h2 class="job__list-item-title"><a href="https:\/\/123job\.vn\/viec-lam\/([^"?]+)[^"]*" title="([^"]*)"/)
-  if (!id || !link) return null
-
+  const link = card.match(
+    /<a href="https:\/\/123job\.vn\/viec-lam\/([^"?]+)"[^>]*wire:navigate[^>]*>([\s\S]*?)<\/a>/,
+  )
+  if (!link) return null
   const slug = link[1]!
-  const title = nfc(decodeEntities(link[2]!)).trim()
-  if (!title) return null
+  const id = hashOf(slug)
+  const title = clean(link[2]!)
+  if (!id || !title) return null
 
-  const company = card.match(/<div class="job__list-item-company[^"]*"><span>([\s\S]*?)<\/span>/)?.[1]
-  const logo = card.match(/<div class="job__list-item-thumb"><img[^>]*data-src="([^"]*)"/)?.[1]
-  const time = card.match(/data-time="(\d{4}-\d{2}-\d{2})/)?.[1]
+  const company = card.match(/<img[^>]*\salt="([^"]*)"/)?.[1]
+  const logo = card.match(/<img[^>]*\ssrc="([^"]*)"/)?.[1]
+  const location = card.match(/d="M17\.657 16\.657[\s\S]*?<\/svg>\s*([^<]+?)\s*<\/span>/)?.[1]
+  const posted = card.match(/Đăng:\s*([^<]+?)\s*<\/span>/)?.[1]
 
   return {
     id,
@@ -205,11 +212,11 @@ export function parseJobCard(card: string): JobCard | null {
     title,
     company: company ? clean(company) || null : null,
     companyUrl: null,
-    companyLogo: logo || null,
-    location: labelText(card, "address"),
+    companyLogo: logoUrl(logo),
+    location: location ? clean(location) || null : null,
     workMode: null,
-    salary: salaryOf(labelText(card, "salary")),
-    postedAt: time ?? null,
+    salary: salaryOf(card.match(/text-orange-500">([^<]*)<\/span>/)?.[1]),
+    postedAt: posted ? clean(posted) || null : null,
     tags: [],
     url: `${BASE_URL}/viec-lam/${slug}`,
   }
@@ -226,107 +233,56 @@ export function parseJobCards(html: string): JobCard[] {
     })
 }
 
-export type JobPosting = {
-  title?: string
-  description?: string
-  datePosted?: string
-  industry?: string
-  hiringOrganization?: { name?: string; sameAs?: string; logo?: string }
-  jobLocation?: unknown
-  identifier?: { value?: unknown }
-}
-
-/** HTML của 123job được nén nên có lúc bỏ ngoặc thuộc tính: `<script type=application/ld+json>`. */
-export function parseJobPosting(html: string): JobPosting | null {
-  for (const [, body] of html.matchAll(
-    /<script[^>]*type=["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/g,
-  )) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(body!)
-    } catch {
-      continue
-    }
-    const nodes = Array.isArray(parsed)
-      ? parsed
-      : ((parsed as { "@graph"?: unknown[] })["@graph"] ?? [parsed])
-    for (const node of nodes) {
-      if ((node as { "@type"?: string })["@type"] === "JobPosting") return node as JobPosting
-    }
+/** Thân của mục `<h2>…</h2><div>…` trên trang chi tiết, tìm theo tiêu đề không dấu. */
+function sectionBody(html: string, headingFold: string): { heading: string; body: string } | null {
+  const headings = [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)]
+  for (let i = 0; i < headings.length; i++) {
+    const heading = clean(headings[i]![1]!)
+    if (fold(heading).trim() !== headingFold) continue
+    const start = headings[i]!.index! + headings[i]![0].length
+    const end = headings[i + 1]?.index ?? html.length
+    return { heading, body: html.slice(start, end) }
   }
   return null
 }
 
-/** Các mục được ghép thành mô tả; "Quyền lợi" không giúp rút kỹ năng. */
-const DESCRIPTION_SECTIONS = ["mo ta cong viec", "yeu cau cong viec"]
+/** Mô tả công việc (block prose dưới tiêu đề "Mô tả công việc"), GIỮ tiêu đề cho khung chấm điểm. */
+export function parseJobDescription(html: string): string | null {
+  const section = sectionBody(html, "mo ta cong viec")
+  if (!section) return null
+  const body = clean(section.body)
+  return body.length > 20 ? `${section.heading}\n${body}` : null
+}
+
+/** Tên công ty từ mục "Thông tin công ty" (thuộc tính alt của logo). */
+function detailCompany(html: string): string | null {
+  const alt = sectionBody(html, "thong tin cong ty")?.body.match(/<img[^>]*\salt="([^"]*)"/)?.[1]
+  return alt ? clean(alt) || null : null
+}
 
 /**
- * Ghép "Mô tả công việc" + "Yêu cầu công việc" từ HTML, GIỮ tiêu đề để khung
- * chấm điểm tách được hai phần. JSON-LD chỉ là đường lùi: nó có lúc THIẾU hẳn
- * phần yêu cầu (đo 2026-10-13, tin "Kế toán thuế").
+ * Trang chi tiết → tin. Mã tin là hash cuối slug; backend chỉ dùng `description`
+ * (và `categories` nếu thẻ trống) từ đây, các trường còn lại lấy từ thẻ tìm kiếm.
  */
-export function parseJobDescription(html: string): string | null {
-  const blocks = [
-    ...html.matchAll(
-      /<h2 class="content-group__title">([^<]+)<\/h2><div class="content-group__content">([\s\S]*?)<\/div><\/div>/g,
-    ),
-  ]
-    .filter(([, heading]) => DESCRIPTION_SECTIONS.includes(fold(heading!).trim()))
-    .map(([, heading, body]) => {
-      const text = clean(body!)
-      return text.length > 20 ? `${nfc(heading!).trim()}\n${text}` : ""
-    })
-    .filter(Boolean)
-  if (blocks.length) return blocks.join("\n\n")
-
-  const fallback = parseJobPosting(html)?.description
-  return fallback ? clean(fallback) || null : null
-}
-
-/** Nhãn ngành nghề từ JSON-LD `industry`; có thể nối nhiều nhãn bằng dấu phẩy. */
-export function categoriesFromPosting(posting: JobPosting | null): string[] {
-  return posting?.industry
-    ? nfc(posting.industry).split(/,(?![^(]*\))/).map((label) => label.trim()).filter(Boolean)
-    : []
-}
-
-/** Tỉnh từ `jobLocation` - lúc là object, lúc là mảng. */
-export function locationFromPosting(posting: JobPosting | null): string | null {
-  const places = [posting?.jobLocation].flat() as Array<{
-    address?: { addressRegion?: string; addressLocality?: string }
-  } | undefined>
-  const regions = places
-    .map((place) => place?.address?.addressRegion ?? place?.address?.addressLocality)
-    .filter((region): region is string => Boolean(region))
-    .map((region) => nfc(region).trim())
-  return regions.length ? [...new Set(regions)].join(", ") : null
-}
-
-/** Trang chi tiết → tin. Mã tin lấy từ `data-id` của chính tin trên trang (nút lưu tin), không phải mã công ty trong JSON-LD. */
 export function parseDetail(html: string, slug: string): JobDetail | null {
-  const posting = parseJobPosting(html)
-  const title = posting?.title ? nfc(decodeEntities(posting.title)).trim() : ""
-  const hash = slug.match(/-([A-Za-z0-9]{10})$/)?.[1]
-  const id =
-    (hash ? html.match(new RegExp(`data-id="(\\d+)"[^>]*data-hash-slug="${hash}"`))?.[1] : undefined) ??
-    html.match(/data-job-id="(\d+)"/)?.[1] ??
-    hash
-  if (!title || !id) return null
+  const id = hashOf(slug)
+  const h1 = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? ""
+  const title = clean(h1.replace(/<span[\s\S]*?<\/span>/g, ""))
+  if (!id || !title) return null
 
-  const organization = posting?.hiringOrganization
   return {
     id,
     slug,
     title,
-    company: organization?.name ? nfc(organization.name).trim() || null : null,
-    companyUrl: organization?.sameAs ?? null,
-    companyLogo: organization?.logo ?? null,
-    location: locationFromPosting(posting),
+    company: detailCompany(html),
+    companyUrl: null,
+    companyLogo: null,
+    location: null,
     workMode: null,
     salary: null,
-    postedAt: posting?.datePosted?.slice(0, 10) ?? null,
+    postedAt: html.match(/Đăng:\s*([^<]+?)\s*<\/span>/)?.[1]?.trim() ?? null,
     tags: [],
-    categories: categoriesFromPosting(posting),
+    categories: [],
     url: `${BASE_URL}/viec-lam/${slug}`,
     description: parseJobDescription(html),
   }

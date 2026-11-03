@@ -54,7 +54,7 @@ Hai chỗ dùng nó, và cả hai đều LỌC TRƯỚC khi xoay vòng/gọi mod
 
 **Chưa sửa được (ghi lý do, 2026-11-03):**
 - **joboko**: thẻ tin **không có `postedAt`** — đã soi HTML: ngày chỉ nằm ở DROPDOWN LỌC ("24h/3 ngày/7 ngày trước"), thẻ không hiện ngày. Chỉ sửa được qua param lọc ngày của trang ngành (select dùng chung class `op-quocgia` với lọc địa điểm, phải tách cẩn thận) hoặc đọc ngày từ trang chi tiết.
-- **123job**: **403 BLOCKED** (đúng với `+0`) → vấn đề là bị chặn (cần proxy/ScrapingAnt như TopCV), không phải sort.
+- **123job**: **KHÔNG bị chặn** (chẩn đoán lại 2026-11-03: HTTP 200, nội dung thật, không challenge). `+0` là do 123job **dựng lại giao diện** (Laravel Livewire + Tailwind) — mốc cắt thẻ cũ (`job__list-item js-item-job`) và JSON-LD `JobPosting` ở trang chi tiết đều biến mất, parser cũ trả `[]` trong IM LẶNG (200 + không phải trang chặn → không ném `BlockedError`). **Đã viết lại parser** (`helpers.ts`): thẻ cắt theo `<div class="relative flex items-start gap-3">`, title/url/id từ `<a … wire:navigate>` (id = hash cuối slug, không còn `data-id` số), mô tả từ block "Mô tả công việc" trên trang chi tiết; `postedAt` trả **chuỗi tương đối thô** ("24 giờ trước") vì `parsePostedAt` của backend đã hiểu. Còn lại: listing 123job sort "Phù hợp nhất" (relevance) do JS/Livewire, **không có param URL ép sort mới-nhất** nên chưa byNewest được — nhưng `maxAgeDays` vẫn lọc tin cũ nên tin mới vẫn vào.
 - **linkedin**: cấu trúc riêng + rủi ro ToS (cấm tự động) → để ngoài phạm vi.
 
 Hướng robust lâu dài cho portal đa ngành lớn: crawl THEO NHÃN (map `SUB_OCCUPATIONS` → trang ngành từng portal, sort theo ngày) thay vì từ khoá — chính xác hơn, phủ nhiều hơn. Hiện TopCV/VNW dùng listing-tất-cả (đơn giản, đủ lấy tin mới).

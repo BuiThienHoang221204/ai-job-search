@@ -3,24 +3,21 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import {
   BlockedError,
-  categoriesFromPosting,
   decodeEntities,
   errorForStatus,
   isBlockedPage,
   matchesLocation,
   parseDetail,
   parseJobCards,
-  parseJobPosting,
   salaryOf,
   searchUrl,
 } from "../src/helpers.ts"
 
-/** Trang thật nhận được 2026-10-13 từ máy chủ Oracle. */
+/** Trang thật nhận được 2026-11-03 sau khi 123job dựng lại giao diện (Laravel Livewire, Tailwind). */
 const fixture = (name: string) => readFileSync(join(import.meta.dir, "fixtures", name), "utf8")
 
 const searchHtml = fixture("search-ke-toan.html")
 const detailHtml = fixture("detail.html")
-const baHtml = fixture("detail-business-analyst.html")
 
 describe("searchUrl", () => {
   test("tìm theo từ khoá thật, trang 1 không mang tham số page", () => {
@@ -44,27 +41,27 @@ describe("parseJobCards", () => {
     expect(new Set(cards.map((card) => card.id)).size).toBe(30)
   })
 
-  test("mã tin là data-id SỐ của thẻ, không phải data-id nhỏ của các phần tử khác", () => {
-    for (const card of cards) expect(card.id).toMatch(/^\d{6,}$/)
+  test("mã tin là hash cuối slug (giao diện mới không còn data-id số)", () => {
+    for (const card of cards) expect(card.id).toMatch(/^[A-Za-z0-9]{6,}$/)
   })
 
   test("thẻ đủ trường theo hợp đồng của backend", () => {
-    expect(cards.find((card) => card.id === "5636350")).toMatchObject({
-      slug: "tuyen-dung-ke-toan-tong-hop-j9KQoK1AqA",
-      title: "Tuyển dụng kế toán tổng hợp",
-      company: "Công ty tnhh mtv xăng dầu dầu khí duyên hải",
-      location: "Hải Phòng",
-      salary: "15 triệu",
-      postedAt: "2026-10-13",
-      url: "https://123job.vn/viec-lam/tuyen-dung-ke-toan-tong-hop-j9KQoK1AqA",
+    expect(cards.find((card) => card.id === "vrzBG5ywr0")).toMatchObject({
+      slug: "ke-toan-thue-vrzBG5ywr0",
+      title: "Kế Toán Thuế",
+      company: "Công Ty Tnhh Tài Chính Kế Toán Vintax",
+      location: "Hà Nội",
+      salary: "9 triệu",
+      postedAt: "24 giờ trước",
+      url: "https://123job.vn/viec-lam/ke-toan-thue-vrzBG5ywr0",
     })
   })
 
-  test("lương 'Đang cập nhật' là null", () => {
-    expect(cards.find((card) => card.id === "5584695")!.salary).toBeNull()
+  test("lương '__' (chưa công bố trên thẻ) là null", () => {
+    expect(cards.find((card) => card.id === "JDaj4kwX9G")!.salary).toBeNull()
   })
 
-  test("thẻ KHÔNG mang mô tả - đoạn trên thẻ bị cắt, backend phải gọi detail", () => {
+  test("thẻ KHÔNG mang mô tả - backend phải gọi detail", () => {
     for (const card of cards) expect(card).not.toHaveProperty("description")
   })
 
@@ -74,38 +71,25 @@ describe("parseJobCards", () => {
 })
 
 describe("parseDetail", () => {
-  const job = parseDetail(detailHtml, "ke-toan-thue-3q27l5wpDM")!
+  const job = parseDetail(detailHtml, "ke-toan-tong-hop-JDaj4kwX9G")!
 
-  test("mã tin trùng data-id của thẻ tìm kiếm", () => {
-    expect(job.id).toBe("5613141")
+  test("mã tin là hash cuối slug, trùng một thẻ của trang tìm kiếm", () => {
+    expect(job.id).toBe("JDaj4kwX9G")
     expect(parseJobCards(searchHtml).some((card) => card.id === job.id)).toBe(true)
   })
 
-  test("đọc JSON-LD dù thẻ script không có ngoặc thuộc tính (HTML nén)", () => {
-    expect(detailHtml).toContain("<script type=application/ld+json>")
+  test("tiêu đề bỏ nhãn 'Hết hạn', thông tin công ty từ mục cuối trang", () => {
     expect(job).toMatchObject({
-      title: "Kế toán thuế",
-      company: "Công Ty TNHH Thiết Bị Tự Động Hóa Kim Khí Thăng Long",
-      location: "Hà Nội",
-      postedAt: "2026-10-13",
+      title: "Kế Toán Tổng Hợp",
+      company: "Công ty CP Liên Doanh Cảng Quốc tế Mỹ Thủy",
+      postedAt: "2 tháng trước",
     })
   })
 
-  test("mô tả lấy từ HTML, CÓ phần yêu cầu - JSON-LD của tin này THIẾU hẳn phần đó", () => {
-    expect(parseJobPosting(detailHtml)!.description).not.toMatch(/Misa/)
+  test("mô tả lấy từ block 'Mô tả công việc', GIỮ tiêu đề và DỪNG trước mục Quyền lợi", () => {
     expect(job.description).toStartWith("Mô tả công việc\n")
-    expect(job.description).toContain("\n\nYêu cầu công việc\n")
-    expect(job.description).toContain("Misa")
+    expect(job.description).toContain("TÓM TẮT MỤC ĐÍCH CÔNG VIỆC")
     expect(job.description).not.toContain("Quyền lợi")
-  })
-
-  test("nhãn ngành là industry của nhà tuyển dụng", () => {
-    expect(job.categories).toEqual(["Kế toán - Kiểm toán"])
-  })
-
-  /// Nhãn có thể lệch nghề ("Phát triển thị trường" cho một tin Business Analyst) - backend để tiêu đề rõ nghề thắng nhãn.
-  test("nhãn được giữ nguyên văn, kể cả khi lệch với tiêu đề", () => {
-    expect(categoriesFromPosting(parseJobPosting(baHtml))).toEqual(["Phát triển thị trường"])
   })
 })
 
@@ -133,7 +117,8 @@ describe("trang chặn", () => {
 })
 
 describe("salaryOf và matchesLocation", () => {
-  test("đang cập nhật / thỏa thuận là null", () => {
+  test("'__' / đang cập nhật / thỏa thuận là null", () => {
+    expect(salaryOf("__")).toBeNull()
     expect(salaryOf("Đang cập nhật")).toBeNull()
     expect(salaryOf("Thỏa thuận")).toBeNull()
     expect(salaryOf("15 triệu")).toBe("15 triệu")

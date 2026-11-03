@@ -509,7 +509,7 @@ Không có thông báo tới người dùng (email/push). Kênh duy nhất là *
 | Tích hợp | Cách gọi | Cấu hình |
 |---|---|---|
 | Portal CLI (10 thư mục trong `.agents/skills/`; `careerlink` đã gỡ *(2026-10-22)*): `123job`, `careerviet`, `itviec`, `joboko`, `linkedin`, `timviec`, `topcv`, `topdev`, `vieclam24h`, `vietnamworks` | `bun run .agents/skills/<dir>/cli/src/cli.ts search ... --format json` (hoặc `detail`), `cwd` = gốc repo | `PORTALS_DIR` (mặc định `../.agents/skills`), `SCRAPER_TIMEOUT_MS` (60000), `SCRAPER_PORTAL_DELAY_MS` (3000); TopCV và Vieclam24h bị chặn IP thì tải qua `SCRAPINGANT_API_KEY`, dự phòng `ZENROWS_API_KEY` *(2026-10-23)* — [ADR 0005](../../adr/0005-nguon-tin-portal.md) |
-| Frontmatter đặc thù hiện có | `itviec`: `maxJobs: 50`, `occupations: [IT, DATA_AI]`; `linkedin`: `jobAge: true`; `123job`, `careerviet`, `joboko`, `topdev`, `vieclam24h`: `delayMs: 8000` | `SKILL.md` từng portal |
+| Frontmatter đặc thù hiện có | `itviec`: `maxJobs: 150`, `listing: true`, `occupations: [IT, DATA_AI]`; `vietnamworks`, `topcv`: `maxJobs: 150`, `listing: true`; `linkedin`: `jobAge: true`; `123job`, `careerviet`, `joboko`, `topdev`, `vieclam24h`: `delayMs: 8000` | `SKILL.md` từng portal |
 | `AiService` (purpose `scrape.plan`) | `generateObject`, timeout 30s, `maxRetries: 0` | Chuỗi model chung — [ai-platform.md](./ai-platform.md) |
 | `PromptBuilderService.profileSummary` | Tóm tắt hồ sơ cho prompt | `modules/skills` |
 | pg-boss | `scrape.run` (vào), `job.requirements` + `match.evaluate` (ra) | [platform-operations.md](./platform-operations.md) |
