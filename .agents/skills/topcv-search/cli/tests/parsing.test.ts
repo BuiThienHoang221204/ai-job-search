@@ -191,8 +191,10 @@ describe("searchUrl", () => {
     )
   })
 
-  test("không có từ khóa thì lấy trang tổng", () => {
-    expect(searchUrl({})).toBe("https://www.topcv.vn/tim-viec-lam")
+  test("không có từ khóa thì lấy trang việc làm mới nhất", () => {
+    expect(searchUrl({})).toBe(
+      "https://www.topcv.vn/tim-viec-lam-moi-nhat?type_keyword=1&sba=1",
+    )
   })
 
   test("trang 1 không thêm tham số page", () => {
