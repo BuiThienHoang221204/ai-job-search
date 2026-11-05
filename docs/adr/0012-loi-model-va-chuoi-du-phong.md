@@ -332,3 +332,24 @@ Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/healt
 
 **4. Bổ sung lõi `opencode-direct`:**
 - Thêm `providers/opencode-direct.ts` gọi trực tiếp OpenCode Zen API kèm giả lập vân tay CLI v2 (`x-opencode-client`, `x-opencode-project`, `x-opencode-session`), không cần qua container `opencode-service`. Khai báo `catalogId: 'opencode'` để liên kết và lọc theo catalog `models.opencode.ai`.
+
+#### Cập nhật 2026-11-05 — thêm lõi `motapis` vào bể FAST
+
+`providers/motapis.ts`: gateway OpenAI-compatible tại `https://motapis.com/v1` (proxy Claude/GPT/Gemini/DeepSeek/GLM/Grok/Kimi/Qwen/MiniMax). Khai `baseURLEnv: MOTAPIS_BASE_URL`, catalog dựng từ chính `GET /v1/models` như omniroute. Thêm vào `FAST_TASK_PROVIDERS` (cả `configuration.ts` lẫn `.env`), **không** vào bể main.
+
+**`honorsResponseFormat: false` — đo thật, không đoán.** Gateway **nuốt `response_format`** y như omniroute: đo `match.evaluate` (prompt production, khung đánh giá thật, qua `scripts/bench-models.mjs`) trên đường `response_format` thì **cả 6 model thử đều hỏng schema, kể cả `claude-sonnet-5-5` và `gpt-5.6-sol`** vốn hỗ trợ `json_schema` native — tức gateway chỉ chuyển tiếp rồi mặc kệ. Chuyển sang bơm schema vào prompt (`honorsResponseFormat: false`) thì chạy được. `streamsJson: []` (chưa đo stream).
+
+**Đo toàn bộ 19 model `/v1/models` qua đường schema-in-prompt, một lượt mỗi model (bơm đúng `schemaInstruction` + `extractJson` của app):**
+
+| Nhóm | Model (thời gian) |
+|---|---|
+| Sạch | `gpt-5.6-sol` (11s), `minimax-m3` (13s, điểm cao nhất), `hy3` (10s), `minimax-m2.7` (14s), `claude-sonnet-5` (15s), `kimi-k3.1-pro` (31s), `grok-4.5` (45s), `claude-sonnet-5-5` (50s) |
+| Lỗi nhẹ `eligibility=UNVERIFIED` | `DeepSeek-V4-Flash-0731` (7s), `hy4-preview` (7s), `gpt-6-luna` (13s), `gpt-6-sol` (17s), `gpt-6-astra` (38s), `claude-sonnet-4-6` (10s) |
+| Hỏng | `deepseek-v4-flash` (trả markdown, **flaky** — lượt khác lại sạch 10s), `deepseek-v4.1-flash-1017` (markdown), `glm-5.3-flash` (timeout 90s), `qwen3.8-max` (503), `grok-4.6` (503) |
+
+**Blacklist tay 3 model hỏng ổn định** trong `model-blacklist.json` (`manual.prefixes`): `motapis/qwen3.8-max`, `motapis/grok-4.6` (đều 503 lặp lại), `motapis/glm-5.3-flash` (timeout). Nhóm flaky (hai bản deepseek trả markdown) **cố ý KHÔNG blacklist** — để probe + cầu dao tự theo dõi qua vài lượt như mọi lõi khác (lượt sạch/lượt hỏng lẫn lộn, chưa đủ cơ sở cấm hẳn).
+
+**Giới hạn đã đo, cân nhắc khi mở rộng:**
+- **Free tier trần 2 request đồng thời** (`Free tier allows up to 2 requests at the same time`). Đây là lý do CHỌN bể FAST (tác vụ người dùng chờ, 1–2 lượt) chứ không bể main (hàng đợi chấm điểm bắn 5–25 lượt song song sẽ đụng trần liên tục). Muốn làm lõi main phải nạp tiền và xác nhận gói trả phí bỏ trần này.
+- Mỗi model mới đo **một lượt** — chưa phải p50/độ ổn định. `deepseek-v4-flash` đã chứng minh flaky. Ghim model nào làm mặc định thì đo lặp 3–5 lượt trước.
+- **Quyền riêng tư:** motapis nhận CV người thật khi chạy tác vụ FAST (thư xin việc, phỏng vấn, tìm hiểu công ty, `streamEvaluate`). Thêm nó vào bể FAST là thêm một bên nhận dữ liệu → **phải cập nhật Chính sách bảo mật + Điều khoản** (nêu tên motapis) theo Luật 91/2025 TRƯỚC khi deploy production, và chủ dự án chọn `LEGAL_EFFECTIVE_DATE` (đăng trước ≥ 7 ngày).

@@ -57,7 +57,7 @@ const configuration = () => ({
     blacklistSchedule: process.env.BLACKLIST_REGEN_SCHEDULE ?? '',
     fastProviders: csv(
       'FAST_TASK_PROVIDERS',
-      'groq,gemini,unorouter,omniroute,kilo,openrouter',
+      'groq,gemini,unorouter,omniroute,kilo,openrouter,motapis',
     ),
 
     healthcheck: {
@@ -77,6 +77,7 @@ const configuration = () => ({
       groq: process.env.GROQ_API_KEY ?? '',
       unorouter: process.env.UNOROUTER_API_KEY ?? '',
       gemini: process.env.GOOGLE_GEMINI_API_KEY ?? '',
+      motapis: process.env.MOTAPIS_API_KEY ?? '',
     } as Record<string, string>,
 
     userAgents: {
@@ -95,6 +96,7 @@ const configuration = () => ({
       gemini:
         process.env.GOOGLE_GEMINI_BASE_URL ??
         'https://generativelanguage.googleapis.com/v1beta/openai',
+      motapis: process.env.MOTAPIS_BASE_URL ?? 'https://motapis.com/v1',
     } as Record<string, string>,
 
     maxConcurrency: {

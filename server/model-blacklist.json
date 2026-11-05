@@ -25,7 +25,10 @@
       "omniroute/agy/gemini-3.6",
       "omniroute/agy/gemini-4-argon",
       "omniroute/agy/claude-opus-4-6-thinking-",
-      "omniroute/agy/claude-sonnet-4-6-"
+      "omniroute/agy/claude-sonnet-4-6-",
+      "motapis/qwen3.8-max",
+      "motapis/grok-4.6",
+      "motapis/glm-5.3-flash"
     ],
     "suffixes": ["openrouter/free", "openrouter/auto"],
     "contains": ["claude-haiku"]

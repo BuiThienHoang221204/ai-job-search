@@ -53,6 +53,11 @@ const PROVIDERS = {
     baseURL: 'https://api.kilo.ai/api/gateway',
     apiKey: () => process.env.KILO_API_KEY ?? 'khong-can-key',
   },
+  // ỨNG VIÊN đang đo (2026-11). Gateway OpenAI-compatible, đòi key `sk-mot-...`.
+  motapis: {
+    baseURL: () => process.env.MOTAPIS_BASE_URL ?? 'https://motapis.com/v1',
+    apiKey: () => process.env.MOTAPIS_API_KEY ?? '',
+  },
 };
 
 const DEFAULT_PROVIDER = process.env.MODEL_PROVIDER ?? 'opencode';

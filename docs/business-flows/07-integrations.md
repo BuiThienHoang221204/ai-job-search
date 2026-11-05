@@ -7,7 +7,7 @@
 
 | # | Dịch vụ | Mục đích nghiệp vụ | Chiều | Module | Cấu hình |
 |---|---|---|---|---|---|
-| 1 | Gateway model (7 lõi OpenAI-compatible) | Mọi tác vụ AI: chấm điểm, rút yêu cầu, viết tài liệu, đọc CV, phỏng vấn, upskill, tìm hiểu công ty, phân loại kỹ năng | Đi | [ai-platform](./modules/ai-platform.md#15-integrations) | `MODEL_*`, `AI_*`, khoá từng lõi |
+| 1 | Gateway model (8 lõi OpenAI-compatible) | Mọi tác vụ AI: chấm điểm, rút yêu cầu, viết tài liệu, đọc CV, phỏng vấn, upskill, tìm hiểu công ty, phân loại kỹ năng | Đi | [ai-platform](./modules/ai-platform.md#15-integrations) | `MODEL_*`, `AI_*`, khoá từng lõi |
 | 2 | 10 portal tuyển dụng (qua CLI Bun) | Nguồn tin tuyển dụng | Đi | [job-scraping](./modules/job-scraping.md#15-integrations) | `PORTALS_DIR`, `SCRAPER_*` |
 | 3 | Serper (Google Search API) | Tìm trang review công ty | Đi | [company-research](./modules/company-research.md#15-integrations) | `SERPER_API_KEY`, `SERPER_URL`, `SERPER_MAX_RESULTS` |
 | 4 | Web công khai (fetch HTML) | Đọc trang review công ty; bóc tin từ URL người dùng dán | Đi | [company-research](./modules/company-research.md), [documents](./modules/documents.md#15-integrations) | `AGENT_FETCH_TIMEOUT_MS`, `AGENT_FETCH_MAX_BYTES` |
@@ -36,6 +36,7 @@
 | `gemini` | `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_API_KEY` | Bể fast |
 | `unorouter` | `UNOROUTER_BASE_URL` | `UNOROUTER_API_KEY` | Bể fast |
 | `kilo` | kilo gateway | `KILO_API_KEY` (không bắt buộc) | Cuối chuỗi — mọi model free tự khai có thể huấn luyện trên prompt |
+| `motapis` | `https://motapis.com/v1` | `MOTAPIS_API_KEY` (rỗng = tắt) | Bể fast *(2026-11-05)* — free tier trần 2 request đồng thời |
 
 Cơ chế: `ModelChain` thử lần lượt các mắt xích trong ngân sách `AI_CHAIN_BUDGET_MS` (240 s); mỗi lượt 90–180 s tuỳ tác vụ; cầu dao cách ly model 15 phút sau 2 lỗi liên tiếp; bể model dựng bằng probe lúc khởi động và 23:35 *(2026-10-19, chưa commit)*. Mọi lượt gọi ghi một dòng `ai_calls`. Chi tiết: [ai-platform.md](./modules/ai-platform.md), ADR [0011](../adr/0011-do-truoc-khi-doan.md), [0012](../adr/0012-loi-model-va-chuoi-du-phong.md), [0013](../adr/0013-ep-dinh-dang-dau-ra.md), [0014](../adr/0014-token-va-cache-prompt.md).
 

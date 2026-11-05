@@ -1,6 +1,7 @@
 import { gemini } from './gemini';
 import { groq } from './groq';
 import { kilo } from './kilo';
+import { motapis } from './motapis';
 import { opencode } from './opencode';
 import { opencodeDirect } from './opencode-direct';
 import { omniroute } from './omniroute';
@@ -17,6 +18,7 @@ export const PROVIDERS: readonly ProviderDescriptor[] = [
   groq,
   unorouter,
   gemini,
+  motapis,
 ];
 
 export function providerIds(): string[] {

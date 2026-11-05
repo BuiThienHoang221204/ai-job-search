@@ -668,7 +668,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AI-04 | Đi tiếp mắt sau khi lỗi là: model không khả dụng, model bị rút, 429/hết hạn mức, 413/prompt quá lớn, 401/403, 5xx, **timeout**, **sai schema**; lỗi khác ném ngay | SV | ✅ |
 | BR-AI-05 | Ngân sách cả chuỗi `AI_CHAIN_BUDGET_MS` (240 s): quá ngân sách thì không mở mắt mới (mắt đang chạy không bị ngắt) | SV | ✅ |
 | BR-AI-06 | Timeout mặc định một lượt gọi 90 s; `maxRetries` SDK mặc định 2 (trong cùng một lượt) | SV | ✅ |
-| BR-AI-07 | Chế độ ép định dạng theo **lõi**: lõi `honorsResponseFormat:false` (opencode, omniroute, groq, unorouter) chỉ dùng chế độ bơm JSON Schema vào prompt; lõi khác dùng `response_format` khi `AI_STRUCTURED_OUTPUTS=true` | SV | ✅ |
+| BR-AI-07 | Chế độ ép định dạng theo **lõi**: lõi `honorsResponseFormat:false` (opencode, omniroute, groq, unorouter, motapis *(2026-11-05)*) chỉ dùng chế độ bơm JSON Schema vào prompt; lõi khác dùng `response_format` khi `AI_STRUCTURED_OUTPUTS=true` | SV | ✅ |
 | BR-AI-08 | Lõi từ chối `response_format` → ghi nhớ chế độ ngược lại cho cả lõi (tới khi khởi động lại) | SV | ✅ |
 | BR-AI-09 | Không ra object và lõi có hai chế độ → thử lại **đúng một lần** ở chế độ kia; lõi một chế độ không lật | SV | ✅ |
 | BR-AI-10 | Bóc JSON khỏi văn xuôi/hàng rào: phản hồi JSON đi qua `extractJson` (cân bằng ngoặc, chỉ theo `{` đầu tiên); stream SSE chỉ giữ object JSON đầu tiên | SV | ✅ |
