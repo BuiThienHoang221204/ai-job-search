@@ -9,7 +9,7 @@
 |---|---|
 | Đăng nhập Careelot từ extension | Không dán token tay: email/mật khẩu hoặc Google, nhận **ext token** riêng (hạn dài, phạm vi hẹp) *(2026-11-01)* |
 | Lưu tin từ MỌI trang về Careelot | Một cú bấm trên trang tuyển dụng bất kỳ → tạo/tái dùng Job + thêm vào danh sách đã lưu |
-| Soi độ hợp ngay tại chỗ | Kéo kỹ năng hồ sơ để soi nhanh (client); "Soi kỹ" chấm sâu bằng AI với hồ sơ |
+| Soi độ hợp ngay tại chỗ | Kéo kỹ năng hồ sơ để soi nhanh (client); "Soi kỹ" chấm sâu bằng AI với hồ sơ, kèm **lương thị trường** + **tín hiệu đăng lại nhiều lần** của tin *(2026-11-06)* |
 | Tìm hiểu công ty tại chỗ | Một cú bấm → AI tóm tắt công ty (kết luận, điểm tốt/hạn chế, điểm sao, nguồn) *(2026-11-02)* |
 
 ## 2. Actors
@@ -52,7 +52,7 @@
 ### Luồng C — Soi kỹ bằng AI (F6)
 
 1. `ExtMatchService.quick`: lưu tin (Luồng B) → `MatchingService.enqueue` chấm cặp (hồ sơ người gọi, tin). Chấm AI đọc trực tiếp `job.description`, không cần trích requirements.
-2. Widget poll `GET /api/ext/match/:jobId` → `getMatch` tới khi `status='DONE'` → hiện `overallScore` + `strengths`/`gaps`. `getMatch` trả cờ `stale` (so `Profile.updatedAt` > `evaluatedAt`): hồ sơ đổi sau lần chấm → widget hiện nhắc "điểm có thể lỗi thời" + nút **Chấm lại** = `POST /api/ext/match/quick?force=1` → `enqueue(force)` chấm lại theo hồ sơ mới; `enqueue(force=false)` thấy đã `DONE` thì **trả điểm cũ không chấm lại**, nên không force sẽ không làm mới. Poll lượt force chờ tới khi `status='DONE'` **và** `stale=false`.
+2. Widget poll `GET /api/ext/match/:jobId` → `getMatch` tới khi `status='DONE'` → hiện `overallScore` + `strengths`/`gaps`. `getMatch` trả cờ `stale` (so `Profile.updatedAt` > `evaluatedAt`): hồ sơ đổi sau lần chấm → widget hiện nhắc "điểm có thể lỗi thời" + nút **Chấm lại** = `POST /api/ext/match/quick?force=1` → `enqueue(force)` chấm lại theo hồ sơ mới; `enqueue(force=false)` thấy đã `DONE` thì **trả điểm cũ không chấm lại**, nên không force sẽ không làm mới. Poll lượt force chờ tới khi `status='DONE'` **và** `stale=false`. Khi `DONE`, `ExtMatchService.result` đính kèm `market` (khoảng lương thị trường: `floor`/`target`/`ceiling`/`currency`/`label`) qua `SalaryService.guideForJob(job, requirements nếu DONE, profile=null)` — map tin đã phân loại nghề → vị trí lương tham chiếu, **không cá nhân hoá**; không map được thì `market=null`. Kèm `reposts` (tín hiệu tin đăng lại nhiều lần: `count`/`firstAt`/`dates`) qua `repostSignal` trên các tin cùng `dedupeKey` (báo khi ≥2 lần đăng cách nhau ≥14 ngày; null nếu không). *(2026-11-06)*
 
 ### Luồng D — Tìm hiểu công ty (F7)
 

@@ -5,6 +5,7 @@ import { CompaniesModule } from '@/modules/companies/companies.module';
 import { JobsModule } from '@/modules/jobs/jobs.module';
 import { MatchingModule } from '@/modules/matching/matching.module';
 import { ProfileModule } from '@/modules/profile/profile.module';
+import { SalaryModule } from '@/modules/salary/salary.module';
 import { ExtAuthController } from './auth/ext-auth.controller';
 import { ExtAuthGuard } from './auth/ext-auth.guard';
 import { ExtAutofillController } from './autofill/ext-autofill.controller';
@@ -30,6 +31,7 @@ import { ExtUpskillService } from './upskill/ext-upskill.service';
     MatchingModule,
     CompaniesModule,
     AiModule,
+    SalaryModule,
   ],
   controllers: [
     ExtAuthController,
