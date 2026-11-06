@@ -9,7 +9,7 @@
 |---|---|
 | Đăng nhập Careelot từ extension | Không dán token tay: email/mật khẩu hoặc Google, nhận **ext token** riêng (hạn dài, phạm vi hẹp) *(2026-11-01)* |
 | Lưu tin từ MỌI trang về Careelot | Một cú bấm trên trang tuyển dụng bất kỳ → tạo/tái dùng Job + thêm vào danh sách đã lưu |
-| Soi độ hợp ngay tại chỗ | Kéo kỹ năng hồ sơ để soi nhanh (client); "Soi kỹ" chấm sâu bằng AI với hồ sơ, kèm **lương thị trường** + **tín hiệu đăng lại nhiều lần** của tin *(2026-11-06)* |
+| Soi độ hợp ngay tại chỗ | Kéo kỹ năng hồ sơ để soi nhanh (client); "Soi kỹ" chấm sâu bằng AI với hồ sơ, kèm **khoảng lương gợi ý** + **tín hiệu đăng lại nhiều lần** của tin *(2026-11-06)* |
 | Tìm hiểu công ty tại chỗ | Một cú bấm → AI tóm tắt công ty (kết luận, điểm tốt/hạn chế, điểm sao, nguồn) *(2026-11-02)* |
 
 ## 2. Actors
