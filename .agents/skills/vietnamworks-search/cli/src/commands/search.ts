@@ -18,6 +18,23 @@ export interface SearchOptions {
 /** API trả tối đa 50 tin một trang; xin nhiều hơn thì nó im lặng cắt bớt. */
 const MAX_HITS_PER_PAGE = 50
 
+const AGE_UNITS: Record<string, number> = {
+  phut: 1,
+  gio: 60,
+  ngay: 1440,
+  tuan: 10080,
+  thang: 43200,
+  nam: 525600,
+}
+
+/** "X phút/giờ/ngày trước" → số phút (sort mới nhất trước). Không đọc được = cũ nhất. */
+function ageMinutes(postedAt: string | null): number {
+  if (!postedAt) return Number.POSITIVE_INFINITY
+  const text = postedAt.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+  const match = text.match(/(\d+)\s*(phut|gio|ngay|tuan|thang|nam)/)
+  return match ? Number(match[1]) * (AGE_UNITS[match[2]] ?? Infinity) : Infinity
+}
+
 /**
  * Trả về JobDetail chứ không phải JobCard, nhưng `description` chỉ là bản TÓM
  * TẮT: API cắt jobDescription và jobRequirement ở vài trăm ký tự rồi thêm dấu
@@ -46,6 +63,11 @@ export async function search(options: SearchOptions): Promise<JobDetail[]> {
   if (options.location) {
     jobs = jobs.filter((job) => matchesLocation(job.location, options.location!))
   }
+
+  // Keyword search trả theo ĐỘ LIÊN QUAN (tin cũ lẫn vào) — sort mới nhất trước
+  // để lượt theo-nhãn (listing:false) lấy đúng tin mới. Sort ổn định nên query
+  // rỗng (API đã date-sorted) giữ nguyên thứ tự khi cùng mốc thời gian.
+  jobs = jobs.sort((a, b) => ageMinutes(a.postedAt) - ageMinutes(b.postedAt))
 
   return options.limit ? jobs.slice(0, options.limit) : jobs
 }
