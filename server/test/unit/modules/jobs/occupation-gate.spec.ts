@@ -69,6 +69,21 @@ describe('occupationGate', () => {
     );
   });
 
+  test('hồ sơ đã chọn nghề: chỉ tin đúng nghề, tin chưa phân loại (null) KHÔNG lọt', () => {
+    const gate = occupationGate(scored, {
+      occupationCode: 'IT',
+      subOccupationCodes: ['IT_FULLSTACK', 'IT_BACKEND'],
+      preferredProvinces: [],
+      experienceLevel: null,
+    });
+    expect(gate?.AND).toEqual(
+      expect.arrayContaining([
+        { subOccupationCode: { in: ['IT_FULLSTACK', 'IT_BACKEND'] } },
+      ]),
+    );
+    expect(JSON.stringify(gate)).not.toContain('"subOccupationCode":null');
+  });
+
   test('hồ sơ chưa chọn ngành hoặc ngành OTHER thì không khớp tin nào', () => {
     const none = { id: { in: [] } };
     expect(occupationGate(scored, null)).toEqual(none);

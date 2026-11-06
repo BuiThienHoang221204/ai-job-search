@@ -34,7 +34,7 @@ export function profileFit(
 export const needsOccupation = (fit: ProfileFit | null): boolean =>
   !fit?.occupationCode || fit.occupationCode === OTHER_CODE;
 
-/** Cổng của "Việc làm phù hợp": tin đăng trong 7 ngày (tin không có ngày đăng thì tính theo ngày quét), đúng nhóm ngành của hồ sơ, đúng các nghề đã chọn (tin chưa rõ nghề vẫn qua), đúng các tỉnh đã chọn (tin làm từ xa hoặc chưa rõ địa điểm vẫn qua), cấp bậc lệch tối đa một bậc (tin chưa rõ cấp bậc vẫn qua); hồ sơ chưa chọn ngành thì không khớp tin nào. */
+/** Cổng của "Việc làm phù hợp": tin đăng trong 7 ngày (tin không có ngày đăng thì tính theo ngày quét), đúng nhóm ngành của hồ sơ, đúng các nghề đã chọn (hồ sơ đã chọn nghề thì tin chưa phân loại được nghề KHÔNG hiện — 2026-11-06), đúng các tỉnh đã chọn (tin làm từ xa hoặc chưa rõ địa điểm vẫn qua), cấp bậc lệch tối đa một bậc (tin chưa rõ cấp bậc vẫn qua); hồ sơ chưa chọn ngành thì không khớp tin nào. */
 export function occupationGate(
   query: ListJobsQueryDto,
   fit: ProfileFit | null,
@@ -53,12 +53,7 @@ export function occupationGate(
     },
   ];
   if (fit.subOccupationCodes.length) {
-    clauses.push({
-      OR: [
-        { subOccupationCode: { in: fit.subOccupationCodes } },
-        { subOccupationCode: null },
-      ],
-    });
+    clauses.push({ subOccupationCode: { in: fit.subOccupationCodes } });
   }
   if (fit.preferredProvinces.length) {
     clauses.push({

@@ -32,7 +32,7 @@ describe('ExtLookupService.lookup', () => {
 
     const result = await service.lookup('user-1', {
       url: 'https://x.com/job',
-    } as never);
+    });
 
     expect(insights.forJob).toHaveBeenCalledWith('user-1', 'job-1');
     expect(result.match).toMatchObject({
@@ -47,7 +47,7 @@ describe('ExtLookupService.lookup', () => {
 
     const result = await service.lookup('user-1', {
       url: 'https://x.com/job',
-    } as never);
+    });
 
     expect(insights.forJob).not.toHaveBeenCalled();
     expect(result.match).toBeNull();
@@ -58,7 +58,7 @@ describe('ExtLookupService.lookup', () => {
 
     const result = await service.lookup('user-1', {
       url: 'https://x.com/job',
-    } as never);
+    });
 
     expect(insights.forJob).not.toHaveBeenCalled();
     expect(result.match).toMatchObject({ status: 'RUNNING' });

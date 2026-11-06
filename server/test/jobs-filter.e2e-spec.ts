@@ -328,7 +328,7 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
       expect(await scoredIds()).toEqual([ids[0], ids[2]].sort());
     });
 
-    test('đã chọn nghề thì chỉ hiện tin đúng các nghề đó và tin chưa rõ nghề', async () => {
+    test('đã chọn nghề thì chỉ hiện tin đúng các nghề đó, tin chưa rõ nghề KHÔNG hiện', async () => {
       await setProfile('IT');
       await harness.prisma.profile.update({
         where: { userId: user.id },
@@ -347,7 +347,7 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
         data: { subOccupationCode: 'IT_FRONTEND' },
       });
 
-      expect(await scoredIds()).toEqual([ids[0], ids[1]].sort());
+      expect(await scoredIds()).toEqual([ids[0]]);
     });
 
     test('đã chọn nơi làm việc thì chỉ hiện tin ở tỉnh đó, tin làm từ xa và tin chưa rõ địa điểm', async () => {
