@@ -10,7 +10,7 @@ description: >
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
 maxJobs: 150  # trần tin riêng mỗi lượt quét
-listing: true  # /tim-viec-lam-moi-nhat = listing mọi ngành; lượt hệ thống quét THẲNG tin mới nhất (query rỗng) + CLI sort theo ngày, thay vì tìm từ khoá (relevance)
+listing: false  # 2026-11-06: tắt listing-chung — đo thấy nó undersample ~90% (1 ngành keyword ~49 tin mới, nhưng /tim-viec-lam-moi-nhat cả đêm chỉ 75 cho MỌI ngành). Dùng lượt hệ thống THEO CỤM NGÀNH (forSystem, 30 query xoay vòng) + CLI sort theo ngày — crawl "theo nhãn", phủ nhiều ngành hơn (xem ADR 0007)
 allowed-tools: Bash(bun run .agents/skills/topcv-search/cli/src/cli.ts *)
 ---
 
