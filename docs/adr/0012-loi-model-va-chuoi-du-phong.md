@@ -335,7 +335,7 @@ Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/healt
 
 #### Cập nhật 2026-11-05 — thêm lõi `motapis` vào bể FAST
 
-`providers/motapis.ts`: gateway OpenAI-compatible tại `https://motapis.com/v1` (proxy Claude/GPT/Gemini/DeepSeek/GLM/Grok/Kimi/Qwen/MiniMax). Khai `baseURLEnv: MOTAPIS_BASE_URL`, catalog dựng từ chính `GET /v1/models` như omniroute. Thêm vào `FAST_TASK_PROVIDERS` (cả `configuration.ts` lẫn `.env`), **không** vào bể main.
+`providers/motapis.ts`: gateway OpenAI-compatible tại `https://motapis.com/v1` (proxy Claude/GPT/Gemini/DeepSeek/GLM/Grok/Kimi/Qwen/MiniMax). Khai `baseURLEnv: MOTAPIS_BASE_URL`, catalog dựng từ chính `GET /v1/models` như omniroute. Thêm vào `FAST_TASK_PROVIDERS` (cả `configuration.ts` lẫn `.env`). **Từ 2026-11-07 cũng thêm vào `MAIN_TASK_PROVIDERS`** theo yêu cầu chủ dự án — đặt thứ 4/5 (`omniroute,opencode-direct,opencode,motapis,openrouter`), trước `openrouter`; xem ghi chú trần đồng thời ở phần "Giới hạn" bên dưới.
 
 **`honorsResponseFormat: false` — đo thật, không đoán.** Gateway **nuốt `response_format`** y như omniroute: đo `match.evaluate` (prompt production, khung đánh giá thật, qua `scripts/bench-models.mjs`) trên đường `response_format` thì **cả 6 model thử đều hỏng schema, kể cả `claude-sonnet-5-5` và `gpt-5.6-sol`** vốn hỗ trợ `json_schema` native — tức gateway chỉ chuyển tiếp rồi mặc kệ. Chuyển sang bơm schema vào prompt (`honorsResponseFormat: false`) thì chạy được. `streamsJson: []` (chưa đo stream).
 
@@ -350,6 +350,26 @@ Route admin: `GET /api/admin/ai/models/health`, `POST /api/admin/ai/models/healt
 **Blacklist tay 3 model hỏng ổn định** trong `model-blacklist.json` (`manual.prefixes`): `motapis/qwen3.8-max`, `motapis/grok-4.6` (đều 503 lặp lại), `motapis/glm-5.3-flash` (timeout). Nhóm flaky (hai bản deepseek trả markdown) **cố ý KHÔNG blacklist** — để probe + cầu dao tự theo dõi qua vài lượt như mọi lõi khác (lượt sạch/lượt hỏng lẫn lộn, chưa đủ cơ sở cấm hẳn).
 
 **Giới hạn đã đo, cân nhắc khi mở rộng:**
-- **Free tier trần 2 request đồng thời** (`Free tier allows up to 2 requests at the same time`). Đây là lý do CHỌN bể FAST (tác vụ người dùng chờ, 1–2 lượt) chứ không bể main (hàng đợi chấm điểm bắn 5–25 lượt song song sẽ đụng trần liên tục). Muốn làm lõi main phải nạp tiền và xác nhận gói trả phí bỏ trần này.
+- **Free tier trần 2 request đồng thời** (`Free tier allows up to 2 requests at the same time`). Đây TỪNG là lý do chỉ để motapis ở bể FAST (tác vụ người dùng chờ, 1–2 lượt). **2026-11-07 chủ dự án vẫn cho vào bể main** (đặt thứ 4/5, SAU `omniroute,opencode-direct,opencode`): rủi ro là hàng đợi chấm điểm bắn 5–25 lượt song song, khi motapis lọt top sẽ đụng trần → 429/concurrency. Rủi ro được chặn một phần vì (a) motapis xếp sau 3 lõi, chỉ dùng khi model của chúng cạn/ốm, (b) cầu dao cách ly khi dính trần, (c) chuỗi dự phòng đi tiếp. Muốn motapis thành lõi main ƯU TIÊN (không đụng trần) thì phải nạp tiền bỏ trần đồng thời.
 - Mỗi model mới đo **một lượt** — chưa phải p50/độ ổn định. `deepseek-v4-flash` đã chứng minh flaky. Ghim model nào làm mặc định thì đo lặp 3–5 lượt trước.
 - **Quyền riêng tư:** motapis nhận CV người thật khi chạy tác vụ FAST (thư xin việc, phỏng vấn, tìm hiểu công ty, `streamEvaluate`). Thêm nó vào bể FAST là thêm một bên nhận dữ liệu → **phải cập nhật Chính sách bảo mật + Điều khoản** (nêu tên motapis) theo Luật 91/2025 TRƯỚC khi deploy production, và chủ dự án chọn `LEGAL_EFFECTIVE_DATE` (đăng trước ≥ 7 ngày).
+
+#### Cập nhật 2026-11-07 — agy/antigravity bị Google ban; thêm vendor OAuth `grok-cli`/`kiro`/`cbai` vào whitelist OmniRoute
+
+**agy/antigravity chết vì Google KHOÁ TÀI KHOẢN, không phải lỗi cấu hình.** Dashboard OmniRoute báo `[422] Missing Google projectId ... loadCodeAssist found no Cloud Code project`, connection ở trạng thái `degraded`, và khi thử onboard lại tài khoản Google thì Google trả thẳng *"This service has been disabled in this account for violation of Terms of Service"*. Đây là nguyên nhân gốc của chuỗi: tài khoản bị ban → không cấp project → 422 → `/v1/models` trả **0 model `agy`/`antigravity`** (xác nhận: curl từ trong `aijob-app` ra `http://omniroute:20128/v1/models`, 0/453 model thuộc hai nhánh này). OmniRoute còn đánh dấu provider này **`avoid` (ToS) + "excluded from auto by default"**. Chủ dự án chọn **GIỮ** `agy`/`antigravity` trong `filterModel` và `MAIN_PREFERRED_VENDORS` (phòng khi hồi phục); hiện chúng phục vụ 0 model nên là no-op vô hại.
+
+**Ba vendor OAuth mới — đo gọi thật trên prod** (POST `/v1/chat/completions` qua `aijob-app`, prompt "reply OK"):
+
+| Vendor | Nguồn | Kết quả | Ghi chú |
+|---|---|---|---|
+| `grok-cli` | xAI Grok (Grok CLI) | ✅ grok-4.7 **1.5s**, 4.6, 4.5 | 17 model; `grok-voice-transcribe`/`grok-tts` đã bị `isProbeCandidate` loại, riêng `grok-imagine-video` (sinh video) lọt → blacklist tay |
+| `kiro` | AWS Kiro | ✅ một phần | `glm-5`/`deepseek-3.2`/`minimax-m2.5` OK (1.5–3.6s); `kiro/claude-*` và `kiro/gpt-*` → **400 upstream error** (upstream bị chặn) → blacklist tay |
+| `cbai` | CodeBuddy (codebuddy-intl) | ✅ một phần | 2 bí danh `cbai/` và `codebuddy-intl/` cùng nguồn — whitelist chỉ `cbai/` cho khỏi nhân đôi. `glm-5.2`/`minimax-m3`/`deepseek-v4.1-flash`/`kimi-k3` OK (1.3–2.3s); `cbai/gpt-*` và `cbai/gemini-*` → **400 upstream error** → blacklist tay |
+| `kilocode` | Kilo Code | ❌ | mọi model **402 "Add credits to continue"** — hết credit, KHÔNG thêm |
+| `openference` | OpenInference | ❌ | mọi model **402 "upstream error (reset after 2m)"** — cạn/khoá, KHÔNG thêm |
+
+Thay đổi: `filterModel` (`providers/omniroute.ts`) thêm `grok-cli/`, `kiro/`, `cbai/`; `model-blacklist.json` `manual.prefixes` thêm `omniroute/kiro/claude`, `omniroute/kiro/gpt`, `omniroute/cbai/gpt`, `omniroute/cbai/gemini`, `omniroute/grok-cli/grok-imagine`. `MAIN_PREFERRED_VENDORS` **GIỮ `agy,antigravity`** (chủ dự án chọn không đổi preference bể main): agy/antigravity phục vụ 0 model nên là no-op vô hại, còn grok-cli/kiro/cbai vẫn vào bể qua `filterModel` và xếp theo độ trễ probe như mọi vendor khác.
+
+**Bẫy — các vendor này là tài khoản OAuth, KHÁC `ddgw`/`cfp` keyless.** Chúng có thể bị rate-limit, cạn quota hoặc **bị ban y như agy** nếu gọi nhiều qua gateway. Dùng được *bây giờ* không bảo đảm bền; `ddgw`/`cfp` (keyless thuần, không có tài khoản để ban) vẫn là nền ổn định nhất. Vendor chết chỉ làm chuỗi dự phòng chạy tiếp, không gãy.
+
+**Quyền riêng tư — đánh giá:** ba vendor này là nhánh con BÊN TRONG OmniRoute; app vẫn gửi tới đúng một endpoint `OMNIROUTE_BASE_URL`, **bên nhận trực tiếp không đổi** (giống Claude/GPT/Grok nằm trong motapis mà ADR chỉ xét ở mức gateway). Chính sách bảo mật nêu "Nhà cung cấp AI" chung kèm ví dụ + "…", không liệt kê từng nhánh OmniRoute (`ddgw`/`cfp` hiện cũng nhận CV mà không nêu tên riêng). Theo đó, thêm nhánh OmniRoute **không đổi bên nhận trực tiếp đã công bố** → đánh giá là KHÔNG bắt buộc sửa trang pháp lý. Vì là vấn đề pháp lý và chủ dự án quyết định mốc hiệu lực, đã nêu rõ để chủ dự án chốt trước khi deploy (khác motapis: motapis là endpoint gateway RIÊNG app gửi thẳng tới, nên mới phải nêu tên).

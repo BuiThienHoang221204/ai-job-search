@@ -243,11 +243,13 @@ function balancedEnd(buffer: string, start: number): number {
   return -1
 }
 
+export type CompanyRef = { display_name?: string; detail_url?: string; image_logo?: string }
+
 export interface ApiJob {
   id?: number
   title?: string
   slug?: string
-  company?: { display_name?: string; detail_url?: string; image_logo?: string }
+  company?: CompanyRef | string
   addresses?: { sort_addresses?: string; address_region_list?: string }
   salary?: { value?: string; is_negotiable?: string }
   published?: { date?: string }
@@ -294,6 +296,39 @@ export function resultJobs(buffer: string): ApiJob[] {
     }
   }
   return []
+}
+
+/**
+ * `id → company` từ bản sao mảng `jobs` có company INLINE. Trang tìm kiếm trả
+ * company của mỗi kết quả dưới dạng tham chiếu flight (`"$34:…:jobs:0:company"`);
+ * object thật nằm ở một bản sao khác của mảng `jobs` trong cùng payload. Không có
+ * bản inline thì map rỗng và tin giữ company rỗng — không đoán.
+ */
+export function companyMap(buffer: string): Map<string, CompanyRef> {
+  const map = new Map<string, CompanyRef>()
+  let index = 0
+  while (true) {
+    const start = buffer.indexOf('"jobs":[', index)
+    if (start < 0) break
+    const arrayStart = start + 7
+    index = arrayStart
+    const end = balancedEnd(buffer, arrayStart)
+    if (end < 0) continue
+    let jobs: unknown
+    try {
+      jobs = JSON.parse(buffer.slice(arrayStart, end + 1))
+    } catch {
+      continue
+    }
+    if (!Array.isArray(jobs)) continue
+    for (const job of jobs as ApiJob[]) {
+      const company = job.company
+      if (job.id != null && company && typeof company === "object" && company.display_name) {
+        map.set(String(job.id), company)
+      }
+    }
+  }
+  return map
 }
 
 /** Đối tượng tin có `id` cho trước trong payload trang chi tiết; null nếu không có. */
@@ -344,7 +379,11 @@ export const salaryOf = (text: string | null | undefined): string | null => {
   return value
 }
 
-export function toJobCard(job: ApiJob, chunks: Map<string, string> = new Map()): JobCard | null {
+export function toJobCard(
+  job: ApiJob,
+  chunks: Map<string, string> = new Map(),
+  companies: Map<string, CompanyRef> = new Map(),
+): JobCard | null {
   const title = job.title ? nfc(decodeEntities(job.title)).trim() : ""
   if (!job.id || !title || !job.slug) return null
 
@@ -354,13 +393,16 @@ export function toJobCard(job: ApiJob, chunks: Map<string, string> = new Map()):
     nfc(job.addresses?.address_region_list ?? "").trim() ||
     null
 
+  const company =
+    typeof job.company === "object" ? job.company : (companies.get(String(job.id)) ?? null)
+
   return {
     id: String(job.id),
     slug,
     title,
-    company: job.company?.display_name ? nfc(job.company.display_name).trim() : null,
-    companyUrl: job.company?.detail_url || null,
-    companyLogo: job.company?.image_logo || null,
+    company: company?.display_name ? nfc(company.display_name).trim() : null,
+    companyUrl: company?.detail_url || null,
+    companyLogo: company?.image_logo || null,
     location,
     workMode: location && /\bremote\b/i.test(location) ? "remote" : null,
     salary: salaryOf(job.salary?.value),
@@ -375,8 +417,9 @@ export function toJobCard(job: ApiJob, chunks: Map<string, string> = new Map()):
 export function parseSearchPage(html: string): JobCard[] {
   const buffer = flightBuffer(html)
   const chunks = flightTextChunks(buffer)
+  const companies = companyMap(buffer)
   return resultJobs(buffer)
-    .map((job) => toJobCard(job, chunks))
+    .map((job) => toJobCard(job, chunks, companies))
     .filter((job): job is JobCard => job !== null)
 }
 

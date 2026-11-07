@@ -15,6 +15,9 @@ export const omniroute: ProviderDescriptor = {
   filterModel: (id) =>
     id.startsWith('ddgw/') ||
     id.startsWith('cfp/') ||
+    id.startsWith('grok-cli/') ||
+    id.startsWith('kiro/') ||
+    id.startsWith('cbai/') ||
     id.startsWith('antigravity/') ||
     id.startsWith('agy/') ||
     id.includes('free'),

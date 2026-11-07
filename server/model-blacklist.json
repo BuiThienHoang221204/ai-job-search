@@ -26,6 +26,11 @@
       "omniroute/agy/gemini-4-argon",
       "omniroute/agy/claude-opus-4-6-thinking-",
       "omniroute/agy/claude-sonnet-4-6-",
+      "omniroute/kiro/claude",
+      "omniroute/kiro/gpt",
+      "omniroute/cbai/gpt",
+      "omniroute/cbai/gemini",
+      "omniroute/grok-cli/grok-imagine",
       "motapis/qwen3.8-max",
       "motapis/grok-4.6",
       "motapis/glm-5.3-flash"

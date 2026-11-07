@@ -48,7 +48,7 @@ const configuration = () => ({
     fastFallbackModelIds: csv('AI_FAST_FALLBACK_IDS', ''),
     mainProviders: csv(
       'MAIN_TASK_PROVIDERS',
-      'omniroute,opencode-direct,opencode,openrouter',
+      'omniroute,opencode-direct,opencode,motapis,openrouter',
     ),
     mainPreferredVendors: csv('MAIN_PREFERRED_VENDORS', 'agy,antigravity'),
     modelBlacklistFile: fromServerRoot(

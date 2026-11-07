@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   BlockedError,
   categoriesOf,
+  companyMap,
   decodeEntities,
   errorForStatus,
   flightBuffer,
@@ -13,6 +14,7 @@ import {
   resultTotal,
   salaryOf,
   searchUrl,
+  toJobCard,
 } from "../src/helpers.ts"
 
 /** Trang thật nhận được 2026-10-13 từ máy chủ Oracle, nén gzip vì payload RSC dày ~1,2MB. */
@@ -84,6 +86,51 @@ describe("parseSearchPage", () => {
 
   test("trang không có payload thì trả rỗng chứ không nổ", () => {
     expect(parseSearchPage("<html></html>")).toEqual([])
+  })
+})
+
+describe("companyMap - company của kết quả là tham chiếu flight", () => {
+  // Cấu trúc thật của trang tìm kiếm hiện tại (đo 2026-11-07): mảng kết quả trả
+  // company dạng ref "$...", object thật nằm ở BẢN SAO khác của mảng `jobs`.
+  const buffer =
+    '"jobs":[{"id":2142238,"company":"$34:0:props:children:props:children:1:props:jobs:0:company"}],"meta":{"total":1},"jobs":[{"id":2142238,"company":{"display_name":"CÔNG TY TNHH THỊNH VƯỢNG NGUYÊN","image_logo":"https://logo/a.png","detail_url":"/cong-ty/a"}}]'
+
+  test("map id→company chỉ lấy từ mảng có company inline, bỏ qua mảng ref", () => {
+    const map = companyMap(buffer)
+    expect(map.get("2142238")?.display_name).toBe("CÔNG TY TNHH THỊNH VƯỢNG NGUYÊN")
+    expect(map.get("2142238")?.image_logo).toBe("https://logo/a.png")
+  })
+
+  test("toJobCard giải ref bằng map: điền tên công ty + logo + link", () => {
+    const job = {
+      id: 2142238,
+      title: "Nhân Viên Vận Hành Sàn TMĐT",
+      slug: "nhan-vien-van-hanh-san-tmdt",
+      company: "$34:0:props:children:props:children:1:props:jobs:0:company",
+    }
+    const card = toJobCard(job, new Map(), companyMap(buffer))
+    expect(card?.company).toBe("CÔNG TY TNHH THỊNH VƯỢNG NGUYÊN")
+    expect(card?.companyLogo).toBe("https://logo/a.png")
+    expect(card?.companyUrl).toBe("/cong-ty/a")
+  })
+
+  test("id không có trong map thì company null, không nổ", () => {
+    const job = { id: 999999, title: "X", slug: "x", company: "$ref" }
+    const card = toJobCard(job, new Map(), companyMap(buffer))
+    expect(card?.company).toBeNull()
+    expect(card?.companyLogo).toBeNull()
+  })
+
+  test("company inline sẵn (payload cũ) vẫn dùng trực tiếp, không cần map", () => {
+    const job = {
+      id: 5,
+      title: "Y",
+      slug: "y",
+      company: { display_name: "Công ty Z", image_logo: "https://logo/z.png" },
+    }
+    const card = toJobCard(job, new Map(), new Map())
+    expect(card?.company).toBe("Công ty Z")
+    expect(card?.companyLogo).toBe("https://logo/z.png")
   })
 })
 

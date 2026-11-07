@@ -156,10 +156,13 @@ describe('Lõi omniroute — gateway không ép được response_format', () =>
   // Chỉ còn luật "offer gì" của omniroute. Các lệnh CẤM (claude-haiku, router
   // alias, auto/oc/... hỏng, agy/antigravity gemini-3.7…) đã chuyển sang mục
   // `manual` của model-blacklist.json — kiểm ở model-blacklist.spec (isBlocked).
-  test('filterModel: nhận ddgw/cfp/antigravity/agy và model free; bỏ thứ không khớp luật offer', () => {
+  test('filterModel: nhận ddgw/cfp/grok-cli/kiro/cbai/antigravity/agy và model free; bỏ thứ không khớp luật offer', () => {
     const filter = omniroute.filterModel!;
     expect(filter('ddgw/mistral-small-2603')).toBe(true);
     expect(filter('cfp/zai-org/glm-5.2')).toBe(true);
+    expect(filter('grok-cli/grok-4.7')).toBe(true);
+    expect(filter('kiro/glm-5')).toBe(true);
+    expect(filter('cbai/minimax-m3')).toBe(true);
     expect(filter('antigravity/claude-sonnet-4-6')).toBe(true);
     expect(filter('agy/gemini-3.1-flash-lite')).toBe(true);
     expect(filter('any-provider/qwen-free')).toBe(true);

@@ -197,6 +197,7 @@ export class JobWriter {
         ? resolveOccupation(card.title, card.tags, card.categories)
         : null;
       const data = {
+        ...(card.company ? { company: card.company } : {}),
         ...(card.companyLogo ? { companyLogo: card.companyLogo } : {}),
         ...(postedAt ? { postedAt } : {}),
         ...(card.salary ? { salaryRaw: card.salary } : {}),
