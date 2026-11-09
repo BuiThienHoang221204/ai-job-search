@@ -8,16 +8,19 @@ một máy ảo ARM miễn phí vĩnh viễn của Oracle.
 Mục tiêu: `VM.Standard.A1.Flex` 4 OCPU / 24GB RAM, đủ chỗ cho TeX Live 3,3GB và
 Chromium 1,2GB — hai thứ không nền tảng PaaS free nào chứa nổi.
 
-## Trạng thái tính tới 2026-09-09
+## Trạng thái tính tới 2026-11-09
 
 | Việc | Tình hình |
 |---|---|
-| Tài khoản Oracle | xong, tenancy `buithienhoang9a3`, home region Singapore (không đổi được) |
-| VCN `careelot-vcn` | xong, có Internet Gateway, public subnet |
-| Máy A1 ARM (đích cuối) | **chưa lấy được** — hết capacity, đang chạy vòng lặp thử lại ở Cloud Shell |
-| Máy AMD `E5.Flex` 2/16 | đang chạy, dùng credit trial, **bị thu hồi khi hết 30 ngày** |
-| SSH | vào được bằng `oracle.key`, user `ubuntu` |
-| Deploy (PHẦN 2) | chưa bắt đầu |
+| Tài khoản Oracle | tenancy `buithienhoang9a3`, home region Singapore, **đã nâng Pay As You Go** |
+| Máy A1 ARM `careelot-api` | **đang chạy**, 2 OCPU / 12GB, đúng bằng mức Always Free hiện hành (Oracle hạ từ 4/24 xuống 2/12 từ 2026-06-15) |
+| Máy AMD `E5.Flex` cũ | **đã bị thu hồi** khi hết trial (2026-11-07), boot volume đã xoá sau khi cứu dữ liệu |
+| SSH | `oracle.key`, user `ubuntu` |
+
+**Bài học 2026-11-09:**
+
+- Tài khoản Free Tier thử A1 hàng tháng trời (cả vòng lặp GitHub Actions) không lần nào có chỗ. **Nâng Pay As You Go xong thì tạo A1 được ngay**: tài khoản trả phí được xếp trước trong hàng chờ capacity, còn máy vẫn nằm trong mức free. Lúc nâng, thẻ bị giữ tạm ~SGD 138 để xác thực rồi tự hoàn, nên thẻ phải đủ số dư.
+- Hết trial, Oracle **xoá instance nhưng giữ boot volume**. Cứu dữ liệu: gắn boot volume cũ vào máy mới (Paravirtualized, Read only), dựng snapshot copy-on-write bằng `dmsetup` để ext4 replay journal mà không ghi vào ổ gốc, chép thư mục Postgres ra, chạy `pgvector/pgvector:pg17` trên bản chép rồi `pg_dump`. Data dir tạo trên x86 mở được trên arm64 (cùng PG 17, cùng Debian).
 
 ---
 
@@ -43,11 +46,12 @@ PDF_SERVICE_URL=http://pdf:8080
 Hai service này chỉ khai `image: aijob-latex` / `aijob-pdf`. Chạy `docker compose up`
 mà chưa build thì báo image not found. Phải build thủ công trước (bước 2.3).
 
-### 0.3 CI chỉ build image amd64
+### 0.3 Image phải là arm64
 
-`.github/workflows/ci.yml` đẩy lên ghcr không khai `platforms`, nên image ở đó là
-amd64 — **kéo về máy ARM sẽ không chạy**. Trên Oracle phải build tại chỗ. Đã kiểm
-manifest, mọi base image đều có arm64 nên build native chạy được:
+**Đã sửa 2026-11-09:** job `docker-build` trong `.github/workflows/ci.yml` chạy trên
+runner `ubuntu-24.04-arm` (miễn phí cho repo public) nên image trên ghcr là arm64,
+máy A1 chỉ cần `pull`. Trước đó runner là `ubuntu-latest` (x86), image amd64 kéo về
+máy ARM không chạy được. Mọi base image đều có arm64:
 
 | Image | arm64 |
 |---|---|

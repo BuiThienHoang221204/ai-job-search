@@ -50,7 +50,7 @@ Router giữ nguyên dù chỉ còn một adapter: nó là chỗ cắm nguồn m
 
 **Vì sao ScrapingAnt đứng trước — đo 2026-10-23** (request đi qua proxy của dịch vụ nên đo từ máy nào cũng như nhau). Proxy datacenter của ScrapingAnt: TopCV trang tìm kiếm 6/6, Vieclam24h sitemap/trang ngành/chi tiết 7/7, TopCV trang chi tiết 5/9 (còn lại 423); proxy residential (25 credit) cũng chỉ 3/4 ở trang chi tiết TopCV nên thử lại bằng datacenter rẻ hơn. Request hỏng KHÔNG bị tính credit. Ước tính mỗi đêm khi hai portal chạy trần chung như mọi portal khác (30 từ khoá, 100 tin): ~190–270 credit qua ScrapingAnt, tức 5.700–8.100/tháng — vừa gói miễn phí 10.000/tháng; nếu giới hạn `queryLimit: 5`, `maxJobs: 50` thì ~120–140 credit, so với ~850–1.250 nếu chỉ dùng ZenRows (gói miễn phí 5.000/tháng — hết sau khoảng 4 đêm). Đêm 2026-10-22 TopCV qua ZenRows: 5 từ khoá, 36 tin mới, không bị chặn.
 
-**Ba portal chặn THEO IP máy chủ, không phải lỗi code — đo 2026-10-13.** Cùng URL, cùng User-Agent: từ máy cá nhân trả 200 kèm tin, từ máy chủ Oracle (168.107.87.28, Singapore) thì:
+**Ba portal chặn THEO IP máy chủ, không phải lỗi code — đo 2026-10-13.** Cùng URL, cùng User-Agent: từ máy cá nhân trả 200 kèm tin, từ máy chủ Oracle (Singapore) thì:
 
 | Portal | Từ máy chủ | Lớp chặn | Hỏng từ | Giải pháp vượt chặn |
 |---|---|---|---|---|

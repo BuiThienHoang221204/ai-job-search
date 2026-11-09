@@ -105,7 +105,8 @@ jobs:
 
   docker-build:
     name: Build and push Docker image
-    runs-on: ubuntu-latest
+    # Máy chủ là Oracle A1 (ARM) từ 2026-11-09: build native trên runner ARM, image x86 không chạy được ở đó.
+    runs-on: ubuntu-24.04-arm
     needs: security-scan
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')
 
