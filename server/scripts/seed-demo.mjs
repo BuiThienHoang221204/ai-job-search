@@ -87,18 +87,18 @@ try {
   const passwordHash = await bcrypt.hash(demoUser.password, 12);
 
   await client.query(
-    `INSERT INTO users (id, email, name, "passwordHash", role, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, 'USER', NOW(), NOW())
+    `INSERT INTO users (id, email, name, "passwordHash", role, "emailVerifiedAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, 'USER', NOW(), NOW(), NOW())
      ON CONFLICT (email) DO UPDATE
-       SET name = EXCLUDED.name, "passwordHash" = EXCLUDED."passwordHash", "updatedAt" = NOW()`,
+       SET name = EXCLUDED.name, "passwordHash" = EXCLUDED."passwordHash", "emailVerifiedAt" = COALESCE(users."emailVerifiedAt", NOW()), "updatedAt" = NOW()`,
     [demoUser.id, demoUser.email, demoUser.name, passwordHash],
   );
 
   await client.query(
-    `INSERT INTO users (id, email, name, "passwordHash", role, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, 'ADMIN', NOW(), NOW())
+    `INSERT INTO users (id, email, name, "passwordHash", role, "emailVerifiedAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, 'ADMIN', NOW(), NOW(), NOW())
      ON CONFLICT (email) DO UPDATE
-       SET name = EXCLUDED.name, "passwordHash" = EXCLUDED."passwordHash",
+       SET name = EXCLUDED.name, "passwordHash" = EXCLUDED."passwordHash", "emailVerifiedAt" = COALESCE(users."emailVerifiedAt", NOW()),
            role = 'ADMIN', "updatedAt" = NOW()`,
     [adminUser.id, adminUser.email, adminUser.name, passwordHash],
   );
@@ -224,10 +224,10 @@ try {
     const email = `${persona.slug}@aijob.local`;
 
     await client.query(
-      `INSERT INTO users (id, email, name, "passwordHash", role, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'USER', NOW(), NOW())
+      `INSERT INTO users (id, email, name, "passwordHash", role, "emailVerifiedAt", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, 'USER', NOW(), NOW(), NOW())
        ON CONFLICT (email) DO UPDATE
-         SET name = EXCLUDED.name, "passwordHash" = EXCLUDED."passwordHash",
+         SET name = EXCLUDED.name, "passwordHash" = EXCLUDED."passwordHash", "emailVerifiedAt" = COALESCE(users."emailVerifiedAt", NOW()),
              "updatedAt" = NOW()`,
       [`demo_user_${persona.slug}`, email, persona.name, passwordHash],
     );

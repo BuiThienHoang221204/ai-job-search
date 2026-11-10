@@ -66,6 +66,8 @@ model User {
   bonusVoiceMinutes  Int       @default(0)
   /// Lúc người dùng đồng ý Điều khoản và Chính sách bảo mật; null với tài khoản tạo trước khi có hai trang này.
   termsAcceptedAt    DateTime?
+  /// Lúc người dùng chứng minh sở hữu hộp thư (nhập đúng mã gửi qua email, hoặc đăng nhập Google); null = tài khoản mật khẩu cũ chưa xác minh, phải nhập mã ở lần đăng nhập tới.
+  emailVerifiedAt    DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -87,6 +89,22 @@ model User {
   companyFollows    CompanyFollow[]
 
   @@map("users")
+}
+
+/// Mã 6 số gửi qua email, mỗi email tối đa một mã còn sống; gửi mã mới thì đè mã cũ. Có `passwordHash` là đăng ký đang chờ (chưa có User, tạo khi nhập đúng mã); không có là tài khoản mật khẩu cũ cần xác minh để đăng nhập.
+model EmailCode {
+  email        String   @id
+  codeHash     String
+  expiresAt    DateTime
+  attempts     Int      @default(0)
+  sentAt       DateTime
+  name         String?
+  passwordHash String?
+  ref          String?
+  createdAt    DateTime @default(now())
+
+  @@index([sentAt])
+  @@map("email_codes")
 }
 
 /// Một trình duyệt/thiết bị đã cho phép nhận thông báo đẩy (Web Push).

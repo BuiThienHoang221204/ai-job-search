@@ -36,6 +36,13 @@ const configuration = () => ({
     googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   },
 
+  mail: {
+    resendApiKey: process.env.RESEND_API_KEY ?? '',
+    from: process.env.MAIL_FROM ?? 'Careelot <no-reply@careelot.me>',
+    replyTo: process.env.MAIL_REPLY_TO ?? 'careelot00@gmail.com',
+    webUrl: (process.env.WEB_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
+  },
+
   ai: {
     provider: process.env.MODEL_PROVIDER ?? 'omniroute',
     modelId: process.env.MODEL_ID ?? '',

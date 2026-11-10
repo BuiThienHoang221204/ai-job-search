@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -18,14 +19,15 @@ import {
   userKey,
   type Storage,
 } from '@/modules/storage/storage.interface';
+import { EmailCodeService } from './email-code.service';
 import { GoogleAuthService } from './google-auth.service';
-import type { LoginDto, RegisterDto } from './auth.dto';
+import type { LoginDto, RegisterDto } from '../auth.dto';
 import {
   isAccessPayload,
   isRefreshPayload,
   type JwtPayload,
   type TokenType,
-} from './jwt-payload';
+} from '../jwt-payload';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -37,6 +39,11 @@ export type AuthResult = {
   accessToken: string;
   refreshToken: string;
   user: { id: string; email: string; name: string };
+};
+
+type VerificationRequired = {
+  verificationRequired: true;
+  email: string;
 };
 
 export type ExtAuthResult = {
@@ -55,6 +62,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly google: GoogleAuthService,
+    private readonly emailCodes: EmailCodeService,
     private readonly referrals: ReferralsService,
     @Inject(STORAGE) private readonly storage: Storage,
   ) {}
@@ -75,15 +83,44 @@ export class AuthService {
     }
   }
 
-  async register(dto: RegisterDto): Promise<AuthResult> {
+  async register(dto: RegisterDto): Promise<VerificationRequired> {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Email đã được đăng ký');
+
+    await this.emailCodes.start(dto.email, {
+      name: dto.name,
+      passwordHash: await hash(dto.password, BCRYPT_ROUNDS),
+      ref: dto.ref,
+    });
+    return { verificationRequired: true, email: dto.email };
+  }
+
+  async verifyCode(email: string, code: string): Promise<AuthResult> {
+    const pending = await this.emailCodes.consume(email, code);
+    const now = new Date();
+
+    if (!pending.passwordHash || !pending.name) {
+      const user = await this.prisma.user.update({
+        where: { email },
+        data: { emailVerifiedAt: now },
+      });
+      return this.sign(user, user.tokenVersion);
+    }
+
     const user = await this.prisma.user
       .create({
         data: {
-          email: dto.email,
-          name: dto.name,
-          passwordHash: await hash(dto.password, BCRYPT_ROUNDS),
-          termsAcceptedAt: new Date(),
-          referredById: await this.referrals.referrerOf(dto.ref),
+          email,
+          name: pending.name,
+          passwordHash: pending.passwordHash,
+          emailVerifiedAt: now,
+          termsAcceptedAt: now,
+          referredById: await this.referrals.referrerOf(
+            pending.ref ?? undefined,
+          ),
           profile: { create: {} },
         },
       })
@@ -93,17 +130,25 @@ export class AuthService {
         }
         throw error;
       });
-
     return this.sign(user, user.tokenVersion);
   }
 
-  async login(dto: LoginDto): Promise<AuthResult> {
+  async login(dto: LoginDto): Promise<AuthResult | VerificationRequired> {
     const user = await this.verifyCredentials(dto);
+    if (!user.emailVerifiedAt) {
+      await this.emailCodes.start(user.email, null);
+      return { verificationRequired: true, email: user.email };
+    }
     return this.sign(user, user.tokenVersion);
   }
 
   async extLogin(dto: LoginDto): Promise<ExtAuthResult> {
     const user = await this.verifyCredentials(dto);
+    if (!user.emailVerifiedAt) {
+      throw new ForbiddenException(
+        'Email chưa được xác minh. Hãy đăng nhập trên web Careelot một lần để xác minh rồi thử lại.',
+      );
+    }
     return this.extResult(user, user.tokenVersion);
   }
 
@@ -142,24 +187,30 @@ export class AuthService {
     if (!user) {
       const existing = await this.prisma.user.findUnique({
         where: { email },
-        select: { googleId: true },
+        select: { googleId: true, emailVerifiedAt: true },
       });
       if (existing?.googleId) {
         throw new ConflictException(
           'Email này đã liên kết với một tài khoản Google khác',
         );
       }
+      const verifiedAt = new Date();
+      const link = existing?.emailVerifiedAt
+        ? { googleId: profile.googleId }
+        : {
+            googleId: profile.googleId,
+            passwordHash: null,
+            tokenVersion: { increment: 1 },
+            emailVerifiedAt: verifiedAt,
+          };
       user = await this.prisma.user.upsert({
         where: { email },
-        update: {
-          googleId: profile.googleId,
-          passwordHash: null,
-          tokenVersion: { increment: 1 },
-        },
+        update: link,
         create: {
           email,
           name: profile.name,
           googleId: profile.googleId,
+          emailVerifiedAt: verifiedAt,
           termsAcceptedAt: new Date(),
           referredById: await this.referrals.referrerOf(ref),
           profile: { create: {} },

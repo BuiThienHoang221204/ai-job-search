@@ -9,12 +9,14 @@ import { AUTH_COOKIE, REFRESH_COOKIE } from 'src/modules/auth/auth.cookie.js';
 import { QueueService } from 'src/modules/queue/queue.service.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import { SANDBOX } from 'src/modules/sandbox/sandbox.interface.js';
-import { GoogleAuthService } from 'src/modules/auth/google-auth.service.js';
+import { GoogleAuthService } from 'src/modules/auth/services/google-auth.service.js';
 import { FakeSandbox } from 'src/testing/fake-sandbox.js';
 import { FakeStorage } from 'src/testing/fake-storage.js';
 import { STORAGE } from 'src/modules/storage/storage.interface.js';
 import { FakeAi } from 'src/testing/fake-ai.js';
 import { FakeGoogleAuth } from 'src/testing/fake-google-auth.js';
+import { FakeMail } from 'src/testing/fake-mail.js';
+import { MailService } from 'src/modules/auth/services/mail.service.js';
 import { FakeLiveTokens } from 'src/testing/fake-live-tokens.js';
 import { LiveTokenService } from 'src/modules/mock-interview/services/live-token.service.js';
 import { FakeQueue } from './fake-queue.js';
@@ -53,11 +55,13 @@ export type TestApp = {
   sandbox: FakeSandbox;
   /// Bản giả của GoogleAuthService - test tự định nghĩa idToken trỏ tới profile nào, không gọi mạng thật tới Google.
   google: FakeGoogleAuth;
+  /// Bản giả gửi mail - giữ lại mail đã gửi để test lấy mã xác minh, không gọi Resend thật.
+  mail: FakeMail;
   /// Bản giả cấp token Gemini Live - ghi lại cấu hình phiên, không gọi mạng thật tới Google.
   liveTokens: FakeLiveTokens;
   /// Bản giả R2. Trình duyệt tải file thẳng lên kho qua URL ký sẵn, nên test "tải lên" bằng cách ghi vào `storage.files`.
   storage: FakeStorage;
-  /// Tạo người dùng thật qua HTTP `POST /api/auth/register`.
+  /// Tạo người dùng thật qua HTTP: `POST /api/auth/register` rồi nhập mã trong thư (bản giả) ở `POST /api/auth/verify-code`.
   ///
   /// Cố ý đi qua HTTP chứ không `prisma.user.create` trực tiếp: đường đăng ký
   /// thật còn băm mật khẩu và tạo sẵn Profile rỗng, và test cần đúng trạng thái
@@ -107,6 +111,7 @@ export async function createTestApp(
   const queue = new FakeQueue();
   const sandbox = new FakeSandbox();
   const google = new FakeGoogleAuth();
+  const mail = new FakeMail();
   const liveTokens = new FakeLiveTokens();
   const storage = new FakeStorage();
 
@@ -130,6 +135,8 @@ export async function createTestApp(
     .useValue(sandbox)
     .overrideProvider(GoogleAuthService)
     .useValue(google)
+    .overrideProvider(MailService)
+    .useValue(mail)
     .overrideProvider(STORAGE)
     .useValue(storage)
     .overrideProvider(LiveTokenService)
@@ -148,7 +155,7 @@ export async function createTestApp(
     userCounter += 1;
     const address = email ?? `nguoi-dung-${userCounter}@test.local`;
 
-    const response = await request(server)
+    const started = await request(server)
       .post('/api/auth/register')
       .send({
         email: address,
@@ -157,8 +164,17 @@ export async function createTestApp(
         acceptTerms: true,
         ref,
       });
+    if (started.status !== 202) {
+      throw new Error(
+        `Đăng ký thất bại (${started.status}): ${JSON.stringify(started.body)}`,
+      );
+    }
 
-    if (response.status !== 201) {
+    const response = await request(server)
+      .post('/api/auth/verify-code')
+      .send({ email: address, code: mail.codeFor(address) });
+
+    if (response.status !== 200) {
       throw new Error(
         `Đăng ký thất bại (${response.status}): ${JSON.stringify(response.body)}`,
       );
@@ -220,6 +236,7 @@ export async function createTestApp(
     queue,
     sandbox,
     google,
+    mail,
     liveTokens,
     storage,
     signUp,
@@ -235,6 +252,7 @@ export async function createTestApp(
       queue.reset();
       sandbox.reset();
       google.reset();
+      mail.reset();
       liveTokens.reset();
       storage.files.clear();
     },

@@ -7,14 +7,14 @@
 
 | Thành phần | Giá trị | Nguồn |
 |---|---|---|
-| Kiểu | JWT ký HMAC bằng `JWT_SECRET` (một secret cho cả hai loại token) | [auth.service.ts](../../server/src/modules/auth/auth.service.ts) |
+| Kiểu | JWT ký HMAC bằng `JWT_SECRET` (một secret cho cả hai loại token) | [auth.service.ts](../../server/src/modules/auth/services/auth.service.ts) |
 | Access token | `typ = access`, hạn `JWT_ACCESS_EXPIRES_IN` (15m), cookie `aijob_token` path `/` | [auth.cookie.ts](../../server/src/modules/auth/auth.cookie.ts) |
 | Refresh token | `typ = refresh`, hạn `JWT_REFRESH_EXPIRES_IN` (7d), cookie `aijob_refresh` **path `/api/auth/refresh`** — chỉ đi qua mạng khi gọi refresh | [auth.cookie.ts](../../server/src/modules/auth/auth.cookie.ts) |
 | Payload | `{ sub, email, typ, ver }` — `ver` = `User.tokenVersion` | [jwt-payload.ts](../../server/src/modules/auth/jwt-payload.ts) |
 | Cờ cookie | `httpOnly`, `sameSite=lax`, `secure` khi production, `domain = COOKIE_DOMAIN` nếu có. `maxAge` cố định 15 phút / 7 ngày (không đọc theo biến hạn JWT — [auth.md#R5](./modules/auth.md)) | [auth.cookie.ts](../../server/src/modules/auth/auth.cookie.ts) |
 | Body đăng nhập | Chỉ `{ user }`, **không** trả token trong JSON | [auth.controller.ts](../../server/src/modules/auth/auth.controller.ts) |
 | Đọc token | Cookie trước, header `Authorization: Bearer` sau | [jwt.strategy.ts](../../server/src/modules/auth/jwt.strategy.ts) |
-| Băm mật khẩu | bcrypt cost 12 | [auth.service.ts](../../server/src/modules/auth/auth.service.ts) |
+| Băm mật khẩu | bcrypt cost 12 | [auth.service.ts](../../server/src/modules/auth/services/auth.service.ts) |
 | Khởi động | `JWT_SECRET` rỗng hoặc bắt đầu `thay-bang` → app ném lỗi, không khởi động | [main.ts](../../server/src/main.ts) |
 
 ## 2. Các luồng
@@ -111,6 +111,6 @@ Nguồn từng dòng: [auth.md §13](./modules/auth.md#13-exceptions).
 
 ## Source References
 
-**Backend:** [auth.controller.ts](../../server/src/modules/auth/auth.controller.ts) · [auth.service.ts](../../server/src/modules/auth/auth.service.ts) · [google-auth.service.ts](../../server/src/modules/auth/google-auth.service.ts) · [jwt.strategy.ts](../../server/src/modules/auth/jwt.strategy.ts) · [jwt-payload.ts](../../server/src/modules/auth/jwt-payload.ts) · [auth.cookie.ts](../../server/src/modules/auth/auth.cookie.ts) · [auth.dto.ts](../../server/src/modules/auth/auth.dto.ts) · [jwt-auth.guard.ts](../../server/src/common/guards/jwt-auth.guard.ts) · [user-throttler.guard.ts](../../server/src/common/guards/user-throttler.guard.ts) · [throttle.ts](../../server/src/common/throttle.ts) · [main.ts](../../server/src/main.ts) · [auth-refresh.e2e-spec.ts](../../server/test/auth-refresh.e2e-spec.ts) · [auth-google.e2e-spec.ts](../../server/test/auth-google.e2e-spec.ts)
+**Backend:** [auth.controller.ts](../../server/src/modules/auth/auth.controller.ts) · [auth.service.ts](../../server/src/modules/auth/services/auth.service.ts) · [google-auth.service.ts](../../server/src/modules/auth/services/google-auth.service.ts) · [jwt.strategy.ts](../../server/src/modules/auth/jwt.strategy.ts) · [jwt-payload.ts](../../server/src/modules/auth/jwt-payload.ts) · [auth.cookie.ts](../../server/src/modules/auth/auth.cookie.ts) · [auth.dto.ts](../../server/src/modules/auth/auth.dto.ts) · [jwt-auth.guard.ts](../../server/src/common/guards/jwt-auth.guard.ts) · [user-throttler.guard.ts](../../server/src/common/guards/user-throttler.guard.ts) · [throttle.ts](../../server/src/common/throttle.ts) · [main.ts](../../server/src/main.ts) · [auth-refresh.e2e-spec.ts](../../server/test/auth-refresh.e2e-spec.ts) · [auth-google.e2e-spec.ts](../../server/test/auth-google.e2e-spec.ts)
 
 **Frontend:** [ui-ai-job-search/lib/axios.ts](../../../ui-ai-job-search/lib/axios.ts) · [model-stream.ts](../../../ui-ai-job-search/lib/model-stream.ts) · [session-provider.tsx](../../../ui-ai-job-search/providers/session-provider.tsx) · [ui-ai-job-search/services/auth.ts](../../../ui-ai-job-search/services/auth.ts) · [ui-admin-job-search/lib/axios.ts](../../../ui-admin-job-search/lib/axios.ts) · [admin-gate.tsx](../../../ui-admin-job-search/components/shell/admin-gate.tsx)

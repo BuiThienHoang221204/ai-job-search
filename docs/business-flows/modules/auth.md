@@ -7,9 +7,9 @@
 
 | Mục tiêu | Diễn giải |
 |---|---|
-| Định danh người dùng | Tạo tài khoản bằng email + mật khẩu hoặc bằng tài khoản Google; mỗi email là một tài khoản duy nhất ([auth.service.ts:42](../../../server/src/modules/auth/auth.service.ts#L42), [schema.prisma:36](../../../server/prisma/schema.prisma#L36)). |
+| Định danh người dùng | Tạo tài khoản bằng email + mật khẩu hoặc bằng tài khoản Google; mỗi email là một tài khoản duy nhất ([auth.service.ts:42](../../../server/src/modules/auth/services/auth.service.ts#L42), [schema.prisma:36](../../../server/prisma/schema.prisma#L36)). |
 | Duy trì phiên an toàn | Phát cặp JWT access (ngắn hạn) + refresh (dài hạn) **chỉ qua cookie httpOnly**, frontend không bao giờ cầm token ([auth.controller.ts:99](../../../server/src/modules/auth/auth.controller.ts#L99), [auth.cookie.ts](../../../server/src/modules/auth/auth.cookie.ts)). |
-| Thu hồi phiên tức thì | Cột `User.tokenVersion` được so với claim `ver` ở MỌI request; lệch là 401 ngay, kể cả access token còn hạn ([jwt.strategy.ts:47](../../../server/src/modules/auth/jwt.strategy.ts#L47), [auth.service.ts:135](../../../server/src/modules/auth/auth.service.ts#L135)). |
+| Thu hồi phiên tức thì | Cột `User.tokenVersion` được so với claim `ver` ở MỌI request; lệch là 401 ngay, kể cả access token còn hạn ([jwt.strategy.ts:47](../../../server/src/modules/auth/jwt.strategy.ts#L47), [auth.service.ts:135](../../../server/src/modules/auth/services/auth.service.ts#L135)). |
 | Phân quyền theo vai trò | Hai vai trò `USER` / `ADMIN`; vai trò đọc tươi từ DB mỗi request nên hạ quyền có hiệu lực ngay ([jwt.strategy.ts:37](../../../server/src/modules/auth/jwt.strategy.ts#L37), [roles.guard.ts](../../../server/src/common/guards/roles.guard.ts)). |
 | Chống lạm dụng | Trần 10 lượt/phút cho các route đăng nhập/đăng ký/refresh, đếm theo IP ([throttle.ts:9](../../../server/src/common/throttle.ts#L9)). |
 
@@ -25,7 +25,7 @@
 | Khách (chưa đăng nhập) | `register`, `login`, `google`, `refresh`, `logout` (đều `@Public`) | Bị đếm throttle theo IP |
 | Người dùng (`USER`) | `GET /auth/me`, mọi route không gắn `@Roles` | Vai trò mặc định khi tạo tài khoản ([schema.prisma:35](../../../server/prisma/schema.prisma#L35)) |
 | Quản trị viên (`ADMIN`) | Như USER + route gắn `@Roles('ADMIN')` | Chỉ thành ADMIN qua `PUT /api/admin/users/:id/role` (module admin) hoặc seed |
-| Google Identity | Xác minh ID token (chữ ký, audience, `email_verified`) | `google-auth-library` `OAuth2Client.verifyIdToken` ([google-auth.service.ts:24](../../../server/src/modules/auth/google-auth.service.ts#L24)) |
+| Google Identity | Xác minh ID token (chữ ký, audience, `email_verified`) | `google-auth-library` `OAuth2Client.verifyIdToken` ([google-auth.service.ts:24](../../../server/src/modules/auth/services/google-auth.service.ts#L24)) |
 | Hệ thống — `JwtAuthGuard` / `JwtStrategy` | Rút token, kiểm chữ ký/hạn/typ/ver, nạp `request.user` | Guard toàn cục |
 | Hệ thống — `UserThrottlerGuard` | Đếm lượt theo `user:<id>` hoặc `ip:<ip>` | Guard toàn cục, chạy sau JwtAuthGuard |
 | Hệ thống — `RolesGuard` | So `request.user.role` với `@Roles` | Guard toàn cục |
@@ -34,16 +34,18 @@
 
 | # | Tính năng | Actor | Endpoint / cơ chế |
 |---|---|---|---|
-| F1 | Đăng ký bằng email/mật khẩu | Khách | `POST /api/auth/register` |
+| F1 | Đăng ký bằng email/mật khẩu (tài khoản chỉ tạo sau khi nhập đúng mã, Luồng K) | Khách | `POST /api/auth/register` |
 | F2 | Đăng nhập bằng email/mật khẩu | Khách | `POST /api/auth/login` |
 | F3 | Đăng nhập / đăng ký / liên kết bằng Google | Khách | `POST /api/auth/google` |
 | F4 | Gia hạn phiên bằng refresh token | Khách (cookie refresh) | `POST /api/auth/refresh` + interceptor axios FE |
 | F5 | Đăng xuất khỏi thiết bị hiện tại | Khách/USER | `POST /api/auth/logout` |
 | F6 | Lấy thông tin tài khoản hiện tại | USER/ADMIN | `GET /api/auth/me` |
 | F12 | Xoá tài khoản và mọi dữ liệu của chính mình *(2026-10-28)* | USER | `DELETE /api/auth/account` |
+| F13 | Nhập mã 6 số gửi qua email để hoàn tất đăng ký hoặc đăng nhập tài khoản chưa xác minh *(2026-11-10)* | Khách | `POST /api/auth/verify-code` |
+| F14 | Gửi lại mã xác minh *(2026-11-10)* | Khách | `POST /api/auth/resend-code` |
 | F7 | Xác thực mọi request (mặc định đóng) | Hệ thống | `JwtAuthGuard` + `JwtStrategy` |
 | F8 | Phân quyền theo vai trò | Hệ thống | `@Roles` + `RolesGuard` |
-| F9 | Giới hạn tần suất | Hệ thống | `UserThrottlerGuard` + `@ThrottleAuth/@ThrottleAi/@ThrottleScrape/@ThrottlePdf` |
+| F9 | Giới hạn tần suất | Hệ thống | `UserThrottlerGuard` + `@ThrottleAuth/@ThrottleAi/@ThrottleScrape/@ThrottlePdf/@ThrottleMail` |
 | F10 | Chặn giao diện theo phiên (FE người dùng) | FE | `SessionProvider` |
 | F11 | Chặn console admin cho tài khoản không phải ADMIN (FE admin) | FE | `/login` admin + `AdminGate` |
 
@@ -57,19 +59,19 @@
 1. Form tạo tài khoản trong modal kiểm tra mật khẩu ≥ 8 ký tự và hai lần nhập khớp ([register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx)), rồi gọi `POST /api/auth/register` với `{ email, password, name }`.
 2. `UserThrottlerGuard` áp trần `@ThrottleAuth` 10/phút, khoá `ip:<ip>` (route public nên chưa có `request.user`) ([user-throttler.guard.ts:7](../../../server/src/common/guards/user-throttler.guard.ts#L7)).
 3. `ValidationPipe` (whitelist + forbidNonWhitelisted) chạy `RegisterDto`: email được `trim().toLowerCase()` rồi `@IsEmail`; mật khẩu 8–72 ký tự; tên 1–200 ký tự ([auth.dto.ts:7](../../../server/src/modules/auth/auth.dto.ts#L7)).
-4. `AuthService.register` băm mật khẩu bcrypt cost 12 và tạo `User` kèm `Profile` rỗng trong một nested write ([auth.service.ts:42](../../../server/src/modules/auth/auth.service.ts#L42)).
-5. Ký access + refresh với `ver = tokenVersion` (0) ([auth.service.ts:142](../../../server/src/modules/auth/auth.service.ts#L142)).
-6. Controller đặt cookie `aijob_token` và `aijob_refresh`, trả **HTTP 201** `{ user: { id, email, name } }` ([auth.controller.ts:30](../../../server/src/modules/auth/auth.controller.ts#L30)).
+4. `AuthService.register` *(sửa 2026-11-10)*: email đã có tài khoản → **409**. Chưa có thì băm mật khẩu bcrypt cost 12 và gọi `EmailCodeService.start`: lưu **đăng ký đang chờ** (tên, mật khẩu đã băm, mã mời) vào `email_codes` và gửi mã 6 số (Luồng K). **Chưa tạo `User`, chưa đặt cookie** ([auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts)).
+5. Trả **HTTP 202** `{ verificationRequired: true, email }`. Form chuyển sang bước nhập mã ([email-code-step.tsx](../../../../ui-ai-job-search/components/auth/email-code-step.tsx)).
+6. Nhập đúng mã → `POST /api/auth/verify-code` tạo `User` (đã xác minh, `termsAcceptedAt`, mã mời) kèm `Profile` rỗng, ký cặp token, đặt cookie, trả **200** `{ user }`.
 7. Modal nạp lại phiên tại chỗ rồi chuyển tới `next` nếu có (đã lọc bằng `safeNextPath`) ([login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx)).
 
 **Alternative Flow:** đăng ký bằng nút Google trên cùng trang → Luồng C.
 
 **Failure Flow:**
-- Email trùng (kể cả khác hoa/thường) → Prisma `P2002` bị bắt → **409** `Email đã được đăng ký` ([auth.service.ts:53](../../../server/src/modules/auth/auth.service.ts#L53)); FE hiện khung "Email này đã được đăng ký. Đăng nhập thay vì tạo mới" ([register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx)).
+- Email trùng (kể cả khác hoa/thường) → **409** `Email đã được đăng ký` (kiểm trước khi gửi mã; lúc tạo ở bước nhập mã vẫn bắt `P2002` cho trường hợp Google tạo cùng email xen giữa) ([auth.service.ts:53](../../../server/src/modules/auth/services/auth.service.ts#L53)); FE hiện khung "Email này đã được đăng ký. Đăng nhập thay vì tạo mới" ([register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx)).
 - Sai định dạng → **400** (thông điệp xem §8/§13).
 - Vượt trần → **429** `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` ([app.module.ts:31](../../../server/src/app.module.ts#L31)).
 
-**Postconditions:** có 1 `User` (role `USER`, `tokenVersion = 0`, `googleId = null`) và 1 `Profile` rỗng; trình duyệt giữ hai cookie httpOnly.
+**Postconditions:** sau bước 5 chỉ có 1 hàng `email_codes`; sau bước 6 có 1 `User` (role `USER`, `tokenVersion = 0`, `googleId = null`, `emailVerifiedAt` có giá trị) và 1 `Profile` rỗng; trình duyệt giữ hai cookie httpOnly *(2026-11-10)*.
 
 ### Luồng B — Đăng nhập email/mật khẩu (F2)
 
@@ -78,39 +80,41 @@
 **Main Flow:**
 1. `POST /api/auth/login` `{ email, password }`; throttle 10/phút/IP.
 2. `LoginDto`: email chuẩn hoá + `@IsEmail`; `password` chỉ cần là chuỗi (không giới hạn độ dài) ([auth.dto.ts:23](../../../server/src/modules/auth/auth.dto.ts#L23)).
-3. Tìm user theo email; **luôn** chạy `bcrypt.compare` — khi không có user hoặc user không có mật khẩu thì so với một hash đệm cố định (`timingPadHash`) để thời gian phản hồi không lộ email có tồn tại hay không ([auth.service.ts:21](../../../server/src/modules/auth/auth.service.ts#L21), [auth.service.ts:66](../../../server/src/modules/auth/auth.service.ts#L66)).
+3. Tìm user theo email; **luôn** chạy `bcrypt.compare` — khi không có user hoặc user không có mật khẩu thì so với một hash đệm cố định (`timingPadHash`) để thời gian phản hồi không lộ email có tồn tại hay không ([auth.service.ts:21](../../../server/src/modules/auth/services/auth.service.ts#L21), [auth.service.ts:66](../../../server/src/modules/auth/services/auth.service.ts#L66)).
 4. Khớp → ký cặp token với `ver` hiện tại, đặt cookie, trả **HTTP 200** `{ user }`.
+5. Khớp nhưng `emailVerifiedAt = null` (tài khoản mật khẩu tạo trước 2026-11-10) → gửi mã (Luồng K), trả **HTTP 202** `{ verificationRequired: true, email }`, chưa đặt cookie; nhập đúng mã mới có phiên *(2026-11-10)*.
 
 **Alternative Flow:** FE admin dùng cùng endpoint, sau đó gọi thêm `/auth/me` để kiểm vai trò (Luồng J).
 
-**Failure Flow:** sai email hoặc mật khẩu, hoặc tài khoản chỉ đăng nhập Google (`passwordHash = null`) → **401** `Email hoặc mật khẩu không đúng` ([auth.service.ts:71](../../../server/src/modules/auth/auth.service.ts#L71)). Lần thứ 11 trong một phút → **429**, bị chặn trước handler nên không tốn lượt bcrypt ([throttle.e2e-spec.ts:24](../../../server/test/throttle.e2e-spec.ts#L24)).
+**Failure Flow:** sai email hoặc mật khẩu, hoặc tài khoản chỉ đăng nhập Google (`passwordHash = null`) → **401** `Email hoặc mật khẩu không đúng` ([auth.service.ts:71](../../../server/src/modules/auth/services/auth.service.ts#L71)). Lần thứ 11 trong một phút → **429**, bị chặn trước handler nên không tốn lượt bcrypt ([throttle.e2e-spec.ts:24](../../../server/test/throttle.e2e-spec.ts#L24)).
 
 **Postconditions:** cookie mới được đặt; không ghi gì vào DB.
 
 ### Luồng C — Đăng nhập / liên kết bằng Google (F3)
 
-**Preconditions:** FE có `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (không có thì nút Google bị ẩn — [google-sign-in-button.tsx:18](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx#L18)); backend có `GOOGLE_CLIENT_ID`.
+**Preconditions:** FE có `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (không có thì nút Google bị ẩn — [google-sign-in-button.tsx:35](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx#L35)); backend có `GOOGLE_CLIENT_ID`.
 
 **Main Flow:**
-1. Google Identity Services trả `credential` (ID token) cho FE; FE gọi `POST /api/auth/google` `{ idToken }`.
-2. `GoogleAuthService.verify`: `verifyIdToken` với `audience = GOOGLE_CLIENT_ID`; payload phải có `sub`, `email`, và `email_verified = true`. Tên lấy `payload.name`, thiếu thì dùng email ([google-auth.service.ts:21](../../../server/src/modules/auth/google-auth.service.ts#L21)).
+1. Google Identity Services trả `credential` (ID token) cho FE; FE gọi `POST /api/auth/google` `{ idToken, acceptTerms: true, ref? }` ([auth.ts:21](../../../../ui-ai-job-search/services/auth.ts#L21)). `acceptTerms` bắt buộc bằng `true` như đăng ký email; `ref` là mã mời, không có thì bị bỏ khỏi body.
+2. `GoogleAuthService.verify`: `verifyIdToken` với `audience = GOOGLE_CLIENT_ID`; payload phải có `sub`, `email`, và `email_verified = true`. Tên lấy `payload.name`, thiếu thì dùng email ([google-auth.service.ts:21](../../../server/src/modules/auth/services/google-auth.service.ts#L21)).
 3. Email được `trim().toLowerCase()`.
-4. Tìm user theo `googleId` (không theo email, vì email ở Google có thể đổi) ([auth.service.ts:80](../../../server/src/modules/auth/auth.service.ts#L80)).
+4. Tìm user theo `googleId` (không theo email, vì email ở Google có thể đổi) ([auth.service.ts:138](../../../server/src/modules/auth/services/auth.service.ts#L138)).
    - Có → ký token cho user đó.
 5. Không có → tìm user theo email:
-   - Email đã gắn **một `googleId` khác** → **409** `Email này đã liên kết với một tài khoản Google khác` ([auth.service.ts:89](../../../server/src/modules/auth/auth.service.ts#L89)).
-   - Email đã có tài khoản mật khẩu (chưa gắn Google) → `upsert` nhánh update: gắn `googleId`, **xoá `passwordHash`**, **tăng `tokenVersion`** ⇒ mọi access/refresh token phát trước đó chết ngay ([auth.service.ts:94](../../../server/src/modules/auth/auth.service.ts#L94)). Đây là chủ đích chống *pre-account takeover* ([auth-google.e2e-spec.ts:90](../../../server/test/auth-google.e2e-spec.ts#L90)).
-   - Email chưa có → tạo `User` mới (`passwordHash = null`) + `Profile` rỗng.
+   - Email đã gắn **một `googleId` khác** → **409** `Email này đã liên kết với một tài khoản Google khác` ([auth.service.ts:147](../../../server/src/modules/auth/services/auth.service.ts#L147)).
+   - Email đã có tài khoản mật khẩu **đã xác minh email** → chỉ gắn `googleId`; giữ mật khẩu và mọi phiên đang mở *(2026-11-10)*.
+   - Email đã có tài khoản mật khẩu **chưa xác minh email** → `upsert` nhánh update: gắn `googleId`, **xoá `passwordHash`**, **tăng `tokenVersion`**, đặt `emailVerifiedAt` ⇒ mọi access/refresh token phát trước đó chết ngay ([auth.service.ts:154](../../../server/src/modules/auth/services/auth.service.ts#L154)). Đây là chủ đích chống *pre-account takeover* ([auth-google.e2e-spec.ts:90](../../../server/test/auth-google.e2e-spec.ts#L90)).
+   - Email chưa có → tạo `User` mới (`passwordHash = null`, `emailVerifiedAt` = lúc tạo) + `Profile` rỗng.
 6. Đặt hai cookie, trả **HTTP 200** `{ user }`.
 
 **Alternative Flow:** cùng một `googleId` đăng nhập lại → vào đúng user cũ, không tạo thêm ([auth-google.e2e-spec.ts:50](../../../server/test/auth-google.e2e-spec.ts#L50)).
 
 **Failure Flow:**
-- ID token sai/hết hạn/sai audience/chưa xác minh email → **401** `Token Google không hợp lệ` ([google-auth.service.ts:30](../../../server/src/modules/auth/google-auth.service.ts#L30), [google-auth.service.ts:34](../../../server/src/modules/auth/google-auth.service.ts#L34)).
+- ID token sai/hết hạn/sai audience/chưa xác minh email → **401** `Token Google không hợp lệ` ([google-auth.service.ts:30](../../../server/src/modules/auth/services/google-auth.service.ts#L30), [google-auth.service.ts:34](../../../server/src/modules/auth/services/google-auth.service.ts#L34)).
 - `idToken` rỗng → **400** (xem §13).
-- FE hiển thị mọi lỗi Google bằng một câu chung `Đăng nhập bằng Google không thành công` ([google-sign-in-button.tsx:31](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx#L31)).
+- FE hiển thị mọi lỗi Google bằng một câu chung `Đăng nhập bằng Google không thành công` ([google-sign-in-button.tsx:51](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx#L51)).
 
-**Postconditions:** user có `googleId`; nếu là nhánh liên kết thì không còn đăng nhập bằng mật khẩu được và `tokenVersion` đã tăng 1.
+**Postconditions:** user có `googleId` và `emailVerifiedAt`; nếu là nhánh liên kết vào tài khoản chưa xác minh thì không còn đăng nhập bằng mật khẩu được và `tokenVersion` đã tăng 1.
 
 ### Luồng D — Gia hạn phiên (F4)
 
@@ -119,16 +123,16 @@
 **Main Flow:**
 1. Một request API bất kỳ trả 401 → interceptor axios FE (trừ `/auth/refresh`, `/auth/login`, `/auth/register`) gọi `POST /api/auth/refresh` **một lần**, các request 401 song song dùng chung lời gọi đó (`refreshOnce`), rồi chạy lại request gốc đúng một lần (`_retried`) ([axios.ts:25](../../../../ui-ai-job-search/lib/axios.ts#L25), [axios.ts:43](../../../../ui-ai-job-search/lib/axios.ts#L43)).
 2. Backend đọc cookie `aijob_refresh` ([auth.controller.ts:74](../../../server/src/modules/auth/auth.controller.ts#L74)); throttle 10/phút/IP.
-3. `jwt.verify` (chữ ký + hạn); payload phải là `typ = 'refresh'` ([auth.service.ts:116](../../../server/src/modules/auth/auth.service.ts#L116)).
-4. Nạp user theo `sub`; `tokenVersion` phải bằng `ver` ([auth.service.ts:126](../../../server/src/modules/auth/auth.service.ts#L126)).
+3. `jwt.verify` (chữ ký + hạn); payload phải là `typ = 'refresh'` ([auth.service.ts:116](../../../server/src/modules/auth/services/auth.service.ts#L116)).
+4. Nạp user theo `sub`; `tokenVersion` phải bằng `ver` ([auth.service.ts:126](../../../server/src/modules/auth/services/auth.service.ts#L126)).
 5. Ký cặp token MỚI, đặt lại hai cookie, trả **200** `{ user }`.
 
 **Alternative Flow:** refresh hỏng → interceptor ném lại lỗi 401 gốc; `QueryProvider` (FE người dùng) hoặc `SessionProvider` đưa về `/login?next=…` ([query-provider.tsx:15](../../../../ui-ai-job-search/providers/query-provider.tsx#L15)).
 
 **Failure Flow:**
-- Không có cookie → **401** `Thiếu refresh token` ([auth.service.ts:114](../../../server/src/modules/auth/auth.service.ts#L114)).
-- Cookie rác, hết hạn, hoặc là access token (`typ = access`) → **401** `Refresh token không hợp lệ` ([auth.service.ts:123](../../../server/src/modules/auth/auth.service.ts#L123)).
-- User không còn, hoặc `tokenVersion` đã đổi → **401** `Phiên đăng nhập đã kết thúc` ([auth.service.ts:136](../../../server/src/modules/auth/auth.service.ts#L136)).
+- Không có cookie → **401** `Thiếu refresh token` ([auth.service.ts:114](../../../server/src/modules/auth/services/auth.service.ts#L114)).
+- Cookie rác, hết hạn, hoặc là access token (`typ = access`) → **401** `Refresh token không hợp lệ` ([auth.service.ts:123](../../../server/src/modules/auth/services/auth.service.ts#L123)).
+- User không còn, hoặc `tokenVersion` đã đổi → **401** `Phiên đăng nhập đã kết thúc` ([auth.service.ts:136](../../../server/src/modules/auth/services/auth.service.ts#L136)).
 
 **Postconditions:** trình duyệt có access mới (15 phút) và refresh mới (7 ngày). Refresh token cũ **không** bị vô hiệu (xem §17 R2).
 
@@ -193,12 +197,34 @@
 
 **Main Flow:**
 1. Trần mặc định toàn cục: `THROTTLE_LIMIT` (120) lượt / `THROTTLE_TTL_MS` (60.000 ms) cho mỗi handler ([configuration.ts:153](../../../server/src/config/configuration.ts#L153)).
-2. Decorator ghi đè cho từng route: `ThrottleAuth` 10/phút, `ThrottleAi` 10/phút, `ThrottlePdf` 10/phút, `ThrottleScrape` 3/giờ ([throttle.ts](../../../server/src/common/throttle.ts)).
+2. Decorator ghi đè cho từng route: `ThrottleAuth` 10/phút, `ThrottleAi` 10/phút, `ThrottlePdf` 10/phút, `ThrottleScrape` 3/giờ, `ThrottleMail` 3/giờ *(2026-11-10)* ([throttle.ts](../../../server/src/common/throttle.ts)).
 3. Khoá đếm: `user:<id>` khi đã xác thực, ngược lại `ip:<req.ip>` ([user-throttler.guard.ts:7](../../../server/src/common/guards/user-throttler.guard.ts#L7)). `req.ip` chỉ là IP thật khi `TRUST_PROXY` > 0 ([main.ts:20](../../../server/src/main.ts#L20)).
 
 **Failure Flow:** vượt trần → **429** `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.`
 
 **Postconditions:** bộ đếm nằm trong bộ nhớ tiến trình (không chia sẻ giữa nhiều instance) — theo comment của [throttle.e2e-spec.ts:21](../../../server/test/throttle.e2e-spec.ts#L21).
+
+### Luồng K — Mã xác minh email (F13, F14) *(2026-11-10)*
+
+**Preconditions:** đăng ký mới bằng mật khẩu (Luồng A), hoặc tài khoản mật khẩu cũ chưa xác minh đăng nhập đúng mật khẩu (Luồng B bước 5). Tài khoản Google không qua luồng này.
+
+**Main Flow:**
+1. `EmailCodeService.start` sinh mã 6 số (`randomInt`), lưu **HMAC-SHA256** của mã (khoá `JWT_SECRET`, kèm email) vào `email_codes` theo email, hạn **10 phút**, `attempts = 0`. Mỗi email một hàng: gửi mã mới thì đè mã cũ. Trong **60 giây** sau lần gửi trước thì không gửi thêm thư, chỉ cập nhật dữ liệu đăng ký ([email-code.service.ts](../../../server/src/modules/auth/services/email-code.service.ts)).
+2. `MailService.send` gửi thư qua Resend, mã nằm cả trong tiêu đề (`<mã> là mã xác minh Careelot của bạn`), `reply_to` là `MAIL_REPLY_TO`. Thư dựng bằng bảng + style nội dòng, logo PNG tại `WEB_URL/email/careelot-logo.png` ([email-code.utils.ts](../../../server/src/modules/auth/email-code.utils.ts)). Gửi lỗi thì đặt lại `sentAt` để gửi lại được ngay, rồi ném lỗi. Chưa đặt `RESEND_API_KEY` thì chỉ ghi log (ngoài production ghi cả nội dung thư) ([mail.service.ts](../../../server/src/modules/auth/services/mail.service.ts)).
+3. Người dùng nhập mã vào 6 ô trong modal; đủ 6 số thì FE tự gọi `POST /api/auth/verify-code { email, code }` ([email-code-step.tsx](../../../../ui-ai-job-search/components/auth/email-code-step.tsx)).
+4. `consume`: không có hàng, hết hạn hoặc `attempts ≥ 5` → 400 kèm `reason: 'CODE_EXPIRED'`. Sai mã → tăng `attempts` có điều kiện (`attempts < 5`), báo số lần còn lại. Đúng mã → **xoá có điều kiện** (`deleteMany` theo email, `codeHash`, còn hạn, `attempts < 5`); `count === 0` thì 400 — hai request cùng mã chỉ một bên thắng.
+5. Hàng có `passwordHash` → tạo `User` đã xác minh (Luồng A bước 6). Không có → ghi `emailVerifiedAt` cho tài khoản cũ. Cả hai ký token và đặt cookie.
+6. Nút "Gửi lại mã" luôn hiện nhưng khoá kèm đếm ngược 60 giây; hết giờ người dùng **phải bấm** mới gửi (`POST /api/auth/resend-code { email }`), không tự gửi lại.
+
+**Alternative Flow:** bấm "Sửa" ở bước nhập mã để quay lại form đăng ký sửa email; đăng ký lại cùng email thì đè hàng cũ.
+
+**Failure Flow:**
+- Sai mã → **400** `Mã không đúng. Bạn còn N lần thử.`
+- Hết hạn, sai quá 5 lần, hoặc mã đã dùng → **400** `Mã này đã hết hạn hoặc bị nhập sai quá 5 lần nên không dùng được nữa. Gửi mã mới để tiếp tục.` kèm `reason: 'CODE_EXPIRED'` (FE đổi sang nút "Gửi mã mới").
+- Gửi lại trong 60 giây → **400** `Mã vừa được gửi. Đợi N giây rồi gửi lại.`; không có phiên xác minh → **400** `Phiên xác minh đã hết hạn. Hãy điền lại thông tin để nhận mã mới.`
+- Gửi lại quá 3 lượt/giờ/IP → **429**. Resend lỗi → **500** (câu chung kèm `requestId`).
+
+**Postconditions:** hàng `email_codes` đã xoá; user có `emailVerifiedAt`. Hàng không bao giờ được dùng bị `RetentionService` xoá sau 1 ngày.
 
 ### Luồng J — Chặn giao diện theo phiên (F10, F11)
 
@@ -291,7 +317,7 @@ sequenceDiagram
     participant DB as Postgres
     FE->>G: Google Sign-In
     G-->>FE: credential (ID token)
-    FE->>API: POST /api/auth/google {idToken}
+    FE->>API: POST /api/auth/google {idToken, acceptTerms, ref?}
     API->>GA: verify(idToken)
     GA->>G: verifyIdToken(audience=GOOGLE_CLIENT_ID)
     G-->>GA: payload sub, email, email_verified
@@ -305,25 +331,25 @@ sequenceDiagram
 
 | Mã BR | Quy tắc | Nơi thực thi | Mức | Nguồn code |
 |---|---|---|---|---|
-| BR-AUTH-01 | Email được `trim()` + `toLowerCase()` trước khi kiểm định dạng và lưu/tra cứu (register, login, Google) | DTO, SV | ✅ Mềm | [auth.dto.ts:4](../../../server/src/modules/auth/auth.dto.ts#L4), [auth.service.ts:78](../../../server/src/modules/auth/auth.service.ts#L78) |
-| BR-AUTH-02 | Mỗi email chỉ một tài khoản; đăng ký trùng trả 409 `Email đã được đăng ký` (bắt `P2002`, đúng cả khi hai request đồng thời) | DB, SV | 🔒 Cứng | [schema.prisma:36](../../../server/prisma/schema.prisma#L36), [auth.service.ts:52](../../../server/src/modules/auth/auth.service.ts#L52) |
+| BR-AUTH-01 | Email được `trim()` + `toLowerCase()` trước khi kiểm định dạng và lưu/tra cứu (register, login, Google) | DTO, SV | ✅ Mềm | [auth.dto.ts:4](../../../server/src/modules/auth/auth.dto.ts#L4), [auth.service.ts:78](../../../server/src/modules/auth/services/auth.service.ts#L78) |
+| BR-AUTH-02 | Mỗi email chỉ một tài khoản; đăng ký trùng trả 409 `Email đã được đăng ký` (bắt `P2002`, đúng cả khi hai request đồng thời) | DB, SV | 🔒 Cứng | [schema.prisma:36](../../../server/prisma/schema.prisma#L36), [auth.service.ts:52](../../../server/src/modules/auth/services/auth.service.ts#L52) |
 | BR-AUTH-03 | Mật khẩu đăng ký 8–72 ký tự; tên 1–200 ký tự | DTO | ✅ Mềm | [auth.dto.ts:12](../../../server/src/modules/auth/auth.dto.ts#L12) |
-| BR-AUTH-04 | Mật khẩu chỉ lưu dạng bcrypt cost 12 | SV | ✅ Mềm | [auth.service.ts:19](../../../server/src/modules/auth/auth.service.ts#L19), [auth.service.ts:48](../../../server/src/modules/auth/auth.service.ts#L48) |
-| BR-AUTH-05 | Tạo tài khoản (mật khẩu hoặc Google) luôn tạo kèm một `Profile` rỗng trong cùng nested write | SV | ✅ Mềm | [auth.service.ts:49](../../../server/src/modules/auth/auth.service.ts#L49), [auth.service.ts:105](../../../server/src/modules/auth/auth.service.ts#L105) |
+| BR-AUTH-04 | Mật khẩu chỉ lưu dạng bcrypt cost 12 | SV | ✅ Mềm | [auth.service.ts:19](../../../server/src/modules/auth/services/auth.service.ts#L19), [auth.service.ts:48](../../../server/src/modules/auth/services/auth.service.ts#L48) |
+| BR-AUTH-05 | Tạo tài khoản (mật khẩu hoặc Google) luôn tạo kèm một `Profile` rỗng trong cùng nested write | SV | ✅ Mềm | [auth.service.ts:87](../../../server/src/modules/auth/services/auth.service.ts#L87), [auth.service.ts:165](../../../server/src/modules/auth/services/auth.service.ts#L165) |
 | BR-AUTH-06 | Tài khoản mới luôn có vai trò `USER`; không có đường tự nâng quyền | DB | 🔒 Cứng | [schema.prisma:35](../../../server/prisma/schema.prisma#L35) |
-| BR-AUTH-07 | Đăng nhập sai email hay sai mật khẩu trả cùng một thông điệp 401 và luôn chạy bcrypt (hash đệm) để không lộ email tồn tại | SV | ✅ Mềm | [auth.service.ts:62](../../../server/src/modules/auth/auth.service.ts#L62) |
-| BR-AUTH-08 | Tài khoản không có `passwordHash` (chỉ Google) không đăng nhập được bằng mật khẩu | SV | ✅ Mềm | [auth.service.ts:68](../../../server/src/modules/auth/auth.service.ts#L68) |
-| BR-AUTH-09 | ID token Google chỉ được chấp nhận khi đúng audience `GOOGLE_CLIENT_ID`, có `sub`, `email` và `email_verified = true` | SV | ✅ Mềm | [google-auth.service.ts:21](../../../server/src/modules/auth/google-auth.service.ts#L21) |
-| BR-AUTH-10 | Google: nhận diện user theo `googleId` trước, email sau; `googleId` là duy nhất | DB, SV | 🔒 Cứng | [schema.prisma:40](../../../server/prisma/schema.prisma#L40), [auth.service.ts:80](../../../server/src/modules/auth/auth.service.ts#L80) |
-| BR-AUTH-11 | Email đã gắn một Google khác thì không bị liên kết đè (409) | SV | ✅ Mềm | [auth.service.ts:85](../../../server/src/modules/auth/auth.service.ts#L85) |
-| BR-AUTH-12 | Liên kết Google vào tài khoản mật khẩu cùng email: xoá mật khẩu và tăng `tokenVersion` để tước mọi phiên/mật khẩu do người đăng ký trước đặt | SV | ✅ Mềm | [auth.service.ts:94](../../../server/src/modules/auth/auth.service.ts#L94) |
-| BR-AUTH-13 | Phát cặp JWT cùng bí mật: access (`typ=access`, mặc định `15m`) và refresh (`typ=refresh`, mặc định `7d`), payload `{sub, email, typ, ver}` | SV | ✅ Mềm | [auth.service.ts:150](../../../server/src/modules/auth/auth.service.ts#L150), [configuration.ts:29](../../../server/src/config/configuration.ts#L29) |
+| BR-AUTH-07 | Đăng nhập sai email hay sai mật khẩu trả cùng một thông điệp 401 và luôn chạy bcrypt (hash đệm) để không lộ email tồn tại | SV | ✅ Mềm | [auth.service.ts:62](../../../server/src/modules/auth/services/auth.service.ts#L62) |
+| BR-AUTH-08 | Tài khoản không có `passwordHash` (chỉ Google) không đăng nhập được bằng mật khẩu | SV | ✅ Mềm | [auth.service.ts:126](../../../server/src/modules/auth/services/auth.service.ts#L126) |
+| BR-AUTH-09 | ID token Google chỉ được chấp nhận khi đúng audience `GOOGLE_CLIENT_ID`, có `sub`, `email` và `email_verified = true` | SV | ✅ Mềm | [google-auth.service.ts:21](../../../server/src/modules/auth/services/google-auth.service.ts#L21) |
+| BR-AUTH-10 | Google: nhận diện user theo `googleId` trước, email sau; `googleId` là duy nhất | DB, SV | 🔒 Cứng | [schema.prisma:40](../../../server/prisma/schema.prisma#L40), [auth.service.ts:138](../../../server/src/modules/auth/services/auth.service.ts#L138) |
+| BR-AUTH-11 | Email đã gắn một Google khác thì không bị liên kết đè (409) | SV | ✅ Mềm | [auth.service.ts:147](../../../server/src/modules/auth/services/auth.service.ts#L147) |
+| BR-AUTH-12 | Liên kết Google vào tài khoản mật khẩu cùng email **chưa xác minh email** (chỉ còn tài khoản tạo trước 2026-11-10): xoá mật khẩu và tăng `tokenVersion` để tước mọi phiên/mật khẩu do người đăng ký trước đặt; tài khoản đã xác minh thì giữ mật khẩu và phiên *(2026-11-10)* | SV | ✅ Mềm | [auth.service.ts:154](../../../server/src/modules/auth/services/auth.service.ts#L154) |
+| BR-AUTH-13 | Phát cặp JWT cùng bí mật: access (`typ=access`, mặc định `15m`) và refresh (`typ=refresh`, mặc định `7d`), payload `{sub, email, typ, ver}` | SV | ✅ Mềm | [auth.service.ts:150](../../../server/src/modules/auth/services/auth.service.ts#L150), [configuration.ts:29](../../../server/src/config/configuration.ts#L29) |
 | BR-AUTH-14 | Token chỉ đi qua cookie httpOnly (`aijob_token` path `/` 15 phút; `aijob_refresh` path `/api/auth/refresh` 7 ngày; `sameSite=lax`; `secure` khi production; `domain = COOKIE_DOMAIN`); body chỉ trả `{ user }` | SV | ✅ Mềm | [auth.cookie.ts](../../../server/src/modules/auth/auth.cookie.ts), [auth.controller.ts:99](../../../server/src/modules/auth/auth.controller.ts#L99) |
 | BR-AUTH-15 | Token được rút từ cookie `aijob_token` trước, header Bearer sau | GD | ✅ Mềm | [jwt.strategy.ts:25](../../../server/src/modules/auth/jwt.strategy.ts#L25) |
-| BR-AUTH-16 | Access token không đổi được token mới; refresh token không dùng làm Bearer (claim `typ`) | SV, GD | ✅ Mềm | [jwt-payload.ts:20](../../../server/src/modules/auth/jwt-payload.ts#L20), [auth.service.ts:122](../../../server/src/modules/auth/auth.service.ts#L122), [jwt.strategy.ts:35](../../../server/src/modules/auth/jwt.strategy.ts#L35) |
-| BR-AUTH-17 | Thu hồi phiên bằng `tokenVersion`: lệch `ver` thì cả access đang còn hạn lẫn refresh đều bị từ chối ngay | SV, GD | ✅ Mềm | [jwt.strategy.ts:47](../../../server/src/modules/auth/jwt.strategy.ts#L47), [auth.service.ts:135](../../../server/src/modules/auth/auth.service.ts#L135) |
-| BR-AUTH-18 | Refresh thành công phát lại CẢ HAI token; refresh token cũ vẫn hợp lệ tới hết hạn (không xoay vòng/không phát hiện tái sử dụng) | SV | ✅ Mềm | [auth.service.ts:113](../../../server/src/modules/auth/auth.service.ts#L113) |
-| BR-AUTH-19 | Đăng xuất xoá cookie của trình duyệt gọi VÀ tăng `tokenVersion` (nếu access token còn hợp lệ) để thu hồi mọi token đã phát — refresh còn hạn 7 ngày và access đang còn hạn đều hết tác dụng ngay. Route `@Public`; access token hết hạn lúc gọi thì chỉ xoá cookie *(2026-10-28)* | SV | ✅ | [auth.controller.ts](../../../server/src/modules/auth/auth.controller.ts), [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
+| BR-AUTH-16 | Access token không đổi được token mới; refresh token không dùng làm Bearer (claim `typ`) | SV, GD | ✅ Mềm | [jwt-payload.ts:20](../../../server/src/modules/auth/jwt-payload.ts#L20), [auth.service.ts:122](../../../server/src/modules/auth/services/auth.service.ts#L122), [jwt.strategy.ts:35](../../../server/src/modules/auth/jwt.strategy.ts#L35) |
+| BR-AUTH-17 | Thu hồi phiên bằng `tokenVersion`: lệch `ver` thì cả access đang còn hạn lẫn refresh đều bị từ chối ngay | SV, GD | ✅ Mềm | [jwt.strategy.ts:47](../../../server/src/modules/auth/jwt.strategy.ts#L47), [auth.service.ts:135](../../../server/src/modules/auth/services/auth.service.ts#L135) |
+| BR-AUTH-18 | Refresh thành công phát lại CẢ HAI token; refresh token cũ vẫn hợp lệ tới hết hạn (không xoay vòng/không phát hiện tái sử dụng) | SV | ✅ Mềm | [auth.service.ts:113](../../../server/src/modules/auth/services/auth.service.ts#L113) |
+| BR-AUTH-19 | Đăng xuất xoá cookie của trình duyệt gọi VÀ tăng `tokenVersion` (nếu access token còn hợp lệ) để thu hồi mọi token đã phát — refresh còn hạn 7 ngày và access đang còn hạn đều hết tác dụng ngay. Route `@Public`; access token hết hạn lúc gọi thì chỉ xoá cookie *(2026-10-28)* | SV | ✅ | [auth.controller.ts](../../../server/src/modules/auth/auth.controller.ts), [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) |
 | BR-AUTH-20 | Vai trò và tên trả về `/auth/me` (và trong `request.user`) luôn đọc tươi từ DB, không lấy từ claim | GD | ✅ Mềm | [jwt.strategy.ts:37](../../../server/src/modules/auth/jwt.strategy.ts#L37) |
 | BR-AUTH-21 | `register`, `login`, `google`, `refresh` giới hạn 10 lượt/phút, đếm theo IP | GD | ✅ Mềm | [throttle.ts:9](../../../server/src/common/throttle.ts#L9), [auth.controller.ts:31](../../../server/src/modules/auth/auth.controller.ts#L31) |
 | BR-AUTH-22 | Ứng dụng từ chối khởi động khi `JWT_SECRET` rỗng hoặc còn giá trị mẫu bắt đầu bằng `thay-bang` | SV (bootstrap) | ✅ Mềm | [main.ts:23](../../../server/src/main.ts#L23) |
@@ -332,9 +358,13 @@ sequenceDiagram
 | BR-AUTH-25 | FE tự refresh một lần khi gặp 401 (gộp các request song song), không áp cho `/auth/refresh`, `/auth/login`, `/auth/register` | FE | ⚠️ Chỉ FE | [axios.ts:25](../../../../ui-ai-job-search/lib/axios.ts#L25) |
 | BR-AUTH-26 | Khu `/dashboard` không render khi chưa xác định đã đăng nhập; khách chỉ xem được trang việc làm và tra cứu lương | FE | ⚠️ Chỉ FE | [session-provider.tsx:78](../../../../ui-ai-job-search/providers/session-provider.tsx#L78), [public-job.ts:14](../../../../ui-ai-job-search/lib/public-job.ts#L14) |
 | BR-AUTH-27 | Console admin chỉ hiển thị nội dung khi `role = ADMIN`; tài khoản USER đăng nhập admin không bị đăng xuất khỏi app người dùng | FE | ⚠️ Chỉ FE | [page.tsx:34](../../../../ui-admin-job-search/app/login/page.tsx#L34), [admin-gate.tsx:30](../../../../ui-admin-job-search/components/shell/admin-gate.tsx#L30) |
-| BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./referrals.md)) *(2026-10-26)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) |
+| BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./referrals.md)) *(2026-10-26)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) |
 | BR-AUTH-29 | Đăng ký email và Google bắt buộc gửi `acceptTerms: true` (thiếu → 400 "Hãy đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục."); tài khoản mới lưu `termsAcceptedAt` làm bằng chứng đồng ý. FE: form tạo tài khoản khoá nút gửi và nút Google tới khi tick ô đồng ý; form đăng nhập ghi "Khi đăng nhập, bạn đồng ý…" *(2026-10-28)* | DTO, SV, FE | ✅ | [auth.dto.ts](../../../server/src/modules/auth/auth.dto.ts), [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx) |
-| BR-AUTH-30 | `DELETE /api/auth/account` xoá đúng tài khoản của người gọi: trong một transaction xoá `ai_calls` của user (khoá ngoại để SetNull) rồi xoá `User` (bảng con xoá dây chuyền; `ScrapeRun`, người được giới thiệu giữ lại với khoá SetNull); sau đó xoá file dưới `<userId>/` và `cv-tmp/<userId>/` trên kho lưu trữ, rồi xoá cookie. Xoá file lỗi thì chỉ ghi log, tài khoản vẫn đã xoá *(2026-10-28)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/auth.service.ts), [r2.storage.ts](../../../server/src/modules/storage/r2.storage.ts) |
+| BR-AUTH-30 | `DELETE /api/auth/account` xoá đúng tài khoản của người gọi: trong một transaction xoá `ai_calls` của user (khoá ngoại để SetNull) rồi xoá `User` (bảng con xoá dây chuyền; `ScrapeRun`, người được giới thiệu giữ lại với khoá SetNull); sau đó xoá file dưới `<userId>/` và `cv-tmp/<userId>/` trên kho lưu trữ, rồi xoá cookie. Xoá file lỗi thì chỉ ghi log, tài khoản vẫn đã xoá *(2026-10-28)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts), [r2.storage.ts](../../../server/src/modules/storage/r2.storage.ts) |
+| BR-AUTH-31 | Tài khoản mật khẩu chỉ được tạo khi nhập đúng mã 6 số gửi tới email; trước đó chỉ có hàng `email_codes` *(2026-11-10)* | SV | 🔒 Cứng | [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) |
+| BR-AUTH-32 | Mã: 6 số, lưu HMAC, hạn 10 phút, tối đa 5 lần nhập sai, một lần dùng (xoá có điều kiện), gửi mã mới thì mã cũ chết; gửi lại sau 60 giây và tối đa 3 lượt/giờ/IP *(2026-11-10)* | DB, SV, GD | 🔒 Cứng | [email-code.service.ts](../../../server/src/modules/auth/services/email-code.service.ts) |
+| BR-AUTH-33 | Đăng nhập Google (tạo mới hoặc liên kết vào tài khoản chưa xác minh) đặt `emailVerifiedAt` vì Google đã kiểm `email_verified` *(2026-11-10)* | SV | ✅ | [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) |
+| BR-AUTH-34 | Tài khoản mật khẩu cũ chưa xác minh: đăng nhập đúng mật khẩu trả 202 và gửi mã, chưa có phiên; tiện ích trả 403 tới khi xác minh trên web; migration tăng `tokenVersion` để thu hồi phiên đang mở của các tài khoản này *(2026-11-10)* | SV | 🔒 Cứng | [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) |
 
 > Các quy tắc **xuyên suốt** (mặc định đóng bằng `JwtAuthGuard` toàn cục + `@Public`; `RolesGuard` toàn cục + `@Roles('ADMIN')`; throttle mặc định 120/phút đếm theo user hoặc IP; ValidationPipe whitelist/forbidNonWhitelisted) được agent chính đánh mã `BR-SYS-nn`; ở đây chỉ mô tả cơ chế (§4 Luồng G, H, I).
 
@@ -380,12 +410,14 @@ Mọi DTO chạy qua `ValidationPipe({ whitelist, transform, forbidNonWhiteliste
 
 | Method | URL | Role | Mục đích nghiệp vụ | Controller#method | Service | DTO | Response |
 |---|---|---|---|---|---|---|---|
-| POST | `/api/auth/register` | Public | Tạo tài khoản mật khẩu | `AuthController#register` | `AuthService.register` | `RegisterDto` | 201 `{ user: {id,email,name} }` + 2 cookie |
-| POST | `/api/auth/login` | Public | Đăng nhập mật khẩu | `AuthController#login` | `AuthService.login` | `LoginDto` | 200 `{ user }` + 2 cookie |
+| POST | `/api/auth/register` | Public | Bắt đầu đăng ký: gửi mã, chưa tạo tài khoản *(sửa 2026-11-10)* | `AuthController#register` | `AuthService.register` | `RegisterDto` | 202 `{ verificationRequired: true, email }` |
+| POST | `/api/auth/login` | Public | Đăng nhập mật khẩu | `AuthController#login` | `AuthService.login` | `LoginDto` | 200 `{ user }` + 2 cookie; tài khoản chưa xác minh 202 `{ verificationRequired: true, email }` *(2026-11-10)* |
 | POST | `/api/auth/google` | Public | Đăng nhập/đăng ký/liên kết Google | `AuthController#google` | `AuthService.loginWithGoogle`, `GoogleAuthService.verify` | `GoogleLoginDto` | 200 `{ user }` + 2 cookie |
 | POST | `/api/auth/refresh` | Public (cần cookie refresh) | Đổi refresh lấy cặp token mới | `AuthController#refresh` | `AuthService.refresh` | — (cookie `aijob_refresh`) | 200 `{ user }` + 2 cookie |
 | POST | `/api/auth/logout` | Public | Xoá cookie phiên trên trình duyệt này | `AuthController#logout` | — | — | 200 `{ ok: true }` + xoá 2 cookie |
 | GET | `/api/auth/me` | USER/ADMIN | Lấy tài khoản hiện tại kèm vai trò | `AuthController#me` | `JwtStrategy.validate` | — | 200 `{ id, email, name, role }` |
+| POST | `/api/auth/verify-code` | Public | Nhập mã: tạo tài khoản (đăng ký) hoặc xác minh tài khoản cũ, rồi đăng nhập *(2026-11-10)* | `AuthController#verifyCode` | `AuthService.verifyCode`, `EmailCodeService.consume` | `VerifyCodeDto` | 200 `{ user }` + 2 cookie |
+| POST | `/api/auth/resend-code` | Public | Gửi lại mã *(2026-11-10)* | `AuthController#resendCode` | `EmailCodeService.resend` | `ResendCodeDto` | 200 `{ ok: true }` |
 | DELETE | `/api/auth/account` | USER | Xoá tài khoản và mọi dữ liệu *(2026-10-28)* | `AuthController#deleteAccount` | `AuthService.deleteAccount` | — | 200 `{ ok: true }` + xoá 2 cookie |
 
 **Endpoint ở module khác tác động lên module này**
@@ -401,9 +433,10 @@ Mọi DTO chạy qua `ValidationPipe({ whitelist, transform, forbidNonWhiteliste
 |---|---|---|---|
 | `/login` (user) | Khách | Chỉ chuyển hướng tới `/dashboard?auth=login` (giữ `next`), trang chủ mở modal đăng nhập email/mật khẩu hoặc Google *(sửa 2026-10-27)* | [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [login-modal.tsx](../../../../ui-ai-job-search/components/auth/login-modal.tsx), `authService.login`, [google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx) |
 | `/register` (user) | Khách | Chỉ chuyển hướng tới `/dashboard?auth=register` (giữ `next`, `ref`), trang chủ mở modal tạo tài khoản, xử lý 409 trùng email *(sửa 2026-10-27)* | [redirect.ts](../../../../ui-ai-job-search/lib/redirect.ts) (`authEntryPath`), [register-form.tsx](../../../../ui-ai-job-search/components/auth/register-form.tsx), `authService.register` |
-| `/dashboard/settings` (user) — thẻ Xoá tài khoản | USER | Mở hộp xác nhận, phải gõ "XOÁ" mới bấm được; xoá xong gọi `logout()` về `/dashboard` *(2026-10-28)* | [delete-account-card.tsx](../../../../ui-ai-job-search/app/dashboard/settings/delete-account-card.tsx), `authService.deleteAccount` |
+| `/dashboard/settings` (user) — thẻ Xoá tài khoản | USER | Mở hộp xác nhận, phải gõ "XOÁ" mới bấm được — so sau khi bỏ dấu và hoa/thường nên "XÓA", "xoa" cũng nhận *(sửa 2026-11-10)*; xoá xong gọi `logout()` về `/dashboard` *(2026-10-28)* | [delete-account-card.tsx](../../../../ui-ai-job-search/app/dashboard/settings/delete-account-card.tsx), `authService.deleteAccount` |
 | `/dashboard/chinh-sach-bao-mat`, `/dashboard/dieu-khoan-su-dung` (user) | Khách/USER | Chính sách bảo mật và Điều khoản sử dụng: trang công khai (`isGuestPath`), Google index, có trong sitemap; thông tin bên vận hành lấy từ `OPERATOR` *(2026-10-28)* | [legal-page.tsx](../../../../ui-ai-job-search/components/legal/legal-page.tsx), [legal.ts](../../../../ui-ai-job-search/lib/legal.ts) |
 | `/dashboard/**` (user) | USER | Khung đã đăng nhập; chặn render tới khi `/auth/me` trả lời | [session-provider.tsx](../../../../ui-ai-job-search/providers/session-provider.tsx), [use-session.ts](../../../../ui-ai-job-search/hooks/use-session.ts) |
+| Modal đăng ký/đăng nhập — bước nhập mã (user) | Khách | 6 ô mã, đủ 6 số tự xác minh, nút "Sửa" email (đăng ký), nút "Gửi lại mã" khoá 60 giây rồi chỉ gửi khi bấm, hết hạn thì nút "Gửi mã mới" *(2026-11-10)* | [email-code-step.tsx](../../../../ui-ai-job-search/components/auth/email-code-step.tsx), `authService.verifyCode`, `authService.resendCode` |
 | Sidebar, `/dashboard/settings` (user) | USER | Nút đăng xuất; hiển thị tên/email/vai trò | `useSession().logout`, [settings-view.tsx](../../../../ui-ai-job-search/app/dashboard/settings/settings-view.tsx) |
 | (mọi request) | — | Tự refresh token khi 401 | [axios.ts](../../../../ui-ai-job-search/lib/axios.ts), [query-provider.tsx](../../../../ui-ai-job-search/providers/query-provider.tsx) |
 | `/login` (admin) | Khách/ADMIN | Đăng nhập rồi kiểm `role` qua `/auth/me` | [page.tsx](../../../../ui-admin-job-search/app/login/page.tsx), [auth.ts](../../../../ui-admin-job-search/services/auth.ts) |
@@ -425,9 +458,24 @@ Không có `middleware.ts`/`proxy.ts` Next.js ở cả hai frontend — chặn h
 | tokenVersion | Int | `@default(0)` | Tăng để vô hiệu mọi token đã phát |
 | name | String | — | Tên hiển thị |
 | termsAcceptedAt | DateTime? | — | Lúc đồng ý Điều khoản và Chính sách bảo mật; null với tài khoản tạo trước 2026-10-28 *(2026-10-28)* |
+| emailVerifiedAt | DateTime? | — | Lúc chứng minh sở hữu hộp thư (nhập đúng mã hoặc đăng nhập Google); null chỉ còn ở tài khoản mật khẩu tạo trước 2026-11-10. Migration đặt bằng `createdAt` cho tài khoản đã có `googleId` *(2026-11-10)* |
 | createdAt / updatedAt | DateTime | `now()` / `@updatedAt` | — |
 
 Quan hệ: `profile` (1–1) và mọi bảng dữ liệu người dùng (`JobMatch`, `Document`, `Application`, `ProfileDraft`, `AiCall`…) đều trỏ về `User`. Index: unique `email`, unique `googleId`.
+
+**Bảng `EmailCode`** (`email_codes`) *(2026-11-10)*
+
+| Field | Kiểu | Ràng buộc / mặc định | Ý nghĩa |
+|---|---|---|---|
+| email | String | `@id` | Mỗi email tối đa một mã còn sống |
+| codeHash | String | — | HMAC-SHA256 (khoá `JWT_SECRET`) của email + mã; không lưu mã gốc |
+| expiresAt | DateTime | — | Hết hạn sau 10 phút |
+| attempts | Int | `0` | Số lần nhập sai; tới 5 thì khoá |
+| sentAt | DateTime | index | Lần gửi gần nhất; chặn gửi lại trong 60 giây; `RetentionService` xoá hàng quá 1 ngày |
+| name, passwordHash, ref | String? | — | Có = đăng ký đang chờ (tạo `User` khi nhập đúng mã); null = tài khoản cũ cần xác minh |
+| createdAt | DateTime | `now()` | — |
+
+Không có khoá ngoại tới `User`: đăng ký đang chờ chưa có user.
 
 **Enum `UserRole`** ([schema.prisma:28](../../../server/prisma/schema.prisma#L28)): `USER`, `ADMIN`.
 
@@ -464,14 +512,19 @@ stateDiagram-v2
 
 | Tình huống | HTTP | Thông điệp nguyên văn | Nguồn |
 |---|---|---|---|
-| Email đăng ký đã tồn tại | 409 | `Email đã được đăng ký` | [auth.service.ts:54](../../../server/src/modules/auth/auth.service.ts#L54) |
-| Sai email/mật khẩu hoặc tài khoản chỉ Google | 401 | `Email hoặc mật khẩu không đúng` | [auth.service.ts:71](../../../server/src/modules/auth/auth.service.ts#L71) |
-| Email đã gắn Google khác | 409 | `Email này đã liên kết với một tài khoản Google khác` | [auth.service.ts:91](../../../server/src/modules/auth/auth.service.ts#L91) |
-| ID token Google hỏng / chưa xác minh email | 401 | `Token Google không hợp lệ` | [google-auth.service.ts:30](../../../server/src/modules/auth/google-auth.service.ts#L30) |
-| Thiếu cookie refresh | 401 | `Thiếu refresh token` | [auth.service.ts:114](../../../server/src/modules/auth/auth.service.ts#L114) |
-| Refresh rác/hết hạn/sai `typ` | 401 | `Refresh token không hợp lệ` | [auth.service.ts:123](../../../server/src/modules/auth/auth.service.ts#L123) |
-| User không còn hoặc đã bị thu hồi phiên | 401 | `Phiên đăng nhập đã kết thúc` | [auth.service.ts:136](../../../server/src/modules/auth/auth.service.ts#L136) |
+| Email đăng ký đã tồn tại | 409 | `Email đã được đăng ký` | [auth.service.ts:54](../../../server/src/modules/auth/services/auth.service.ts#L54) |
+| Sai email/mật khẩu hoặc tài khoản chỉ Google | 401 | `Email hoặc mật khẩu không đúng` | [auth.service.ts:71](../../../server/src/modules/auth/services/auth.service.ts#L71) |
+| Email đã gắn Google khác | 409 | `Email này đã liên kết với một tài khoản Google khác` | [auth.service.ts:91](../../../server/src/modules/auth/services/auth.service.ts#L91) |
+| ID token Google hỏng / chưa xác minh email | 401 | `Token Google không hợp lệ` | [google-auth.service.ts:30](../../../server/src/modules/auth/services/google-auth.service.ts#L30) |
+| Thiếu cookie refresh | 401 | `Thiếu refresh token` | [auth.service.ts:114](../../../server/src/modules/auth/services/auth.service.ts#L114) |
+| Refresh rác/hết hạn/sai `typ` | 401 | `Refresh token không hợp lệ` | [auth.service.ts:123](../../../server/src/modules/auth/services/auth.service.ts#L123) |
+| User không còn hoặc đã bị thu hồi phiên | 401 | `Phiên đăng nhập đã kết thúc` | [auth.service.ts:136](../../../server/src/modules/auth/services/auth.service.ts#L136) |
 | Route cần đăng nhập mà token thiếu/sai/hết hạn/bị thu hồi | 401 | `Bạn cần đăng nhập để tiếp tục, hoặc phiên đăng nhập đã hết hạn.` | [jwt-auth.guard.ts:10](../../../server/src/common/guards/jwt-auth.guard.ts#L10) |
+| Nhập sai mã *(2026-11-10)* | 400 | `Mã không đúng. Bạn còn N lần thử.` | [email-code.service.ts](../../../server/src/modules/auth/services/email-code.service.ts) |
+| Mã hết hạn / sai quá 5 lần / đã dùng *(2026-11-10)* | 400 | `Mã này đã hết hạn hoặc bị nhập sai quá 5 lần nên không dùng được nữa. Gửi mã mới để tiếp tục.` (kèm `reason: 'CODE_EXPIRED'`) | [email-code.service.ts](../../../server/src/modules/auth/services/email-code.service.ts) |
+| Gửi lại mã trong 60 giây *(2026-11-10)* | 400 | `Mã vừa được gửi. Đợi N giây rồi gửi lại.` | [email-code.service.ts](../../../server/src/modules/auth/services/email-code.service.ts) |
+| Gửi lại khi không có phiên xác minh *(2026-11-10)* | 400 | `Phiên xác minh đã hết hạn. Hãy điền lại thông tin để nhận mã mới.` | [email-code.service.ts](../../../server/src/modules/auth/services/email-code.service.ts) |
+| Tiện ích đăng nhập tài khoản chưa xác minh *(2026-11-10)* | 403 | `Email chưa được xác minh. Hãy đăng nhập trên web Careelot một lần để xác minh rồi thử lại.` | [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) |
 | Thiếu vai trò | 403 | `Không có quyền truy cập` | [roles.guard.ts:30](../../../server/src/common/guards/roles.guard.ts#L30) |
 | Vượt trần throttle | 429 | `Bạn thao tác quá nhanh. Hãy đợi một lát rồi thử lại.` | [app.module.ts:31](../../../server/src/app.module.ts#L31) |
 | Body không hợp lệ | 400 | Mảng thông điệp ở §8; rỗng thì `Dữ liệu gửi lên không hợp lệ` | [validation-message.ts:151](../../../server/src/common/validation-message.ts#L151) |
@@ -482,13 +535,14 @@ Thông điệp FE: `Email hoặc mật khẩu không đúng` (khi 401), `Đăng 
 
 ## 14. Notifications
 
-Không có. Module không gửi email/thông báo nào (không có email chào mừng, xác thực email hay cảnh báo đăng nhập/liên kết Google); phản hồi chỉ hiển thị trên giao diện.
+Thư chứa mã xác minh qua Resend (Luồng K): gửi khi đăng ký bằng mật khẩu, khi tài khoản cũ chưa xác minh đăng nhập, và khi người dùng bấm gửi lại *(2026-11-10)*. Không có email chào mừng hay cảnh báo đăng nhập/liên kết Google.
 
 ## 15. Integrations
 
 | Hệ thống | Mục đích | Cấu hình | Nguồn |
 |---|---|---|---|
-| Google Identity (`google-auth-library`) | Xác minh ID token | `GOOGLE_CLIENT_ID` (backend), `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (FE, `@react-oauth/google`) | [google-auth.service.ts](../../../server/src/modules/auth/google-auth.service.ts), [google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx) |
+| Google Identity (`google-auth-library`) | Xác minh ID token | `GOOGLE_CLIENT_ID` (backend), `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (FE, `@react-oauth/google`) | [google-auth.service.ts](../../../server/src/modules/auth/services/google-auth.service.ts), [google-sign-in-button.tsx](../../../../ui-ai-job-search/components/auth/google-sign-in-button.tsx) |
+| Resend (HTTP API) | Gửi thư chứa mã xác minh email *(2026-11-10)* | `RESEND_API_KEY` (rỗng = chỉ ghi log), `MAIL_FROM`, `MAIL_REPLY_TO`, `WEB_URL` (dựng link); domain gửi phải xác thực DNS trên Resend | [mail.service.ts](../../../server/src/modules/auth/services/mail.service.ts) |
 | `@nestjs/jwt` + `passport-jwt` | Ký/kiểm JWT | `JWT_SECRET`, `JWT_ACCESS_EXPIRES_IN` (15m), `JWT_REFRESH_EXPIRES_IN` (7d) | [auth.module.ts](../../../server/src/modules/auth/auth.module.ts), [configuration.ts:29](../../../server/src/config/configuration.ts#L29) |
 | `@nestjs/throttler` | Rate limit | `THROTTLE_LIMIT`, `THROTTLE_TTL_MS`, `THROTTLE_DISABLED`, `TRUST_PROXY` | [app.module.ts:38](../../../server/src/app.module.ts#L38) |
 | Cookie / CORS | Phiên qua cookie cross-origin | `COOKIE_DOMAIN`, `CORS_ORIGIN` (một origin, `credentials: true`), `NODE_ENV=production` bật `secure` | [auth.cookie.ts:13](../../../server/src/modules/auth/auth.cookie.ts#L13), [main.ts:30](../../../server/src/main.ts#L30) |
@@ -499,7 +553,8 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 - **Phân quyền:** mặc định đóng (guard toàn cục); route mở phải `@Public()`; route admin chỉ cần `@Roles('ADMIN')` ([common.module.ts:17](../../../server/src/common/common.module.ts#L17)). Thứ tự guard: `JwtAuthGuard` → `UserThrottlerGuard` → `RolesGuard`.
 - **Kiểm tra sở hữu:** không áp dụng trong module (mọi thao tác trên chính tài khoản lấy từ token); module khác dùng `@CurrentUser().id` để khoá dữ liệu.
 - **Token:** chỉ trong cookie httpOnly; body không bao giờ chứa `accessToken`/`refreshToken` ([security.e2e-spec.ts:245](../../../server/test/security.e2e-spec.ts#L245)). `sameSite=lax` giảm CSRF cho request POST cross-site; CORS chỉ một origin.
-- **Thu hồi:** `tokenVersion` (chỉ tăng ở nhánh liên kết Google trong code hiện tại).
+- **Thu hồi:** `tokenVersion` (tăng khi đăng xuất và ở nhánh liên kết Google vào tài khoản chưa xác minh).
+- **Mã xác minh email:** lưu HMAC (6 số chỉ có 1 triệu giá trị, băm trơn thì dò ngược được khi lộ DB), tối đa 5 lần sai mỗi mã, hết hạn 10 phút, gửi lại cách 60 giây và tối đa 3 lượt/giờ/IP để không thành công cụ spam hộp thư người khác. `resend-code` cho biết email đang có phiên xác minh hay không — chấp nhận, vì `register` vốn đã trả 409 khi email có tài khoản *(2026-11-10)*.
 - **Chống dò tài khoản:** cùng thông điệp lỗi + bcrypt hash đệm khi đăng nhập. Đăng ký vẫn trả 409 khi email tồn tại (lộ sự tồn tại email qua đăng ký — đánh đổi chấp nhận để UX báo "đăng nhập thay vì tạo mới").
 - **Rate limit:** 10/phút/IP cho 4 route auth; 120/phút mặc định.
 - **Dữ liệu nhạy cảm:** `passwordHash` không bao giờ trả ra (`/auth/me` chỉ select `id,email,name,role`); log request có `x-request-id`.
@@ -515,11 +570,11 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 
 **R2 — Refresh token không xoay vòng.** Mức đề xuất: 🟡
 - Mô tả: mỗi lần refresh phát refresh mới nhưng cái cũ vẫn hợp lệ tới hết hạn; không phát hiện tái sử dụng.
-- Bằng chứng: [auth.service.ts:113](../../../server/src/modules/auth/auth.service.ts#L113)-139 không ghi gì vào DB.
+- Bằng chứng: [auth.service.ts:113](../../../server/src/modules/auth/services/auth.service.ts#L113)-139 không ghi gì vào DB.
 - Tác động: kẻ giữ một refresh token cũ có thể tự gia hạn song song với chủ tài khoản suốt 7 ngày mỗi lần.
 - Đề xuất: lưu `jti`/phiên refresh hoặc tăng `tokenVersion` khi phát hiện refresh cũ bị dùng lại.
 
-**R3 — Không xác thực email, không quên/đổi mật khẩu.** Mức đề xuất: 🟡
+**R3 — Chưa có quên/đổi mật khẩu.** Mức đề xuất: 🟡 — phần xác minh email ✅ **Đã sửa 2026-11-10**: tài khoản mật khẩu chỉ tạo được khi nhập đúng mã gửi tới email (Luồng K), tài khoản cũ phải nhập mã ở lần đăng nhập tới.
 - Mô tả: đăng ký không cần xác minh email; tài khoản đã liên kết Google mất đăng nhập mật khẩu vĩnh viễn; người quên mật khẩu không có đường khôi phục (FE cài đặt cũng ghi "backend chưa có endpoint cập nhật").
 - Bằng chứng: [auth.controller.ts](../../../server/src/modules/auth/auth.controller.ts) chỉ có 6 route; [settings-view.tsx:60](../../../../ui-ai-job-search/app/dashboard/settings/settings-view.tsx#L60).
 - Tác động: người dùng mật khẩu quên mật khẩu là mất tài khoản (trừ khi email là Gmail để đăng nhập Google — khi đó mật khẩu bị xoá).
@@ -545,7 +600,7 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 
 **R7 — Hai lượt đăng nhập Google đầu tiên đồng thời có thể trả 409 chung.** Mức đề xuất: 🟢
 - Mô tả: nhánh Google là đọc-rồi-`upsert`, không bắt `P2002`; hai request cùng email mới chạy song song có thể đụng unique `email`/`googleId`, rơi vào `PrismaExceptionFilter` → 409 `Dữ liệu đã tồn tại`. Đường code đã đọc; chưa kiểm chứng bằng chạy thử.
-- Bằng chứng: [auth.service.ts:80](../../../server/src/modules/auth/auth.service.ts#L80)-107.
+- Bằng chứng: [auth.service.ts:134](../../../server/src/modules/auth/services/auth.service.ts#L134)-170.
 - Tác động: người dùng bấm hai lần thấy lỗi, bấm lại là vào được.
 - Đề xuất: bắt `isUniqueViolation` rồi đọc lại theo `googleId`.
 
@@ -575,22 +630,26 @@ Không có. Module không gửi email/thông báo nào (không có email chào m
 
 **R12 — Tài khoản tạo trước 2026-10-28 chưa có bằng chứng đồng ý.** Mức đề xuất: 🟡 *(2026-10-28)*
 - Mô tả: `termsAcceptedAt` chỉ ghi khi tạo tài khoản mới; tài khoản cũ đăng nhập tiếp mà không được hỏi đồng ý lại.
-- Bằng chứng: [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) (`register`, nhánh `create` của `loginWithGoogle`).
+- Bằng chứng: [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) (`register`, nhánh `create` của `loginWithGoogle`).
 - Tác động: Luật Bảo vệ dữ liệu cá nhân 91/2025 đòi bên kiểm soát chứng minh được sự đồng ý.
 - Đề xuất: khi `termsAcceptedAt` null thì hiện hộp đồng ý một lần sau đăng nhập.
 
 **R13 — Xoá file của tài khoản lỗi thì không thử lại.** Mức đề xuất: 🟢 *(2026-10-28)*
 - Mô tả: `deleteAccount` xoá dữ liệu trong DB trước rồi mới xoá file; xoá file lỗi chỉ ghi log.
-- Bằng chứng: [auth.service.ts](../../../server/src/modules/auth/auth.service.ts) (`deleteAccount`).
+- Bằng chứng: [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts) (`deleteAccount`).
 - Tác động: file CV của tài khoản đã xoá có thể còn trên R2, không ai đọc được vì không còn bản ghi trỏ tới.
 - Đề xuất: khi gặp log lỗi này thì xoá tay theo tiền tố `<userId>/`.
+
+**R14 — Tài khoản mật khẩu cũ của admin phải nhận được thư.** Mức đề xuất: 🟢 *(2026-11-10)*
+- Mô tả: mọi tài khoản mật khẩu tạo trước 2026-11-10 phải nhập mã gửi tới email ở lần đăng nhập tới. Tài khoản nào dùng email không có hộp thư thật thì không đăng nhập được nữa (trang admin chỉ báo "đăng nhập trên trang Careelot để xác minh").
+- Đề xuất: trước khi deploy, kiểm danh sách tài khoản mật khẩu chưa xác minh trên production; tài khoản nội bộ dùng email giả thì đặt `emailVerifiedAt` bằng tay hoặc đổi sang email thật.
 
 ## 18. Source References
 
 **Backend**
 - [auth.controller.ts](../../../server/src/modules/auth/auth.controller.ts)
-- [auth.service.ts](../../../server/src/modules/auth/auth.service.ts)
-- [google-auth.service.ts](../../../server/src/modules/auth/google-auth.service.ts)
+- [auth.service.ts](../../../server/src/modules/auth/services/auth.service.ts)
+- [google-auth.service.ts](../../../server/src/modules/auth/services/google-auth.service.ts)
 - [jwt.strategy.ts](../../../server/src/modules/auth/jwt.strategy.ts)
 - [jwt-payload.ts](../../../server/src/modules/auth/jwt-payload.ts)
 - [auth.cookie.ts](../../../server/src/modules/auth/auth.cookie.ts)

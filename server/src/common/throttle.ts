@@ -7,6 +7,9 @@ export const ThrottleAi = () =>
 export const ThrottleAuth = () =>
   Throttle({ default: { limit: 10, ttl: MINUTE_MS } });
 
+export const ThrottleMail = () =>
+  Throttle({ default: { limit: 3, ttl: HOUR_MS } });
+
 export const ThrottleScrape = () =>
   Throttle({ default: { limit: 3, ttl: HOUR_MS } });
 

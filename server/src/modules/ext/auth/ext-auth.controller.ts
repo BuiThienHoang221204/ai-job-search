@@ -4,7 +4,10 @@ import { Public } from '@/common/decorators/public.decorator';
 import { ThrottleAuth } from '@/common/throttle';
 import type { AuthUser } from '@/common/types/auth-user';
 import { LoginDto } from '@/modules/auth/auth.dto';
-import { AuthService, type ExtAuthResult } from '@/modules/auth/auth.service';
+import {
+  AuthService,
+  type ExtAuthResult,
+} from '@/modules/auth/services/auth.service';
 import { ExtAuth } from './ext-auth.decorator';
 
 type ExtUser = { user: { id: string; email: string; name: string } };

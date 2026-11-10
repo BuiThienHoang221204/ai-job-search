@@ -62,6 +62,18 @@ describe('Rate limiting', () => {
     expect(blocked.status).toBe(429);
   });
 
+  test('gửi lại mã xác minh quá 3 lượt mỗi giờ thì bị chặn', async () => {
+    const resend = () =>
+      request(harness.server)
+        .post('/api/auth/resend-code')
+        .send({ email: 'gui-lai@test.local' });
+
+    for (let i = 0; i < 3; i += 1) {
+      expect((await resend()).status).not.toBe(429);
+    }
+    await resend().expect(429);
+  });
+
   /// Đã đăng nhập thì trần tính theo tài khoản, không theo IP. Sau reverse proxy mọi
   /// người dùng chung một IP; đếm theo IP thì một người tiêu hết trần của cả site.
   test('trần tính theo tài khoản: người này hết lượt không chặn người kia cùng IP', async () => {

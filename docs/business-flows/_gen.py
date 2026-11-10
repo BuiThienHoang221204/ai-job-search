@@ -228,6 +228,8 @@ THR = {
     "POST /api/auth/login": "ThrottleAuth 10/phút",
     "POST /api/auth/google": "ThrottleAuth 10/phút",
     "POST /api/auth/refresh": "ThrottleAuth 10/phút",
+    "POST /api/auth/verify-code": "ThrottleAuth 10/phút + 5 lần sai mỗi mã",
+    "POST /api/auth/resend-code": "ThrottleMail 3/giờ + cách 60 giây",
     "POST /api/profile-drafts/cv/upload-url": "ThrottleAi 10/phút",
     "POST /api/profile-drafts/cv": "ThrottleAi 10/phút",
     "POST /api/profile-drafts/:id/synthesize-stream": "ThrottleAi 10/phút",

@@ -57,7 +57,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AUTH-09 | ID token Google chỉ được chấp nhận khi đúng audience `GOOGLE_CLIENT_ID`, có `sub`, `email` và `email_verified = true` | SV | ✅ Mềm |
 | BR-AUTH-10 | Google: nhận diện user theo `googleId` trước, email sau; `googleId` là duy nhất | DB, SV | 🔒 Cứng |
 | BR-AUTH-11 | Email đã gắn một Google khác thì không bị liên kết đè (409) | SV | ✅ Mềm |
-| BR-AUTH-12 | Liên kết Google vào tài khoản mật khẩu cùng email: xoá mật khẩu và tăng `tokenVersion` để tước mọi phiên/mật khẩu do người đăng ký trước đặt | SV | ✅ Mềm |
+| BR-AUTH-12 | Liên kết Google vào tài khoản mật khẩu cùng email **chưa xác minh email** (chỉ còn tài khoản tạo trước 2026-11-10): xoá mật khẩu và tăng `tokenVersion` để tước mọi phiên/mật khẩu do người đăng ký trước đặt; tài khoản đã xác minh thì giữ mật khẩu và phiên *(2026-11-10)* | SV | ✅ Mềm |
 | BR-AUTH-13 | Phát cặp JWT cùng bí mật: access (`typ=access`, mặc định `15m`) và refresh (`typ=refresh`, mặc định `7d`), payload `{sub, email, typ, ver}` | SV | ✅ Mềm |
 | BR-AUTH-14 | Token chỉ đi qua cookie httpOnly (`aijob_token` path `/` 15 phút; `aijob_refresh` path `/api/auth/refresh` 7 ngày; `sameSite=lax`; `secure` khi production; `domain = COOKIE_DOMAIN`); body chỉ trả `{ user }` | SV | ✅ Mềm |
 | BR-AUTH-15 | Token được rút từ cookie `aijob_token` trước, header Bearer sau | GD | ✅ Mềm |
@@ -76,6 +76,10 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AUTH-28 | Đăng ký email và Google nhận `ref` tuỳ chọn (mã mời); khớp mã thì ghi `referredById`, mã lạ bỏ qua; Google chỉ ghi khi tạo tài khoản mới ([referrals.md](./modules/referrals.md)) *(2026-10-26)* | SV | ✅ |
 | BR-AUTH-29 | Đăng ký email và Google bắt buộc gửi `acceptTerms: true` (thiếu → 400 "Hãy đồng ý với Điều khoản sử dụng và Chính sách bảo mật để tiếp tục."); tài khoản mới lưu `termsAcceptedAt` làm bằng chứng đồng ý. FE: form tạo tài khoản khoá nút gửi và nút Google tới khi tick ô đồng ý; form đăng nhập ghi "Khi đăng nhập, bạn đồng ý…" *(2026-10-28)* | DTO, SV, FE | ✅ |
 | BR-AUTH-30 | `DELETE /api/auth/account` xoá đúng tài khoản của người gọi: trong một transaction xoá `ai_calls` của user (khoá ngoại để SetNull) rồi xoá `User` (bảng con xoá dây chuyền; `ScrapeRun`, người được giới thiệu giữ lại với khoá SetNull); sau đó xoá file dưới `<userId>/` và `cv-tmp/<userId>/` trên kho lưu trữ, rồi xoá cookie. Xoá file lỗi thì chỉ ghi log, tài khoản vẫn đã xoá *(2026-10-28)* | SV | ✅ |
+| BR-AUTH-31 | Tài khoản mật khẩu chỉ được tạo khi nhập đúng mã 6 số gửi tới email; trước đó chỉ có hàng `email_codes` *(2026-11-10)* | SV | 🔒 Cứng |
+| BR-AUTH-32 | Mã: 6 số, lưu HMAC, hạn 10 phút, tối đa 5 lần nhập sai, một lần dùng (xoá có điều kiện), gửi mã mới thì mã cũ chết; gửi lại sau 60 giây và tối đa 3 lượt/giờ/IP *(2026-11-10)* | DB, SV, GD | 🔒 Cứng |
+| BR-AUTH-33 | Đăng nhập Google (tạo mới hoặc liên kết vào tài khoản chưa xác minh) đặt `emailVerifiedAt` vì Google đã kiểm `email_verified` *(2026-11-10)* | SV | ✅ |
+| BR-AUTH-34 | Tài khoản mật khẩu cũ chưa xác minh: đăng nhập đúng mật khẩu trả 202 và gửi mã, chưa có phiên; tiện ích trả 403 tới khi xác minh trên web; migration tăng `tokenVersion` để thu hồi phiên đang mở của các tài khoản này *(2026-11-10)* | SV | 🔒 Cứng |
 
 ### Profile — Hồ sơ ứng viên — [modules/profile.md](./modules/profile.md#7-business-rules)
 
@@ -772,7 +776,7 @@ Không có rủi ro nào được xếp mức này.
 | Mã | Module | Rủi ro |
 |---|---|---|
 | [auth#R2](./modules/auth.md) | auth | Refresh token không xoay vòng |
-| [auth#R3](./modules/auth.md) | auth | Không xác thực email, không quên/đổi mật khẩu |
+| [auth#R3](./modules/auth.md) | auth | Chưa có quên/đổi mật khẩu |
 | [auth#R6](./modules/auth.md) | auth | Throttle auth theo IP phụ thuộc `TRUST_PROXY`; không khoá theo tài khoản |
 | [auth#R8](./modules/auth.md) | auth | FE người dùng treo spinner khi `/auth/me` lỗi khác 401 |
 | [auth#R12](./modules/auth.md) | auth | Tài khoản tạo trước 2026-10-28 chưa có bằng chứng đồng ý |
@@ -810,7 +814,7 @@ Không có rủi ro nào được xếp mức này.
 | [platform-operations#R4](./modules/platform-operations.md) | platform-operations | Trường hợp xấu nhất của chuỗi dự phòng vượt qua `server.setTimeout` và `STUCK_AFTER_MS` |
 | [platform-operations#R6](./modules/platform-operations.md) | platform-operations | Cron `ai.healthcheck` chạy ở mọi tiến trình, kể cả vai `api` |
 
-### 🟢 Thấp (72)
+### 🟢 Thấp (73)
 
 | Mã | Module | Rủi ro |
 |---|---|---|
@@ -821,6 +825,7 @@ Không có rủi ro nào được xếp mức này.
 | [auth#R10](./modules/auth.md) | auth | Logout FE người dùng không xoá cache React Query |
 | [auth#R11](./modules/auth.md) | auth | FE nuốt lý do lỗi Google |
 | [auth#R13](./modules/auth.md) | auth | Xoá file của tài khoản lỗi thì không thử lại |
+| [auth#R14](./modules/auth.md) | auth | Tài khoản mật khẩu cũ của admin phải nhận được thư |
 | [profile#R2](./modules/profile.md) | profile | `save` gồm hai lệnh ghi rời, không transaction |
 | [profile#R3](./modules/profile.md) | profile | Khối JSON không kiểm hình dạng |
 | [profile#R4](./modules/profile.md) | profile | Lưu bất kỳ trường nào cũng xếp đối chiếu kỹ năng |

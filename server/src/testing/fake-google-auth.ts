@@ -1,5 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
-import type { GoogleProfile } from '../modules/auth/google-auth.service';
+import type { GoogleProfile } from '../modules/auth/services/google-auth.service';
 
 export class FakeGoogleAuth {
   private readonly profiles = new Map<string, GoogleProfile>();

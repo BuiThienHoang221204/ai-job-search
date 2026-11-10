@@ -89,12 +89,16 @@ describe('POST /api/auth/google', () => {
     expect(await harness.prisma.user.count()).toBe(1);
   });
 
-  // Pre-account takeover: kẻ tấn công đăng ký trước bằng email nạn nhân (đăng ký không xác thực email),
-  // nạn nhân sau đó đăng nhập Google. Google chứng minh nạn nhân sở hữu email, nên mật khẩu và mọi
-  // phiên mở TRƯỚC lúc liên kết đều thuộc về người lạ và phải mất hiệu lực.
+  // Pre-account takeover: tài khoản mật khẩu tạo trước khi đăng ký bắt nhập mã (2026-11-10) chưa
+  // chứng minh sở hữu email; nạn nhân sau đó đăng nhập Google. Google chứng minh nạn nhân sở hữu
+  // email, nên mật khẩu và mọi phiên mở TRƯỚC lúc liên kết đều thuộc về người lạ và phải mất hiệu lực.
   describe('liên kết Google tước quyền của người đăng ký trước bằng mật khẩu', () => {
     const takeOver = async () => {
       const attacker = await harness.signUp('nan-nhan@test.local');
+      await harness.prisma.user.update({
+        where: { id: attacker.id },
+        data: { emailVerifiedAt: null },
+      });
       harness.google.willReturn('tok-victim', {
         googleId: 'google-sub-victim',
         email: attacker.email,
@@ -146,6 +150,27 @@ describe('POST /api/auth/google', () => {
     });
   });
 
+  test('liên kết vào tài khoản đã xác minh email thì giữ mật khẩu và phiên đang mở', async () => {
+    const owner = await harness.signUp('da-xac-minh@test.local');
+    harness.google.willReturn('tok-owner', {
+      googleId: 'google-sub-owner',
+      email: owner.email,
+      name: 'Chủ Thật',
+    });
+
+    const linked = await google('tok-owner').expect(200);
+    expect((linked.body as { user: { id: string } }).user.id).toBe(owner.id);
+
+    await request(harness.server)
+      .post('/api/auth/login')
+      .send({ email: owner.email, password: owner.password })
+      .expect(200);
+    await request(harness.server)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .expect(200);
+  });
+
   test('email chỉ khác hoa/thường vẫn là MỘT tài khoản ở cả đăng ký, đăng nhập và Google', async () => {
     const registered = await request(harness.server)
       .post('/api/auth/register')
@@ -155,8 +180,18 @@ describe('POST /api/auth/google', () => {
         name: 'Hoa Thường',
         acceptTerms: true,
       })
-      .expect(201);
-    const id = (registered.body as { user: { id: string } }).user.id;
+      .expect(202);
+    const verified = await request(harness.server)
+      .post('/api/auth/verify-code')
+      .send({
+        email: 'HOA.thuong@test.local',
+        code: harness.mail.codeFor('hoa.thuong@test.local'),
+      })
+      .expect(200);
+    expect((registered.body as { email: string }).email).toBe(
+      'hoa.thuong@test.local',
+    );
+    const id = (verified.body as { user: { id: string } }).user.id;
 
     await request(harness.server)
       .post('/api/auth/register')

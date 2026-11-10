@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { AuthService, type AuthResult } from './auth.service';
+import { AuthService, type AuthResult } from './services/auth.service';
 import {
   AUTH_COOKIE,
   REFRESH_COOKIE,
@@ -20,24 +20,34 @@ import {
 } from './auth.cookie';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { Public } from '@/common/decorators/public.decorator';
-import { GoogleLoginDto, LoginDto, RegisterDto } from './auth.dto';
+import {
+  GoogleLoginDto,
+  LoginDto,
+  RegisterDto,
+  ResendCodeDto,
+  VerifyCodeDto,
+} from './auth.dto';
+import { EmailCodeService } from './services/email-code.service';
 import type { AuthUser } from '@/common/types/auth-user';
-import { ThrottleAuth } from '@/common/throttle';
+import { ThrottleAuth, ThrottleMail } from '@/common/throttle';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly emailCodes: EmailCodeService,
+  ) {}
 
   @Public()
   @ThrottleAuth()
-  @ApiOperation({ summary: 'Đăng ký tài khoản mới' })
+  @ApiOperation({
+    summary: 'Đăng ký: gửi mã xác minh, tài khoản tạo khi nhập đúng mã',
+  })
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    return issue(response, await this.auth.register(dto));
+  @HttpCode(202)
+  register(@Body() dto: RegisterDto) {
+    return this.auth.register(dto);
   }
 
   @Public()
@@ -49,7 +59,12 @@ export class AuthController {
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    return issue(response, await this.auth.login(dto));
+    const result = await this.auth.login(dto);
+    if ('verificationRequired' in result) {
+      response.status(202);
+      return result;
+    }
+    return issue(response, result);
   }
 
   @Public()
@@ -65,6 +80,28 @@ export class AuthController {
       response,
       await this.auth.loginWithGoogle(dto.idToken, dto.ref),
     );
+  }
+
+  @Public()
+  @ThrottleAuth()
+  @ApiOperation({ summary: 'Nhập mã xác minh email rồi đăng nhập' })
+  @Post('verify-code')
+  @HttpCode(200)
+  async verifyCode(
+    @Body() dto: VerifyCodeDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return issue(response, await this.auth.verifyCode(dto.email, dto.code));
+  }
+
+  @Public()
+  @ThrottleMail()
+  @ApiOperation({ summary: 'Gửi lại mã xác minh email' })
+  @Post('resend-code')
+  @HttpCode(200)
+  async resendCode(@Body() dto: ResendCodeDto) {
+    await this.emailCodes.resend(dto.email);
+    return { ok: true };
   }
 
   @Public()

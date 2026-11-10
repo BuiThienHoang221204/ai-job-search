@@ -169,6 +169,7 @@ Mỗi ADR giữ nguyên văn số đo, lý do và bẫy đã sập của một c
 - **Sửa prompt/schema `job.requirements`, `skillGroups`, cách đối chiếu kỹ năng (`findSkill`), `skill.implies`, hoặc muốn dùng vector để quyết định "đạt"** → `docs/adr/0020-doi-chieu-yeu-cau.md` (Đối chiếu yêu cầu: nhóm lựa chọn, rút đủ yêu cầu, kỹ năng kéo theo)
 - **Sửa chấm CV cho khách (`modules/cv-check`), bảng `usage_counters`, hoặc mở thêm route công khai có gọi model** → `docs/adr/0021-cham-cv-cho-khach.md` (AI tách dòng, code chấm; trần theo HMAC của IP và trần tổng, giữ lượt bằng một câu SQL)
 - **Sửa `modules/ext`, `ExtAuthGuard`, ext token (`extLogin`/`issueExtToken`), luồng `/connect-extension`, hoặc lọc `source='extension'`** → `docs/adr/0022-ext-token-tien-ich.md` (Token riêng cho tiện ích: `typ='ext'` 30 ngày thu hồi qua `tokenVersion`, Google qua `launchWebAuthFlow`, tin nguồn extension cô lập khỏi bảng chung)
+- **Sửa đăng ký/đăng nhập bằng mật khẩu, mã xác minh email (`EmailCodeService`, `MailService`, `email_codes`), nhánh liên kết trong `loginWithGoogle`, hoặc làm quên/đặt mật khẩu** → `docs/adr/0023-xac-minh-email.md` (Tài khoản chỉ tạo khi nhập đúng mã 6 số; mã lưu HMAC, 10 phút, 5 lần sai; tài khoản cũ nhập mã ở lần đăng nhập tới; Resend)
 
 ## Ranh giới không được xê dịch
 

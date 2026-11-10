@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -41,6 +42,23 @@ export class LoginDto {
 
   @IsString()
   password!: string;
+}
+
+export class VerifyCodeDto {
+  @Transform(normalizedEmail)
+  @IsEmail({}, { message: 'Email không hợp lệ' })
+  @MaxLength(254)
+  email!: string;
+
+  @Matches(/^\d{6}$/, { message: 'Mã xác minh gồm 6 chữ số' })
+  code!: string;
+}
+
+export class ResendCodeDto {
+  @Transform(normalizedEmail)
+  @IsEmail({}, { message: 'Email không hợp lệ' })
+  @MaxLength(254)
+  email!: string;
 }
 
 export class GoogleLoginDto {

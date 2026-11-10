@@ -453,6 +453,53 @@ curl -s https://api.careelot.com/api/health
 `GET /api/admin/ai-health` (cần token ADMIN) cho tỷ lệ hỏng và p50/p95 của các lời
 gọi model — đây là chỗ đọc để biết gateway free có trụ được không.
 
+### Đăng nhập Google (Google Cloud Console)
+
+Luồng là Google Identity Services kiểu **ID token** (nút `GoogleLogin` popup), không phải
+OAuth đổi `code`. Chi tiết luồng: `docs/business-flows/modules/auth.md` Luồng C.
+
+- **Một** OAuth client loại *Web application*. Client ID đặt ở hai nơi và phải giống nhau:
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` trên Vercel (đọc lúc build, đổi xong phải Redeploy) và
+  `GOOGLE_CLIENT_ID` trong `server/.env` (backend dùng làm `audience`; lệch → 401
+  "Token Google không hợp lệ"). Không cần client secret.
+- **Authorized JavaScript origins**: domain của FE — `https://careelot.me` và
+  `http://localhost:3000`, `http://localhost` cho dev. Không cần *Authorized redirect URIs*.
+  Thiếu origin → popup báo `origin_mismatch`; thêm xong đợi vài phút mới ăn.
+- Link preview của Vercel không đăng nhập Google được (Google không cho wildcard origin).
+- **OAuth consent screen**: scope chỉ `openid email profile` (không nhạy cảm, không cần thẩm
+  định). Để *Testing* thì chỉ email trong *Test users* đăng nhập được — phải *Publish app*.
+- Google không gọi vào backend; backend chỉ gọi ra lấy khoá công khai. **Đổi IP hay chuyển
+  server không phải sửa gì trên Google Console.**
+- Tiện ích Chrome không có OAuth client riêng: nó mở trang `/connect-extension` của web
+  (ADR 0022), nên không phải khai thêm gì.
+
+### Gửi mã xác minh email (Resend)
+
+ADR 0023. Trên resend.com: thêm domain `careelot.me`, chép các bản ghi DNS (SPF, DKIM,
+DMARC) Resend đưa vào nơi quản lý DNS, đợi trạng thái *Verified*, rồi tạo API key quyền
+*Sending access*. Thêm vào `server/.env` rồi `docker compose up -d app`:
+
+```bash
+RESEND_API_KEY=re_...
+MAIL_FROM=Careelot <no-reply@careelot.me>
+MAIL_REPLY_TO=careelot00@gmail.com
+WEB_URL=https://careelot.me
+```
+
+**Thiếu `RESEND_API_KEY` thì không ai đăng ký bằng mật khẩu được** (không có mã để
+nhập). `WEB_URL` dùng cho logo và link chính sách trong thư. Gói miễn phí giới hạn
+100 thư/ngày; gửi lỗi thì API trả 500, xem `docker compose logs app`.
+
+**Trước lần deploy đầu có tính năng này:** mọi tài khoản mật khẩu cũ sẽ phải nhập mã
+gửi tới email ở lần đăng nhập tới. Kiểm tài khoản nào dùng email không có hộp thư thật:
+
+```bash
+docker compose exec -T postgres psql -U aijob aijob -c   "select email, role from users where \"googleId\" is null and \"emailVerifiedAt\" is null"
+```
+
+Tài khoản nội bộ dùng email giả thì đánh dấu đã xác minh bằng tay
+(`update users set "emailVerifiedAt" = now() where email = '...'`).
+
 ### Chạy quét thủ công
 
 ```bash

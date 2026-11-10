@@ -84,7 +84,7 @@ flowchart TB
 | Hàng đợi | pg-boss (schema `pgboss`), policy `exclusive` | [queue.service.ts](../../server/src/modules/queue/queue.service.ts) |
 | Lịch | `cron` (`CronJob`, timezone `CRON_TIMEZONE`) qua `@nestjs/schedule` | [scrape-cron.service.ts](../../server/src/modules/scraper/services/scrape-cron.service.ts) |
 | AI | Vercel AI SDK `ai` 7 + `@ai-sdk/openai-compatible`; embedding cục bộ `@huggingface/transformers` (multilingual-e5-base, 768 chiều) | [ai.service.ts](../../server/src/modules/ai/services/ai.service.ts), [local.embedder.ts](../../server/src/modules/semantic/local.embedder.ts) |
-| Auth | `@nestjs/jwt`, passport-jwt, bcryptjs (cost 12), google-auth-library | [auth.service.ts](../../server/src/modules/auth/auth.service.ts) |
+| Auth | `@nestjs/jwt`, passport-jwt, bcryptjs (cost 12), google-auth-library | [auth.service.ts](../../server/src/modules/auth/services/auth.service.ts) |
 | Bảo vệ | helmet, `@nestjs/throttler`, ValidationPipe (`whitelist`, `forbidNonWhitelisted`) | [bootstrap.ts](../../server/src/bootstrap.ts) |
 | Lưu file | Cloudflare R2 qua `@aws-sdk/client-s3` | [r2.storage.ts](../../server/src/modules/storage/r2.storage.ts) |
 | In PDF | `pdf-service` (Chromium in HTML) cho cả CV lẫn thư xin việc; dự phòng `docker run`. LaTeX đã gỡ *(2026-10-19)* | [documents.md](./modules/documents.md#15-integrations) |
