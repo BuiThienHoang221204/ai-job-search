@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Prisma } from '@/generated/prisma/client';
 import { pageArgs, pageOf } from '@/common/pagination';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -29,9 +33,19 @@ import {
   withoutChecks,
 } from './utils/job-view';
 import { needsOccupation, profileFit } from './utils/occupation-gate';
-import type { JobSort, ListJobsQueryDto, PublicJobsQueryDto } from './job.dto';
-import { toPublicJobDetail } from './utils/public-job';
+import type {
+  JobSort,
+  JobSuggestQueryDto,
+  ListJobsQueryDto,
+  PublicJobsQueryDto,
+} from './job.dto';
+import { pickSuggestions, toPublicJobDetail } from './utils/public-job';
+import { normalizeText } from '@/common/text/vietnamese';
 import { repostSignal } from './utils/repost';
+
+const SUGGEST_SCAN = 30;
+const SUGGEST_TITLES = 5;
+const SUGGEST_COMPANIES = 3;
 
 @Injectable()
 export class JobsService {
@@ -158,6 +172,44 @@ export class JobsService {
       this.prisma.jobRequirementMatch.count({ where }),
     ] as const;
   }
+  async suggest(query: JobSuggestQueryDto) {
+    const needle = normalizeText(query.q);
+    if (!needle) throw new BadRequestException('Gõ chữ hoặc số để xem gợi ý');
+    const where: Prisma.JobWhereInput = {
+      duplicateOfId: null,
+      source: { not: 'extension' },
+      searchText: { contains: needle },
+    };
+    const [titles, companies] = await Promise.all([
+      this.prisma.job.groupBy({
+        by: ['title'],
+        where,
+        _count: { _all: true },
+        orderBy: { _count: { title: 'desc' } },
+        take: SUGGEST_SCAN,
+      }),
+      this.prisma.job.groupBy({
+        by: ['company'],
+        where,
+        _count: { _all: true },
+        orderBy: { _count: { company: 'desc' } },
+        take: SUGGEST_SCAN,
+      }),
+    ]);
+    return {
+      titles: pickSuggestions(
+        titles.map((row) => ({ name: row.title, count: row._count._all })),
+        needle,
+        SUGGEST_TITLES,
+      ),
+      companies: pickSuggestions(
+        companies.map((row) => ({ name: row.company, count: row._count._all })),
+        needle,
+        SUGGEST_COMPANIES,
+      ),
+    };
+  }
+
   async publicList(query: PublicJobsQueryDto) {
     const where = whereFrom(query, null);
     const [rows, total] = await Promise.all([

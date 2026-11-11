@@ -2,6 +2,7 @@ import type { RequirementCheck } from 'src/modules/matching/rules/types.js';
 import {
   EXCERPT_LENGTH,
   excerptOf,
+  pickSuggestions,
   toPublicJobDetail,
 } from 'src/modules/jobs/utils/public-job.js';
 
@@ -88,5 +89,21 @@ describe('toPublicJobDetail', () => {
     const skills = checks.filter((check) => check.kind === 'SKILL');
     expect(skills.map((check) => check.label)).toEqual(['Excel', 'MISA']);
     expect(skills.every((check) => check.met === false)).toBe(true);
+  });
+});
+
+describe('pickSuggestions', () => {
+  it('gộp cách viết khác hoa thường và dấu, cộng số tin, bỏ nhóm không chứa từ khoá', () => {
+    const groups = [
+      { name: 'Kế Toán Tổng Hợp', count: 52 },
+      { name: 'Backend Developer', count: 40 },
+      { name: 'KẾ TOÁN TỔNG HỢP', count: 12 },
+      { name: 'Kế toán thuế', count: 20 },
+    ];
+
+    expect(pickSuggestions(groups, 'ke toan', 5)).toEqual([
+      { text: 'Kế Toán Tổng Hợp', count: 64 },
+      { text: 'Kế toán thuế', count: 20 },
+    ]);
   });
 });

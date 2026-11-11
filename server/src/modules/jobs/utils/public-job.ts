@@ -4,9 +4,12 @@ import type {
   SkillDictionary,
 } from '@/modules/matching/rules/types';
 import type { PUBLIC_JOB_DETAIL_SELECT } from '../job-card.select';
+import { normalizeText } from '@/common/text/vietnamese';
 import { withSystemMatch } from './job-view';
 
 export const EXCERPT_LENGTH = 300;
+
+export type SuggestionCount = { text: string; count: number };
 
 const GUEST_PROFILE: MatchProfile = {
   skills: [],
@@ -38,4 +41,21 @@ export function toPublicJobDetail(
 ) {
   const detail = withSystemMatch(job, GUEST_PROFILE, dictionary);
   return { ...detail, description: excerptOf(detail.description) };
+}
+
+/** Gộp các nhóm (chức danh hoặc công ty) cùng tên sau khi bỏ dấu và chữ hoa, cộng số tin, chỉ giữ nhóm chứa từ khoá; tên hiển thị là cách viết phổ biến nhất. */
+export function pickSuggestions(
+  groups: { name: string; count: number }[],
+  needle: string,
+  limit: number,
+): SuggestionCount[] {
+  const merged = new Map<string, SuggestionCount>();
+  for (const group of groups) {
+    const key = normalizeText(group.name);
+    if (!key.includes(needle)) continue;
+    const seen = merged.get(key);
+    if (seen) seen.count += group.count;
+    else merged.set(key, { text: group.name, count: group.count });
+  }
+  return [...merged.values()].sort((a, b) => b.count - a.count).slice(0, limit);
 }

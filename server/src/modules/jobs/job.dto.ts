@@ -12,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 export const JOB_SORTS = ['newest', 'salary', 'match'] as const;
@@ -103,3 +104,10 @@ export class PublicJobsQueryDto extends PickType(ListJobsQueryDto, [
   'workMode',
   'postedWithin',
 ]) {}
+
+export class JobSuggestQueryDto {
+  @IsString()
+  @MinLength(2, { message: 'Gõ ít nhất 2 ký tự để xem gợi ý' })
+  @MaxLength(80)
+  q!: string;
+}

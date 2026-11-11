@@ -119,6 +119,36 @@ describe('GET /public/jobs · khách chưa đăng nhập xem tin', () => {
     expect(skills.every((check) => check.met === false)).toBe(true);
   });
 
+  test('gợi ý khi gõ: không cần token, khớp không dấu, chỉ trả tên và số tin', async () => {
+    const titles = await request(harness.server)
+      .get('/api/public/jobs/suggest')
+      .query({ q: 'ke toan' })
+      .expect(200);
+    expect(titles.body).toEqual({
+      titles: [{ text: 'Kế toán tổng hợp', count: 1 }],
+      companies: [],
+    });
+
+    const companies = await request(harness.server)
+      .get('/api/public/jobs/suggest')
+      .query({ q: 'công ty' })
+      .expect(200);
+    const body = companies.body as {
+      titles: unknown[];
+      companies: { text: string }[];
+    };
+    expect(body.titles).toEqual([]);
+    expect(body.companies.map((row) => row.text).sort()).toEqual([
+      'Công ty A',
+      'Công ty B',
+    ]);
+
+    await request(harness.server)
+      .get('/api/public/jobs/suggest')
+      .query({ q: 'k' })
+      .expect(400);
+  });
+
   test('tin không tồn tại trả 404', async () => {
     await request(harness.server).get('/api/public/jobs/khong-co').expect(404);
   });

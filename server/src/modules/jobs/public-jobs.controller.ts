@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Public } from '@/common/decorators/public.decorator';
-import { PublicJobsQueryDto } from './job.dto';
+import { JobSuggestQueryDto, PublicJobsQueryDto } from './job.dto';
 import { JobsService } from './jobs.service';
 
 @ApiTags('Public jobs')
@@ -18,6 +18,15 @@ export class PublicJobsController {
   @Get()
   list(@Query() query: PublicJobsQueryDto) {
     return this.jobs.publicList(query);
+  }
+
+  @ApiOperation({
+    summary: 'Gợi ý khi gõ ô tìm việc: chức danh và công ty kèm số tin',
+  })
+  @Public()
+  @Get('suggest')
+  suggest(@Query() query: JobSuggestQueryDto) {
+    return this.jobs.suggest(query);
   }
 
   @ApiOperation({
