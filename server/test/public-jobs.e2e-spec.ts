@@ -83,6 +83,17 @@ describe('GET /public/jobs · khách chưa đăng nhập xem tin', () => {
     expect(body.items.map((item) => item.id)).toEqual([jobId]);
   });
 
+  test('lọc theo kinh nghiệm: tin chưa rút được số năm bị ẩn', async () => {
+    const response = await request(harness.server)
+      .get('/api/public/jobs')
+      .query({ maxYears: 3 })
+      .expect(200);
+    const body = response.body as { total: number; items: { id: string }[] };
+
+    expect(body.total).toBe(1);
+    expect(body.items[0].id).toBe(jobId);
+  });
+
   test('bộ lọc gắn với tài khoản hoặc lương bị từ chối', async () => {
     for (const query of [
       { saved: 'true' },

@@ -157,7 +157,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-16 | Mỗi người lưu một tin tối đa một lần; lưu lặp là idempotent. | DB, SV | 🔒 |
 | BR-JOB-17 | Lưu tin không tồn tại → 404; bỏ lưu luôn thành công (idempotent, không 404). | SV | ✅ |
 | BR-JOB-18 | Khách chỉ nhận các trường trong danh sách trắng `PUBLIC_JOB_FIELDS` — không lương, không `externalId`, không `currency`; trường mới thêm vào `Job` không tự lọt ra. | SV | ✅ |
-| BR-JOB-19 | Khách chỉ được lọc theo `limit, offset, q, province, occupation, subOccupation, workMode, postedWithin`; bộ lọc gắn tài khoản/lương/sort → 400. | DTO | ✅ |
+| BR-JOB-19 | Khách chỉ được lọc theo `limit, offset, q, province, occupation, subOccupation, workMode, postedWithin, maxYears, seniority` *(2026-11-13)*; bộ lọc gắn tài khoản/lương/sort → 400. | DTO | ✅ |
 | BR-JOB-20 | Danh sách cho khách luôn xếp mới đăng trước và không đối chiếu hồ sơ. | SV | ✅ |
 | BR-JOB-21 | Khách chỉ thấy đoạn trích mô tả ≤ 300 ký tự, cắt ở ranh giới từ, kết thúc bằng `…`; yêu cầu tin hiện đủ nhưng đối chiếu với hồ sơ rỗng. | SV | ✅ |
 | BR-JOB-22 | Route khách và danh mục bộ lọc giới hạn 60 lượt/phút (đếm theo IP khi chưa đăng nhập). | GD | ✅ |
@@ -177,6 +177,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-JOB-35 | `followed=true` (cần đăng nhập) chỉ trả tin có `companyKey` thuộc công ty người gọi đang theo dõi, không qua cổng ngành; khách gửi tham số này nhận 400 vì `PublicJobsQueryDto` không có nó *(2026-10-26)* | SV | ✅ |
 | BR-JOB-36 | Tín hiệu "đăng lại" trên chi tiết tin: đếm các tin gốc (`duplicateOfId = null`) cùng `dedupeKey` (cùng tên vị trí, công ty, tỉnh); chỉ trả `reposts { count, firstAt, dates }` khi có từ 2 lần đăng và lần đầu cách lần cuối ít nhất 14 ngày, còn lại `null`. Ngày của mỗi lần lấy `postedAt`, thiếu thì `scrapedAt`. Bản trùng cùng đợt ở portal khác đã gộp nên không tính. Không gọi AI. Đo 2026-10-26: 41 nhóm, 85 tin; kho mới có từ 18/08 *(2026-10-26)* | SV | ✅ |
 | BR-JOB-38 | Gợi ý khi gõ ô tìm việc (`GET /public/jobs/suggest?q=`, mở cho khách): từ khoá chuẩn hoá bỏ dấu (`normalizeText`) khớp `searchText` trên tin gốc không phải nguồn extension; nhóm theo `title` và `company` (quét 30 nhóm đông nhất mỗi loại), chỉ giữ nhóm mà chính tên chứa từ khoá, gộp các cách viết khác hoa thường/dấu và cộng số tin, trả tối đa 5 chức danh và 3 công ty `{text, count}`. Chỉ SQL, không gọi AI. `q` dưới 2 ký tự, hoặc chỉ toàn ký hiệu, trả 400 *(2026-11-11)* | SV | ✅ |
+| BR-JOB-39 | Lọc theo kinh nghiệm (`maxYears`: tin yêu cầu tối đa N năm, 0 = không yêu cầu) và cấp bậc (`seniority`, chọn nhiều, HOẶC trong nhóm) đọc từ `JobRequirement` do AI rút; tin chưa rút được trường đó bị ẩn khi bộ lọc bật — chủ dự án chọn ẩn thay vì hiện kèm nhãn chưa rõ *(2026-11-13)*. Đo trên prod 2026-11-13: 66% tin có cấp bậc, 56% có số năm; `job_requirements` khoảng 12 nghìn dòng, chưa cần index cho hai cột này. | SV | ✅ |
 | BR-JOB-37 | Tin nguồn extension (`source='extension'`, người dùng lưu từ tiện ích) bị loại khỏi feed, "Việc làm phù hợp", trang công khai, chấm điểm và nhắc tin theo công ty; chỉ hiện ở view đã lưu hoặc đã ứng tuyển của chủ. *(2026-11-01)* | SV | ✅ |
 
 ### Job Scraping — Quét tin tuyển dụng từ portal — [modules/job-scraping.md](./modules/job-scraping.md#7-business-rules)

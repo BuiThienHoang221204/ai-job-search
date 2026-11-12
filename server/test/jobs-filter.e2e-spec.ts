@@ -258,6 +258,64 @@ describe('GET /jobs · lọc, sắp xếp, phân trang', () => {
     });
   });
 
+  describe('lọc theo kinh nghiệm và cấp bậc', () => {
+    const seedLevels = async () => {
+      const rows = [
+        { key: 'fresher', minYears: 0, seniority: 'FRESHER' as const },
+        { key: 'junior', minYears: 2, seniority: 'JUNIOR' as const },
+        { key: 'senior', minYears: 5, seniority: 'SENIOR' as const },
+        { key: 'chua-ro', minYears: null, seniority: null },
+      ];
+      for (const row of rows) {
+        await harness.prisma.job.create({
+          data: {
+            source: 'test',
+            externalId: row.key,
+            url: `https://example.test/${row.key}`,
+            title: row.key,
+            company: 'Công ty',
+            description: 'Mô tả.',
+            searchText: row.key,
+            ...(row.seniority
+              ? {
+                  requirements: {
+                    create: {
+                      status: 'DONE',
+                      minYears: row.minYears,
+                      seniority: row.seniority,
+                    },
+                  },
+                }
+              : {}),
+          },
+        });
+      }
+    };
+    const titles = async (query: Record<string, unknown>) =>
+      (await pageOf(query)).items.map((item) => item.title).sort();
+
+    beforeEach(seedLevels);
+
+    test('maxYears giữ tin yêu cầu không quá số năm đó, bỏ tin chưa rõ', async () => {
+      expect(await titles({ maxYears: 2 })).toEqual(['fresher', 'junior']);
+      expect(await titles({ maxYears: 0 })).toEqual(['fresher']);
+    });
+
+    test('seniority chọn nhiều cấp, kết hợp được với maxYears', async () => {
+      expect(await titles({ seniority: ['JUNIOR', 'SENIOR'] })).toEqual([
+        'junior',
+        'senior',
+      ]);
+      expect(
+        await titles({ seniority: ['JUNIOR', 'SENIOR'], maxYears: 3 }),
+      ).toEqual(['junior']);
+    });
+
+    test('cấp bậc ngoài danh sách bị từ chối', async () => {
+      await get({ seniority: 'UNKNOWN' }).expect(400);
+    });
+  });
+
   describe('lọc theo nghề', () => {
     beforeEach(() => seedJobs(30));
 

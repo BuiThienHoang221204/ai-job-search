@@ -180,6 +180,22 @@ function occupationFacetWhere(
   return clauses.length === 1 ? clauses[0] : { OR: clauses };
 }
 
+function requirementWhere(
+  query: ListJobsQueryDto,
+): Prisma.JobWhereInput | null {
+  const hasYears = query.maxYears !== undefined;
+  const hasLevels = Boolean(query.seniority?.length);
+  if (!hasYears && !hasLevels) return null;
+  return {
+    requirements: {
+      is: {
+        ...(hasYears ? { minYears: { lte: query.maxYears } } : {}),
+        ...(hasLevels ? { seniority: { in: query.seniority } } : {}),
+      },
+    },
+  };
+}
+
 export function whereFrom(
   query: ListJobsQueryDto,
   userId: string | null,
@@ -189,7 +205,8 @@ export function whereFrom(
   const since = query.postedWithin ? daysAgo(query.postedWithin) : null;
   const gate = occupationGate(query, fit);
   const facet = occupationFacetWhere(query);
-  const and = [gate, facet].filter(
+  const requirement = requirementWhere(query);
+  const and = [gate, facet, requirement].filter(
     (clause): clause is Prisma.JobWhereInput => clause !== null,
   );
 

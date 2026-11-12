@@ -18,6 +18,15 @@ import { PaginationQueryDto } from '@/common/dto/pagination.dto';
 export const JOB_SORTS = ['newest', 'salary', 'match'] as const;
 export type JobSort = (typeof JOB_SORTS)[number];
 export const POSTED_WINDOWS = [1, 3, 7, 30] as const;
+const SENIORITY_FILTERS = [
+  'INTERN',
+  'FRESHER',
+  'JUNIOR',
+  'MIDDLE',
+  'SENIOR',
+  'LEAD',
+] as const;
+type SeniorityFilter = (typeof SENIORITY_FILTERS)[number];
 export const MAX_JOB_OFFSET = 2_000;
 const toArray = ({ value }: { value: unknown }): string[] => {
   if (Array.isArray(value)) return value.map(String);
@@ -69,6 +78,18 @@ export class ListJobsQueryDto extends PaginationQueryDto {
   @Type(() => Number)
   @IsIn([...POSTED_WINDOWS])
   postedWithin?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(50)
+  maxYears?: number;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @ArrayMaxSize(SENIORITY_FILTERS.length)
+  @IsIn([...SENIORITY_FILTERS], { each: true })
+  seniority?: SeniorityFilter[];
 
   @IsOptional()
   @IsIn([...JOB_SORTS])
@@ -103,6 +124,8 @@ export class PublicJobsQueryDto extends PickType(ListJobsQueryDto, [
   'subOccupation',
   'workMode',
   'postedWithin',
+  'maxYears',
+  'seniority',
 ]) {}
 
 export class JobSuggestQueryDto {
