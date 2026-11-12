@@ -171,7 +171,7 @@ export class DashboardService {
           job: { applications: { none: { userId, status: 'APPLIED' } } },
         },
         orderBy: { evaluatedAt: { sort: 'desc', nulls: 'last' } },
-        take: 4,
+        take: 6,
         select: {
           jobId: true,
           status: true,

@@ -592,7 +592,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 |---|---|---|---|
 | BR-DSH-01 | "Việc phù hợp" = `JobMatch` của người dùng có `status = DONE` và `eligibility ≠ FAIL` | SV | ✅ Mềm |
 | BR-DSH-02 | "Mới tuần này" đếm `JobMatch` phù hợp có `createdAt` trong 7 ngày (ngày tạo bản chấm, không phải ngày đăng tin) | SV | ✅ Mềm |
-| BR-DSH-03 | "Việc đang chờ" = tối đa 4 việc phù hợp chưa có đơn ở trạng thái `APPLIED`, xếp theo lần chấm mới nhất (không theo điểm) | SV | ✅ Mềm |
+| BR-DSH-03 | "Việc đang chờ" = tối đa 6 việc phù hợp chưa có đơn ở trạng thái `APPLIED`, xếp theo lần chấm mới nhất (không theo điểm) *(2026-11-12: từ 4 lên 6)* | SV | ✅ Mềm |
 | BR-DSH-04 | Thẻ việc đang chờ chỉ trả trường thẻ tin (`JOB_CARD_FIELDS`) + `strengths`, không kèm ghi chú chấm điểm | SV | ✅ Mềm |
 | BR-DSH-05 | "Điểm hôm nay" = trung bình làm tròn từng trục điểm của 5 lần chấm phù hợp mới nhất; trục không có số thì `null` | SV | ✅ Mềm |
 | BR-DSH-06 | Thị trường: chỉ khi hồ sơ có ngành khác `OTHER`; tính tin không phải bản sao, quét trong 7 ngày; top 5 tỉnh/nghề, bỏ mã không có tên | SV | ✅ Mềm |

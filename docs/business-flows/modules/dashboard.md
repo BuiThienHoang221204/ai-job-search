@@ -7,7 +7,7 @@
 
 | Mục tiêu | Diễn giải |
 |---|---|
-| Một màn hình tổng hợp tình trạng tìm việc | `GET /dashboard` gom trong MỘT request: độ hoàn thiện hồ sơ, thị trường tin trong ngành 7 ngày, số việc phù hợp, điểm trung bình, 4 việc đang chờ, khoảng trống kỹ năng, hành trình (CV/đơn/phỏng vấn thử), mục tiêu tuần, chuỗi ngày hoạt động, việc đang dở, gợi ý, số đơn, "điểm hôm nay" ([dashboard.service.ts:138](../../../server/src/modules/dashboard/dashboard.service.ts#L138)) |
+| Một màn hình tổng hợp tình trạng tìm việc | `GET /dashboard` gom trong MỘT request: độ hoàn thiện hồ sơ, thị trường tin trong ngành 7 ngày, số việc phù hợp, điểm trung bình, 6 việc đang chờ, khoảng trống kỹ năng, hành trình (CV/đơn/phỏng vấn thử), mục tiêu tuần, chuỗi ngày hoạt động, việc đang dở, gợi ý, số đơn, "điểm hôm nay" ([dashboard.service.ts:138](../../../server/src/modules/dashboard/dashboard.service.ts#L138)) |
 | Cấp riêng danh sách kỹ năng thiếu | `GET /dashboard/skill-gaps` trả 6 kỹ năng đầu, dùng cho trang Hồ sơ mà không phải tải cả trang Tổng quan ([dashboard.service.ts:131](../../../server/src/modules/dashboard/dashboard.service.ts#L131)) |
 | Thuần đường ĐỌC | Không gọi model, không ghi database; chỉ truy vấn SQL + hàm thuần trong `dashboard.utils.ts` |
 
@@ -42,7 +42,7 @@
      2. `matchCount`: số `JobMatch` `DONE`, `eligibility ≠ FAIL`.
      3. `newThisWeek`: như trên, `createdAt` trong 7 ngày.
      4. Điểm `overallScore` trung bình của tập trên (làm tròn).
-     5. `pendingMatches`: tối đa 4 việc phù hợp mà người dùng **chưa có đơn `APPLIED`**, mới chấm nhất trước (`evaluatedAt desc, nulls last`); chỉ chọn `jobId, status, overallScore, strengths` và trường thẻ tin `jobCardSelect` (kèm cờ `saved` của chính người dùng).
+     5. `pendingMatches`: tối đa 6 việc phù hợp mà người dùng **chưa có đơn `APPLIED`**, mới chấm nhất trước (`evaluatedAt desc, nulls last`); chỉ chọn `jobId, status, overallScore, strengths` và trường thẻ tin `jobCardSelect` (kèm cờ `saved` của chính người dùng).
      6. `recentFive`: 5 lần chấm phù hợp mới nhất (`evaluatedAt desc`) → "điểm hôm nay" là trung bình từng trục (tổng, kỹ thuật, kinh nghiệm, hành vi, định hướng) ([dashboard.utils.ts:25](../../../server/src/modules/dashboard/dashboard.utils.ts#L25)).
      7. `ineligibleCount`: số `JobMatch` `DONE` có `eligibility = FAIL`.
      8. `applications`: `{ total, active }` từ `ApplicationsService.countsFor` (active = trạng thái chưa kết thúc).
@@ -79,7 +79,7 @@
 flowchart TD
     A["GET /dashboard"] --> P["Promise.all 12 truy vấn"]
     P --> PR["Profile"]
-    P --> JM["JobMatch DONE, eligibility ≠ FAIL: đếm, TB điểm, 4 việc chờ, 5 lần chấm mới"]
+    P --> JM["JobMatch DONE, eligibility ≠ FAIL: đếm, TB điểm, 6 việc chờ, 5 lần chấm mới"]
     P --> PG["progress: Document, Application, AgentRun 30 ngày"]
     P --> SG["SkillGapService.forUser → 6 kỹ năng"]
     PR --> MK{"Ngành có và ≠ OTHER?"}
@@ -95,7 +95,7 @@ flowchart TD
     R --> FE{"FE: occupationCode có và ≠ OTHER?"}
     FE -- "Không" --> OB["QuickStartOnboarding"]
     FE -- "Có, matchingJobs.total=0" --> FR["FirstRun"]
-    FE -- "Có" --> DV["QuickStrip, MarketCard, ScoreBreakdown, TopMatches, ProgressPanel"]
+    FE -- "Có" --> DV["DashboardHero, TopMatches, ScoreBreakdown, WeeklyGoals, JourneyCard, MarketCard, ApplicationsCard"]
 ```
 
 ## 6. Sequence Diagram
@@ -131,7 +131,7 @@ sequenceDiagram
 |---|---|---|---|---|
 | BR-DSH-01 | "Việc phù hợp" = `JobMatch` của người dùng có `status = DONE` và `eligibility ≠ FAIL` | SV | ✅ Mềm | [dashboard.service.ts:29](../../../server/src/modules/dashboard/dashboard.service.ts#L29) |
 | BR-DSH-02 | "Mới tuần này" đếm `JobMatch` phù hợp có `createdAt` trong 7 ngày (ngày tạo bản chấm, không phải ngày đăng tin) | SV | ✅ Mềm | [dashboard.service.ts:161](../../../server/src/modules/dashboard/dashboard.service.ts#L161) |
-| BR-DSH-03 | "Việc đang chờ" = tối đa 4 việc phù hợp chưa có đơn ở trạng thái `APPLIED`, xếp theo lần chấm mới nhất (không theo điểm) | SV | ✅ Mềm | [dashboard.service.ts:168](../../../server/src/modules/dashboard/dashboard.service.ts#L168) |
+| BR-DSH-03 | "Việc đang chờ" = tối đa 6 việc phù hợp chưa có đơn ở trạng thái `APPLIED`, xếp theo lần chấm mới nhất (không theo điểm) *(2026-11-12: từ 4 lên 6)* | SV | ✅ Mềm | [dashboard.service.ts:168](../../../server/src/modules/dashboard/dashboard.service.ts#L168) |
 | BR-DSH-04 | Thẻ việc đang chờ chỉ trả trường thẻ tin (`JOB_CARD_FIELDS`) + `strengths`, không kèm ghi chú chấm điểm | SV | ✅ Mềm | [dashboard.service.ts:175](../../../server/src/modules/dashboard/dashboard.service.ts#L175), [job-card.select.ts](../../../server/src/modules/jobs/job-card.select.ts) |
 | BR-DSH-05 | "Điểm hôm nay" = trung bình làm tròn từng trục điểm của 5 lần chấm phù hợp mới nhất; trục không có số thì `null` | SV | ✅ Mềm | [dashboard.utils.ts:25](../../../server/src/modules/dashboard/dashboard.utils.ts#L25) |
 | BR-DSH-06 | Thị trường: chỉ khi hồ sơ có ngành khác `OTHER`; tính tin không phải bản sao, quét trong 7 ngày; top 5 tỉnh/nghề, bỏ mã không có tên | SV | ✅ Mềm | [dashboard.service.ts:35](../../../server/src/modules/dashboard/dashboard.service.ts#L35), [dashboard.utils.ts:133](../../../server/src/modules/dashboard/dashboard.utils.ts#L133) |
@@ -176,11 +176,13 @@ Không có. Hai route không nhận body, query hay param; `userId` lấy từ J
 | Route FE | Vai trò | Mục đích | Hook / API client |
 |---|---|---|---|
 | `/dashboard` | USER | Trang Tổng quan | [page.tsx](../../../../ui-ai-job-search/app/dashboard/page.tsx) → [dashboard-view.tsx](../../../../ui-ai-job-search/app/dashboard/dashboard-view.tsx), `useDashboard` |
-| — `QuickStrip` | USER | Hồ sơ %, số tin đã chấm, hành trình, thị trường, việc đang dở | [quick-strip.tsx](../../../../ui-ai-job-search/app/dashboard/quick-strip.tsx) |
+| — `DashboardHero` | USER | Lời chào, số tin khớp hồ sơ, việc đang dở (`resume`), hồ sơ %, minh hoạ CV đếm tới "điểm hôm nay" | [dashboard-hero.tsx](../../../../ui-ai-job-search/app/dashboard/dashboard-hero.tsx) |
+| — `TopMatches` | USER | Tab "Phù hợp nhất" = 6 việc đang chờ; tab "Mới nhất" / "Đã lưu" gọi `GET /jobs` (`scored`+`sort=newest` / `saved`, 6 tin) | [top-matches.tsx](../../../../ui-ai-job-search/app/dashboard/top-matches.tsx) |
+| — `ScoreBreakdown` | USER | Điểm hôm nay, 4 chiều, chiều thấp nhất, mốc 70 | [score-breakdown.tsx](../../../../ui-ai-job-search/app/dashboard/score-breakdown.tsx) |
+| — `WeeklyGoals` | USER | Mục tiêu tuần, chuỗi ngày | [weekly-goals.tsx](../../../../ui-ai-job-search/app/dashboard/weekly-goals.tsx) |
+| — `JourneyCard` | USER | Hành trình 5 chặng (chặng đầu chưa xong mở nút làm tiếp), kỹ năng nên học | [journey-card.tsx](../../../../ui-ai-job-search/app/dashboard/journey-card.tsx) |
 | — `MarketCard` | USER | Thị trường 7 ngày | [market-card.tsx](../../../../ui-ai-job-search/app/dashboard/market-card.tsx) |
-| — `ScoreBreakdown` | USER | Điểm hôm nay | [score-breakdown.tsx](../../../../ui-ai-job-search/app/dashboard/score-breakdown.tsx) |
-| — `TopMatches` | USER | 4 việc đang chờ | [top-matches.tsx](../../../../ui-ai-job-search/app/dashboard/top-matches.tsx) |
-| — `ProgressPanel` | USER | Mục tiêu tuần, chuỗi ngày, kỹ năng thiếu | [progress-panel.tsx](../../../../ui-ai-job-search/app/dashboard/progress-panel.tsx) |
+| — `ApplicationsCard` | USER | Số đơn đã xem / đã nộp (`GET /applications?status=`), 2 tin đã xem gần nhất kèm "Đánh dấu đã nộp" (đổi trạng thái sang `APPLIED`) | [applications-card.tsx](../../../../ui-ai-job-search/app/dashboard/applications-card.tsx) |
 | — `FirstRun` / `QuickStartOnboarding` | USER | Màn hình lần đầu / chọn ngành | [first-run.tsx](../../../../ui-ai-job-search/app/dashboard/first-run.tsx), [quick-start-onboarding.tsx](../../../../ui-ai-job-search/app/dashboard/quick-start-onboarding.tsx), [lib/onboarding.ts](../../../../ui-ai-job-search/lib/onboarding.ts) |
 | `/dashboard/profile` (khối kỹ năng) | USER | Gợi ý kỹ năng còn thiếu | [skills-section.tsx](../../../../ui-ai-job-search/app/dashboard/profile/sections/skills-section.tsx), `useSkillGaps` |
 | Khung `/dashboard/*` | USER (khách ở `/dashboard/jobs`, `/dashboard/salary`) | `SessionProvider` + `AppLayout` + `Sidebar`, `robots: noindex` | [layout.tsx](../../../../ui-ai-job-search/app/dashboard/layout.tsx) |
@@ -273,6 +275,6 @@ Không có tích hợp ngoài phía backend (không gọi AI, không hàng đợ
 - [ADR 0008](../../adr/0008-trang-viec-lam-cong-khai.md) (khách ở `/dashboard/jobs`, `/dashboard/salary`)
 
 **Frontend**
-- [app/dashboard/page.tsx](../../../../ui-ai-job-search/app/dashboard/page.tsx), [layout.tsx](../../../../ui-ai-job-search/app/dashboard/layout.tsx), [dashboard-view.tsx](../../../../ui-ai-job-search/app/dashboard/dashboard-view.tsx), [quick-strip.tsx](../../../../ui-ai-job-search/app/dashboard/quick-strip.tsx), [market-card.tsx](../../../../ui-ai-job-search/app/dashboard/market-card.tsx), [score-breakdown.tsx](../../../../ui-ai-job-search/app/dashboard/score-breakdown.tsx), [top-matches.tsx](../../../../ui-ai-job-search/app/dashboard/top-matches.tsx), [progress-panel.tsx](../../../../ui-ai-job-search/app/dashboard/progress-panel.tsx), [first-run.tsx](../../../../ui-ai-job-search/app/dashboard/first-run.tsx), [quick-start-onboarding.tsx](../../../../ui-ai-job-search/app/dashboard/quick-start-onboarding.tsx)
+- [app/dashboard/page.tsx](../../../../ui-ai-job-search/app/dashboard/page.tsx), [layout.tsx](../../../../ui-ai-job-search/app/dashboard/layout.tsx), [dashboard-view.tsx](../../../../ui-ai-job-search/app/dashboard/dashboard-view.tsx), [market-card.tsx](../../../../ui-ai-job-search/app/dashboard/market-card.tsx), [score-breakdown.tsx](../../../../ui-ai-job-search/app/dashboard/score-breakdown.tsx), [top-matches.tsx](../../../../ui-ai-job-search/app/dashboard/top-matches.tsx), [dashboard-hero.tsx](../../../../ui-ai-job-search/app/dashboard/dashboard-hero.tsx), [weekly-goals.tsx](../../../../ui-ai-job-search/app/dashboard/weekly-goals.tsx), [journey-card.tsx](../../../../ui-ai-job-search/app/dashboard/journey-card.tsx), [applications-card.tsx](../../../../ui-ai-job-search/app/dashboard/applications-card.tsx), [first-run.tsx](../../../../ui-ai-job-search/app/dashboard/first-run.tsx), [quick-start-onboarding.tsx](../../../../ui-ai-job-search/app/dashboard/quick-start-onboarding.tsx)
 - [app/dashboard/profile/sections/skills-section.tsx](../../../../ui-ai-job-search/app/dashboard/profile/sections/skills-section.tsx)
 - [services/dashboard.ts](../../../../ui-ai-job-search/services/dashboard.ts), [hooks/use-dashboard.ts](../../../../ui-ai-job-search/hooks/use-dashboard.ts), [lib/onboarding.ts](../../../../ui-ai-job-search/lib/onboarding.ts), [lib/query-keys.ts](../../../../ui-ai-job-search/lib/query-keys.ts), [lib/affiliate.ts](../../../../ui-ai-job-search/lib/affiliate.ts)
