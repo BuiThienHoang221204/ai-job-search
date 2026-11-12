@@ -25,8 +25,12 @@ Nay `scraper.service` xếp hàng theo **lô 5 tin** (`REQUIREMENTS_BATCH`) và 
 **Ba đường lùi, và cả ba đều bắt buộc — gộp lô không được phép tệ hơn không gộp:**
 
 1. **Tin dài hơn 6.000 ký tự đi đường lẻ.** Đo trên 563 tin: p50 2.556, p95 5.993, dài nhất 20.265. Mức này giữ ~95% số tin ở đường gộp mà không để một tin khổng lồ thổi phồng prompt.
-2. **Lô hỏng thì rút lại từng tin.** `job.requirements` vốn đã đứng đầu bảng lỗi SCHEMA, gộp lô làm bán kính thiệt hại rộng ra 5 lần — nên `catch` phải chạy lại đường lẻ, không được để cả lô mất trắng.
-3. **Lô thiếu phần tử thì riêng tin đó rút lẻ.** Model bỏ sót một tin trong lô là chuyện có thật; ánh xạ theo `index` phát hiện được và chỉ tin đó phải trả giá.
+2. **Lô hỏng: lỗi `TIMEOUT` và `SCHEMA` ghi FAILED cả lô, lỗi khác thì rút lại từng tin.** Ý ban đầu là mọi lô hỏng đều chạy lại đường lẻ để không mất trắng cả lô. Code hiện tại tách hai loại lỗi ra (`job-requirements.service.ts`, khối `catch` của `extractMany`):
+   - `TIMEOUT` và `SCHEMA` đánh dấu FAILED cả 5 tin, không rút lẻ. Model đang nghẽn hoặc đang trả sai định dạng thì rút lẻ chỉ nhân một lượt hỏng thành 5 lượt dồn vào đúng cổng đang quá tải.
+   - Lỗi khác (429, 5xx, mạng…) chạy lại từng tin qua đường lẻ.
+
+   Tin FAILED không tự xếp lại (quy tắc "không tự xếp lại việc FAILED" trong `CLAUDE.md`). Nó được rút lại khi tin xuất hiện lại ở một lượt quét sau (`isUpToDate` chỉ bỏ qua bản ghi DONE cùng `sourceHash`), hoặc khi admin rút lại bằng `POST /admin/jobs/re-extract`. Quy tắc nghiệp vụ tương ứng là BR-MAT-22 trong `docs/business-flows/modules/matching.md`. *(Sửa 2026-11-12 cho khớp code; bản cũ ghi "lô hỏng thì rút lại từng tin" cho mọi lỗi.)*
+3. **Lô thiếu phần tử hoặc một tin ra 0 kỹ năng thì riêng tin đó rút lẻ.** Model bỏ sót một tin trong lô là chuyện có thật; ánh xạ theo `index` phát hiện được và chỉ tin đó phải trả giá. Tin trong lô trả về 0 kỹ năng (`hasSkills` sai) cũng đi đường này, thay vì bị ghi FAILED ngay.
 
 **Khoá dedup của hàng đợi nay là VÂN TAY của cả lô** (sha256 của danh sách id đã sắp xếp, cắt 32 ký tự) — nối chuỗi năm cuid sẽ dài hơn cột `singleton_key` của pg-boss. Hai lô khác nhau chứa chung một tin thì không dedup được, và đó là chấp nhận được: `extractMany` so `sourceHash` trước khi gọi model nên tin đã rút xong chỉ tốn một lượt đọc database.
 
