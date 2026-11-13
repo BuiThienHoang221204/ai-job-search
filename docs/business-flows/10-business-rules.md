@@ -673,7 +673,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AI-03 | Chuỗi: mắt đầu = model yêu cầu ?? đầu bể main ?? `MODEL_ID`; dự phòng = `fallbackModelIds` của caller (thay hẳn) ?? bể main ?? `MODEL_FALLBACK_IDS`; khử trùng theo `lõi/model` | SV | ✅ |
 | BR-AI-04 | Đi tiếp mắt sau khi lỗi là: model không khả dụng, model bị rút, 429/hết hạn mức, 413/prompt quá lớn, 401/403, 5xx, **timeout**, **sai schema**; lỗi khác ném ngay | SV | ✅ |
 | BR-AI-05 | Ngân sách cả chuỗi `AI_CHAIN_BUDGET_MS` (240 s): quá ngân sách thì không mở mắt mới (mắt đang chạy không bị ngắt) | SV | ✅ |
-| BR-AI-06 | Timeout mặc định một lượt gọi 90 s; `maxRetries` SDK mặc định 2 (trong cùng một lượt) | SV | ✅ |
+| BR-AI-06 | Timeout mặc định một lượt gọi 90 s; SDK chỉ tự thử lại (2 lần) ở mắt xích CUỐI, mắt còn mắt sau thì `maxRetries: 0` để chuỗi đổi model ngay; caller truyền `maxRetries` thì giữ nguyên *(2026-11-13)* | SV | ✅ |
 | BR-AI-07 | Chế độ ép định dạng theo **lõi**: lõi `honorsResponseFormat:false` (opencode, omniroute, groq, unorouter, motapis *(2026-11-05)*) chỉ dùng chế độ bơm JSON Schema vào prompt; lõi khác dùng `response_format` khi `AI_STRUCTURED_OUTPUTS=true` | SV | ✅ |
 | BR-AI-08 | Lõi từ chối `response_format` → ghi nhớ chế độ ngược lại cho cả lõi (tới khi khởi động lại) | SV | ✅ |
 | BR-AI-09 | Không ra object và lõi có hai chế độ → thử lại **đúng một lần** ở chế độ kia; lõi một chế độ không lật | SV | ✅ |
@@ -708,6 +708,9 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-AI-38 | Sửa thân request theo lõi: omniroute thêm `stream:false` nếu thiếu; groq bỏ `response_format: json_object`; omniroute gửi header tắt nén/tắt bộ nhớ | SV | ✅ |
 | BR-AI-39 | Cảnh báo SDK về `responseFormat` (đã xử lý chủ ý) bị lọc khỏi log; cảnh báo khác ghi `warn` | SV | ✅ |
 | BR-AI-40 | Quét model mới của **mọi lõi** chỉ nhận model mà catalog `models.opencode.ai` khai `structured_output: true`; model hoặc lõi catalog không biết thì giữ (`omniroute`, `opencode-direct`), model ghim trong `.env` không bị lọc. Lõi mang tên khác trong catalog khai `catalogId`/`catalogModelId` (`gemini` → `google`, bỏ tiền tố `models/`). Đo 7 ngày tới 2026-10-20: model không khai — `mimo-v2.6-flash-free`, `nemotron-3.5-super-vl-free`, `nemotron-3-ultra-free` — là nhóm hỏng SCHEMA/TIMEOUT nhiều nhất *(2026-10-20)* | SV | ✅ |
+| BR-AI-41 | Lõi khai trần độ dài prompt (`maxPromptCharsFor`; omniroute `cfp/*` = 6 000 ký tự) thì prompt dài hơn bị bỏ qua TRƯỚC khi gọi: không request, không `ai_calls`, không cộng cầu dao; chuỗi đi tiếp mắt sau *(2026-11-13)*. Đo trước khi sửa: 222 lượt `[502] Prompt too long` × 25,8 s trong 14 ngày, toàn bộ ở `job.requirements`. | SV | ✅ |
+| BR-AI-42 | Caller không chỉ định model thì mắt đầu là model vừa thành công của cùng `purpose` (trong RAM, hết hạn 30 phút, phải còn trong chuỗi ứng viên); model đó hỏng vì lỗi thuộc về model thì quên ngay. Caller chỉ định model (mọi điểm gọi bể fast, probe) thì không dùng và không ghi trí nhớ *(2026-11-13)*. | SV | ✅ |
+| BR-AI-43 | Caller đặt `hedge: true` (đọc CV, chấm điểm, chấm CV cho khách) thì mắt đầu chưa xong sau `AI_HEDGE_AFTER_MS` (20 s) sẽ chạy song song phần còn lại của chuỗi; bên xong trước thắng, bên thua bị huỷ, không cộng cầu dao, không ghi `ai_calls`. Với stream, "xong" là mảnh đầu tiên *(2026-11-13)*. | SV | ✅ |
 
 ### Platform Operations — Vận hành nền tảng (hàng đợi, nhặt việc rơi, sức khoẻ, sandbox, lưu trữ, xử lý lỗi) — [modules/platform-operations.md](./modules/platform-operations.md#7-business-rules)
 

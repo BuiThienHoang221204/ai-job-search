@@ -1,5 +1,7 @@
 import type { ProviderDescriptor } from './types';
 
+const CFP_MAX_PROMPT_CHARS = 6_000;
+
 export const omniroute: ProviderDescriptor = {
   id: 'omniroute',
   label: 'OmniRoute',
@@ -12,6 +14,8 @@ export const omniroute: ProviderDescriptor = {
     'x-omniroute-no-memory': 'true',
   },
   explicitStreamFlag: true,
+  maxPromptCharsFor: (id) =>
+    id.startsWith('cfp/') ? CFP_MAX_PROMPT_CHARS : undefined,
   filterModel: (id) =>
     id.startsWith('ddgw/') ||
     id.startsWith('cfp/') ||

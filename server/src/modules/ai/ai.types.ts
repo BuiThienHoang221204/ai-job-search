@@ -17,14 +17,12 @@ export type GenerateObjectOptions<T> = {
   maxRetries?: number;
   timeoutMs?: number;
   maxOutputTokens?: number;
+  hedge?: boolean;
 };
 
 export type StreamTextResult = ReturnType<typeof streamText>;
 
-export type StreamObjectOptions<T> = Omit<
-  GenerateObjectOptions<T>,
-  'maxRetries'
->;
+export type StreamObjectOptions<T> = GenerateObjectOptions<T>;
 
 export type StreamObjectResult<T> = {
   modelId: string;

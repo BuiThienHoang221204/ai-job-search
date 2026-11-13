@@ -162,6 +162,7 @@ export class MatchingService {
       const { object, modelId } = await this.ai.generateObject<Evaluation>({
         schema: evaluationSchema,
         context: { purpose: 'match.evaluate', userId },
+        hedge: true,
         system,
         prompt,
       });
@@ -189,6 +190,7 @@ export class MatchingService {
         await this.ai.streamObject<Evaluation>({
           schema: evaluationSchema,
           context: { purpose: 'match.evaluate', userId },
+          hedge: true,
           system,
           prompt,
           ...fastModelChain(estimateTokens(system, prompt)),

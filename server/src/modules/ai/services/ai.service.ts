@@ -12,12 +12,14 @@ import {
   classifyFailure,
   formatIssue,
   isResponseFormatUnsupported,
+  PromptTooLongError,
   schemaIssues,
   truncateError,
   type SchemaIssue,
 } from '@/common/ai/failure-kind';
 import { estimateTokens } from '@/common/ai/token-estimate';
 import { markUsed } from '../utils/fast-model-scheduler';
+import { findProvider } from '../providers/index';
 import { errorMessageOf, schemaInstruction } from '../utils/schema-prompt';
 import { routeSdkWarnings } from '../utils/sdk-warnings';
 import { clipMiddle, emptyStream, streamFrom } from '../utils/stream';
@@ -38,6 +40,9 @@ import type {
 } from '../ai.types';
 
 const DEFAULT_TIMEOUT_MS = 90_000;
+const LAST_LINK_RETRIES = 2;
+
+type LinkOptions<T> = GenerateObjectOptions<T> & { signal: AbortSignal };
 
 const DB_TEXT_LIMIT = 2000;
 
@@ -62,6 +67,7 @@ export class AiService implements Ai {
   private readonly models: LanguageModelFactory;
   private readonly gate: ConcurrencyGate;
   private readonly structuredOutputsDefault: boolean;
+  private readonly hedgeAfterMs: number;
 
   private readonly learnedModes = new Map<string, boolean>();
 
@@ -74,6 +80,7 @@ export class AiService implements Ai {
     this.structuredOutputsDefault = config.get<boolean>(
       'ai.structuredOutputs',
     )!;
+    this.hedgeAfterMs = config.get<number>('ai.hedgeAfterMs')!;
     this.chain = new ModelChain({
       defaultModelId: config.get<string>('ai.modelId')!,
       defaultProviderId: config.get<string>('ai.provider')!,
@@ -101,8 +108,16 @@ export class AiService implements Ai {
     await this.readyFor(options.modelId);
     return this.chain.run(
       options.modelId,
-      (modelId) => this.withFormatFallback({ ...options, modelId }),
+      (modelId, isLast, signal) =>
+        this.withFormatFallback({
+          ...options,
+          modelId,
+          signal,
+          maxRetries: options.maxRetries ?? (isLast ? LAST_LINK_RETRIES : 0),
+        }),
       options.fallbackModelIds,
+      options.context.purpose,
+      options.hedge ? this.hedgeAfterMs : undefined,
     );
   }
 
@@ -126,7 +141,7 @@ export class AiService implements Ai {
   }
 
   private async withFormatFallback<T>(
-    options: GenerateObjectOptions<T>,
+    options: LinkOptions<T>,
   ): Promise<{ object: T; modelId: string }> {
     const {
       providerId,
@@ -174,18 +189,29 @@ export class AiService implements Ai {
     return options.system;
   }
 
-  /** Mở đầu chung: dựng model, ghi lượt dùng cho `fast-model-scheduler`, xin chỗ ở cổng song song. */
+  /** Mở đầu chung: dựng model, chặn prompt vượt trần độ dài của lõi, ghi lượt dùng cho `fast-model-scheduler`, xin chỗ ở cổng song song. */
   private async open(
     modelId: string | undefined,
     structuredOutputs: boolean,
     jsonStream: boolean,
-    estimatedTokens: number,
+    system: string,
+    prompt: string,
   ) {
     const created = await this.models.create(
       modelId,
       structuredOutputs,
       jsonStream,
     );
+    const maxChars = findProvider(created.provider)?.maxPromptCharsFor?.(
+      created.id,
+    );
+    const chars = system.length + prompt.length;
+    if (maxChars && chars > maxChars) {
+      throw new PromptTooLongError(
+        `${created.ref} chỉ nhận prompt tới ${maxChars} ký tự, prompt này ${chars}`,
+      );
+    }
+    const estimatedTokens = estimateTokens(system, prompt);
     markUsed(`${created.provider}/${created.id}`, estimatedTokens);
     const release = await this.gate.acquire(created.provider);
     return { ...created, release, startedAt: Date.now() };
@@ -193,27 +219,30 @@ export class AiService implements Ai {
 
   /** MỘT lượt gọi trên MỘT model; ghi `ai_calls` cho cả nhánh xong lẫn nhánh hỏng. */
   private async attempt<T>(
-    options: GenerateObjectOptions<T>,
+    options: LinkOptions<T>,
     structuredOutputs: boolean,
   ): Promise<{ object: T; modelId: string }> {
+    const system = this.systemFor(options, structuredOutputs);
     const { model, id, provider, ref, release, startedAt } = await this.open(
       options.modelId,
       structuredOutputs,
       false,
-      estimateTokens(options.system, options.prompt),
+      system,
+      options.prompt,
     );
 
     try {
       const result = await generateObject({
         model,
         schema: options.schema,
-        system: this.systemFor(options, structuredOutputs),
+        system,
         prompt: options.prompt,
-        maxRetries: options.maxRetries ?? 2,
+        maxRetries: options.maxRetries ?? LAST_LINK_RETRIES,
         maxOutputTokens: options.maxOutputTokens,
-        abortSignal: AbortSignal.timeout(
-          options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        ),
+        abortSignal: AbortSignal.any([
+          AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+          options.signal,
+        ]),
       }).finally(release);
 
       const durationMs = Date.now() - startedAt;
@@ -232,6 +261,7 @@ export class AiService implements Ai {
 
       return { object: result.object, modelId: id };
     } catch (error) {
+      if (options.signal.aborted) throw error;
       const durationMs = Date.now() - startedAt;
       const issues = schemaIssues(error);
       const empty = NoObjectGeneratedError.isInstance(error)
@@ -284,13 +314,21 @@ export class AiService implements Ai {
     await this.readyFor(options.modelId);
     return this.chain.run(
       options.modelId,
-      (modelId) => this.streamOnce({ ...options, modelId }),
+      (modelId, isLast, signal) =>
+        this.streamOnce({
+          ...options,
+          modelId,
+          signal,
+          maxRetries: options.maxRetries ?? (isLast ? LAST_LINK_RETRIES : 0),
+        }),
       options.fallbackModelIds,
+      options.context.purpose,
+      options.hedge ? this.hedgeAfterMs : undefined,
     );
   }
 
   private async streamOnce<T>(
-    options: StreamObjectOptions<T>,
+    options: LinkOptions<T>,
   ): Promise<StreamObjectResult<T>> {
     const {
       mode: primary,
@@ -322,7 +360,7 @@ export class AiService implements Ai {
   }
 
   private async withoutStreaming<T>(
-    options: StreamObjectOptions<T>,
+    options: LinkOptions<T>,
     mode: boolean,
   ): Promise<StreamObjectResult<T>> {
     this.logger.debug(
@@ -339,14 +377,16 @@ export class AiService implements Ai {
 
   /** Giữ tới mảnh đầu tiên: model trả văn xuôi thì vẫn còn đường lùi sang chế độ/model khác. */
   private async beginStream<T>(
-    options: StreamObjectOptions<T>,
+    options: LinkOptions<T>,
     structuredOutputs: boolean,
   ): Promise<StreamObjectResult<T>> {
+    const system = this.systemFor(options, structuredOutputs);
     const { model, id, provider, ref, release, startedAt } = await this.open(
       options.modelId,
       structuredOutputs,
       true,
-      estimateTokens(options.system, options.prompt),
+      system,
+      options.prompt,
     );
 
     let failStream: (error: unknown) => void = () => undefined;
@@ -357,11 +397,19 @@ export class AiService implements Ai {
     const result = streamObject({
       model,
       schema: options.schema,
-      system: this.systemFor(options, structuredOutputs),
+      system,
       prompt: options.prompt,
-      abortSignal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      maxRetries: options.maxRetries ?? LAST_LINK_RETRIES,
+      abortSignal: AbortSignal.any([
+        AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+        options.signal,
+      ]),
       onError: ({ error }) => {
         release();
+        if (options.signal.aborted) {
+          failStream(error);
+          return;
+        }
         void this.callLog.record({
           context: options.context,
           provider,
@@ -429,7 +477,8 @@ export class AiService implements Ai {
       options.modelId ?? this.chain.links()[0],
       false,
       false,
-      estimateTokens(options.system, JSON.stringify(options.messages)),
+      options.system,
+      JSON.stringify(options.messages),
     );
 
     const call = { provider, modelId: id, startedAt };

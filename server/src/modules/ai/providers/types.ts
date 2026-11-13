@@ -21,6 +21,7 @@ export type ProviderDescriptor = {
   catalogModelId?: (id: string) => string;
   streamsJson?: readonly string[] | 'all';
   rateLimitFor?: (modelId: string) => readonly RateLimitSpec[] | undefined;
+  maxPromptCharsFor?: (modelId: string) => number | undefined;
   filterModel?: (id: string) => boolean;
   customFetch?: (
     originalFetch: typeof fetch,

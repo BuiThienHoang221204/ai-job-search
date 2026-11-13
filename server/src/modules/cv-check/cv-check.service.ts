@@ -52,6 +52,7 @@ export class CvCheckService {
         prompt,
         timeoutMs: CV_CHECK_TIMEOUT_MS,
         maxOutputTokens: CV_CHECK_MAX_OUTPUT_TOKENS,
+        hedge: true,
         ...fastModelChain(estimateTokens(CV_CHECK_SYSTEM, prompt)),
       });
       const bullets = keepVerbatim(object.bullets, input.text);

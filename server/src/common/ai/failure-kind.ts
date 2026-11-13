@@ -87,6 +87,7 @@ export function isRateLimited(input: unknown): boolean {
 
 /** Prompt vượt trần token của RIÊNG model này (Groq trả 413 khi vượt TPM), model khác trần lớn hơn vẫn nhận được. */
 export function isTooLargeForModel(input: unknown): boolean {
+  if (input instanceof PromptTooLongError) return true;
   const error = unwrap(input);
   const status = (error as { statusCode?: unknown })?.statusCode;
 
@@ -157,6 +158,13 @@ export function schemaIssues(input: unknown): SchemaIssue[] {
 
 export const formatIssue = (issue: SchemaIssue): string =>
   `${issue.path}: ${issue.code} — ${issue.message}`;
+
+export class PromptTooLongError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PromptTooLongError';
+  }
+}
 
 export class ModelUnavailableError extends Error {
   constructor(message: string) {

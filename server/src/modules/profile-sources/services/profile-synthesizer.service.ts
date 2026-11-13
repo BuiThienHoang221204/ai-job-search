@@ -123,6 +123,7 @@ export class ProfileSynthesizerService {
       system: SYNTHESIS_SYSTEM,
       prompt: buildSynthesisPrompt(evidence),
       timeoutMs: SYNTHESIS_TIMEOUT_MS,
+      hedge: true,
     };
   }
 

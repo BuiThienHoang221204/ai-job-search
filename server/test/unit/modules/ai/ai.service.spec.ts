@@ -32,6 +32,7 @@ const generateObjectMock = jest.fn<Promise<unknown>, [GenerateObjectArgs]>();
 type StreamObjectArgs = {
   model: { id: string };
   system: string;
+  maxRetries?: number;
   onError: (event: { error: unknown }) => void;
 };
 
@@ -151,6 +152,9 @@ function build(options?: {
   unavailable?: string[];
   /// Trần đồng thời theo lõi, mô phỏng `ai.maxConcurrency` thật.
   maxConcurrency?: Record<string, number | undefined>;
+  /// Lõi mà catalog trả về cho mọi model; mặc định `opencode`.
+  providerId?: string;
+  hedgeAfterMs?: number;
 }) {
   const recorded: Recorded[] = [];
 
@@ -177,7 +181,7 @@ function build(options?: {
             ),
           )
         : Promise.resolve({
-            providerId: 'opencode',
+            providerId: options?.providerId ?? 'opencode',
             model: {
               id: modelId ?? 'model-mac-dinh',
               name: modelId ?? 'mặc định',
@@ -199,6 +203,7 @@ function build(options?: {
         return options?.structuredOutputs ?? true;
       if (key === 'ai.fallbackModelIds') return options?.fallbackModelIds ?? [];
       if (key === 'ai.maxConcurrency') return options?.maxConcurrency ?? {};
+      if (key === 'ai.hedgeAfterMs') return options?.hedgeAfterMs ?? 20_000;
       return undefined;
     },
   } as unknown as ConfigService;
@@ -1013,5 +1018,102 @@ describe('AiService.generateObject - cổng giới hạn đồng thời theo lõ
     ]);
 
     expect(order).toEqual(['start', 'start']);
+  });
+});
+
+describe('AiService - chuyển mắt xích ngay thay vì thử lại (2026-11-13)', () => {
+  test('mắt xích còn mắt sau thì SDK không thử lại, mắt cuối giữ 2 lần', async () => {
+    generateObjectMock
+      .mockRejectedValueOnce(rateLimit('a-free'))
+      .mockResolvedValueOnce({ object: { diem: 2 }, usage: {} });
+
+    const { service } = build({ fallbackModelIds: ['b-free'] });
+
+    await service.generateObject(call('a-free'));
+
+    expect(
+      generateObjectMock.mock.calls.map((_, i) => argsOf(i).maxRetries),
+    ).toEqual([0, 2]);
+  });
+
+  test('caller tự truyền maxRetries thì giữ nguyên ở mọi mắt xích', async () => {
+    generateObjectMock
+      .mockRejectedValueOnce(rateLimit('a-free'))
+      .mockResolvedValueOnce({ object: { diem: 2 }, usage: {} });
+
+    const { service } = build({ fallbackModelIds: ['b-free'] });
+
+    await service.generateObject({ ...call('a-free'), maxRetries: 0 });
+
+    expect(
+      generateObjectMock.mock.calls.map((_, i) => argsOf(i).maxRetries),
+    ).toEqual([0, 0]);
+  });
+
+  test('streamObject cũng không thử lại khi còn mắt sau', async () => {
+    streamObjectMock.mockReturnValueOnce(
+      fakeStream([{ diem: 1 }], Promise.resolve({ diem: 1 })),
+    );
+
+    const { service } = build({
+      fallbackModelIds: ['b-free'],
+      streamsJson: true,
+    });
+    const stream = await service.streamObject(call('a-free'));
+    await drain(stream.partials);
+
+    expect(streamObjectMock.mock.calls[0][0].maxRetries).toBe(0);
+  });
+
+  test('prompt vượt trần độ dài của lõi thì bỏ qua model đó mà không gọi, không ghi nhật ký', async () => {
+    generateObjectMock.mockResolvedValueOnce({
+      object: { diem: 6 },
+      usage: {},
+    });
+
+    const { service, recorded } = build({
+      providerId: 'omniroute',
+      fallbackModelIds: ['b-free'],
+    });
+
+    const result = await service.generateObject({
+      ...call('cfp/a'),
+      prompt: 'x'.repeat(7_000),
+    });
+
+    expect(result.modelId).toBe('b-free');
+    expect(generateObjectMock).toHaveBeenCalledTimes(1);
+    expect(recorded.map((row) => row.modelId)).toEqual(['b-free']);
+  });
+});
+
+describe('AiService - gọi song song khi model đầu chậm (2026-11-13)', () => {
+  test('lượt thua cuộc đua bị huỷ và không ghi nhật ký như một lỗi', async () => {
+    generateObjectMock.mockImplementation((args) => {
+      if (args.model.id === 'b-free') {
+        return Promise.resolve({ object: { diem: 8 }, usage: {} });
+      }
+      return new Promise((_, reject) => {
+        args.abortSignal?.addEventListener('abort', () =>
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+        );
+      });
+    });
+
+    const { service, recorded } = build({
+      fallbackModelIds: ['b-free'],
+      hedgeAfterMs: 20,
+    });
+
+    const result = await service.generateObject({
+      ...call('a-free'),
+      hedge: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(result.modelId).toBe('b-free');
+    expect(recorded.map((row) => [row.modelId, row.ok])).toEqual([
+      ['b-free', true],
+    ]);
   });
 });

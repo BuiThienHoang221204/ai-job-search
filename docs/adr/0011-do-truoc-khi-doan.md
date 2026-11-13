@@ -40,3 +40,5 @@ Ba điều đừng làm hỏng:
 **Hạn mức gateway free cạn trong một buổi:** sau khoảng 30 lượt gọi, mọi request nhận `Rate limit exceeded` và hỏng sau ~7 giây, kéo dài hơn một giờ. Khi thấy `failureKind = UPSTREAM` mà `durationMs` chỉ vài nghìn, đó là hạn mức chứ không phải lỗi code — đừng đi sửa gì, hãy đợi. Và **đừng gọi model trực tiếp trong lúc demo**, chuẩn bị dữ liệu trước.
 
 Gateway **không có model embedding nào**, nên vector search ở Pha 4 sẽ cần một nhà cung cấp khác chỉ cho embedding.
+
+**Mốc gọi song song `AI_HEDGE_AFTER_MS` (20 s, thêm 2026-11-13) nằm DƯỚI timeout một lời gọi:** với tác vụ bật `hedge`, mắt đầu chưa xong sau 20 s thì mắt sau chạy song song — mốc này phải nhỏ hơn timeout một lời gọi (mặc định 90 s, đọc CV dài hơn), nếu không mắt đầu đã bị timeout cắt trước khi kịp gọi song song và mốc vô nghĩa. Thứ tự đầy đủ: `AI_HEDGE_AFTER_MS` < timeout MỘT lời gọi < `AI_CHAIN_BUDGET_MS` < `server.setTimeout` < `STUCK_AFTER_MS`. Chọn 20 s theo số đo: 90% lượt thành công xong dưới 17 s (14 ngày `ai_calls`).

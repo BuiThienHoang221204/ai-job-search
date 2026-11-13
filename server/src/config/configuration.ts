@@ -48,6 +48,7 @@ const configuration = () => ({
     modelId: process.env.MODEL_ID ?? '',
 
     chainBudgetMs: int('AI_CHAIN_BUDGET_MS', 240_000),
+    hedgeAfterMs: int('AI_HEDGE_AFTER_MS', 20_000),
 
     fallbackModelIds: csv('MODEL_FALLBACK_IDS', ''),
 
