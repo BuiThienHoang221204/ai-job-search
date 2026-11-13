@@ -33,6 +33,18 @@ export class JobWriter {
     private readonly portals: JobSourceRouter,
   ) {}
 
+  async externalIdsOf(portal: string): Promise<Set<string>> {
+    const jobs = await this.prisma.job.findMany({
+      where: { source: portal },
+      select: { externalId: true },
+    });
+    return new Set(
+      jobs
+        .map((job) => job.externalId)
+        .filter((id): id is string => id !== null),
+    );
+  }
+
   async save(portal: string, rawCards: PortalJobCard[]): Promise<SaveOutcome> {
     const seenIds = new Set<string>();
     const cards: PortalJobCard[] = [];

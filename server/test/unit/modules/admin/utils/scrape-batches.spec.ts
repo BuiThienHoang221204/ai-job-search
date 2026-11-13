@@ -109,9 +109,9 @@ describe('portalStats', () => {
     expect(stats.lastRun?.id).toBe('3');
   });
 
-  test('lượt xong gần nhất đủ trần là chạm trần', () => {
-    expect(portalStats('topcv', runs, 50).hitCap).toBe(true);
-    expect(portalStats('topcv', runs, 60).hitCap).toBe(false);
+  test('chạm trần khi số tin MỚI của lượt xong gần nhất đủ trần, tin đã có trong kho không tính', () => {
+    expect(portalStats('topcv', runs, 7).hitCap).toBe(true);
+    expect(portalStats('topcv', runs, 50).hitCap).toBe(false);
   });
 
   test('chuỗi tin mới chỉ gồm lượt xong, cũ trước mới sau', () => {

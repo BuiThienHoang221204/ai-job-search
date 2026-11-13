@@ -103,6 +103,6 @@ export function portalStats(
       .filter((run) => run.status === 'DONE')
       .map((run) => run.jobsNew)
       .reverse(),
-    hitCap: lastDone !== null && lastDone.jobsFound >= cap,
+    hitCap: lastDone !== null && lastDone.jobsNew >= cap,
   };
 }

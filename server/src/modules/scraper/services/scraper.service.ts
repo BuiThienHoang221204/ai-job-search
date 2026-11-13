@@ -154,9 +154,10 @@ export class ScraperService {
         data: { queries: plan.queries, modelId },
       });
 
-      const { cards, askedIndices } = await collectCards(
+      const { cards, known, askedIndices } = await collectCards(
         {
           search: (portal, args) => this.portals.search(portal, args),
+          known: (portal) => this.writer.externalIdsOf(portal),
           log: (message) => this.logger.log(message),
           limits: {
             ...this.limits,
@@ -167,7 +168,7 @@ export class ScraperService {
         plan.queries,
       );
 
-      const saved = await this.writer.save(run.portal, cards);
+      const saved = await this.writer.save(run.portal, [...cards, ...known]);
 
       const extracted = await this.extractRequirements(saved.savedJobIds);
       if (extracted) {

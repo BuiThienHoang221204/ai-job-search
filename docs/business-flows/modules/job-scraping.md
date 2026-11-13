@@ -157,10 +157,11 @@ Phiên bản 1.0 — 2026-10-19.
 2. Hai vòng: vòng 1 mỗi truy vấn lấy tối đa `quota`; vòng 2 bỏ hạn ngạch để lấp chỗ trống tới trần.
 3. Mỗi bước: gọi `search(portal, { query, location: query.location || SCRAPER_DEFAULT_LOCATION, page, limit: 25, postedWithinDays: SCRAPER_MAX_AGE_DAYS })`; không vượt `SCRAPER_MAX_PAGES` trang mỗi truy vấn.
 4. Thẻ có ngày đăng quá `SCRAPER_MAX_AGE_DAYS` (7) bị loại TRƯỚC khi gọi `detail`; thẻ không đọc được ngày được GIỮ trừ khi `SCRAPER_REQUIRE_POSTED_AT=true`. Thẻ trùng `id` trong cùng lượt bị bỏ.
-5. Trang trả rỗng hoặc trang không thêm thẻ nào → truy vấn kết thúc.
+   - Đầu lượt tải một lần tập `externalId` đã có của portal (`deps.known` → `JobWriter.externalIdsOf`, một truy vấn cho cả lượt); thẻ đã có trong kho KHÔNG tính vào hạn ngạch truy vấn hay trần, được gom riêng vào `known` *(2026-11-13)*.
+5. Trang trả rỗng hoặc trang không thêm thẻ nào (thẻ đã có trong kho vẫn tính là "có thêm", nên trang toàn tin cũ không đóng truy vấn *(2026-11-13)*) → truy vấn kết thúc.
 6. Một truy vấn lỗi → đánh dấu lỗi, đi tiếp truy vấn khác. Lỗi chứa `(BLOCKED)` → dừng MỌI truy vấn còn lại nhưng giữ thẻ đã gom.
 7. Có truy vấn lỗi và không gom được thẻ nào → ném lỗi đầu tiên (lượt `FAILED` đúng lý do).
-8. Trả `cards` (≤ trần) và `askedIndices` (truy vấn đã gửi được ít nhất một request thành công).
+8. Trả `cards` (tin mới, ≤ trần), `known` (tin đã có, không giới hạn — `JobWriter.save` nhận cả hai để làm mới thẻ cũ *(2026-11-13)*) và `askedIndices` (truy vấn đã gửi được ít nhất một request thành công).
 
 ### Luồng G — Gọi portal (F7)
 
@@ -313,6 +314,7 @@ sequenceDiagram
 | BR-SCR-11 | Lượt quét chỉ chạy khi giành được chỗ `PENDING → RUNNING`; worker thua thì bỏ qua, không gọi portal/AI. | SV | ✅ | [scraper.service.ts:68-77](../../../server/src/modules/scraper/services/scraper.service.ts#L68) |
 | BR-SCR-12 | Lỗi bất kỳ trong lượt → `FAILED` + `error` + `finishedAt`; `FAILED` không tự xếp lại. | SV | ✅ | [scraper.service.ts:153-160](../../../server/src/modules/scraper/services/scraper.service.ts#L153) |
 | BR-SCR-40 | Cờ `listing: true`: lượt HỆ THỐNG quét thẳng danh sách mới nhất bằng một truy vấn rỗng thay vì cụm nghề — nhưng từ *(2026-11-06)* cả 3 portal đa ngành (ITviec/VNW/TopCV) đã chuyển sang `listing:false` (theo cụm ngành) vì listing-chung undersample ~90-99% — vì tìm theo từ khoá sort theo độ liên quan, bỏ sót tin mới. Portal không có all-listing (vieclam24h, careerviet, topdev; timviec sẵn có) thì CLI sort theo ngày đăng (`byNewest`/`newestFirst`). *(2026-11-03)* | SV | ✅ | [scraper.service.ts](../../../server/src/modules/scraper/services/scraper.service.ts), [portal-cli.service.ts](../../../server/src/modules/scraper/services/portal-cli.service.ts) |
+| BR-SCR-41 | Trần tin mỗi lượt chỉ tính tin CHƯA có trong kho: đầu lượt tải một lần tập `externalId` đã có của portal (`JobWriter.externalIdsOf`, không đọc trong vòng lặp), tin đã có không chiếm hạn ngạch truy vấn hay trần portal, trang toàn tin đã có không đóng truy vấn (đi tiếp trang sau tới `SCRAPER_MAX_PAGES`); tin đã có vẫn được làm mới dữ liệu thẻ *(2026-11-13)*. Đo trước khi sửa (lượt 12/11): itviec 150 quét / 16 mới, careerviet 100 / 32, joboko 100 / 30. | SV | ✅ | [collect-cards.ts](../../../server/src/modules/scraper/utils/collect-cards.ts), [job-writer.service.ts](../../../server/src/modules/scraper/services/job-writer.service.ts) |
 | BR-SCR-13 | `ScrapeRun` kẹt `RUNNING` > 4 giờ hoặc `PENDING` > 12 giờ được reconcile đánh `FAILED`. | SV | ✅ | [reconcile.service.ts:8-9](../../../server/src/modules/reconcile/services/reconcile.service.ts#L8), [reconcile.service.ts:119-133](../../../server/src/modules/reconcile/services/reconcile.service.ts#L119) |
 | BR-SCR-14 | Lượt người dùng: portal khai `occupations` mà ngành hồ sơ không thuộc → `DONE`, 0 tin, `error` giải thích, không gọi portal/AI; hồ sơ chưa có ngành thì không chặn. | SV | ✅ | [scraper.service.ts:186-194](../../../server/src/modules/scraper/services/scraper.service.ts#L186) |
 | BR-SCR-15 | Không có từ khoá mặc định: kế hoạch rỗng → `FAILED` với lời nhắc điền hồ sơ, không gọi model. | SV | ✅ | [scraper.service.ts:99-105](../../../server/src/modules/scraper/services/scraper.service.ts#L99), [query-planner.service.ts:42-45](../../../server/src/modules/scraper/services/query-planner.service.ts#L42) |
@@ -425,7 +427,7 @@ API client: [services/scraper.ts](../../../../ui-admin-job-search/services/scrap
 | `status` | `MatchStatus` mặc định `PENDING` | Xem §12 |
 | `portal` | String | Khoá portal |
 | `queries` | Json? | Mảng `{query, location, rationale}` đã dùng |
-| `jobsFound` | Int (0) | Số thẻ gom được (sau lọc ngày, ≤ trần) |
+| `jobsFound` | Int (0) | Số thẻ gom được (sau lọc ngày): tin mới ≤ trần cộng tin đã có trong kho — từ 2026-11-13 có thể vượt trần |
 | `jobsNew` | Int (0) | Số thẻ chưa có trong kho (gồm cả thẻ sau đó bị bỏ/gộp) |
 | `jobsQueued` | Int (0) | Số lượt `match.evaluate` đã xếp (0 khi tắt auto-score) |
 | `modelId` | String? | Model tinh chỉnh từ khoá (chỉ lượt người dùng) |

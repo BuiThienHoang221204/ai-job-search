@@ -50,6 +50,7 @@ async function collect(count: number, maxJobsPerPortal: number) {
           ),
         );
       },
+      known: () => Promise.resolve(new Set<string>()),
       log: () => {},
       limits: limits(maxJobsPerPortal),
     },
@@ -116,6 +117,7 @@ describe('collectCards khi một truy vấn lỗi', () => {
             ),
           );
         },
+        known: () => Promise.resolve(new Set<string>()),
         log: (message) => logs.push(message),
         limits: { ...limits(60), maxPages: 1 },
       },
@@ -168,5 +170,36 @@ describe('collectCards khi một truy vấn lỗi', () => {
     });
 
     await expect(outcome).rejects.toThrow('mất mạng');
+  });
+});
+
+describe('collectCards với tin đã có trong kho (2026-11-13)', () => {
+  it('tin đã có không chiếm suất trần và không đóng truy vấn: đi tiếp trang sau để lấy tin mới', async () => {
+    const pages: number[] = [];
+    const outcome = await collectCards(
+      {
+        search: (_portal, args) => {
+          pages.push(args.page!);
+          return Promise.resolve(
+            Array.from({ length: 25 }, (_, index) =>
+              card(`p${args.page}-${index}`),
+            ),
+          );
+        },
+        known: () =>
+          Promise.resolve(
+            new Set(Array.from({ length: 25 }, (_, index) => `p1-${index}`)),
+          ),
+        log: () => {},
+        limits: limits(10),
+      },
+      'careerviet',
+      queriesOf(1),
+    );
+
+    expect(pages).toEqual([1, 2]);
+    expect(outcome.cards).toHaveLength(10);
+    expect(outcome.cards.every((item) => item.id.startsWith('p2-'))).toBe(true);
+    expect(outcome.known).toHaveLength(25);
   });
 });

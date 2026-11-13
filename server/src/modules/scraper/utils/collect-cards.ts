@@ -20,6 +20,8 @@ export async function collectCards(
 ): Promise<CollectOutcome> {
   const { limits } = deps;
   const seen = new Map<string, PortalJobCard>();
+  const known = new Map<string, PortalJobCard>();
+  const stored = await deps.known(portal);
   const cursors: QueryCursor[] = queries.map((query) => ({
     query,
     page: 1,
@@ -47,7 +49,7 @@ export async function collectCards(
         if (cursor.done || cursor.taken >= cap) continue;
         if (cursor.page > limits.maxPages) continue;
 
-        stale += await advance(deps, portal, cursor, seen, cap);
+        stale += await advance(deps, portal, cursor, seen, known, stored, cap);
         advanced = true;
 
         if (isBlockedError(cursor.error)) {
@@ -73,6 +75,11 @@ export async function collectCards(
   if (stale) {
     deps.log(`${portal}: bỏ ${stale} tin đăng quá ${limits.maxAgeDays} ngày`);
   }
+  if (known.size) {
+    deps.log(
+      `${portal}: ${known.size} tin đã có trong kho, không tính vào trần`,
+    );
+  }
 
   const askedIndices = cursors
     .map((_, index) => index)
@@ -85,6 +92,7 @@ export async function collectCards(
 
   return {
     cards: [...seen.values()].slice(0, limits.maxJobsPerPortal),
+    known: [...known.values()],
     askedIndices,
   };
 }
@@ -94,6 +102,8 @@ async function advance(
   portal: string,
   cursor: QueryCursor,
   seen: Map<string, PortalJobCard>,
+  known: Map<string, PortalJobCard>,
+  stored: Set<string>,
   cap: number,
 ): Promise<number> {
   const { limits } = deps;
@@ -142,7 +152,12 @@ async function advance(
       stale += 1;
       continue;
     }
-    if (seen.has(card.id)) continue;
+    if (seen.has(card.id) || known.has(card.id)) continue;
+    if (stored.has(card.id)) {
+      known.set(card.id, card);
+      cursor.gained += 1;
+      continue;
+    }
 
     seen.set(card.id, card);
     cursor.taken += 1;

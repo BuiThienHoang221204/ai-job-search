@@ -95,12 +95,14 @@ export type QueryCursor = {
 
 export type CollectDeps = {
   search: (portal: string, args: SearchArgs) => Promise<PortalJobCard[]>;
+  known: (portal: string) => Promise<Set<string>>;
   log: (message: string) => void;
   limits: CollectLimits;
 };
 
 export type CollectOutcome = {
   cards: PortalJobCard[];
+  known: PortalJobCard[];
   askedIndices: number[];
 };
 

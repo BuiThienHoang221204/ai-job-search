@@ -95,3 +95,13 @@ Hai điều riêng của VietnamWorks:
 - **Phải khớp phần đầu với bản cắt trước khi nhận một đoạn**, đừng lấy chuỗi dài nhất: trang còn chứa mô tả của các tin gợi ý, và lấy nhầm thì tin này mang mô tả của tin kia mà không có gì báo.
 
 `detail` tìm lại tin bằng từ khoá trong alias, và **tin đăng lâu thì không tìm ra nữa** (6/16 tin ở lần backfill đầu). Nên có đường dự phòng `jobFromDetailHtml` dựng tin thẳng từ HTML; đường này thiếu `tags` vì chúng nằm ở các dòng tham chiếu lồng nhau chưa giải.
+
+#### Tin đã có trong kho không được chiếm suất trần — 2026-11-13
+
+**Đo lượt quét đêm 12/11 (`scrape_runs` trên prod):** portal chạm trần nhưng phần lớn là tin đã quét từ các đêm trước — itviec 150 quét / **16 mới**, careerviet 100 / 32, joboko 100 / 30, vietnamworks 150 / 72. Chạy thẳng CLI với đúng truy vấn của lượt đó: careerviet "Kế toán", "Kinh doanh", "Kho vận", "Điều dưỡng" có 72 / 100 / 100 / 99 tin trong 7 ngày **mỗi truy vấn** (5 trang), tức nguồn còn hàng nghìn tin mà mỗi đêm chỉ lấy được 32.
+
+**Nguyên nhân:** `collectCards` dừng khi số tin QUÉT được đủ `maxJobsPerPortal`; tin đã có trong kho chỉ bị lọc SAU đó ở `JobWriter.save`. Trần lại chia đều cho 30 truy vấn (vòng đầu ~3 tin mỗi truy vấn), nên đêm nào cũng lấy lại gần đúng mấy tin đầu trang 1 của đêm trước — tin trùng ăn hết trần, tin mới ở trang 2–5 không bao giờ tới lượt.
+
+**Quyết định:** đầu mỗi lượt, `collectCards` tải MỘT lần tập `externalId` đã có của portal (`CollectDeps.known` → `JobWriter.externalIdsOf`, một `findMany` cho cả lượt — hỏi kho từng trang trong vòng lặp là đọc N+1, `CLAUDE.md` cấm) rồi tra trong bộ nhớ. Kho lớn nhất đo 2026-11-14 là vietnamworks 2.741 tin, nên tập này cỡ vài chục KB; khi một portal vượt vài chục nghìn tin thì lọc theo `scrapedAt` trong cửa sổ gần. Tin đã có **không** tính vào `taken` của truy vấn hay trần của portal, nhưng vẫn được trả ra (`CollectOutcome.known`) để `JobWriter.save` làm mới dữ liệu thẻ như trước (`refreshKnownCards`). Trang toàn tin đã có KHÔNG đóng truy vấn — đi tiếp trang sau tới `maxPages`; chỉ trang không còn tin nào trong hạn ngày (hoặc toàn tin trùng với truy vấn khác cùng lượt) mới đóng như cũ.
+
+**Đánh đổi:** số request tới portal tăng — truy vấn có trang đầu toàn tin cũ giờ đi tiếp tới 5 trang thay vì dừng ở trang 1 — nhưng trần trên vẫn là `maxPages` × số truy vấn như trước. Lượt đầu sau khi sửa phải xem log portal nào trả `BLOCKED`. Không giúp được portal mà bản thân nguồn ít tin: timviec (trang nhỏ, mỗi từ khoá vài tin trong 7 ngày, lượt 12/11 mới quét 42/100 nên chưa từng vướng trần) và itviec (chỉ tin IT; "data analyst" cả trang 17 tin).

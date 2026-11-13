@@ -197,6 +197,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-SCR-11 | Lượt quét chỉ chạy khi giành được chỗ `PENDING → RUNNING`; worker thua thì bỏ qua, không gọi portal/AI. | SV | ✅ |
 | BR-SCR-12 | Lỗi bất kỳ trong lượt → `FAILED` + `error` + `finishedAt`; `FAILED` không tự xếp lại. | SV | ✅ |
 | BR-SCR-40 | Cờ `listing: true`: lượt HỆ THỐNG quét thẳng danh sách mới nhất bằng một truy vấn rỗng thay vì cụm nghề — nhưng từ *(2026-11-06)* cả 3 portal đa ngành (ITviec/VNW/TopCV) đã chuyển sang `listing:false` (theo cụm ngành) vì listing-chung undersample ~90-99% — vì tìm theo từ khoá sort theo độ liên quan, bỏ sót tin mới. Portal không có all-listing (vieclam24h, careerviet, topdev; timviec sẵn có) thì CLI sort theo ngày đăng (`byNewest`/`newestFirst`). *(2026-11-03)* | SV | ✅ |
+| BR-SCR-41 | Trần tin mỗi lượt chỉ tính tin CHƯA có trong kho: đầu lượt tải một lần tập `externalId` đã có của portal (`JobWriter.externalIdsOf`, không đọc trong vòng lặp), tin đã có không chiếm hạn ngạch truy vấn hay trần portal, trang toàn tin đã có không đóng truy vấn (đi tiếp trang sau tới `SCRAPER_MAX_PAGES`); tin đã có vẫn được làm mới dữ liệu thẻ *(2026-11-13)*. Đo trước khi sửa (lượt 12/11): itviec 150 quét / 16 mới, careerviet 100 / 32, joboko 100 / 30. | SV | ✅ |
 | BR-SCR-13 | `ScrapeRun` kẹt `RUNNING` > 4 giờ hoặc `PENDING` > 12 giờ được reconcile đánh `FAILED`. | SV | ✅ |
 | BR-SCR-14 | Lượt người dùng: portal khai `occupations` mà ngành hồ sơ không thuộc → `DONE`, 0 tin, `error` giải thích, không gọi portal/AI; hồ sơ chưa có ngành thì không chặn. | SV | ✅ |
 | BR-SCR-15 | Không có từ khoá mặc định: kế hoạch rỗng → `FAILED` với lời nhắc điền hồ sơ, không gọi model. | SV | ✅ |
@@ -636,7 +637,7 @@ Các mục §1 và §4 viết tay; §2 và §3 được sinh tự động từ f
 | BR-ADM-23 | Cảnh báo `warning` khi chưa từng quét hoặc lượt quét gần nhất (của portal còn đăng ký) cũ hơn 26 giờ | SV | ✅ |
 | BR-ADM-24 | Thống kê và lịch sử quét chỉ tính portal còn đăng ký; run của portal đã gỡ bị loại | SV | ✅ |
 | BR-ADM-25 | Gom run thành một lượt khi cách run đầu nhóm ≤ 5 phút, mỗi portal một run/lượt, không trộn run manual (có `userId`) với run hệ thống | SV | ✅ |
-| BR-ADM-26 | Sức khoẻ portal xét 14 lượt gần nhất; "chạm trần" khi lượt DONE gần nhất có `jobsFound ≥ scraper.maxJobsPerPortal` | SV | ✅ |
+| BR-ADM-26 | Sức khoẻ portal xét 14 lượt gần nhất; "chạm trần" khi lượt DONE gần nhất có số tin MỚI `jobsNew ≥ scraper.maxJobsPerPortal` *(2026-11-13)* | SV | ✅ |
 | BR-ADM-27 | Màn quét chỉ đọc tối đa 2.000 run mới nhất trong khoảng | SV | ✅ |
 | BR-ADM-28 | "Quét ngay" dùng chung hàm cron: quét tuần tự mọi portal, tạo run `userId = null`; đang có lượt chạy trong cùng tiến trình thì không xếp thêm | SV | ✅ |
 | BR-ADM-29 | Tính lại taxonomy mặc định chỉ xử lý tin `searchText = null`; `all=true` (đúng chuỗi `"true"`) tính lại toàn kho | SV | ✅ |
