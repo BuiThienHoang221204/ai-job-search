@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import {
+  BlockedError,
   decodeEntities,
+  errorForStatus,
+  isBlockedPage,
   matchesLocation,
   parseJobCards,
   parseJobExpertise,
@@ -131,5 +134,37 @@ describe("parseJobExpertise", () => {
 
   test("trang không có mục đó thì trả mảng rỗng", () => {
     expect(parseJobExpertise("<html></html>")).toEqual([])
+  })
+})
+
+/** Thân trang thử thách THẬT của Cloudflare, lấy từ máy chủ ngày 2026-11-20 (ITviec bật Cloudflare 11-18). */
+const CHALLENGE_PAGE =
+  '<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title>' +
+  '<meta http-equiv="content-security-policy" content="script-src https://challenges.cloudflare.com">' +
+  "</head><body><script>(function(){window._cf_chl_opt = {cFPWv: 'b'}})()</script></body></html>"
+
+describe("trang chặn của Cloudflare", () => {
+  test("trang thử thách thật là trang chặn", () => {
+    expect(isBlockedPage(CHALLENGE_PAGE)).toBe(true)
+  })
+
+  test("trang chi tiết THẬT nhúng Turnstile vẫn KHÔNG bị coi là trang chặn", () => {
+    expect(detail).toContain("challenges.cloudflare.com")
+    expect(isBlockedPage(detail)).toBe(false)
+  })
+
+  test("trang danh sách thật không bị coi là trang chặn", () => {
+    expect(isBlockedPage(fixture)).toBe(false)
+  })
+})
+
+describe("errorForStatus", () => {
+  test("403 là BLOCKED ngay để backend bật cầu dao, không bắn tiếp vào portal đang chặn", () => {
+    expect(errorForStatus(403)).toBeInstanceOf(BlockedError)
+  })
+
+  test("mã khác là lỗi thường", () => {
+    expect(errorForStatus(500)).not.toBeInstanceOf(BlockedError)
+    expect(errorForStatus(410)).not.toBeInstanceOf(BlockedError)
   })
 })

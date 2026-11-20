@@ -5,10 +5,12 @@ import {
   BlockedError,
   decodeEntities,
   errorForStatus,
+  htmlFetch,
   isBlockedPage,
   matchesLocation,
   parseDetail,
   parseJobCards,
+  proxyFetch,
   salaryOf,
   searchUrl,
 } from "../src/helpers.ts"
@@ -128,5 +130,74 @@ describe("salaryOf và matchesLocation", () => {
     expect(matchesLocation("Hồ Chí Minh", "HCM")).toBe(true)
     expect(matchesLocation("Trảng Bom, Đồng Nai", "Đồng Nai")).toBe(true)
     expect(matchesLocation("Hà Nội", "Vietnam")).toBe(true)
+  })
+})
+
+describe("vượt chặn IP bằng proxy", () => {
+  const origFetch = globalThis.fetch
+  const origAnt = process.env.SCRAPINGANT_API_KEY
+  const origZen = process.env.ZENROWS_API_KEY
+  const restore = () => {
+    globalThis.fetch = origFetch
+    if (origAnt === undefined) delete process.env.SCRAPINGANT_API_KEY
+    else process.env.SCRAPINGANT_API_KEY = origAnt
+    if (origZen === undefined) delete process.env.ZENROWS_API_KEY
+    else process.env.ZENROWS_API_KEY = origZen
+  }
+
+  test("403 từ 123job thì tải lại qua ScrapingAnt chứ không bỏ cả lượt quét", async () => {
+    process.env.SCRAPINGANT_API_KEY = "ant-key"
+    delete process.env.ZENROWS_API_KEY
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      return url.includes("scrapingant")
+        ? new Response(searchHtml, { status: 200 })
+        : new Response("<html><head><title>403 Forbidden</title></head></html>", { status: 403 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await htmlFetch("https://123job.vn/tuyen-dung?q=ke+toan")
+      expect(parseJobCards(html)).toHaveLength(30)
+      expect(calls).toHaveLength(2)
+      expect(calls[1]).toContain("proxy_type=datacenter")
+    } finally {
+      restore()
+    }
+  })
+
+  test("ScrapingAnt hỏng hết lượt thử thì chuyển sang ZenRows", async () => {
+    process.env.SCRAPINGANT_API_KEY = "ant-key"
+    process.env.ZENROWS_API_KEY = "zen-key"
+    const calls: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      calls.push(url)
+      return url.includes("scrapingant")
+        ? new Response("detected", { status: 423 })
+        : new Response(searchHtml, { status: 200 })
+    }) as unknown as typeof fetch
+
+    try {
+      const html = await proxyFetch("https://123job.vn/tuyen-dung?q=ke+toan", new BlockedError("chặn"))
+      expect(parseJobCards(html)).toHaveLength(30)
+      expect(calls.filter((url) => url.includes("scrapingant"))).toHaveLength(3)
+      expect(calls.at(-1)).toContain("api.zenrows.com")
+    } finally {
+      restore()
+    }
+  })
+
+  test("không cấu hình key nào thì vẫn BLOCKED để backend bật cầu dao", async () => {
+    delete process.env.SCRAPINGANT_API_KEY
+    delete process.env.ZENROWS_API_KEY
+    globalThis.fetch = (async () => new Response("Forbidden", { status: 403 })) as unknown as typeof fetch
+
+    try {
+      await expect(htmlFetch("https://123job.vn/tuyen-dung?q=ke+toan")).rejects.toThrow(BlockedError)
+    } finally {
+      restore()
+    }
   })
 })

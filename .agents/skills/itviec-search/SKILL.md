@@ -20,11 +20,26 @@ allowed-tools: Bash(bun run .agents/skills/itviec-search/cli/src/cli.ts *)
 Tìm việc làm CNTT tại Việt Nam từ trang danh sách công khai của ITviec. Không
 cần đăng nhập, không cần API key, không phụ thuộc runtime nào ngoài `bun`.
 
+**ĐANG BỊ CHẶN TRÊN MÁY CHỦ từ 2026-11-18.** ITviec bật Cloudflare: từ IP máy
+chủ mọi trang HTML trả 403 kèm `cf-mitigated: challenge`, trong khi IP dân dụng
+vẫn 200. Portal vẫn để **BẬT** — hết bị chặn thì tự chạy lại — và mỗi lượt quét
+báo `BLOCKED` để màn quản trị hiện đúng "bị chặn" thay vì một lỗi mạng chung.
+
+Chưa cho đi proxy: ScrapingAnt (datacenter, residential, `browser=true`) đều bị
+chặn 423; chỉ ZenRows `premium_proxy` + `js_render` qua được, mà cấu hình đó tốn
+25 credit mỗi request ≈ 700 credit/đêm so với gói miễn phí 5.000/tháng, trong
+khi ITviec chỉ mang về 10–19 tin/đêm (~2%). Số đo ở ADR 0005. Chạy tay từ máy cá
+nhân vẫn tốt.
+
 ## Phạm vi được phép
 
 `robots.txt` của itviec.com khai `Allow: /` cho mọi bot và chỉ chặn
 `/subscriptions/new`, nên các trang `/it-jobs/*` nằm trong phạm vi được phép
 truy cập. Vẫn nên **giữ tần suất thấp** và không thu thập hàng loạt.
+
+`robots.txt` vẫn trả 200 từ máy chủ, nhưng Cloudflare chặn mọi trang HTML khác
+— tức ITviec cho phép trong `robots.txt` mà từ chối ở tầng mạng. 403 nay là
+`BLOCKED` ngay để cầu dao backend bật, KHÔNG tìm cách vượt thử thách.
 
 ## Cách dùng
 

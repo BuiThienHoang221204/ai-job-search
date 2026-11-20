@@ -20,7 +20,26 @@ const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-/** Tải HTML, lùi dần khi gặp 429/5xx. Trả "" khi 404. */
+/** Portal chặn. Backend nhận mã BLOCKED và tạm ngừng gọi portal này - KHÔNG tìm cách vượt. */
+export class BlockedError extends Error {}
+
+/** Dấu hiệu trang thử thách của Cloudflare. Một widget reCAPTCHA/Turnstile trong form KHÔNG đủ - bẫy đã sập ở joboko-search. */
+const CHALLENGE = /<title>Just a moment|cf-chl|cf_chl_opt/i
+
+/** Có nội dung thật: thẻ tin trên trang danh sách, hoặc khối mô tả trên trang chi tiết. */
+const HAS_CONTENT = /data-job-key|jd-scroll-target='jobContent'/
+
+/** Trang chặn = có dấu hiệu thử thách VÀ không có nội dung thật; Cloudflare có lúc trả trang thử thách với mã 200. */
+export const isBlockedPage = (html: string): boolean => CHALLENGE.test(html) && !HAS_CONTENT.test(html)
+
+/** 403 là BLOCKED NGAY, không thử lại - ITviec bật Cloudflare 2026-11-18, cùng bài học của topcv-search và 123job-search. */
+export function errorForStatus(status: number): Error {
+  return status === 403
+    ? new BlockedError("ITviec chặn (403, Cloudflare); tạm dừng quét portal này")
+    : new Error(`ITviec trả về ${status}`)
+}
+
+/** Tải HTML, lùi dần khi gặp 429/5xx. Trả "" khi 404. Ném BlockedError khi gặp 403 hoặc trang thử thách. */
 export async function htmlFetch(url: string): Promise<string> {
   const maxRetries = 5
   let delay = 700
@@ -36,7 +55,13 @@ export async function htmlFetch(url: string): Promise<string> {
     })
 
     if (response.status === 404) return ""
-    if (response.ok) return response.text()
+    if (response.ok) {
+      const html = await response.text()
+      if (isBlockedPage(html)) {
+        throw new BlockedError("ITviec trả trang thử thách thay vì dữ liệu; tạm dừng quét portal này")
+      }
+      return html
+    }
 
     if (response.status === 429 || response.status >= 500) {
       if (attempt === maxRetries) {
@@ -47,7 +72,7 @@ export async function htmlFetch(url: string): Promise<string> {
       continue
     }
 
-    throw new Error(`ITviec trả về ${response.status}`)
+    throw errorForStatus(response.status)
   }
 
   throw new Error("không thể tải trang")

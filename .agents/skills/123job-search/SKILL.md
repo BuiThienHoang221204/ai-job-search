@@ -10,14 +10,19 @@ description: >
 context: fork
 enabled: true  # đặt false để giữ portal nhưng cho /scrape bỏ qua
 delayMs: 8000  # nhịp riêng: mỗi tin mới tốn thêm một request detail
+maxJobs: 50  # trần riêng: IP máy chủ bị chặn nên mỗi request tốn 1 credit proxy - xem ADR 0005
 allowed-tools: Bash(bun run .agents/skills/123job-search/cli/src/cli.ts *)
 ---
 
 # 123job Search Skill
 
 Tìm việc làm tại Việt Nam trên 123job **theo từ khoá thật**. Không cần đăng
-nhập, không cần API key, không cần `curl` (`fetch` của bun nhận 200 từ máy chủ
-Oracle; trang chạy nginx, không đứng sau Cloudflare — đo 2026-10-13).
+nhập, không cần `curl` (trang chạy nginx, không đứng sau Cloudflare).
+
+**Từ 2026-11-13 nginx của 123job trả 403 cho IP máy chủ** (kể cả `robots.txt`
+và trang chủ; cùng URL vẫn 200 từ IP dân dụng), nên CLI tải lại qua proxy —
+cần `SCRAPINGANT_API_KEY`, `ZENROWS_API_KEY` là đường lùi. Chi tiết và số đo
+credit ở ADR 0005.
 
 ## Phạm vi được phép
 
@@ -53,8 +58,11 @@ thương mại.
 - **Lương**: phần lớn thẻ ghi "Đang cập nhật" → `null`.
 - **`postedAt`** là `data-time` của thẻ (yyyy-mm-dd), khớp mốc "Đăng N giờ
   trước"; `detail` trả `datePosted` của JSON-LD.
-- **Chặn**: 403 là `BLOCKED` ngay, không thử lại; trang thử thách mã 200 chỉ bị
-  coi là chặn khi KHÔNG có thẻ tin hay JSON-LD. KHÔNG tìm cách vượt.
+- **Chặn**: 403 hoặc trang thử thách mã 200 thì tải lại qua ScrapingAnt
+  (`proxy_type=datacenter`, 1 credit) rồi ZenRows (`premium_proxy`, 10 credit),
+  chung ngân sách 30 giây; proxy cũng hỏng, hoặc không có key nào, thì trả
+  `BLOCKED` để backend tạm ngừng portal 30 phút. KHÔNG giải captcha, KHÔNG
+  đổi vân tay TLS.
 
 ## Lệnh
 
