@@ -104,7 +104,8 @@ export function fetchVerdict(status: number, body: string): FetchVerdict {
   return "fail"
 }
 
-const PROXY_BUDGET_MS = 30_000
+const PROXY_BUDGET_MS = 50_000
+const ATTEMPT_MIN_MS = 12_000
 const SCRAPINGANT_ATTEMPTS = 3
 
 /** Khoá API: biến môi trường trước, không có thì dò `server/.env` (khi chạy CLI bằng tay từ gốc repo hoặc thư mục cli). */
@@ -124,25 +125,22 @@ export function envKey(name: string): string | undefined {
   return undefined
 }
 
-const remainingMs = (deadline: number) => Math.max(1, deadline - Date.now())
-
 /** Tải qua ScrapingAnt bằng proxy datacenter (1 credit/request); bị phát hiện (423) thì thử lại với IP khác - lần hỏng không bị tính credit. */
-export async function scrapingAntFetch(
-  url: string,
-  apiKey: string,
-  deadline = Date.now() + PROXY_BUDGET_MS,
-): Promise<string> {
+export async function scrapingAntFetch(url: string, apiKey: string): Promise<string> {
+  const deadline = Date.now() + PROXY_BUDGET_MS
   const endpoint = new URL("https://api.scrapingant.com/v2/general")
   endpoint.searchParams.set("url", url)
   endpoint.searchParams.set("browser", "false")
   endpoint.searchParams.set("proxy_type", "datacenter")
 
-  for (let attempt = 1; attempt <= SCRAPINGANT_ATTEMPTS && Date.now() < deadline; attempt++) {
+  for (let attempt = 1; attempt <= SCRAPINGANT_ATTEMPTS; attempt++) {
+    const left = deadline - Date.now()
+    if (left < ATTEMPT_MIN_MS) break
     let res: Response
     try {
       res = await fetch(endpoint.toString(), {
         headers: { "x-api-key": apiKey },
-        signal: AbortSignal.timeout(remainingMs(deadline)),
+        signal: AbortSignal.timeout(left),
       })
     } catch (err) {
       throw new BlockedError(`ScrapingAnt fetch thất bại: ${(err as Error).message}`)
@@ -158,54 +156,14 @@ export async function scrapingAntFetch(
   throw new BlockedError(`ScrapingAnt vẫn bị TopCV chặn sau ${SCRAPINGANT_ATTEMPTS} lần thử`)
 }
 
-/** Tải qua ZenRows (`premium_proxy`, 10 credit/request) - dự phòng khi ScrapingAnt hỏng. */
-export async function zenrowsFetch(
-  url: string,
-  apiKey: string,
-  deadline = Date.now() + PROXY_BUDGET_MS,
-): Promise<string> {
-  const endpoint = new URL("https://api.zenrows.com/v1/")
-  endpoint.searchParams.set("apikey", apiKey)
-  endpoint.searchParams.set("url", url)
-  endpoint.searchParams.set("premium_proxy", "true")
-
-  try {
-    const res = await fetch(endpoint.toString(), { signal: AbortSignal.timeout(remainingMs(deadline)) })
-    if (res.status === 404 || res.status === 422) {
-      return ""
-    }
-    if (!res.ok) {
-      throw new BlockedError(`ZenRows trả về ${res.status}: không thể vượt chặn TopCV`)
-    }
-    const html = await res.text()
-    if (isBlockedPage(html)) {
-      throw new BlockedError("TopCV chặn (trang chặn qua ZenRows); tạm dừng quét portal này")
-    }
-    return html
-  } catch (err) {
-    if (err instanceof BlockedError) throw err
-    throw new BlockedError(`ZenRows fetch thất bại: ${(err as Error).message}`)
-  }
-}
-
 /**
- * Tải qua dịch vụ proxy khi IP máy chủ bị chặn: ScrapingAnt trước (rẻ), hỏng thì ZenRows,
- * chung một ngân sách thời gian: curl trực tiếp tối đa 25 giây + 30 giây ở đây vẫn dưới trần 60 giây mỗi lần gọi CLI của backend.
- * Không có key nào thì ném `blocked` để cầu dao ở backend bật như trước.
+ * Tải qua ScrapingAnt khi IP máy chủ bị chặn. Không có key thì ném `blocked`
+ * để cầu dao ở backend bật như trước.
  */
 export async function proxyFetch(url: string, blocked: Error): Promise<string> {
-  const deadline = Date.now() + PROXY_BUDGET_MS
   const antKey = envKey("SCRAPINGANT_API_KEY")
-  const zenrowsKey = envKey("ZENROWS_API_KEY")
-  if (antKey) {
-    try {
-      return await scrapingAntFetch(url, antKey, deadline)
-    } catch (err) {
-      if (!zenrowsKey) throw err
-    }
-  }
-  if (zenrowsKey) return zenrowsFetch(url, zenrowsKey, deadline)
-  throw blocked
+  if (!antKey) throw blocked
+  return scrapingAntFetch(url, antKey)
 }
 
 export async function htmlFetch(url: string): Promise<string> {

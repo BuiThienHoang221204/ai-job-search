@@ -49,6 +49,19 @@ báo lỗi rõ ràng chứ không im lặng trả về rỗng.
 `curl` có sẵn trên Windows 10 trở lên, macOS, và hầu hết bản phân phối Linux
 kèm ảnh Docker phổ biến.
 
+## Khi IP máy chủ bị chặn
+
+Trên máy chủ Oracle, `curl` nhận 403 trong 0,04 giây (đo 2026-11-23) nên mọi lượt đều
+đi qua **ScrapingAnt** `proxy_type=datacenter` (1 credit/request), tối đa 3 lần thử
+nếu bị phát hiện (423). Trang tìm kiếm nặng ~1,93 MB nên một lượt mất 11–31 giây:
+ngân sách là **50 giây cho mỗi lần tải** (mỗi lần gọi CLI chỉ tải đúng một trang)
+và không mở thêm lượt nào khi còn dưới 12 giây.
+
+**Không dùng ZenRows cho TopCV**: `premium_proxy` một mình trả 422 `RESP001`
+("try enabling javascript rendering"), mà thêm `js_render` thì 25 credit/request.
+Hỏng hết lượt ScrapingAnt thì báo `BLOCKED` để cầu dao ở backend bật. Chi tiết và
+số đo: ADR 0005.
+
 ## Cách dùng
 
 ```bash
@@ -81,6 +94,6 @@ bun run .agents/skills/topcv-search/cli/src/cli.ts detail \
 
 ```bash
 cd .agents/skills/topcv-search/cli
-bun test          # 33 test, chạy trên fixture HTML thật, không cần mạng
+bun test          # 42 test, chạy trên fixture HTML thật, không cần mạng
 bun run typecheck
 ```

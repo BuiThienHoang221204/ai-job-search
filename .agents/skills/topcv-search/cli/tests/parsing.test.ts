@@ -13,7 +13,6 @@ import {
   parseJobDescription,
   searchUrl,
   splitJobCards,
-  zenrowsFetch,
   scrapingAntFetch,
   proxyFetch,
   BlockedError,
@@ -286,65 +285,13 @@ describe("fetchVerdict - chặn thì báo BLOCKED, không thử lại", () => {
   })
 })
 
-describe("zenrowsFetch", () => {
-  const origFetch = globalThis.fetch
-
-  test("gọi ZenRows với đầy đủ tham số premium_proxy", async () => {
-    let calledUrl = ""
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      calledUrl = String(input)
-      return new Response(searchHtml, { status: 200 })
-    }) as typeof fetch
-
-    try {
-      const html = await zenrowsFetch("https://www.topcv.vn/tim-viec-lam-reactjs", "test-api-key")
-      expect(calledUrl).toContain("https://api.zenrows.com/v1/")
-      expect(calledUrl).toContain("apikey=test-api-key")
-      expect(calledUrl).toContain("premium_proxy=true")
-      expect(html).toContain("job-item-search-result")
-    } finally {
-      globalThis.fetch = origFetch
-    }
-  })
-
-  test("trả về rỗng khi ZenRows trả về 404 hoặc 422 (không tìm thấy trang)", async () => {
-    globalThis.fetch = (async () => new Response("Not found", { status: 404 })) as unknown as typeof fetch
-    try {
-      const html404 = await zenrowsFetch("https://www.topcv.vn/viec-lam/abc/123.html", "test-key")
-      expect(html404).toBe("")
-    } finally {
-      globalThis.fetch = origFetch
-    }
-
-    globalThis.fetch = (async () => new Response("Unprocessable", { status: 422 })) as unknown as typeof fetch
-    try {
-      const html422 = await zenrowsFetch("https://www.topcv.vn/viec-lam/abc/123.html", "test-key")
-      expect(html422).toBe("")
-    } finally {
-      globalThis.fetch = origFetch
-    }
-  })
-
-  test("báo lỗi BlockedError khi ZenRows trả lỗi mạng hoặc trang thử thách", async () => {
-    globalThis.fetch = (async () => new Response("Forbidden", { status: 500 })) as unknown as typeof fetch
-    try {
-      await expect(zenrowsFetch("https://www.topcv.vn/tim-viec-lam", "test-key")).rejects.toThrow(BlockedError)
-    } finally {
-      globalThis.fetch = origFetch
-    }
-  })
-})
-
-describe("proxyFetch: ScrapingAnt trước, ZenRows dự phòng", () => {
+describe("proxyFetch: chỉ qua ScrapingAnt", () => {
   const origFetch = globalThis.fetch
   const origAnt = process.env.SCRAPINGANT_API_KEY
-  const origZen = process.env.ZENROWS_API_KEY
   const restore = () => {
     globalThis.fetch = origFetch
     if (origAnt === undefined) delete process.env.SCRAPINGANT_API_KEY
     else process.env.SCRAPINGANT_API_KEY = origAnt
-    if (origZen === undefined) delete process.env.ZENROWS_API_KEY
-    else process.env.ZENROWS_API_KEY = origZen
   }
 
   test("ScrapingAnt bị phát hiện (423) thì thử lại bằng proxy datacenter", async () => {
@@ -364,21 +311,30 @@ describe("proxyFetch: ScrapingAnt trước, ZenRows dự phòng", () => {
     }
   })
 
-  test("ScrapingAnt hỏng hết lượt thử thì chuyển sang ZenRows", async () => {
+  test("hỏng hết lượt thử thì báo chặn, không gọi proxy nào khác", async () => {
     process.env.SCRAPINGANT_API_KEY = "ant-key"
-    process.env.ZENROWS_API_KEY = "zen-key"
     const calls: string[] = []
     globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const url = String(input)
-      calls.push(url)
-      return url.includes("scrapingant") ? new Response("detected", { status: 423 }) : new Response(searchHtml, { status: 200 })
+      calls.push(String(input))
+      return new Response("detected", { status: 423 })
     }) as unknown as typeof fetch
 
     try {
-      const html = await proxyFetch("https://www.topcv.vn/tim-viec-lam-ke-toan", new BlockedError("chặn"))
-      expect(html).toContain("job-item-search-result")
-      expect(calls.filter((url) => url.includes("scrapingant"))).toHaveLength(3)
-      expect(calls.at(-1)).toContain("api.zenrows.com")
+      await expect(proxyFetch("https://www.topcv.vn/tim-viec-lam-ke-toan", new BlockedError("chặn"))).rejects.toThrow(
+        /ScrapingAnt vẫn bị TopCV chặn/,
+      )
+      expect(calls).toHaveLength(3)
+      expect(calls.every((url) => url.includes("scrapingant"))).toBe(true)
+    } finally {
+      restore()
+    }
+  })
+
+  test("không có key thì ném đúng lỗi chặn ban đầu", async () => {
+    delete process.env.SCRAPINGANT_API_KEY
+    const blocked = new BlockedError("TopCV chặn (403, Cloudflare)")
+    try {
+      await expect(proxyFetch("https://www.topcv.vn/tim-viec-lam-ke-toan", blocked)).rejects.toThrow(blocked)
     } finally {
       restore()
     }
